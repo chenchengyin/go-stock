@@ -239,6 +239,7 @@ func (a *App) CheckUpdate(flag int) {
 	releaseVersion := &models.GitHubReleaseVersion{}
 	_, err := resty.New().R().
 		SetResult(releaseVersion).
+		SetHeader("Authorization", "Bearer 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").
 		Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases/latest")
 	if err != nil {
 		logger.SugaredLogger.Errorf("get github release version error:%s", err.Error())
@@ -249,6 +250,7 @@ func (a *App) CheckUpdate(flag int) {
 
 		tag := &models.Tag{}
 		_, err = resty.New().R().
+			SetHeader("Authorization", "Bearer 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").
 			SetResult(tag).
 			Get("https://api.github.com/repos/ArvinLovegood/go-stock/git/ref/tags/" + releaseVersion.TagName)
 		if err == nil {
@@ -717,7 +719,7 @@ func refreshTelegraphList() *[]string {
 	response, err := resty.New().R().
 		SetHeader("Referer", "https://www.cls.cn/").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").
-		Get(fmt.Sprintf(url))
+		Get(url)
 	if err != nil {
 		return &[]string{}
 	}

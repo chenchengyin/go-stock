@@ -3,7 +3,6 @@ package data
 import (
 	"bufio"
 	_ "embed"
-	"errors"
 	"fmt"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
@@ -18,7 +17,6 @@ import (
 	"github.com/duke-git/lancet/v2/fileutil"
 	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/go-ego/gse"
-	"github.com/vcaesar/cedar"
 )
 
 const basefreq float64 = 100
@@ -75,7 +73,17 @@ var baseDict string
 var zhDict string
 
 func InitAnalyzeSentiment() {
-	//err := seg.LoadDictEmbed()
+	defer func() {
+		if r := recover(); r != nil {
+			logger.SugaredLogger.Error(fmt.Sprintf("panic: %v", r))
+		}
+	}()
+	// 加载简体中文词典
+	//err := seg.LoadDict("zh_s")
+	//if err != nil {
+	//	logger.SugaredLogger.Error(err.Error())
+	//}
+
 	err := seg.LoadDictEmbed(baseDict)
 	if err != nil {
 		logger.SugaredLogger.Error(err.Error())
@@ -98,6 +106,8 @@ func InitAnalyzeSentiment() {
 			logger.SugaredLogger.Errorf("添加%s失败:%s", stock.Name, err.Error())
 		}
 	}
+	logger.SugaredLogger.Info("加载股票名称词典成功")
+
 	stockhks := &[]models.StockInfoHK{}
 	db.Dao.Model(&models.StockInfoHK{}).Find(stockhks)
 	for _, stock := range *stockhks {
@@ -112,6 +122,7 @@ func InitAnalyzeSentiment() {
 			logger.SugaredLogger.Errorf("添加%s失败:%s", stock.Name, err.Error())
 		}
 	}
+	logger.SugaredLogger.Info("加载港股名称词典成功")
 	//stockus := &[]models.StockInfoUS{}
 	//db.Dao.Model(&models.StockInfoUS{}).Where("trim(name) != ?", "").Find(stockus)
 	//for _, stock := range *stockus {
@@ -123,16 +134,17 @@ func InitAnalyzeSentiment() {
 	tags := &[]models.Tags{}
 	db.Dao.Model(&models.Tags{}).Where("type = ?", "subject").Find(tags)
 	for _, tag := range *tags {
-		err := seg.ReAddToken(tag.Name, basefreq+100, "n")
+		if tag.Name == "" {
+			continue
+		}
+		err := seg.AddToken(tag.Name, basefreq+100, "n")
 		if err != nil {
-			if errors.Is(err, cedar.ErrNoKey) {
-				err := seg.AddToken(tag.Name, basefreq+100, "n")
-				if err != nil {
-					logger.SugaredLogger.Errorf("添加%s失败:%s", tag.Name, err.Error())
-				}
-			}
+			logger.SugaredLogger.Errorf("添加%s失败:%s", tag.Name, err.Error())
+		} else {
+			logger.SugaredLogger.Infof("添加tags词典[%s]成功", tag.Name)
 		}
 	}
+	logger.SugaredLogger.Info("加载tags词典成功")
 	seg.CalcToken()
 	//加载用户自定义词典 先判断用户词典是否存在
 	if fileutil.IsExist("data/dict/user.txt") {
@@ -181,6 +193,8 @@ func InitAnalyzeSentiment() {
 		} else {
 			logger.SugaredLogger.Infof("加载用户词典成功")
 		}
+	} else {
+		logger.SugaredLogger.Info("用户词典不存在")
 	}
 	seg.CalcToken()
 }
@@ -200,7 +214,7 @@ func getWordWeight(word string) float64 {
 	freq, pos, ok := seg.Dictionary().Find([]byte(word))
 	if ok {
 		logger.SugaredLogger.Infof("获取%s的权重:%f,pos:%s,ok:%v", word, freq, pos, ok)
-		return basefreq + freq
+		return freq
 	}
 	return 0
 }
@@ -290,7 +304,7 @@ func countWordFrequencyWithWeight(text string) map[string]WordFreqWithWeight {
 	// 构建包含权重的结果
 	for word, frequency := range wordCount {
 		weight := getWordWeight(word)
-		if weight > basefreq {
+		if weight >= basefreq {
 			freqMap[word] = WordFreqWithWeight{
 				Word:      word,
 				Frequency: frequency,

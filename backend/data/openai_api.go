@@ -879,7 +879,7 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 		SetBody(map[string]interface{}{
 			"model": o.Model,
 			"thinking": map[string]any{
-				"type": "enabled",
+				"type": "disabled",
 			},
 			"max_tokens":  o.MaxTokens,
 			"temperature": o.Temperature,
@@ -1023,7 +1023,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 		SetBody(map[string]interface{}{
 			"model": o.Model,
 			"thinking": map[string]any{
-				"type": "enabled",
+				"type": "disabled",
 			},
 			"max_tokens":  o.MaxTokens,
 			"temperature": o.Temperature,

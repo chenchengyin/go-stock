@@ -8,6 +8,8 @@ import (
 	"go-stock/backend/models"
 	"testing"
 	"time"
+
+	"github.com/go-resty/resty/v2"
 )
 
 // @Author spark
@@ -44,4 +46,20 @@ func TestJson(t *testing.T) {
 
 	db.Dao.Model(v).Updates(v)
 
+}
+
+func TestUpdateCheck(t *testing.T) {
+	releaseVersion := &models.GitHubReleaseVersion{}
+	_, err := resty.New().R().
+		SetResult(releaseVersion).
+		SetHeader("Accept", "application/vnd.github+json").
+		SetHeader("X-GitHub-Api-Version", "2022-11-28").
+		SetHeader("Authorization", "Bearer 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").
+		Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases/latest")
+	//  https://api.github.com/repos/OWNER/REPO/releases/latest
+	if err != nil {
+		logger.SugaredLogger.Errorf("get github release version error:%s", err.Error())
+		return
+	}
+	logger.SugaredLogger.Infof("releaseVersion:%+v", releaseVersion)
 }
