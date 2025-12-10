@@ -651,7 +651,9 @@ func (m MarketNewsApi) TradingViewNews() *[]models.Telegraph {
 	TVNews := &[]models.TVNews{}
 	news := &[]models.Telegraph{}
 	//	url := "https://news-mediator.tradingview.com/news-flow/v2/news?filter=lang:zh-Hans&filter=area:WLD&client=screener&streaming=false"
-	url := "https://news-mediator.tradingview.com/news-flow/v2/news?filter=area%3AWLD&filter=lang%3Azh-Hans&client=screener&streaming=false"
+	//url := "https://news-mediator.tradingview.com/news-flow/v2/news?filter=area%3AWLD&filter=lang%3Azh-Hans&client=screener&streaming=false"
+	url := "https://news-mediator.tradingview.com/news-flow/v2/news?filter=lang%3Azh-Hans&client=screener&streaming=false"
+
 	resp, err := client.SetTimeout(time.Duration(15)*time.Second).R().
 		SetHeader("Host", "news-mediator.tradingview.com").
 		SetHeader("Origin", "https://cn.tradingview.com").

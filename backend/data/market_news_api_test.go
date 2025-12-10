@@ -11,6 +11,7 @@ import (
 
 	"github.com/coocood/freecache"
 	"github.com/duke-git/lancet/v2/random"
+	"github.com/go-resty/resty/v2"
 	"github.com/tidwall/gjson"
 )
 
@@ -252,4 +253,36 @@ func TestTelegraphList(t *testing.T) {
 	db.Init("../../data/stock.db")
 	InitAnalyzeSentiment()
 	NewMarketNewsApi().TelegraphList(30)
+}
+
+func TestProxy(t *testing.T) {
+	response, err := resty.New().
+		SetProxy("http://go-stock:778d4ff2-73f3-4d56-b3c3-d9a730a06ae3@stock.sparkmemory.top:8888").
+		R().
+		SetHeader("Host", "news-mediator.tradingview.com").
+		SetHeader("Origin", "https://cn.tradingview.com").
+		SetHeader("Referer", "https://cn.tradingview.com/").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
+		//Get("https://api.ipify.org")
+		Get("https://news-mediator.tradingview.com/news-flow/v2/news?filter=lang%3Azh-Hans&client=screener&streaming=false&user_prostatus=non_pro")
+	if err != nil {
+		logger.SugaredLogger.Error(err)
+		return
+	}
+	logger.SugaredLogger.Debugf("value: %s", response.String())
+
+}
+
+func TestNtfy(t *testing.T) {
+	attach := "https://go-stock.sparkmemory.top/%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A/2025/12/09/%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF[%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF]-(2025-12-09)AI%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C.md"
+	post, err := resty.New().SetBaseURL("https://go-stock.sparkmemory.top:16667").R().
+		SetHeader("Content-Type", "text/markdown").
+		SetHeader("Filename", "投资分析报告.md").
+		SetHeader("Attach", attach).
+		SetBody("分析报告").Post("/go-stock")
+	if err != nil {
+		logger.SugaredLogger.Error(err)
+		return
+	}
+	logger.SugaredLogger.Debugf("value: %s", post.String())
 }

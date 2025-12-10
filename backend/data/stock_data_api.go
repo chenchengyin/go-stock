@@ -1484,11 +1484,11 @@ func (receiver StockDataApi) getDCStockInfo(market string, page, pageSize int) {
 
 	url := "https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=1&invt=2&cb=data&fs=%s&fields=f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23,f100,f265&fid=f3&pn=%d&pz=%d&po=1&dect=1&wbp2u=|0|0|0|web&_=%d"
 	sprintfUrl := fmt.Sprintf(url, fs, page, pageSize, time.Now().UnixMilli())
-	logger.SugaredLogger.Infof("url:%s", sprintfUrl)
+	logger.SugaredLogger.Infof("page:%d  url:%s", page, sprintfUrl)
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "push2.eastmoney.com").
 		SetHeader("Referer", "https://quote.eastmoney.com/center/gridlist.html").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0").
 		Get(sprintfUrl)
 	if err != nil {
 		logger.SugaredLogger.Errorf("err:%s", err.Error())

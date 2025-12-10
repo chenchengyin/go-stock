@@ -121,10 +121,10 @@ func TestGetHKStockInfo(t *testing.T) {
 	//NewStockDataApi().GetSinaHKStockInfo()
 	//m:105,m:106,m:107  //美股
 	//m:128+t:3,m:128+t:4,m:128+t:1,m:128+t:2 //港股
-	//287  224 605
-	for i := 1; i <= 605; i++ {
-		NewStockDataApi().getDCStockInfo("us", i, 20)
-		time.Sleep(time.Duration(random.RandInt(1, 3)) * time.Second)
+	//274  224 605
+	for i := 197; i <= 274; i++ {
+		NewStockDataApi().getDCStockInfo("", i, 20)
+		time.Sleep(time.Duration(random.RandInt(2, 5)) * time.Second)
 	}
 }
 
@@ -270,15 +270,16 @@ func TestName(t *testing.T) {
 	db.Init("../../data/stock.db")
 
 	stockBasics := &[]StockBasic{}
-	resty.New().R().
+	resty.New().SetProxy("").R().
 		SetHeader("user", "go-stock").
 		SetResult(stockBasics).
 		Get("http://8.134.249.145:18080/go-stock/stock_basic.json")
 
-	db.Dao.Unscoped().Model(&StockBasic{}).Where("1=1").Delete(&StockBasic{})
-	err := db.Dao.CreateInBatches(stockBasics, 400).Error
-	if err != nil {
-		t.Log(err.Error())
-	}
+	logger.SugaredLogger.Infof("%+v", stockBasics)
+	//db.Dao.Unscoped().Model(&StockBasic{}).Where("1=1").Delete(&StockBasic{})
+	//err := db.Dao.CreateInBatches(stockBasics, 400).Error
+	//if err != nil {
+	//	t.Log(err.Error())
+	//}
 
 }

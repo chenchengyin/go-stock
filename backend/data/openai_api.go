@@ -1024,6 +1024,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 			"model": o.Model,
 			"thinking": map[string]any{
 				"type": "disabled",
+				//"type": "enabled",
 			},
 			"max_tokens":  o.MaxTokens,
 			"temperature": o.Temperature,
@@ -1052,6 +1053,8 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 	currentFuncName := ""
 	currentCallId := ""
 	var currentAIContent strings.Builder
+	var reasoningContentText strings.Builder
+	var contentText strings.Builder
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -1087,6 +1090,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 			if err := json.Unmarshal([]byte(data), &streamResponse); err == nil {
 				for _, choice := range streamResponse.Choices {
 					if content := choice.Delta.Content; content != "" {
+						contentText.WriteString(content)
 						//ch <- content
 						//logger.SugaredLogger.Infof("Content data: %s", content)
 
@@ -1114,6 +1118,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 
 					}
 					if reasoningContent := choice.Delta.ReasoningContent; reasoningContent != "" {
+						reasoningContentText.WriteString(reasoningContent)
 						//ch <- reasoningContent
 						ch <- map[string]any{
 							"code":     1,
@@ -1160,7 +1165,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								}
 
 								content := "无符合条件的数据"
-								res := NewSearchStockApi(words).SearchStock(random.RandInt(5, 20))
+								res := NewSearchStockApi(words).SearchStock(random.RandInt(50, 120))
 								if convertor.ToString(res["code"]) == "100" {
 									resData := res["data"].(map[string]any)
 									result := resData["result"].(map[string]any)

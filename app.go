@@ -161,7 +161,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Type: "function",
 		Function: data.ToolFunction{
 			Name:        "GetStockResearchReport",
-			Description: "获取股票的分析/研究报告",
+			Description: "获取市场分析师的股票研究报告",
 			Parameters: data.FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
