@@ -54,7 +54,6 @@ func TestUpdateCheck(t *testing.T) {
 		SetResult(releaseVersion).
 		SetHeader("Accept", "application/vnd.github+json").
 		SetHeader("X-GitHub-Api-Version", "2022-11-28").
-		//SetHeader("Authorization", "Bearer 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").
 		Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases/latest")
 	//  https://api.github.com/repos/OWNER/REPO/releases/latest
 	if err != nil {
