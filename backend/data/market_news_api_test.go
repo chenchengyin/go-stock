@@ -11,6 +11,7 @@ import (
 
 	"github.com/coocood/freecache"
 	"github.com/duke-git/lancet/v2/random"
+	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/go-resty/resty/v2"
 	"github.com/tidwall/gjson"
 )
@@ -285,4 +286,5 @@ func TestNtfy(t *testing.T) {
 		return
 	}
 	logger.SugaredLogger.Debugf("value: %s", post.String())
+	logger.SugaredLogger.Debugf("value: %s", strutil.After("/data/go-stock-site/docs/分析报告/2025/12/09/市场资讯[市场资讯]-(2025-12-09)AI分析结果.md", "/data/go-stock-site/docs/"))
 }

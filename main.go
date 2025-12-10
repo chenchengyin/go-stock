@@ -58,6 +58,13 @@ var OFFICIAL_STATEMENT string
 var BuildKey string
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.SugaredLogger.Error("panic: ", r)
+			log.SugaredLogger.Error("stack: ", string(debug.Stack()))
+		}
+	}()
+
 	checkDir("data")
 	db.Init("")
 	data.InitAnalyzeSentiment()
@@ -70,7 +77,7 @@ func main() {
 
 	log.SugaredLogger.Info("starting...")
 	log.SugaredLogger.Infof("version: %s  commit: %s", Version, VersionCommit)
-	log.SugaredLogger.Infof("build key: %s", BuildKey)
+	//log.SugaredLogger.Infof("build key: %s", BuildKey)
 
 	// Create an instance of the app structure
 	app := NewApp()
