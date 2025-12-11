@@ -30,9 +30,10 @@ const updateMessage = () => {
     </template>
     <n-list-item v-for="item in newsList">
       <n-space justify="start" >
-        <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'">
+        <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'" style="overflow-wrap: break-word;">
           <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>
-          <n-gradient-text :size="14" :type="'warning'" :bordered="false">{{ item.title }}</n-gradient-text> <n-text :type="item.isRed?'error':'info'">{{ item.content }}</n-text>
+          <n-text size="small" v-if="item.title"  type="warning" :bordered="false">{{ item.title }}&nbsp;&nbsp;</n-text>
+          <n-text style="overflow-wrap: break-word;word-break: break-all; word-wrap: break-word;" :type="item.isRed?'error':'info'">{{ item.content }}</n-text>
         </n-text>
 <!--        <n-collapse v-if="item.title">-->
 <!--          <n-collapse-item :title="item.title" :name="item.title">-->
