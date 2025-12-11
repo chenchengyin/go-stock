@@ -266,6 +266,7 @@ func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 			data := item.(map[string]any)
 			//logger.SugaredLogger.Infof("%s:%s", data["create_time"], data["rich_text"])
 			telegraph.Content = data["rich_text"].(string)
+			telegraph.Title = strutil.SubInBetween(data["rich_text"].(string), "【", "】")
 			telegraph.Time = strings.Split(data["create_time"].(string), " ")[1]
 			dataTime, _ := time.ParseInLocation("2006-01-02 15:04:05", data["create_time"].(string), time.Local)
 			if &dataTime != nil {

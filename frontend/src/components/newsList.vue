@@ -30,19 +30,26 @@ const updateMessage = () => {
     </template>
     <n-list-item v-for="item in newsList">
       <n-space justify="start" >
-        <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'" style="overflow-wrap: break-word;">
+<!--        <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'" style="overflow-wrap: break-word;">-->
+<!--          <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>-->
+<!--          <n-text size="small" v-if="item.title"  type="warning" :bordered="false">{{ item.title }}&nbsp;&nbsp;</n-text>-->
+<!--          <n-text style="overflow-wrap: break-word;word-break: break-all; word-wrap: break-word;" :type="item.isRed?'error':'info'">{{ item.content }}</n-text>-->
+<!--        </n-text>-->
+        <n-collapse v-if="item.title" arrow-placement="right">
+          <n-collapse-item :name="item.title">
+            <template #header>
+              <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>
+              <n-text size="small" :type="item.isRed?'error':'info'" :bordered="false">{{ item.title }}</n-text>
+            </template>
+            <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'">
+              {{ item.content }}
+            </n-text>
+          </n-collapse-item>
+        </n-collapse>
+        <n-text  v-if="!item.title" justify="start" :bordered="false" :type="item.isRed?'error':'info'">
           <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>
-          <n-text size="small" v-if="item.title"  type="warning" :bordered="false">{{ item.title }}&nbsp;&nbsp;</n-text>
-          <n-text style="overflow-wrap: break-word;word-break: break-all; word-wrap: break-word;" :type="item.isRed?'error':'info'">{{ item.content }}</n-text>
+          {{ item.content }}
         </n-text>
-<!--        <n-collapse v-if="item.title">-->
-<!--          <n-collapse-item :title="item.title" :name="item.title">-->
-<!--            <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'">-->
-<!--              <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>-->
-<!--              {{ item.content }}-->
-<!--            </n-text>-->
-<!--          </n-collapse-item>-->
-<!--        </n-collapse>-->
       </n-space>
       <n-space v-if="item.subjects" style="margin-top: 2px">
         <n-tag :bordered="false" type="success" size="small" v-for="sub in item.subjects">
