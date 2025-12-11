@@ -57,6 +57,7 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 			dataTime := time.Unix(ctime, 0).Local()
 			logger.SugaredLogger.Debugf("dataTime: %s", dataTime)
 			telegraph := models.Telegraph{
+				Title:           news["title"].(string),
 				Content:         news["content"].(string),
 				Time:            dataTime.Format("15:04:05"),
 				DataTime:        &dataTime,

@@ -6,6 +6,7 @@ import (
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
 	"go-stock/backend/util"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -275,16 +276,18 @@ func TestProxy(t *testing.T) {
 }
 
 func TestNtfy(t *testing.T) {
-	attach := "https://go-stock.sparkmemory.top/%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A/2025/12/09/%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF[%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF]-(2025-12-09)AI%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C.md"
-	post, err := resty.New().SetBaseURL("https://go-stock.sparkmemory.top:16667").R().
-		SetHeader("Content-Type", "text/markdown").
-		SetHeader("Filename", "投资分析报告.md").
-		SetHeader("Attach", attach).
-		SetBody("分析报告").Post("/go-stock")
-	if err != nil {
-		logger.SugaredLogger.Error(err)
-		return
-	}
-	logger.SugaredLogger.Debugf("value: %s", post.String())
+
+	//attach := "http://go-stock.sparkmemory.top/%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A/%E8%B5%84%E9%87%91%E6%B5%81%E5%90%91/2025-12/AI%EF%BC%9A%E5%B8%82%E5%9C%BA%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A-[2025.12.11_12.02.01].html"
+	//post, err := resty.New().SetBaseURL("https://go-stock.sparkmemory.top:16667").R().
+	//	SetHeader("Filename", "AI：市场分析报告-[2025.12.11_12.02.01].html").
+	//	SetHeader("Icon", "https://go-stock.sparkmemory.top/appicon.png").
+	//	SetHeader("Attach", attach).
+	//	SetBody("AI：市场分析报告-[2025.12.11_12.02.01]").Post("/go-stock")
+	//if err != nil {
+	//	logger.SugaredLogger.Error(err)
+	//	return
+	//}
+	//logger.SugaredLogger.Debugf("value: %s", post.String())
+	logger.SugaredLogger.Debugf("value: %s", filepath.Base("https://go-stock.sparkmemory.top/%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A/2025/12/11/%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF[%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF]-(2025-12-11)AI%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C_20251211131509.html"))
 	logger.SugaredLogger.Debugf("value: %s", strutil.After("/data/go-stock-site/docs/分析报告/2025/12/09/市场资讯[市场资讯]-(2025-12-09)AI分析结果.md", "/data/go-stock-site/docs/"))
 }
