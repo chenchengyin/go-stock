@@ -719,3 +719,35 @@ type BKDict struct {
 func (b BKDict) TableName() string {
 	return "bk_dict"
 }
+
+type WordAnalyze struct {
+	gorm.Model
+	DataTime *time.Time `json:"dataTime" gorm:"index;autoCreateTime"`
+	WordFreqWithWeight
+}
+
+// WordFreqWithWeight 词频统计结果，包含权重信息
+type WordFreqWithWeight struct {
+	Word      string
+	Frequency int
+	Weight    float64
+	Score     float64
+}
+
+// SentimentResult 情感分析结果类型
+type SentimentResult struct {
+	Score         float64       // 情感得分
+	Category      SentimentType // 情感类别
+	PositiveCount int           // 正面词数量
+	NegativeCount int           // 负面词数量
+	Description   string        // 情感描述
+}
+
+type SentimentResultAnalyze struct {
+	gorm.Model
+	DataTime *time.Time `json:"dataTime" gorm:"index;autoCreateTime"`
+	SentimentResult
+}
+
+// SentimentType 情感类型枚举
+type SentimentType int

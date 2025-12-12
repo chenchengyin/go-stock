@@ -418,6 +418,10 @@ func (a *App) domReady(ctx context.Context) {
 		if interval <= 0 {
 			interval = 1
 		}
+		a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+60), func() {
+			data.NewsAnalyze("", true)
+		})
+
 		//ticker := time.NewTicker(time.Second * time.Duration(interval))
 		//defer ticker.Stop()
 		//for range ticker.C {

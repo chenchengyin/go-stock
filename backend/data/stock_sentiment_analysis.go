@@ -199,14 +199,6 @@ func InitAnalyzeSentiment() {
 	seg.CalcToken()
 }
 
-// WordFreqWithWeight 词频统计结果，包含权重信息
-type WordFreqWithWeight struct {
-	Word      string
-	Frequency int
-	Weight    float64
-	Score     float64
-}
-
 // getWordWeight 获取词汇权重
 func getWordWeight(word string) float64 {
 	// 从分词器获取词汇权重
@@ -220,9 +212,9 @@ func getWordWeight(word string) float64 {
 }
 
 // SortByWeightAndFrequency 按权重和频次排序词频结果
-func SortByWeightAndFrequency(frequencies map[string]WordFreqWithWeight) []WordFreqWithWeight {
+func SortByWeightAndFrequency(frequencies map[string]models.WordFreqWithWeight) []models.WordFreqWithWeight {
 	// 将map转换为slice以便排序
-	freqSlice := make([]WordFreqWithWeight, 0, len(frequencies))
+	freqSlice := make([]models.WordFreqWithWeight, 0, len(frequencies))
 	for _, freq := range frequencies {
 		freqSlice = append(freqSlice, freq)
 	}
@@ -237,7 +229,7 @@ func SortByWeightAndFrequency(frequencies map[string]WordFreqWithWeight) []WordF
 }
 
 // FilterAndSortWords 过滤标点符号并按权重频次排序
-func FilterAndSortWords(frequencies map[string]WordFreqWithWeight) []WordFreqWithWeight {
+func FilterAndSortWords(frequencies map[string]models.WordFreqWithWeight) []models.WordFreqWithWeight {
 	// 先过滤标点符号和分隔符
 	cleanFrequencies := FilterPunctuationAndSeparators(frequencies)
 
@@ -246,8 +238,8 @@ func FilterAndSortWords(frequencies map[string]WordFreqWithWeight) []WordFreqWit
 
 	return sortedFrequencies
 }
-func FilterPunctuationAndSeparators(frequencies map[string]WordFreqWithWeight) map[string]WordFreqWithWeight {
-	filteredWords := make(map[string]WordFreqWithWeight)
+func FilterPunctuationAndSeparators(frequencies map[string]models.WordFreqWithWeight) map[string]models.WordFreqWithWeight {
+	filteredWords := make(map[string]models.WordFreqWithWeight)
 
 	for word, freqInfo := range frequencies {
 		// 过滤纯标点符号和分隔符
@@ -275,8 +267,8 @@ func isPunctuationOrSeparator(word string) bool {
 }
 
 // FilterWithRegex 使用正则表达式过滤标点和特殊字符
-func FilterWithRegex(frequencies map[string]WordFreqWithWeight) map[string]WordFreqWithWeight {
-	filteredWords := make(map[string]WordFreqWithWeight)
+func FilterWithRegex(frequencies map[string]models.WordFreqWithWeight) map[string]models.WordFreqWithWeight {
+	filteredWords := make(map[string]models.WordFreqWithWeight)
 
 	// 匹配标点符号、特殊字符的正则表达式
 	punctuationRegex := regexp.MustCompile(`^[[:punct:][:space:]]+$`)
@@ -291,9 +283,9 @@ func FilterWithRegex(frequencies map[string]WordFreqWithWeight) map[string]WordF
 }
 
 // countWordFrequencyWithWeight 统计词频并包含权重信息
-func countWordFrequencyWithWeight(text string) map[string]WordFreqWithWeight {
+func countWordFrequencyWithWeight(text string) map[string]models.WordFreqWithWeight {
 	words := splitWords(text)
-	freqMap := make(map[string]WordFreqWithWeight)
+	freqMap := make(map[string]models.WordFreqWithWeight)
 
 	// 统计词频
 	wordCount := make(map[string]int)
@@ -305,7 +297,7 @@ func countWordFrequencyWithWeight(text string) map[string]WordFreqWithWeight {
 	for word, frequency := range wordCount {
 		weight := getWordWeight(word)
 		if weight >= basefreq {
-			freqMap[word] = WordFreqWithWeight{
+			freqMap[word] = models.WordFreqWithWeight{
 				Word:      word,
 				Frequency: frequency,
 				Weight:    weight,
@@ -319,7 +311,7 @@ func countWordFrequencyWithWeight(text string) map[string]WordFreqWithWeight {
 }
 
 // AnalyzeSentimentWithFreqWeight 带权重词频统计的情感分析
-func AnalyzeSentimentWithFreqWeight(text string) (SentimentResult, map[string]WordFreqWithWeight) {
+func AnalyzeSentimentWithFreqWeight(text string) (models.SentimentResult, map[string]models.WordFreqWithWeight) {
 	// 原有情感分析逻辑
 	result := AnalyzeSentiment(text)
 
@@ -329,26 +321,14 @@ func AnalyzeSentimentWithFreqWeight(text string) (SentimentResult, map[string]Wo
 	return result, frequencies
 }
 
-// SentimentResult 情感分析结果类型
-type SentimentResult struct {
-	Score         float64       // 情感得分
-	Category      SentimentType // 情感类别
-	PositiveCount int           // 正面词数量
-	NegativeCount int           // 负面词数量
-	Description   string        // 情感描述
-}
-
-// SentimentType 情感类型枚举
-type SentimentType int
-
 const (
-	Positive SentimentType = iota
+	Positive models.SentimentType = iota
 	Negative
 	Neutral
 )
 
 // AnalyzeSentiment 判断文本的情感
-func AnalyzeSentiment(text string) SentimentResult {
+func AnalyzeSentiment(text string) models.SentimentResult {
 	// 初始化得分
 	score := 0.0
 	positiveCount := 0
@@ -388,7 +368,7 @@ func AnalyzeSentiment(text string) SentimentResult {
 	}
 
 	// 确定情感类别
-	var category SentimentType
+	var category models.SentimentType
 	switch {
 	case score > 1.0:
 		category = Positive
@@ -398,7 +378,7 @@ func AnalyzeSentiment(text string) SentimentResult {
 		category = Neutral
 	}
 
-	return SentimentResult{
+	return models.SentimentResult{
 		Score:         score,
 		Category:      category,
 		PositiveCount: positiveCount,
@@ -511,7 +491,7 @@ func splitWords(text string) []string {
 }
 
 // GetSentimentDescription 获取情感类别的文本描述
-func GetSentimentDescription(category SentimentType) string {
+func GetSentimentDescription(category models.SentimentType) string {
 	switch category {
 	case Positive:
 		return "看涨"
@@ -555,4 +535,44 @@ func main() {
 			result.PositiveCount,
 			result.NegativeCount)
 	}
+}
+
+func SaveAnalyzeSentimentWithFreqWeight(frequencies []models.WordFreqWithWeight) {
+
+	sort.Slice(frequencies, func(i, j int) bool {
+		return frequencies[i].Frequency > frequencies[j].Frequency
+	})
+	wordAnalyzes := make([]models.WordAnalyze, 0)
+	for _, freq := range frequencies[:10] {
+		wordAnalyze := models.WordAnalyze{
+			WordFreqWithWeight: freq,
+		}
+		wordAnalyzes = append(wordAnalyzes, wordAnalyze)
+	}
+	db.Dao.CreateInBatches(wordAnalyzes, 1000)
+}
+
+func SaveStockSentimentAnalysis(result models.SentimentResult) {
+	db.Dao.Create(&models.SentimentResultAnalyze{
+		SentimentResult: result,
+	})
+}
+
+func NewsAnalyze(text string, save bool) (models.SentimentResult, []models.WordFreqWithWeight) {
+	if text == "" {
+		telegraphs := NewMarketNewsApi().GetNews24HoursList("", 1000*10)
+		messageText := strings.Builder{}
+		for _, telegraph := range *telegraphs {
+			messageText.WriteString(telegraph.Content + "\n")
+		}
+		text = messageText.String()
+	}
+	result, frequencies := AnalyzeSentimentWithFreqWeight(text)
+	// 过滤标点符号和分隔符
+	cleanFrequencies := FilterAndSortWords(frequencies)
+	if save {
+		go SaveAnalyzeSentimentWithFreqWeight(cleanFrequencies)
+		go SaveStockSentimentAnalysis(result)
+	}
+	return result, cleanFrequencies
 }

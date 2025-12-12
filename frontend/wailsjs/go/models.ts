@@ -342,26 +342,6 @@ export namespace data {
 	
 	
 	
-	export class SentimentResult {
-	    Score: number;
-	    Category: number;
-	    PositiveCount: number;
-	    NegativeCount: number;
-	    Description: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SentimentResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Score = source["Score"];
-	        this.Category = source["Category"];
-	        this.PositiveCount = source["PositiveCount"];
-	        this.NegativeCount = source["NegativeCount"];
-	        this.Description = source["Description"];
-	    }
-	}
 	export class SettingConfig {
 	    ID: number;
 	    // Go type: time
@@ -743,6 +723,26 @@ export namespace models {
 	        this.name = source["name"];
 	        this.content = source["content"];
 	        this.type = source["type"];
+	    }
+	}
+	export class SentimentResult {
+	    Score: number;
+	    Category: number;
+	    PositiveCount: number;
+	    NegativeCount: number;
+	    Description: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SentimentResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Score = source["Score"];
+	        this.Category = source["Category"];
+	        this.PositiveCount = source["PositiveCount"];
+	        this.NegativeCount = source["NegativeCount"];
+	        this.Description = source["Description"];
 	    }
 	}
 	export class VersionInfo {

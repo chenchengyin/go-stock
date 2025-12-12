@@ -67,7 +67,7 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 				SentimentResult: AnalyzeSentiment(news["content"].(string)).Description,
 			}
 			cnt := int64(0)
-			db.Dao.Model(telegraph).Where("time=? and content=?", telegraph.Time, telegraph.Content).Count(&cnt)
+			db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
 			if cnt > 0 {
 				continue
 			}
@@ -290,7 +290,7 @@ func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 			if telegraph.Content != "" {
 				telegraph.SentimentResult = AnalyzeSentiment(telegraph.Content).Description
 				cnt := int64(0)
-				db.Dao.Model(telegraph).Where("content=? and source=?", telegraph.Content, telegraph.Source).Count(&cnt)
+				db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
 				if cnt == 0 {
 					db.Dao.Create(&telegraph)
 					telegraphs = append(telegraphs, telegraph)
@@ -703,7 +703,7 @@ func (m MarketNewsApi) TradingViewNews() *[]models.Telegraph {
 			SentimentResult: sentimentResult,
 		}
 		cnt := int64(0)
-		db.Dao.Model(telegraph).Where("time=? and title=? and source=?", telegraph.Time, telegraph.Title, "外媒").Count(&cnt)
+		db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
 		if cnt > 0 {
 			continue
 		}

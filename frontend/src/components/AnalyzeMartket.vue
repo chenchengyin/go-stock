@@ -75,7 +75,6 @@ function getIndex() {
 function  handleChart(){
   const formatUtil = echarts.format;
   AnalyzeSentimentWithFreqWeight("").then((res) => {
-    //console.log(res)
     const treemapchart = echarts.init(chartRef.value);
     const gaugeChart=echarts.init(gaugeChartRef.value);
     let data = res['frequencies'].map(item => ({

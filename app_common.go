@@ -4,7 +4,6 @@ import (
 	"go-stock/backend/agent"
 	"go-stock/backend/data"
 	"go-stock/backend/models"
-	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -32,7 +31,7 @@ func (a *App) EMDictCode(code string) []any {
 	return data.NewMarketNewsApi().EMDictCode(code, a.cache)
 }
 
-func (a *App) AnalyzeSentiment(text string) data.SentimentResult {
+func (a *App) AnalyzeSentiment(text string) models.SentimentResult {
 	return data.AnalyzeSentiment(text)
 }
 
@@ -75,17 +74,7 @@ func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int) {
 }
 
 func (a *App) AnalyzeSentimentWithFreqWeight(text string) map[string]any {
-	if text == "" {
-		telegraphs := data.NewMarketNewsApi().GetNews24HoursList("", 1000*10)
-		messageText := strings.Builder{}
-		for _, telegraph := range *telegraphs {
-			messageText.WriteString(telegraph.Content + "\n")
-		}
-		text = messageText.String()
-	}
-	result, frequencies := data.AnalyzeSentimentWithFreqWeight(text)
-	// 过滤标点符号和分隔符
-	cleanFrequencies := data.FilterAndSortWords(frequencies)
+	result, cleanFrequencies := data.NewsAnalyze(text, false)
 	return map[string]any{
 		"result":      result,
 		"frequencies": cleanFrequencies,

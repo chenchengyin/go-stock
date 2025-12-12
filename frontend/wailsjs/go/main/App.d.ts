@@ -12,7 +12,7 @@ export function AddPrompt(arg1:models.Prompt):Promise<string>;
 
 export function AddStockGroup(arg1:number,arg2:string):Promise<string>;
 
-export function AnalyzeSentiment(arg1:string):Promise<data.SentimentResult>;
+export function AnalyzeSentiment(arg1:string):Promise<models.SentimentResult>;
 
 export function AnalyzeSentimentWithFreqWeight(arg1:string):Promise<Record<string, any>>;
 
