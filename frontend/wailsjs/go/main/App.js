@@ -186,8 +186,8 @@ export function LongTigerRank(arg1) {
   return window['go']['main']['App']['LongTigerRank'](arg1);
 }
 
-export function NewChatStream(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['NewChatStream'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function NewChatStream(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['NewChatStream'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function NewsPush(arg1) {
@@ -266,8 +266,8 @@ export function StockResearchReport(arg1) {
   return window['go']['main']['App']['StockResearchReport'](arg1);
 }
 
-export function SummaryStockNews(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['SummaryStockNews'](arg1, arg2, arg3, arg4);
+export function SummaryStockNews(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['SummaryStockNews'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function UnFollow(arg1) {

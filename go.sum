@@ -118,8 +118,8 @@ github.com/clbanning/mxj v1.8.4/go.mod h1:BVjHeAH+rl9rs6f+QIpeRl0tfu10SXn1pUSa5P
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cloudwego/base64x v0.1.6 h1:t11wG9AECkCDk5fMSoxmufanudBtJ+/HemLstXDLI2M=
 github.com/cloudwego/base64x v0.1.6/go.mod h1:OFcloc187FXDaYHvrNIjxSe8ncn0OOM8gEHfghB2IPU=
-github.com/cloudwego/eino v0.7.3 h1:+byYvxX3d9C12XfSyXBH2blZlReTuqcPPbPqsdNiYGU=
-github.com/cloudwego/eino v0.7.3/go.mod h1:nA8Vacmuqv3pqKBQbTWENBLQ8MmGmPt/WqiyLeB8ohQ=
+github.com/cloudwego/eino v0.7.9 h1:wrkVFKa/gqe5b7EUl/hyKVXxwcAltI0OdOzABmDS5IE=
+github.com/cloudwego/eino v0.7.9/go.mod h1:nA8Vacmuqv3pqKBQbTWENBLQ8MmGmPt/WqiyLeB8ohQ=
 github.com/cloudwego/eino-ext/components/model/ark v0.1.52 h1:/qqHpgvS5hoC7Z2U0JOFJL75q/odMlR26VEsoV1bjo0=
 github.com/cloudwego/eino-ext/components/model/ark v0.1.52/go.mod h1:dC4wNeUdnjo4s/1r+YG7fMQcnfQ3bOFWw8Penh86vOI=
 github.com/cloudwego/eino-ext/components/model/deepseek v0.1.0 h1:LutIVpQaqXaXNhn3RkSB0dWyBldQ0oxq2pecyW4jqyU=

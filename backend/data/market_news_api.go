@@ -55,7 +55,6 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 			news := v.(map[string]any)
 			ctime, _ := convertor.ToInt(news["ctime"])
 			dataTime := time.Unix(ctime, 0).Local()
-			logger.SugaredLogger.Debugf("dataTime: %s", dataTime)
 			telegraph := models.Telegraph{
 				Title:           news["title"].(string),
 				Content:         news["content"].(string),
@@ -67,7 +66,11 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 				SentimentResult: AnalyzeSentiment(news["content"].(string)).Description,
 			}
 			cnt := int64(0)
-			db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+			if telegraph.Title == "" {
+				db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+			} else {
+				db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+			}
 			if cnt > 0 {
 				continue
 			}
@@ -290,7 +293,11 @@ func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 			if telegraph.Content != "" {
 				telegraph.SentimentResult = AnalyzeSentiment(telegraph.Content).Description
 				cnt := int64(0)
-				db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+				if telegraph.Title == "" {
+					db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+				} else {
+					db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+				}
 				if cnt == 0 {
 					db.Dao.Create(&telegraph)
 					telegraphs = append(telegraphs, telegraph)
@@ -703,7 +710,11 @@ func (m MarketNewsApi) TradingViewNews() *[]models.Telegraph {
 			SentimentResult: sentimentResult,
 		}
 		cnt := int64(0)
-		db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+		if telegraph.Title == "" {
+			db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+		} else {
+			db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+		}
 		if cnt > 0 {
 			continue
 		}

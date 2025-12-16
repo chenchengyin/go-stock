@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
+	"go-stock/backend/util"
 	"math"
 	"testing"
 
 	"github.com/duke-git/lancet/v2/convertor"
+	"github.com/duke-git/lancet/v2/mathutil"
 	"github.com/duke-git/lancet/v2/random"
 )
 
@@ -60,10 +63,20 @@ func TestSearchStock(t *testing.T) {
 func TestSearchStockApi_HotStrategy(t *testing.T) {
 	db.Init("../../data/stock.db")
 	res := NewSearchStockApi("").HotStrategy()
-	logger.SugaredLogger.Infof("res:%+v", res)
-	dataList := res["data"].([]any)
-	for _, v := range dataList {
-		d := v.(map[string]any)
-		logger.SugaredLogger.Infof("v:%+v", d)
+	bytes, err := json.Marshal(res)
+	if err != nil {
+		return
 	}
+	strategy := &models.HotStrategy{}
+	json.Unmarshal(bytes, strategy)
+	for _, data := range strategy.Data {
+		data.Chg = mathutil.RoundToFloat(100*data.Chg, 2)
+	}
+	markdownTable := util.MarkdownTable(strategy.Data)
+	logger.SugaredLogger.Infof("res:%s", markdownTable)
+	//dataList := res["data"].([]any)
+	//for _, v := range dataList {
+	//	d := v.(map[string]any)
+	//	logger.SugaredLogger.Infof("v:%+v", d)
+	//}
 }

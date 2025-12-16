@@ -92,12 +92,13 @@ func TestStockResearchReport(t *testing.T) {
 
 func TestIndustryResearchReport(t *testing.T) {
 	db.Init("../../data/stock.db")
-	resp := NewMarketNewsApi().IndustryResearchReport("456", 7)
+	resp := NewMarketNewsApi().IndustryResearchReport("", 7)
 	for _, a := range resp {
 		logger.SugaredLogger.Debugf("value: %+v", a)
 		data := a.(map[string]any)
 		logger.SugaredLogger.Debugf("value: %s  infoCode:%s", data["title"], data["infoCode"])
-		NewMarketNewsApi().GetIndustryReportInfo(data["infoCode"].(string))
+		logger.SugaredLogger.Debugf("url: https://pdf.dfcfw.com/pdf/H3_%s_1.pdf", data["infoCode"])
+		//NewMarketNewsApi().GetIndustryReportInfo(data["infoCode"].(string))
 	}
 }
 

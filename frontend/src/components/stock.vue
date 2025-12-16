@@ -110,6 +110,7 @@ const modalShow4 = ref(false)
 const modalShow5 = ref(false)
 const addBTN = ref(true)
 const enableTools = ref(false)
+const thinkingMode = ref(false)
 const formModel = ref({
   name: "",
   code: "",
@@ -1580,7 +1581,7 @@ function aiReCheckStock(stock, stockCode) {
   //
 
   //message.info("sysPromptId:"+data.sysPromptId)
-  NewChatStream(stock, stockCode, data.question, data.aiConfigId, data.sysPromptId, enableTools.value)
+  NewChatStream(stock, stockCode, data.question, data.aiConfigId, data.sysPromptId, enableTools.value,thinkingMode.value)
 }
 
 function aiCheckStock(stock, stockCode) {
@@ -2351,6 +2352,14 @@ function searchStockReport(stockCode) {
           </template>
           <template #unchecked>
             不启用AI函数工具调用
+          </template>
+        </n-switch>
+        <n-switch v-model:value="thinkingMode" :round="false">
+          <template #checked>
+            启用思考模式
+          </template>
+          <template #unchecked>
+            不启用思考模式
           </template>
         </n-switch>
         <n-gradient-text type="error" style="margin-left: 10px">

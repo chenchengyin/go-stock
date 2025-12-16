@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/chromedp/chromedp v0.14.2
-	github.com/cloudwego/eino v0.7.3
+	github.com/cloudwego/eino v0.7.9
 	github.com/cloudwego/eino-ext/components/model/ark v0.1.52
 	github.com/cloudwego/eino-ext/components/model/deepseek v0.1.0
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.5

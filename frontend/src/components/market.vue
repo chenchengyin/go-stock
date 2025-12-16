@@ -78,6 +78,7 @@ const indexInterval = ref(null)
 const indexIndustryRank = ref(null)
 const stockCode= ref('')
 const enableTools= ref(true)
+const thinkingMode = ref(true)
 const treemapRef = ref(null);
 let treemapchart =null;
 
@@ -223,7 +224,7 @@ function reAiSummary() {
   aiSummary.value = ""
   summaryModal.value = true
   loading.value = true
-  SummaryStockNews(question.value,aiConfigId.value, sysPromptId.value,enableTools.value)
+  SummaryStockNews(question.value,aiConfigId.value, sysPromptId.value,enableTools.value,thinkingMode.value)
 }
 
 function getAiSummary() {
@@ -704,6 +705,16 @@ function ReFlesh(source) {
             不启用AI函数工具调用
           </template>
         </n-switch>
+        <n-switch v-model:value="thinkingMode" :round="false">
+          <template #checked>
+            启用思考模式
+          </template>
+          <template #unchecked>
+            不启用思考模式
+          </template>
+        </n-switch>
+
+
         <n-gradient-text type="error" style="margin-left: 10px">*AI函数工具调用可以增强AI获取数据的能力,但会消耗更多tokens。</n-gradient-text>
       </n-flex>
       <n-flex justify="space-between" style="margin-bottom: 10px">

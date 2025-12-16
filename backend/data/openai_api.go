@@ -17,6 +17,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/chromedp"
 	"github.com/duke-git/lancet/v2/convertor"
+	"github.com/duke-git/lancet/v2/mathutil"
 	"github.com/duke-git/lancet/v2/random"
 	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/go-resty/resty/v2"
@@ -135,17 +136,19 @@ type Tool struct {
 	Function ToolFunction `json:"function"`
 }
 type FunctionParameters struct {
-	Type       string         `json:"type"`
-	Properties map[string]any `json:"properties"`
-	Required   []string       `json:"required"`
+	Type                 string         `json:"type"`
+	Properties           map[string]any `json:"properties"`
+	Required             []string       `json:"required"`
+	AdditionalProperties bool           `json:"additionalProperties"`
 }
 type ToolFunction struct {
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Parameters  FunctionParameters `json:"parameters"`
+	Name        string              `json:"name"`
+	Strict      bool                `json:"strict"`
+	Description string              `json:"description"`
+	Parameters  *FunctionParameters `json:"parameters"`
 }
 
-func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysPromptId *int, tools []Tool) <-chan map[string]any {
+func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysPromptId *int, tools []Tool, thinking bool) <-chan map[string]any {
 	ch := make(chan map[string]any, 512)
 	defer func() {
 		if err := recover(); err != nil {
@@ -185,12 +188,12 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"content": "当前时间",
 		})
 		msg = append(msg, map[string]interface{}{
-			"role":    "assistant",
-			"content": "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
+			"role":              "assistant",
+			"reasoning_content": "使用工具查询",
+			"content":           "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(6)
-
+		wg.Add(7)
 		go func() {
 			defer wg.Done()
 			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
@@ -200,8 +203,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"content": "投资者互动数据",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": content,
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           content,
 			})
 		}()
 
@@ -226,8 +230,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"content": "国内宏观经济数据",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": "\n# 国内宏观经济数据：\n" + market.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           "\n# 国内宏观经济数据：\n" + market.String(),
 			})
 		}()
 
@@ -250,8 +255,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"content": "当前市场/大盘/行业/指数行情",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": "当前市场/大盘/行业/指数行情如下：\n" + market.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           "当前市场/大盘/行业/指数行情如下：\n" + market.String(),
 			})
 		}()
 
@@ -280,8 +286,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"content": "近期重大事件/会议",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": "近期重大事件/会议如下：\n" + md.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           "近期重大事件/会议如下：\n" + md.String(),
 			})
 
 		}()
@@ -300,8 +307,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"content": "全球新闻资讯",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": newsText.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           newsText.String(),
 			})
 		}()
 
@@ -318,27 +326,33 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"content": "外媒全球新闻资讯",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": messageText.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           messageText.String(),
 			})
 		}()
-		wg.Wait()
-		news := NewMarketNewsApi().GetNewsList2("财联社电报", random.RandInt(100, 500))
-		messageText := strings.Builder{}
-		for _, telegraph := range *news {
-			messageText.WriteString("## " + telegraph.Time + ":" + "\n")
-			messageText.WriteString("### " + telegraph.Content + "\n")
-		}
-		//logger.SugaredLogger.Infof("市场资讯 messageText=\n%s", messageText.String())
 
-		msg = append(msg, map[string]interface{}{
-			"role":    "user",
-			"content": "市场资讯",
-		})
-		msg = append(msg, map[string]interface{}{
-			"role":    "assistant",
-			"content": messageText.String(),
-		})
+		go func() {
+			defer wg.Done()
+			news := NewMarketNewsApi().GetNewsList2("财联社电报", random.RandInt(100, 500))
+			messageText := strings.Builder{}
+			for _, telegraph := range *news {
+				messageText.WriteString("## " + telegraph.Time + ":" + "\n")
+				messageText.WriteString("### " + telegraph.Content + "\n")
+			}
+			msg = append(msg, map[string]interface{}{
+				"role":    "user",
+				"content": "市场资讯",
+			})
+			msg = append(msg, map[string]interface{}{
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           messageText.String(),
+			})
+		}()
+
+		wg.Wait()
+
 		if userQuestion == "" {
 			userQuestion = "请根据当前时间，总结和分析股票市场新闻中的投资机会"
 		}
@@ -346,12 +360,12 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"role":    "user",
 			"content": userQuestion,
 		})
-		AskAiWithTools(o, errors.New(""), msg, ch, userQuestion, tools)
+		AskAiWithTools(o, errors.New(""), msg, ch, userQuestion, tools, thinking)
 	}()
 	return ch
 }
 
-func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int) <-chan map[string]any {
+func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int, think bool) <-chan map[string]any {
 	ch := make(chan map[string]any, 512)
 	defer func() {
 		if err := recover(); err != nil {
@@ -395,7 +409,7 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			"content": "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(4)
+		wg.Add(5)
 		go func() {
 			defer wg.Done()
 			var market strings.Builder
@@ -470,6 +484,27 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			})
 		}()
 
+		go func() {
+			defer wg.Done()
+			markdownTable := ""
+			res := NewSearchStockApi("").HotStrategy()
+			bytes, _ := json.Marshal(res)
+			strategy := &models.HotStrategy{}
+			json.Unmarshal(bytes, strategy)
+			for _, data := range strategy.Data {
+				data.Chg = mathutil.RoundToFloat(100*data.Chg, 2)
+			}
+			markdownTable = util.MarkdownTableWithTitle("当前热门选股策略", strategy.Data)
+			msg = append(msg, map[string]interface{}{
+				"role":    "user",
+				"content": "当前热门选股策略",
+			})
+			msg = append(msg, map[string]interface{}{
+				"role":    "assistant",
+				"content": markdownTable,
+			})
+		}()
+
 		wg.Wait()
 
 		news := NewMarketNewsApi().GetNewsList2("财联社电报", random.RandInt(100, 500))
@@ -495,12 +530,12 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			"role":    "user",
 			"content": userQuestion,
 		})
-		AskAi(o, errors.New(""), msg, ch, userQuestion)
+		AskAi(o, errors.New(""), msg, ch, userQuestion, think)
 	}()
 	return ch
 }
 
-func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptId *int, tools []Tool) <-chan map[string]any {
+func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptId *int, tools []Tool, thinking bool) <-chan map[string]any {
 	ch := make(chan map[string]any, 512)
 
 	defer func() {
@@ -856,15 +891,15 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 		//reqJson, _ := json.Marshal(msg)
 		//logger.SugaredLogger.Errorf("Stream request: \n%s\n", reqJson)
 		if tools != nil && len(tools) > 0 {
-			AskAiWithTools(o, err, msg, ch, question, tools)
+			AskAiWithTools(o, err, msg, ch, question, tools, thinking)
 		} else {
-			AskAi(o, err, msg, ch, question)
+			AskAi(o, err, msg, ch, question, thinking)
 		}
 	}()
 	return ch
 }
 
-func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string) {
+func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, think bool) {
 	client := resty.New()
 	client.SetBaseURL(strutil.Trim(o.BaseUrl))
 	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
@@ -873,13 +908,17 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 	if o.TimeOut <= 0 {
 		o.TimeOut = 300
 	}
+	thinking := "disabled"
+	if think {
+		thinking = "enabled"
+	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
 	resp, err := client.R().
 		SetDoNotParseResponse(true).
 		SetBody(map[string]interface{}{
 			"model": o.Model,
 			"thinking": map[string]any{
-				"type": "disabled",
+				"type": thinking,
 			},
 			"max_tokens":  o.MaxTokens,
 			"temperature": o.Temperature,
@@ -1008,7 +1047,10 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 
 	}
 }
-func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, tools []Tool) {
+func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, tools []Tool, thinkingMode bool) {
+	bytes, _ := json.Marshal(messages)
+	logger.SugaredLogger.Debugf("Stream request: \n%s\n", string(bytes))
+
 	client := resty.New()
 	client.SetBaseURL(strutil.Trim(o.BaseUrl))
 	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
@@ -1017,14 +1059,19 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 	if o.TimeOut <= 0 {
 		o.TimeOut = 300
 	}
+	thinking := "disabled"
+	if thinkingMode {
+		thinking = "enabled"
+	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
 	resp, err := client.R().
 		SetDoNotParseResponse(true).
 		SetBody(map[string]interface{}{
 			"model": o.Model,
 			"thinking": map[string]any{
-				"type": "disabled",
+				//"type": "disabled",
 				//"type": "enabled",
+				"type": thinking,
 			},
 			"max_tokens":  o.MaxTokens,
 			"temperature": o.Temperature,
@@ -1202,8 +1249,9 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								logger.SugaredLogger.Infof("SearchStockByIndicators:words:%s  --> \n%s", words, content)
 
 								messages = append(messages, map[string]interface{}{
-									"role":    "assistant",
-									"content": currentAIContent.String(),
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
 									"tool_calls": []map[string]any{
 										{
 											"id":           currentCallId,
@@ -1221,6 +1269,9 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									"role":         "tool",
 									"content":      content,
 									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+
 								})
 
 								//ch <- map[string]any{
@@ -1275,8 +1326,9 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									logger.SugaredLogger.Infof("getKLineData=\n%s", markdownTable)
 
 									messages = append(messages, map[string]interface{}{
-										"role":    "assistant",
-										"content": currentAIContent.String(),
+										"role":              "assistant",
+										"content":           currentAIContent.String(),
+										"reasoning_content": reasoningContentText.String(),
 										"tool_calls": []map[string]any{
 											{
 												"id":           currentCallId,
@@ -1295,6 +1347,8 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 										"role":         "tool",
 										"content":      res,
 										"tool_call_id": currentCallId,
+										//"reasoning_content": reasoningContentText.String(),
+										//"tool_calls":        choice.Delta.ToolCalls,
 									})
 									logger.SugaredLogger.Infof("GetStockKLine:stockCode:%s days:%s --> \n%s", stockCode, days, res)
 
@@ -1308,8 +1362,9 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									//}
 								} else {
 									messages = append(messages, map[string]interface{}{
-										"role":    "assistant",
-										"content": currentAIContent.String(),
+										"role":              "assistant",
+										"content":           currentAIContent.String(),
+										"reasoning_content": reasoningContentText.String(),
 										"tool_calls": []map[string]any{
 											{
 												"id":           currentCallId,
@@ -1327,6 +1382,8 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 										"role":         "tool",
 										"content":      "无数据，可能股票代码错误。（A股：sh,sz开头;港股hk开头,美股：us开头）",
 										"tool_call_id": currentCallId,
+										//"reasoning_content": reasoningContentText.String(),
+										//"tool_calls":        choice.Delta.ToolCalls,
 									})
 								}
 							}
@@ -1355,8 +1412,9 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								content := util.MarkdownTableWithTitle("投资互动数据", datas.Results)
 								logger.SugaredLogger.Infof("InteractiveAnswer=\n%s", content)
 								messages = append(messages, map[string]interface{}{
-									"role":    "assistant",
-									"content": currentAIContent.String(),
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
 									"tool_calls": []map[string]any{
 										{
 											"id":           currentCallId,
@@ -1374,6 +1432,8 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									"role":         "tool",
 									"content":      content,
 									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
 								})
 							}
 							//
@@ -1489,8 +1549,9 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								}
 								logger.SugaredLogger.Infof("stockCode:%s StockResearchReport:\n %s", stockCode, md.String())
 								messages = append(messages, map[string]interface{}{
-									"role":    "assistant",
-									"content": currentAIContent.String(),
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
 									"tool_calls": []map[string]any{
 										{
 											"id":           currentCallId,
@@ -1508,11 +1569,50 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									"role":         "tool",
 									"content":      md.String(),
 									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
+							if funcName == "HotStrategyTable" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：HotStrategyTable，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								table := NewSearchStockApi("").HotStrategyTable()
+								logger.SugaredLogger.Infof("%s", table)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      table,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
 								})
 							}
 
 						}
-						AskAiWithTools(o, err, messages, ch, question, tools)
+						AskAiWithTools(o, err, messages, ch, question, tools, thinkingMode)
 					}
 
 					if choice.FinishReason == "stop" {
@@ -1560,7 +1660,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 							}
 							newMessages = append(newMessages, message)
 						}
-						AskAi(o, err, newMessages, ch, question)
+						AskAi(o, err, newMessages, ch, question, thinkingMode)
 					} else {
 						ch <- map[string]any{
 							"code":     0,

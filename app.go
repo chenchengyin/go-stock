@@ -62,7 +62,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name:        "SearchStockByIndicators",
 			Description: "根据自然语言筛选股票，返回自然语言选股条件要求的股票所有相关数据。输入股票名称可以获取当前股票最新的股价交易数据和基础财务指标信息，多个股票名称使用,分隔。",
-			Parameters: data.FunctionParameters{
+			Parameters: &data.FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"words": map[string]any{
@@ -88,7 +88,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name:        "GetStockKLine",
 			Description: "获取股票日K线数据。",
-			Parameters: data.FunctionParameters{
+			Parameters: &data.FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"days": map[string]any{
@@ -110,7 +110,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name:        "InteractiveAnswer",
 			Description: "获取投资者与上市公司互动问答的数据,反映当前投资者关注的热点问题",
-			Parameters: data.FunctionParameters{
+			Parameters: &data.FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"page": map[string]any{
@@ -162,7 +162,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name:        "GetStockResearchReport",
 			Description: "获取市场分析师的股票研究报告",
-			Parameters: data.FunctionParameters{
+			Parameters: &data.FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
@@ -172,6 +172,14 @@ func AddTools(tools []data.Tool) []data.Tool {
 				},
 				Required: []string{"stockCode"},
 			},
+		},
+	})
+
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "HotStrategyTable",
+			Description: "获取当前热门选股策略",
 		},
 	})
 
@@ -690,7 +698,7 @@ func (a *App) AddCronTask(follow data.FollowedStock) func() {
 	return func() {
 		go runtime.EventsEmit(a.ctx, "warnMsg", "开始自动分析"+follow.Name+"_"+follow.StockCode)
 		ai := data.NewDeepSeekOpenAi(a.ctx, follow.AiConfigId)
-		msgs := ai.NewChatStream(follow.Name, follow.StockCode, "", nil, a.AiTools)
+		msgs := ai.NewChatStream(follow.Name, follow.StockCode, "", nil, a.AiTools, true)
 		var res strings.Builder
 
 		chatId := ""
@@ -1055,12 +1063,12 @@ func (a *App) SendDingDingMessageByType(message string, stockCode string, msgTyp
 	return data.NewDingDingAPI().SendDingDingMessage(message)
 }
 
-func (a *App) NewChatStream(stock, stockCode, question string, aiConfigId int, sysPromptId *int, enableTools bool) {
+func (a *App) NewChatStream(stock, stockCode, question string, aiConfigId int, sysPromptId *int, enableTools bool, think bool) {
 	var msgs <-chan map[string]any
 	if enableTools {
-		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, a.AiTools)
+		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, a.AiTools, think)
 	} else {
-		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, []data.Tool{})
+		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, []data.Tool{}, think)
 	}
 	for msg := range msgs {
 		runtime.EventsEmit(a.ctx, "newChatStream", msg)
@@ -1390,12 +1398,12 @@ func (a *App) GlobalStockIndexes() map[string]any {
 	return data.NewMarketNewsApi().GlobalStockIndexes(30)
 }
 
-func (a *App) SummaryStockNews(question string, aiConfigId int, sysPromptId *int, enableTools bool) {
+func (a *App) SummaryStockNews(question string, aiConfigId int, sysPromptId *int, enableTools bool, think bool) {
 	var msgs <-chan map[string]any
 	if enableTools {
-		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewSummaryStockNewsStreamWithTools(question, sysPromptId, a.AiTools)
+		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewSummaryStockNewsStreamWithTools(question, sysPromptId, a.AiTools, think)
 	} else {
-		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewSummaryStockNewsStream(question, sysPromptId)
+		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewSummaryStockNewsStream(question, sysPromptId, think)
 	}
 
 	for msg := range msgs {

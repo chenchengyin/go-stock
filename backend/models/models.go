@@ -751,3 +751,19 @@ type SentimentResultAnalyze struct {
 
 // SentimentType 情感类型枚举
 type SentimentType int
+
+type HotStrategy struct {
+	ChgEffect bool               `json:"chgEffect"`
+	Code      int                `json:"code"`
+	Data      []*HotStrategyData `json:"data"`
+	Message   string             `json:"message"`
+}
+
+type HotStrategyData struct {
+	Chg       float64 `json:"chg" md:"平均涨幅(%)"`
+	Code      string  `json:"code" md:"-"`
+	HeatValue int     `json:"heatValue" md:"热度值"`
+	Market    string  `json:"market" md:"-"`
+	Question  string  `json:"question" md:"选股策略"`
+	Rank      int     `json:"rank" md:"-"`
+}

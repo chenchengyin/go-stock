@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
+	"go-stock/backend/util"
 	"time"
 
+	"github.com/duke-git/lancet/v2/mathutil"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -80,4 +83,17 @@ func (s SearchStockApi) HotStrategy() map[string]any {
 	respMap := map[string]any{}
 	json.Unmarshal(resp.Body(), &respMap)
 	return respMap
+}
+
+func (s SearchStockApi) HotStrategyTable() string {
+	markdownTable := ""
+	res := s.HotStrategy()
+	bytes, _ := json.Marshal(res)
+	strategy := &models.HotStrategy{}
+	json.Unmarshal(bytes, strategy)
+	for _, data := range strategy.Data {
+		data.Chg = mathutil.RoundToFloat(100*data.Chg, 2)
+	}
+	markdownTable = util.MarkdownTableWithTitle("当前热门选股策略", strategy.Data)
+	return markdownTable
 }
