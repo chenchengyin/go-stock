@@ -17,7 +17,7 @@ func TestNewDeepSeekOpenAiConfig(t *testing.T) {
 		Function: ToolFunction{
 			Name:        "SearchStockByIndicators",
 			Description: "根据自然语言筛选股票，返回自然语言选股条件要求的股票所有相关数据",
-			Parameters: FunctionParameters{
+			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"words": map[string]any{
@@ -32,7 +32,7 @@ func TestNewDeepSeekOpenAiConfig(t *testing.T) {
 
 	ai := NewDeepSeekOpenAi(context.TODO(), 0)
 	//res := ai.NewChatStream("长电科技", "sh600584", "长电科技分析和总结", nil)
-	res := ai.NewSummaryStockNewsStreamWithTools("总结市场资讯，发掘潜力标的/行业/板块/概念，控制风险。调用工具函数验证", nil, tools)
+	res := ai.NewSummaryStockNewsStreamWithTools("总结市场资讯，发掘潜力标的/行业/板块/概念，控制风险。调用工具函数验证", nil, tools, true)
 
 	for {
 		select {
