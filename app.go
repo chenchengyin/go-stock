@@ -68,6 +68,8 @@ func AddTools(tools []data.Tool) []data.Tool {
 					"words": map[string]any{
 						"type": "string",
 						"description": "选股自然语言。" +
+							"例如，查看技术指标：上海贝岭,macd,rsi,kdj,boll,5日均线,14日均线,30日均线,60日均线,成交量,OBV,EMA" +
+							"例如，查看有潜力的成交量爆发股：最近7日成交量量比大于3，出现过一次，非ST" +
 							"例1：创新药,半导体;PE<30;净利润增长率>50%。 " +
 							"例2：上证指数,科创50。 " +
 							"例3：长电科技,上海贝岭。" +
