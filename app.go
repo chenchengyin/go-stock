@@ -291,7 +291,7 @@ func (a *App) CheckUpdate(flag int) {
 			downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-darwin-universal", releaseVersion.TagName)
 		}
 		downloadUrl, _, done := a.isVip(sponsorCode, downloadUrl, releaseVersion)
-		if done {
+		if !done {
 			return
 		}
 		go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
