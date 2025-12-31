@@ -767,3 +767,15 @@ type HotStrategyData struct {
 	Question  string  `json:"question" md:"选股策略"`
 	Rank      int     `json:"rank" md:"-"`
 }
+
+type NtfyNews struct {
+	Id      string   `json:"id"`
+	Time    int      `json:"time"`
+	Expires int      `json:"expires"`
+	Event   string   `json:"event"`
+	Topic   string   `json:"topic"`
+	Title   string   `json:"title"`
+	Message string   `json:"message"`
+	Tags    []string `json:"tags"`
+	Icon    string   `json:"icon"`
+}
