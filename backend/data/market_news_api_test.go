@@ -235,7 +235,7 @@ func TestReutersNew(t *testing.T) {
 
 func TestInteractiveAnswer(t *testing.T) {
 	db.Init("../../data/stock.db")
-	datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
+	datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "立讯精密")
 	logger.SugaredLogger.Debugf("PageSize:%d", datas.PageSize)
 	md := util.MarkdownTableWithTitle("投资互动", datas.Results)
 	logger.SugaredLogger.Debugf(md)

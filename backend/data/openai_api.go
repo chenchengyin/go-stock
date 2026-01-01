@@ -193,7 +193,7 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"content":           "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(5)
+		wg.Add(4)
 		go func() {
 			defer wg.Done()
 			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
@@ -236,30 +236,30 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			})
 		}()
 
-		go func() {
-			defer wg.Done()
-			var market strings.Builder
-			market.WriteString(GetZSInfo("上证指数", "sh000001", 30) + "\n")
-			market.WriteString(GetZSInfo("深证成指", "sz399001", 30) + "\n")
-			market.WriteString(GetZSInfo("创业板指数", "sz399006", 30) + "\n")
-			market.WriteString(GetZSInfo("科创50", "sh000688", 30) + "\n")
-			market.WriteString(GetZSInfo("沪深300指数", "sh000300", 30) + "\n")
-			market.WriteString(GetZSInfo("中证银行", "sz399986", 30) + "\n")
-			market.WriteString(GetZSInfo("科创芯片", "sh000685", 30) + "\n")
-			market.WriteString(GetZSInfo("上证医药", "sh000037", 30) + "\n")
-			market.WriteString(GetZSInfo("证券龙头", "sz399437", 30) + "\n")
-			market.WriteString(GetZSInfo("中证白酒", "sz399997", 30) + "\n")
-			//logger.SugaredLogger.Infof("NewChatStream getZSInfo=\n%s", market.String())
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "当前市场/大盘/行业/指数行情",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":              "assistant",
-				"reasoning_content": "使用工具查询",
-				"content":           "当前市场/大盘/行业/指数行情如下：\n" + market.String(),
-			})
-		}()
+		//go func() {
+		//	defer wg.Done()
+		//	var market strings.Builder
+		//	market.WriteString(GetZSInfo("上证指数", "sh000001", 5) + "\n")
+		//	market.WriteString(GetZSInfo("深证成指", "sz399001", 5) + "\n")
+		//	market.WriteString(GetZSInfo("创业板指数", "sz399006", 5) + "\n")
+		//	market.WriteString(GetZSInfo("科创50", "sh000688", 5) + "\n")
+		//	market.WriteString(GetZSInfo("沪深300指数", "sh000300", 5) + "\n")
+		//	market.WriteString(GetZSInfo("中证银行", "sz399986", 5) + "\n")
+		//	//market.WriteString(GetZSInfo("科创芯片", "sh000685", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("上证医药", "sh000037", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("证券龙头", "sz399437", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("中证白酒", "sz399997", 30) + "\n")
+		//	//logger.SugaredLogger.Infof("NewChatStream getZSInfo=\n%s", market.String())
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "当前市场/大盘/行业/指数行情",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":              "assistant",
+		//		"reasoning_content": "使用工具查询",
+		//		"content":           "当前市场/大盘/行业/指数行情如下：\n" + market.String(),
+		//	})
+		//}()
 
 		go func() {
 			defer wg.Done()
@@ -409,30 +409,30 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			"content": "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(4)
-		go func() {
-			defer wg.Done()
-			var market strings.Builder
-			market.WriteString(GetZSInfo("上证指数", "sh000001", 30) + "\n")
-			market.WriteString(GetZSInfo("深证成指", "sz399001", 30) + "\n")
-			market.WriteString(GetZSInfo("创业板指数", "sz399006", 30) + "\n")
-			market.WriteString(GetZSInfo("科创50", "sh000688", 30) + "\n")
-			market.WriteString(GetZSInfo("沪深300指数", "sh000300", 30) + "\n")
-			market.WriteString(GetZSInfo("中证银行", "sz399986", 30) + "\n")
-			market.WriteString(GetZSInfo("科创芯片", "sh000685", 30) + "\n")
-			market.WriteString(GetZSInfo("上证医药", "sh000037", 30) + "\n")
-			market.WriteString(GetZSInfo("证券龙头", "sz399437", 30) + "\n")
-			market.WriteString(GetZSInfo("中证白酒", "sz399997", 30) + "\n")
-			//logger.SugaredLogger.Infof("NewChatStream getZSInfo=\n%s", market.String())
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "当前市场指数行情",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": "当前市场指数行情情况如下：\n" + market.String(),
-			})
-		}()
+		wg.Add(3)
+		//go func() {
+		//	defer wg.Done()
+		//	var market strings.Builder
+		//	market.WriteString(GetZSInfo("上证指数", "sh000001", 5) + "\n")
+		//	market.WriteString(GetZSInfo("深证成指", "sz399001", 5) + "\n")
+		//	market.WriteString(GetZSInfo("创业板指数", "sz399006", 5) + "\n")
+		//	market.WriteString(GetZSInfo("科创50", "sh000688", 5) + "\n")
+		//	market.WriteString(GetZSInfo("沪深300指数", "sh000300", 5) + "\n")
+		//	market.WriteString(GetZSInfo("中证银行", "sz399986", 5) + "\n")
+		//	//market.WriteString(GetZSInfo("科创芯片", "sh000685", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("上证医药", "sh000037", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("证券龙头", "sz399437", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("中证白酒", "sz399997", 30) + "\n")
+		//	//logger.SugaredLogger.Infof("NewChatStream getZSInfo=\n%s", market.String())
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "当前市场指数行情",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "assistant",
+		//		"content": "当前市场指数行情情况如下：\n" + market.String(),
+		//	})
+		//}()
 
 		go func() {
 			defer wg.Done()
@@ -655,19 +655,101 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 
 		go func() {
 			defer wg.Done()
-			var market strings.Builder
-			market.WriteString(GetZSInfo("创业板指数", "sz399006", 30) + "\n")
-			market.WriteString(GetZSInfo("上证综合指数", "sh000001", 30) + "\n")
-			market.WriteString(GetZSInfo("沪深300指数", "sh000300", 30) + "\n")
-			//logger.SugaredLogger.Infof("NewChatStream getZSInfo=\n%s", market.String())
+			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, stock)
+			content := util.MarkdownTableWithTitle("当前最新投资者互动数据", datas.Results)
 			msg = append(msg, map[string]interface{}{
 				"role":    "user",
-				"content": "市场指数",
+				"content": "投资者互动数据",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": "市场指数情况如下：\n" + market.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           content,
 			})
+		}()
+
+		go func() {
+			defer wg.Done()
+			var market strings.Builder
+			res := NewMarketNewsApi().GetGDP()
+			md := util.MarkdownTableWithTitle("国内生产总值(GDP)", res.GDPResult.Data)
+			market.WriteString(md)
+			res2 := NewMarketNewsApi().GetCPI()
+			md2 := util.MarkdownTableWithTitle("居民消费价格指数(CPI)", res2.CPIResult.Data)
+			market.WriteString(md2)
+			res3 := NewMarketNewsApi().GetPPI()
+			md3 := util.MarkdownTableWithTitle("工业品出厂价格指数(PPI)", res3.PPIResult.Data)
+			market.WriteString(md3)
+			res4 := NewMarketNewsApi().GetPMI()
+			md4 := util.MarkdownTableWithTitle("采购经理人指数(PMI)", res4.PMIResult.Data)
+			market.WriteString(md4)
+
+			msg = append(msg, map[string]interface{}{
+				"role":    "user",
+				"content": "国内宏观经济数据",
+			})
+			msg = append(msg, map[string]interface{}{
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           "\n# 国内宏观经济数据：\n" + market.String(),
+			})
+		}()
+
+		//go func() {
+		//	defer wg.Done()
+		//	var market strings.Builder
+		//	market.WriteString(GetZSInfo("上证指数", "sh000001", 5) + "\n")
+		//	market.WriteString(GetZSInfo("深证成指", "sz399001", 5) + "\n")
+		//	market.WriteString(GetZSInfo("创业板指数", "sz399006", 5) + "\n")
+		//	market.WriteString(GetZSInfo("科创50", "sh000688", 5) + "\n")
+		//	market.WriteString(GetZSInfo("沪深300指数", "sh000300", 5) + "\n")
+		//	market.WriteString(GetZSInfo("中证银行", "sz399986", 5) + "\n")
+		//	//market.WriteString(GetZSInfo("科创芯片", "sh000685", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("上证医药", "sh000037", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("证券龙头", "sz399437", 30) + "\n")
+		//	//market.WriteString(GetZSInfo("中证白酒", "sz399997", 30) + "\n")
+		//	//logger.SugaredLogger.Infof("NewChatStream getZSInfo=\n%s", market.String())
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "当前市场/大盘/行业/指数行情",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":              "assistant",
+		//		"reasoning_content": "使用工具查询",
+		//		"content":           "当前市场/大盘/行业/指数行情如下：\n" + market.String(),
+		//	})
+		//}()
+
+		go func() {
+			defer wg.Done()
+			md := strings.Builder{}
+			res := NewMarketNewsApi().ClsCalendar()
+			for _, a := range res {
+				bytes, err := json.Marshal(a)
+				if err != nil {
+					continue
+				}
+				//logger.SugaredLogger.Debugf("value: %+v", string(bytes))
+				date := gjson.Get(string(bytes), "calendar_day")
+				md.WriteString("\n### 事件/会议日期：" + date.String())
+				list := gjson.Get(string(bytes), "items")
+				//logger.SugaredLogger.Debugf("value: %+v,list: %+v", date.String(), list)
+				list.ForEach(func(key, value gjson.Result) bool {
+					logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
+					md.WriteString("\n- " + gjson.Get(value.String(), "title").String())
+					return true
+				})
+			}
+			msg = append(msg, map[string]interface{}{
+				"role":    "user",
+				"content": "近期重大事件/会议",
+			})
+			msg = append(msg, map[string]interface{}{
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           "近期重大事件/会议如下：\n" + md.String(),
+			})
+
 		}()
 
 		go func() {
@@ -787,7 +869,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 
 		go func() {
 			defer wg.Done()
-			messages := GetTelegraphList(o.CrawlTimeOut)
+			messages := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(200, 1000))
 			if messages == nil || len(*messages) == 0 {
 				logger.SugaredLogger.Error("获取市场资讯失败")
 				//ch <- "***❗获取市场资讯失败,分析结果可能不准确***<hr>"
@@ -795,8 +877,9 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 				return
 			}
 			var messageText strings.Builder
-			for _, message := range *messages {
-				messageText.WriteString(message + "\n")
+			for _, telegraph := range *messages {
+				messageText.WriteString("## " + telegraph.Time + ":" + "\n")
+				messageText.WriteString("### " + telegraph.Content + "\n")
 			}
 			msg = append(msg, map[string]interface{}{
 				"role":    "user",
@@ -805,26 +888,6 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			msg = append(msg, map[string]interface{}{
 				"role":    "assistant",
 				"content": messageText.String(),
-			})
-
-			messages = GetTopNewsList(o.CrawlTimeOut)
-			if messages == nil || len(*messages) == 0 {
-				logger.SugaredLogger.Error("获取新闻资讯失败")
-				//ch <- "***❗获取新闻资讯失败,分析结果可能不准确***<hr>"
-				//go runtime.EventsEmit(o.ctx, "warnMsg", "❗获取新闻资讯失败,分析结果可能不准确")
-				return
-			}
-			var newsText strings.Builder
-			for _, message := range *messages {
-				newsText.WriteString(message + "\n")
-			}
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "新闻资讯",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": newsText.String(),
 			})
 		}()
 
@@ -867,54 +930,8 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			})
 		}()
 
-		go func() {
-			defer wg.Done()
-
-			if checkIsIndexBasic(stock) {
-				return
-			}
-
-			//messages := SearchGuShiTongStockInfo(stockCode, o.CrawlTimeOut)
-			//if messages == nil || len(*messages) == 0 {
-			//	logger.SugaredLogger.Error("获取股势通资讯失败")
-			//	//ch <- "***❗获取股势通资讯失败,分析结果可能不准确***<hr>"
-			//	//go runtime.EventsEmit(o.ctx, "warnMsg", "❗获取股势通资讯失败,分析结果可能不准确")
-			//	return
-			//}
-			//var newsText strings.Builder
-			//for _, message := range *messages {
-			//	newsText.WriteString(message + "\n")
-			//}
-			//msg = append(msg, map[string]interface{}{
-			//	"role":    "user",
-			//	"content": stock + "相关新闻资讯",
-			//})
-			//msg = append(msg, map[string]interface{}{
-			//	"role":    "assistant",
-			//	"content": newsText.String(),
-			//})
-		}()
-
-		go func() {
-			defer wg.Done()
-			resp := NewMarketNewsApi().TradingViewNews()
-			var newsText strings.Builder
-
-			for _, a := range *resp {
-				logger.SugaredLogger.Debugf("value: %s", a.Title)
-				newsText.WriteString(a.Title + "\n")
-			}
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "外媒全球新闻资讯",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": newsText.String(),
-			})
-		}()
-
 		wg.Wait()
+
 		msg = append(msg, map[string]interface{}{
 			"role":    "user",
 			"content": question,

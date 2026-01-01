@@ -1203,7 +1203,7 @@ func GetZSInfo(name, stockCode string, crawlTimeOut int64) string {
 	price := strutil.RemoveWhiteSpace(document.Find("div#price").First().Text(), false)
 	hqTime := strutil.RemoveWhiteSpace(document.Find("div#hqTime").First().Text(), false)
 
-	if strutil.ContainsAny(price, []string{"-", "--", ""}) {
+	if strutil.ContainsAny(price, []string{"-", "--"}) {
 		return "暂无数据"
 	}
 

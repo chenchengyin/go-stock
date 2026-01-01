@@ -65,6 +65,6 @@ func TestSearchGuShiTongStockInfo(t *testing.T) {
 
 func TestGetZSInfo(t *testing.T) {
 	db.Init("../../data/stock.db")
-	GetZSInfo("中证银行", "sz399986", 30)
-	GetZSInfo("上海贝岭", "sh600171", 30)
+	GetZSInfo("中证银行", "sz399986", 5)
+	GetZSInfo("上海贝岭", "sh600171", 5)
 }
