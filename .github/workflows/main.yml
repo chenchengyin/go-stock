@@ -29,6 +29,12 @@ jobs:
           - name: 'go-stock-darwin-universal'
             platform: 'darwin/universal'
             os: 'macos-latest'
+          - name: 'go-stock-darwin-intel'
+            platform: 'darwin'
+            os: 'macos-latest'
+          - name: 'go-stock-darwin-arm64'
+            platform: 'darwin/arm64'
+            os: 'macos-latest'
 
     runs-on: ${{ matrix.build.os }}
     steps:
