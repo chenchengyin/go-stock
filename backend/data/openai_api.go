@@ -193,7 +193,7 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"content":           "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(7)
+		wg.Add(5)
 		go func() {
 			defer wg.Done()
 			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
@@ -293,51 +293,51 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 
 		}()
 
+		//go func() {
+		//	defer wg.Done()
+		//	resp := NewMarketNewsApi().TradingViewNews()
+		//	var newsText strings.Builder
+		//
+		//	for _, a := range *resp {
+		//		logger.SugaredLogger.Debugf("TradingViewNews: %s", a.Title)
+		//		newsText.WriteString(a.Title + "\n")
+		//	}
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "全球新闻资讯",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":              "assistant",
+		//		"reasoning_content": "使用工具查询",
+		//		"content":           newsText.String(),
+		//	})
+		//}()
+
+		//go func() {
+		//	defer wg.Done()
+		//	news := NewMarketNewsApi().ReutersNew()
+		//	messageText := strings.Builder{}
+		//	for _, article := range news.Result.Articles {
+		//		messageText.WriteString("## " + article.Title + "\n")
+		//		messageText.WriteString("### " + article.Description + "\n")
+		//	}
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "外媒全球新闻资讯",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":              "assistant",
+		//		"reasoning_content": "使用工具查询",
+		//		"content":           messageText.String(),
+		//	})
+		//}()
+
 		go func() {
 			defer wg.Done()
-			resp := NewMarketNewsApi().TradingViewNews()
-			var newsText strings.Builder
-
-			for _, a := range *resp {
-				logger.SugaredLogger.Debugf("TradingViewNews: %s", a.Title)
-				newsText.WriteString(a.Title + "\n")
-			}
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "全球新闻资讯",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":              "assistant",
-				"reasoning_content": "使用工具查询",
-				"content":           newsText.String(),
-			})
-		}()
-
-		go func() {
-			defer wg.Done()
-			news := NewMarketNewsApi().ReutersNew()
-			messageText := strings.Builder{}
-			for _, article := range news.Result.Articles {
-				messageText.WriteString("## " + article.Title + "\n")
-				messageText.WriteString("### " + article.Description + "\n")
-			}
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "外媒全球新闻资讯",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":              "assistant",
-				"reasoning_content": "使用工具查询",
-				"content":           messageText.String(),
-			})
-		}()
-
-		go func() {
-			defer wg.Done()
-			news := NewMarketNewsApi().GetNewsList2("财联社电报", random.RandInt(100, 500))
+			news := NewMarketNewsApi().GetNews24HoursList("最新24小时市场资讯", random.RandInt(200, 1000))
 			messageText := strings.Builder{}
 			for _, telegraph := range *news {
-				messageText.WriteString("## " + telegraph.Time + ":" + "\n")
+				messageText.WriteString("## " + telegraph.DataTime.Format("2006-01-02 15:04:05") + ":" + "\n")
 				messageText.WriteString("### " + telegraph.Content + "\n")
 			}
 			msg = append(msg, map[string]interface{}{
@@ -409,7 +409,7 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			"content": "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(5)
+		wg.Add(4)
 		go func() {
 			defer wg.Done()
 			var market strings.Builder
@@ -433,42 +433,74 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 				"content": "当前市场指数行情情况如下：\n" + market.String(),
 			})
 		}()
-		go func() {
-			defer wg.Done()
-			resp := NewMarketNewsApi().TradingViewNews()
-			var newsText strings.Builder
-
-			for _, a := range *resp {
-				logger.SugaredLogger.Debugf("TradingViewNews: %s", a.Title)
-				newsText.WriteString(a.Title + "\n")
-			}
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "外媒全球新闻资讯",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": newsText.String(),
-			})
-		}()
 
 		go func() {
 			defer wg.Done()
-			news := NewMarketNewsApi().ReutersNew()
-			messageText := strings.Builder{}
-			for _, article := range news.Result.Articles {
-				messageText.WriteString("## " + article.Title + "\n")
-				messageText.WriteString("### " + article.Description + "\n")
+			md := strings.Builder{}
+			res := NewMarketNewsApi().ClsCalendar()
+			for _, a := range res {
+				bytes, err := json.Marshal(a)
+				if err != nil {
+					continue
+				}
+				//logger.SugaredLogger.Debugf("value: %+v", string(bytes))
+				date := gjson.Get(string(bytes), "calendar_day")
+				md.WriteString("\n### 事件/会议日期：" + date.String())
+				list := gjson.Get(string(bytes), "items")
+				//logger.SugaredLogger.Debugf("value: %+v,list: %+v", date.String(), list)
+				list.ForEach(func(key, value gjson.Result) bool {
+					logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
+					md.WriteString("\n- " + gjson.Get(value.String(), "title").String())
+					return true
+				})
 			}
 			msg = append(msg, map[string]interface{}{
 				"role":    "user",
-				"content": "外媒全球新闻资讯",
+				"content": "近期重大事件/会议",
 			})
 			msg = append(msg, map[string]interface{}{
-				"role":    "assistant",
-				"content": messageText.String(),
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           "近期重大事件/会议如下：\n" + md.String(),
 			})
+
 		}()
+		//go func() {
+		//	defer wg.Done()
+		//	resp := NewMarketNewsApi().TradingViewNews()
+		//	var newsText strings.Builder
+		//
+		//	for _, a := range *resp {
+		//		logger.SugaredLogger.Debugf("TradingViewNews: %s", a.Title)
+		//		newsText.WriteString(a.Title + "\n")
+		//	}
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "外媒全球新闻资讯",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "assistant",
+		//		"content": newsText.String(),
+		//	})
+		//}()
+
+		//go func() {
+		//	defer wg.Done()
+		//	news := NewMarketNewsApi().ReutersNew()
+		//	messageText := strings.Builder{}
+		//	for _, article := range news.Result.Articles {
+		//		messageText.WriteString("## " + article.Title + "\n")
+		//		messageText.WriteString("### " + article.Description + "\n")
+		//	}
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "外媒全球新闻资讯",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "assistant",
+		//		"content": messageText.String(),
+		//	})
+		//}()
 
 		go func() {
 			defer wg.Done()
@@ -507,7 +539,7 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 
 		wg.Wait()
 
-		news := NewMarketNewsApi().GetNewsList2("财联社电报", random.RandInt(100, 500))
+		news := NewMarketNewsApi().GetNews24HoursList("最近24小时市场资讯", random.RandInt(200, 1000))
 		messageText := strings.Builder{}
 		for _, telegraph := range *news {
 			messageText.WriteString("## " + telegraph.Time + ":" + "\n")
