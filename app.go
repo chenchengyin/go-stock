@@ -432,11 +432,15 @@ func syncNews() {
 		dataTime := time.UnixMilli(int64(news.Time * 1000))
 
 		if slice.ContainAny(news.Tags, []string{"外媒资讯", "财联社电报", "新浪财经"}) {
+			isRed := false
+			if slice.Contain(news.Tags, "rotating_light") {
+				isRed = true
+			}
 			telegraph := &models.Telegraph{
 				Title:           news.Title,
 				Content:         news.Message,
 				DataTime:        &dataTime,
-				IsRed:           false,
+				IsRed:           isRed,
 				Time:            dataTime.Format("15:04:05"),
 				Source:          GetSource(news.Tags),
 				SentimentResult: "",
