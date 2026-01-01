@@ -261,7 +261,7 @@ func (a *App) CheckUpdate(flag int) {
 	if _, vipLevel, ok := a.isVip(sponsorCode, "", releaseVersion); ok {
 		level, _ := convertor.ToInt(vipLevel)
 		if level >= 2 {
-			go syncNews()
+			go a.syncNews()
 		}
 	}
 
@@ -409,7 +409,7 @@ func (a *App) isVip(sponsorCode string, downloadUrl string, releaseVersion *mode
 	return downloadUrl, vipLevel, isVip
 }
 
-func syncNews() {
+func (a *App) syncNews() {
 	defer PanicHandler()
 	client := resty.New()
 	url := fmt.Sprintf("http://go-stock.sparkmemory.top:16666/FinancialNews/json?since=%d", time.Now().Add(-24*time.Hour).Unix())
@@ -443,7 +443,7 @@ func syncNews() {
 				IsRed:           isRed,
 				Time:            dataTime.Format("15:04:05"),
 				Source:          GetSource(news.Tags),
-				SentimentResult: "",
+				SentimentResult: data.AnalyzeSentiment(news.Message).Description,
 			}
 			cnt := int64(0)
 			if telegraph.Title == "" {
@@ -453,6 +453,7 @@ func syncNews() {
 			}
 			if cnt == 0 {
 				db.Dao.Model(telegraph).Create(&telegraph)
+				a.NewsPush(&[]models.Telegraph{*telegraph})
 			}
 		}
 	}
