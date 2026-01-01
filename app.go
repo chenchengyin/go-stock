@@ -454,6 +454,17 @@ func (a *App) syncNews() {
 			if cnt == 0 {
 				db.Dao.Model(telegraph).Create(&telegraph)
 				a.NewsPush(&[]models.Telegraph{*telegraph})
+				for _, subject := range news.Tags {
+					tag := &models.Tags{
+						Name: subject,
+						Type: "subject",
+					}
+					db.Dao.Model(tag).Where("name=? and type=?", subject, "subject").FirstOrCreate(&tag)
+					db.Dao.Model(models.TelegraphTags{}).Where("telegraph_id=? and tag_id=?", telegraph.ID, tag.ID).FirstOrCreate(&models.TelegraphTags{
+						TelegraphId: telegraph.ID,
+						TagId:       tag.ID,
+					})
+				}
 			}
 		}
 	}

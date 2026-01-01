@@ -1,6 +1,7 @@
 <script setup>
 import {ReFleshTelegraphList} from "../../wailsjs/go/main/App";
 import {RefreshCircle, RefreshCircleSharp, RefreshOutline} from "@vicons/ionicons5";
+import {computed, h, onBeforeMount, onBeforeUnmount, onMounted,onUnmounted, ref} from 'vue'
 
 const { headerTitle,newsList } = defineProps({
   headerTitle: {
@@ -18,6 +19,30 @@ const emits = defineEmits(['update:message'])
 const updateMessage = () => {
   emits('update:message', headerTitle)
 }
+// 使用 ref 创建响应式时间数据
+const time = ref(new Date())
+
+// 更新时间的函数
+const updateTime = () => {
+  time.value = new Date()
+}
+
+let timer = null
+
+// 组件挂载时启动定时器
+onMounted(() => {
+  if (headerTitle === '财联社电报') {
+    // 每秒更新一次时间
+    timer = setInterval(updateTime, 1000)
+  }
+})
+
+// 组件卸载时清除定时器
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer)
+  }
+})
 </script>
 
 <template>
@@ -25,17 +50,18 @@ const updateMessage = () => {
     <template #header>
       <n-flex justify="space-between">
         <n-tag :bordered="false" size="large" type="success" >{{ headerTitle }}</n-tag>
+        <n-tag :bordered="false" size="large" type="info"  v-if="headerTitle==='财联社电报'"> <n-time :time="time"/></n-tag>
         <n-button  :bordered="false" @click="updateMessage"><n-icon color="#409EFF" size="25" :component="RefreshCircleSharp"/></n-button>
       </n-flex>
     </template>
-    <n-list-item v-for="item in newsList">
+    <n-list-item v-for="(item,idx) in newsList" :key="item.ID">
+      <n-space justify="center" v-if="idx!==0 && item.dataTime.substring(0,10) !== newsList[idx-1].dataTime.substring(0,10)">
+        <n-divider>
+          {{ item.dataTime.substring(0,10) }}
+        </n-divider>
+      </n-space>
       <n-space justify="start" >
-<!--        <n-text justify="start" :bordered="false" :type="item.isRed?'error':'info'" style="overflow-wrap: break-word;">-->
-<!--          <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>-->
-<!--          <n-text size="small" v-if="item.title"  type="warning" :bordered="false">{{ item.title }}&nbsp;&nbsp;</n-text>-->
-<!--          <n-text style="overflow-wrap: break-word;word-break: break-all; word-wrap: break-word;" :type="item.isRed?'error':'info'">{{ item.content }}</n-text>-->
-<!--        </n-text>-->
-        <n-collapse v-if="item.title" arrow-placement="right">
+        <n-collapse v-if="item.title" arrow-placement="right" >
           <n-collapse-item :name="item.title">
             <template #header>
               <n-tag size="small" :type="item.isRed?'error':'warning'" :bordered="false"> {{ item.time }}</n-tag>

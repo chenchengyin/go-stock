@@ -128,6 +128,9 @@ onBeforeMount(() => {
 
   indexIndustryRank.value = setInterval(() => {
     industryRank()
+    ReFlesh("财联社电报")
+    ReFlesh("新浪财经")
+    ReFlesh("外媒")
   }, 1000 * 10)
 
 
@@ -354,14 +357,14 @@ function ReFlesh(source) {
             <AnalyzeMartket :dark-theme="darkTheme" :chart-height="300" :kDays="1" :name="'最近24小时热词'" />
           </n-gi>
           <n-gi>
-            <n-grid :cols="httpProxyEnabled?3:2" :y-gap="0">
+            <n-grid :cols="foreignNewsList.length?3:2" :y-gap="0">
               <n-gi>
                 <news-list :newsList="telegraphList" :header-title="'财联社电报'" @update:message="ReFlesh"></news-list>
               </n-gi>
               <n-gi>
                 <news-list :newsList="sinaNewsList" :header-title="'新浪财经'" @update:message="ReFlesh"></news-list>
               </n-gi>
-              <n-gi v-if="httpProxyEnabled">
+              <n-gi v-if="foreignNewsList.length>0">
                 <news-list :newsList="foreignNewsList" :header-title="'外媒'" @update:message="ReFlesh"></news-list>
               </n-gi>
 

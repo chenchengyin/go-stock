@@ -228,6 +228,29 @@ func (m MarketNewsApi) GetTelegraphList(source string) *[]*models.Telegraph {
 	}
 	return news
 }
+func (m MarketNewsApi) GetTelegraphListWithPaging(source string, page, pageSize int) *[]*models.Telegraph {
+	// 计算偏移量
+	offset := (page - 1) * pageSize
+
+	news := &[]*models.Telegraph{}
+	if source != "" {
+		db.Dao.Model(news).Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(pageSize).Offset(offset).Find(news)
+	} else {
+		db.Dao.Model(news).Preload("TelegraphTags").Order("data_time desc,time desc").Limit(pageSize).Offset(offset).Find(news)
+	}
+	for _, item := range *news {
+		tags := &[]models.Tags{}
+		db.Dao.Model(&models.Tags{}).Where("id in ?", lo.Map(item.TelegraphTags, func(item models.TelegraphTags, index int) uint {
+			return item.TagId
+		})).Find(&tags)
+		tagNames := lo.Map(*tags, func(item models.Tags, index int) string {
+			return item.Name
+		})
+		item.SubjectTags = tagNames
+		logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
+	}
+	return news
+}
 
 func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 	news := &[]models.Telegraph{}
