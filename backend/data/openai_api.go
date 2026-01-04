@@ -193,7 +193,22 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"content":           "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(4)
+		wg.Add(5)
+
+		go func() {
+			defer wg.Done()
+			res := NewMarketNewsApi().XUEQIUHotStock(50, "10")
+			md := util.MarkdownTableWithTitle("当前热门股票排名", res)
+			msg = append(msg, map[string]interface{}{
+				"role":    "user",
+				"content": "当前热门股票排名数据",
+			})
+			msg = append(msg, map[string]interface{}{
+				"role":              "assistant",
+				"reasoning_content": "使用工具查询",
+				"content":           md,
+			})
+		}()
 		go func() {
 			defer wg.Done()
 			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")

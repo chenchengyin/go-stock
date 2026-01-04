@@ -359,29 +359,29 @@ type XUEQIUHot struct {
 }
 
 type HotItem struct {
-	Type         int         `json:"type"`
-	Code         string      `json:"code"`
-	Name         string      `json:"name"`
-	Value        float64     `json:"value"`
-	Increment    int         `json:"increment"`
-	RankChange   int         `json:"rank_change"`
-	HasExist     interface{} `json:"has_exist"`
-	Symbol       string      `json:"symbol"`
-	Percent      float64     `json:"percent"`
-	Current      float64     `json:"current"`
-	Chg          float64     `json:"chg"`
-	Exchange     string      `json:"exchange"`
-	StockType    int         `json:"stock_type"`
-	SubType      string      `json:"sub_type"`
-	Ad           int         `json:"ad"`
-	AdId         interface{} `json:"ad_id"`
-	ContentId    interface{} `json:"content_id"`
-	Page         interface{} `json:"page"`
-	Model        interface{} `json:"model"`
-	Location     interface{} `json:"location"`
-	TradeSession interface{} `json:"trade_session"`
-	CurrentExt   interface{} `json:"current_ext"`
-	PercentExt   interface{} `json:"percent_ext"`
+	Type         int         `json:"type" md:"-"`
+	Code         string      `json:"code" md:"股票代码"`
+	Name         string      `json:"name" md:"股票名称"`
+	Value        float64     `json:"value" md:"热度"`
+	Increment    int         `json:"increment" md:"热度变化"`
+	RankChange   int         `json:"rank_change" md:"排名变化"`
+	HasExist     interface{} `json:"has_exist" md:"-"`
+	Symbol       string      `json:"symbol" md:"-"`
+	Percent      float64     `json:"percent" md:"涨跌幅(%)"`
+	Current      float64     `json:"current" md:"股价"`
+	Chg          float64     `json:"chg" md:"股价变化"`
+	Exchange     string      `json:"exchange" md:"交易所代码"`
+	StockType    int         `json:"stock_type" md:"-"`
+	SubType      string      `json:"sub_type" md:"-"`
+	Ad           int         `json:"ad" md:"-"`
+	AdId         interface{} `json:"ad_id" md:"-"`
+	ContentId    interface{} `json:"content_id" md:"-"`
+	Page         interface{} `json:"page" md:"-"`
+	Model        interface{} `json:"model" md:"-"`
+	Location     interface{} `json:"location" md:"-"`
+	TradeSession interface{} `json:"trade_session" md:"-"`
+	CurrentExt   interface{} `json:"current_ext" md:"-"`
+	PercentExt   interface{} `json:"percent_ext" md:"-"`
 }
 
 type HotEvent struct {
@@ -778,4 +778,37 @@ type NtfyNews struct {
 	Message string   `json:"message"`
 	Tags    []string `json:"tags"`
 	Icon    string   `json:"icon"`
+}
+
+type THSHotStrategy struct {
+	Result struct {
+		Num  int `json:"num"`
+		List []struct {
+			Author struct {
+				Avatar   string `json:"avatar"`
+				UserName string `json:"userName"`
+				UserId   int    `json:"userId"`
+			} `json:"author"`
+			Property struct {
+				Id          int         `json:"id"`
+				Name        string      `json:"name"`
+				Query       string      `json:"query"`
+				Logic       string      `json:"logic"`
+				BuyPosition interface{} `json:"buyPosition"`
+				Ctime       string      `json:"ctime"`
+				Tags        []string    `json:"tags"`
+				WinRate     string      `json:"winRate"`
+				AnnualYield string      `json:"annualYield"`
+				Type        int         `json:"type"`
+			} `json:"property"`
+			Interaction struct {
+				CommentNum  int  `json:"commentNum"`
+				CollectNum  int  `json:"collectNum"`
+				IsCollected bool `json:"isCollected"`
+				IsSubscribe int  `json:"isSubscribe"`
+				IsPublish   int  `json:"isPublish"`
+				Pid         int  `json:"pid"`
+			} `json:"interaction"`
+		} `json:"list"`
+	} `json:"result"`
 }

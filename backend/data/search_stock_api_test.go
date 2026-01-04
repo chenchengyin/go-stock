@@ -80,3 +80,8 @@ func TestSearchStockApi_HotStrategy(t *testing.T) {
 	//	logger.SugaredLogger.Infof("v:%+v", d)
 	//}
 }
+func TestSearchStockApi_HotStrategyTable(t *testing.T) {
+	db.Init("../../data/stock.db")
+	res := NewSearchStockApi("").StrategySquare()
+	logger.SugaredLogger.Infof("res:%+v", res)
+}

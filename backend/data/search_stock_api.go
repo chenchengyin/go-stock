@@ -97,3 +97,22 @@ func (s SearchStockApi) HotStrategyTable() string {
 	markdownTable = util.MarkdownTableWithTitle("当前热门选股策略", strategy.Data)
 	return markdownTable
 }
+
+func (s SearchStockApi) StrategySquare() map[string]any {
+	//https://backtest.10jqka.com.cn/strategysquare/list?order=desc&page=1&pageNum=10&sortType=hot&keyword=
+	url := "https://backtest.10jqka.com.cn/strategysquare/list?order=desc&page=1&pageNum=10&sortType=hot&keyword="
+	resp, err := resty.New().SetTimeout(time.Duration(30)*time.Second).R().
+		SetHeader("Host", "backtest.10jqka.com.cn").
+		SetHeader("Origin", "https://backtest.10jqka.com.cn").
+		SetHeader("Referer", "https://backtest.10jqka.com.cn/strategysquare/list").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("StrategySquare-err:%+v", err)
+		return map[string]any{}
+	}
+	respMap := map[string]any{}
+	json.Unmarshal(resp.Body(), &respMap)
+	logger.SugaredLogger.Infof("resp:%+v", respMap["data"])
+	return respMap
+}

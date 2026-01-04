@@ -431,7 +431,7 @@ func (a *App) syncNews() {
 		}
 		dataTime := time.UnixMilli(int64(news.Time * 1000))
 
-		if slice.ContainAny(news.Tags, []string{"外媒资讯", "财联社电报", "新浪财经"}) {
+		if slice.ContainAny(news.Tags, []string{"外媒资讯", "财联社电报", "新浪财经", "外媒简讯", "外媒"}) {
 			isRed := false
 			if slice.Contain(news.Tags, "rotating_light") {
 				isRed = true
@@ -454,7 +454,10 @@ func (a *App) syncNews() {
 			if cnt == 0 {
 				db.Dao.Model(telegraph).Create(&telegraph)
 				a.NewsPush(&[]models.Telegraph{*telegraph})
-				for _, subject := range news.Tags {
+				tags := slice.Filter(news.Tags, func(index int, item string) bool {
+					return !(item == "rotating_light" || item == "loudspeaker")
+				})
+				for _, subject := range tags {
 					tag := &models.Tags{
 						Name: subject,
 						Type: "subject",
@@ -471,7 +474,7 @@ func (a *App) syncNews() {
 }
 
 func GetSource(tags []string) string {
-	if slices.Contains(tags, "外媒简讯") {
+	if slice.ContainAny(tags, []string{"外媒简讯", "外媒资讯", "外媒"}) {
 		return "外媒"
 	}
 	if slices.Contains(tags, "财联社电报") {

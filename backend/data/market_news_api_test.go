@@ -142,6 +142,8 @@ func TestXUEQIUHotStock(t *testing.T) {
 		logger.SugaredLogger.Debugf("value: %+v", a)
 	}
 
+	md := util.MarkdownTableWithTitle("当前热门股票排名", res)
+	logger.SugaredLogger.Debugf(md)
 }
 
 func TestHotEvent(t *testing.T) {
