@@ -1675,6 +1675,51 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								})
 							}
 
+							if funcName == "HotStockTable" {
+								pageSize := gjson.Get(funcArguments, "pageSize").String()
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：HotStockTable，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								pageSizeNum, err := convertor.ToInt(pageSize)
+								if err != nil {
+									pageSizeNum = 50
+								}
+
+								res := NewMarketNewsApi().XUEQIUHotStock(int(pageSizeNum), "10")
+								md := util.MarkdownTableWithTitle("当前热门股票排名", res)
+								logger.SugaredLogger.Infof("pageSize:%s HotStockTable:\n %s", pageSize, md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+
+							}
+
 						}
 						AskAiWithTools(o, err, messages, ch, question, tools, thinkingMode)
 					}

@@ -71,6 +71,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 						"type": "string",
 						"description": "选股自然语言。" +
 							"例如，查看技术指标：上海贝岭,macd,rsi,kdj,boll,5日均线,14日均线,30日均线,60日均线,成交量,OBV,EMA" +
+							"例如查看近期趋势：量比连续2天>1，主力连续2日净流入且递增，主力净额>3000万元，行业，股价在20日线上" +
 							"例如，查看有潜力的成交量爆发股：最近7日成交量量比大于3，出现过一次，非ST" +
 							"例1：创新药,半导体;PE<30;净利润增长率>50%。 " +
 							"例2：上证指数,科创50。 " +
@@ -184,6 +185,24 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name:        "HotStrategyTable",
 			Description: "获取当前热门选股策略",
+		},
+	})
+
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "HotStockTable",
+			Description: "当前热门股票排名",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"pageSize": map[string]any{
+						"type":        "string",
+						"description": "分页大小",
+					},
+				},
+				Required: []string{"pageSize"},
+			},
 		},
 	})
 
