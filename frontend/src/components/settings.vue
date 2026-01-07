@@ -388,7 +388,7 @@ function deletePrompt(ID) {
             </n-form-item-gi>
             <n-form-item-gi :span="4" v-if="formValue.openAI.enable" title="天数越多消耗tokens越多"
                             label="日K线数据(天)" path="openAI.kDays">
-              <n-input-number min="30" step="1" max="365" v-model:value="formValue.openAI.kDays"/>
+              <n-input-number min="30" step="1" max="60" v-model:value="formValue.openAI.kDays"/>
             </n-form-item-gi>
             <n-form-item-gi :span="2" label="http代理" path="httpProxyEnabled">
               <n-switch v-model:value="formValue.httpProxyEnabled"/>

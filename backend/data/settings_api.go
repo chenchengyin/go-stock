@@ -220,7 +220,7 @@ func GetSettingConfig() *SettingConfig {
 			settings.CrawlTimeOut = 60
 		}
 		if settings.KDays < 30 {
-			settings.KDays = 120
+			settings.KDays = 60
 		}
 	}
 	if settings.BrowserPath == "" {

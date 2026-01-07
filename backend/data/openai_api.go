@@ -67,7 +67,7 @@ func NewDeepSeekOpenAi(ctx context.Context, aiConfigId int) *OpenAi {
 			settingConfig.CrawlTimeOut = 60
 		}
 		if settingConfig.KDays < 30 {
-			settingConfig.KDays = 120
+			settingConfig.KDays = 60
 		}
 	}
 	o := &OpenAi{
