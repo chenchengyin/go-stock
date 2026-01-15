@@ -977,18 +977,28 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 		thinking = "enabled"
 	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
+	config := GetSettingConfig()
+	if config.HttpProxyEnabled && config.HttpProxy != "" {
+		client.SetProxy(config.HttpProxy)
+	}
+	bodyMap := map[string]interface{}{
+		"model":       o.Model,
+		"max_tokens":  o.MaxTokens,
+		"temperature": o.Temperature,
+		"stream":      true,
+		"messages":    messages,
+	}
+	if think {
+		bodyMap["thinking"] = map[string]any{
+			//"type": "disabled",
+			//"type": "enabled",
+			"type": thinking,
+		}
+	}
+
 	resp, err := client.R().
 		SetDoNotParseResponse(true).
-		SetBody(map[string]interface{}{
-			"model": o.Model,
-			"thinking": map[string]any{
-				"type": thinking,
-			},
-			"max_tokens":  o.MaxTokens,
-			"temperature": o.Temperature,
-			"stream":      true,
-			"messages":    messages,
-		}).
+		SetBody(bodyMap).
 		Post("/chat/completions")
 
 	body := resp.RawBody()
@@ -1128,21 +1138,29 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 		thinking = "enabled"
 	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
+	config := GetSettingConfig()
+	if config.HttpProxyEnabled && config.HttpProxy != "" {
+		client.SetProxy(config.HttpProxy)
+	}
+	bodyMap := map[string]interface{}{
+		"model":       o.Model,
+		"max_tokens":  o.MaxTokens,
+		"temperature": o.Temperature,
+		"stream":      true,
+		"messages":    messages,
+		"tools":       tools,
+	}
+	if thinkingMode {
+		bodyMap["thinking"] = map[string]any{
+			//"type": "disabled",
+			//"type": "enabled",
+			"type": thinking,
+		}
+	}
+
 	resp, err := client.R().
 		SetDoNotParseResponse(true).
-		SetBody(map[string]interface{}{
-			"model": o.Model,
-			"thinking": map[string]any{
-				//"type": "disabled",
-				//"type": "enabled",
-				"type": thinking,
-			},
-			"max_tokens":  o.MaxTokens,
-			"temperature": o.Temperature,
-			"stream":      true,
-			"messages":    messages,
-			"tools":       tools,
-		}).
+		SetBody(bodyMap).
 		Post("/chat/completions")
 
 	body := resp.RawBody()

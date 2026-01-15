@@ -473,7 +473,10 @@ func (a *App) syncNews() {
 			}
 			if cnt == 0 {
 				db.Dao.Model(telegraph).Create(&telegraph)
-				a.NewsPush(&[]models.Telegraph{*telegraph})
+				//计算时间差如果<5分钟则推送
+				if time.Now().Sub(dataTime) < 5*time.Minute {
+					a.NewsPush(&[]models.Telegraph{*telegraph})
+				}
 				tags := slice.Filter(news.Tags, func(index int, item string) bool {
 					return !(item == "rotating_light" || item == "loudspeaker")
 				})

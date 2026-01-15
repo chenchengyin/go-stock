@@ -198,12 +198,6 @@ func GetSettingConfig() *SettingConfig {
 	aiConfigs := make([]*AIConfig, 0)
 	// 处理数据库查询可能返回的空结果
 	result := db.Dao.Model(&Settings{}).First(settings)
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		// 初始化默认设置并保存到数据库
-		settings = &Settings{OpenAiEnable: false, CrawlTimeOut: 60}
-		db.Dao.Create(settings)
-	}
-
 	if settings.OpenAiEnable {
 		// 处理AI配置查询可能出现的错误
 		result = db.Dao.Model(&AIConfig{}).Find(&aiConfigs)
