@@ -812,3 +812,67 @@ type THSHotStrategy struct {
 		} `json:"list"`
 	} `json:"result"`
 }
+
+type StockMoneyDataResp struct {
+	Rc     int            `json:"rc"`
+	Rt     int            `json:"rt"`
+	Svr    int            `json:"svr"`
+	Lt     int            `json:"lt"`
+	Full   int            `json:"full"`
+	Dlmkts string         `json:"dlmkts"`
+	Data   StockMoneyData `json:"data"`
+}
+
+type StockMoneyData struct {
+	Total int                  `json:"total"`
+	Diff  []StockMoneyDataDiff `json:"diff"`
+}
+
+type StockMoneyDataDiff struct {
+	F1   int     `json:"f1" md:"-"`
+	F12  string  `json:"f12" md:"股票代码"`
+	F13  int     `json:"f13" md:"-"`
+	F14  string  `json:"f14" md:"股票名称"`
+	F2   float64 `json:"f2" md:"最新价"`
+	F3   float64 `json:"f3" md:"今日涨跌幅(%)"`
+	F62  float64 `json:"f62" md:"今日主力净额(元)"`
+	F184 float64 `json:"f184" md:"今日主力净占比(%)"`
+	F66  float64 `json:"f66" md:"今日超大单净额(元)"`
+	F69  float64 `json:"f69" md:"今日超大单净占比(%)"`
+	F72  float64 `json:"f72" md:"今日大单净额(元)"`
+	F75  float64 `json:"f75" md:"今日大单净占比(%)"`
+	F78  float64 `json:"f78" md:"今日中单净额(元)"`
+	F81  float64 `json:"f81" md:"今日中单净占比(%)"`
+	F84  float64 `json:"f84" md:"今日小单净额(元)"`
+	F87  float64 `json:"f87" md:"今日小单净占比(%)"`
+	F124 int     `json:"f124" md:"f124"`
+	F100 string  `json:"f100" md:"所属板块"`
+	F265 string  `json:"f265" md:"板块代码"`
+}
+
+type StockConceptInfoResp struct {
+	Version string                 `json:"version"`
+	Result  StockConceptInfoResult `json:"result"`
+	Success bool                   `json:"success"`
+	Message string                 `json:"message"`
+	Code    int                    `json:"code"`
+}
+
+type StockConceptInfoResult struct {
+	Pages int                `json:"pages"`
+	Data  []StockConceptInfo `json:"data"`
+	Count int                `json:"count"`
+}
+
+type StockConceptInfo struct {
+	SECUCODE            string  `json:"SECUCODE" md:"完整股票代码"`
+	SECURITYCODE        string  `json:"SECURITY_CODE" md:"股票代码"`
+	SECURITYNAMEABBR    string  `json:"SECURITY_NAME_ABBR" md:"股票名称"`
+	NEWBOARDCODE        string  `json:"NEW_BOARD_CODE" md:"板块/概念代码"`
+	BOARDNAME           string  `json:"BOARD_NAME" md:"板块/概念名称"`
+	SELECTEDBOARDREASON string  `json:"SELECTED_BOARD_REASON" md:"板块/概念描述"`
+	ISPRECISE           string  `json:"IS_PRECISE" md:"-"`
+	BOARDRANK           int     `json:"BOARD_RANK" md:"-"`
+	BOARDYIELD          float64 `json:"BOARD_YIELD" md:"板块/概念涨跌幅(%)"`
+	DERIVEBOARDCODE     string  `json:"DERIVE_BOARD_CODE" md:"-"`
+}

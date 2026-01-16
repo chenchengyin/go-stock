@@ -283,3 +283,17 @@ func TestName(t *testing.T) {
 	//}
 
 }
+func TestGetStockMoneyData(t *testing.T) {
+	db.Init("../../data/stock.db")
+	stockDataApi := NewStockDataApi()
+	res := stockDataApi.GetStockMoneyData()
+	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("今日个股资金流向Top50", res.Data.Diff))
+}
+
+func TestGetStockConceptInfo(t *testing.T) {
+	db.Init("../../data/stock.db")
+	stockDataApi := NewStockDataApi()
+	res := stockDataApi.GetStockConceptInfo("601138.SH")
+	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("601138.SH所属概念/板块信息", res.Result.Data))
+
+}

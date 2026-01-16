@@ -14,6 +14,7 @@ import (
 	"go-stock/backend/models"
 	"io"
 	"io/ioutil"
+	url2 "net/url"
 	"strings"
 	"time"
 
@@ -1748,6 +1749,65 @@ func (receiver StockDataApi) GetCommonKLineData(stockCode string, kLineType stri
 // GetStockHistoryMoneyData 获取股票历史资金流向数据
 func (receiver StockDataApi) GetStockHistoryMoneyData() {
 
+}
+
+// GetStockMoneyData 获取个股资金流数据
+func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
+	var resData models.StockMoneyDataResp
+	url := "https://push2.eastmoney.com/api/qt/clist/get?cb=data&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13,f100,f265"
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "push2.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	body := string(resp.Body())
+	logger.SugaredLogger.Infof("resp:%s", body)
+	vm := otto.New()
+	vm.Run("function data(res){return res};")
+	val, err := vm.Run(body)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	value, err := val.Export()
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	marshal, err := json.Marshal(value)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return models.StockMoneyDataResp{}
+	}
+	err = json.Unmarshal(marshal, &resData)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return models.StockMoneyDataResp{}
+	}
+	return resData
+}
+
+// 获取股票概念题材信息
+func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockConceptInfoResp {
+	//601138.SH
+	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_BOARD_CODE%2CBOARD_NAME%2CSELECTED_BOARD_REASON%2CIS_PRECISE%2CBOARD_RANK%2CBOARD_YIELD%2CDERIVE_BOARD_CODE&quoteColumns=f3~05~NEW_BOARD_CODE~BOARD_YIELD&filter=(SECUCODE%3D%22" + stockCode + "%22)(IS_PRECISE%3D%221%22)&pageNumber=1&pageSize=&sortTypes=1&sortColumns=BOARD_RANK&source=HSF10&client=PC&v=005634233622011753"
+	logger.SugaredLogger.Infof("url:%s", url2.QueryEscape(url))
+	var data models.StockConceptInfoResp
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter.eastmoney.com").
+		SetHeader("Referer", "https://emweb.securities.eastmoney.com/").
+		SetHeader("Origin", "https://emweb.securities.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	err = json.Unmarshal(resp.Body(), &data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return models.StockConceptInfoResp{}
+	}
+	return data
 }
 
 // JSONToMarkdownTable 将JSON数据转换为Markdown表格

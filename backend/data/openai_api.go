@@ -193,22 +193,22 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"content":           "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(5)
+		wg.Add(4)
 
-		go func() {
-			defer wg.Done()
-			res := NewMarketNewsApi().XUEQIUHotStock(50, "10")
-			md := util.MarkdownTableWithTitle("当前热门股票排名", res)
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "当前热门股票排名数据",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":              "assistant",
-				"reasoning_content": "使用工具查询",
-				"content":           md,
-			})
-		}()
+		//go func() {
+		//	defer wg.Done()
+		//	res := NewMarketNewsApi().XUEQIUHotStock(50, "10")
+		//	md := util.MarkdownTableWithTitle("当前热门股票排名", res)
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "当前热门股票排名数据",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":              "assistant",
+		//		"reasoning_content": "使用工具查询",
+		//		"content":           md,
+		//	})
+		//}()
 		go func() {
 			defer wg.Done()
 			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
@@ -1736,6 +1736,83 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									//"tool_calls":        choice.Delta.ToolCalls,
 								})
 
+							}
+
+							if funcName == "GetStockMoneyData" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：GetStockMoneyData，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								res := NewStockDataApi().GetStockMoneyData()
+								md := util.MarkdownTableWithTitle("今日个股资金流向Top50", res.Data.Diff)
+								logger.SugaredLogger.Infof("%s", md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
+							if funcName == "GetStockConceptInfo" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：GetStockConceptInfo，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								code := gjson.Get(funcArguments, "code").String()
+								res := NewStockDataApi().GetStockConceptInfo(code)
+								md := util.MarkdownTableWithTitle(code+" 股票所属概念详细信息", res.Result.Data)
+								logger.SugaredLogger.Infof("%s", md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
 							}
 
 						}

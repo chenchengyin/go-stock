@@ -207,6 +207,41 @@ func AddTools(tools []data.Tool) []data.Tool {
 		},
 	})
 
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetStockMoneyData",
+			Description: "今日股票资金流入排名",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"pageSize": map[string]any{
+						"type":        "string",
+						"description": "分页大小",
+					},
+				},
+				Required: []string{"pageSize"},
+			},
+		},
+	})
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetStockConceptInfo",
+			Description: "获取股票所属概念详细信息",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"code": map[string]any{
+						"type":        "string",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+					},
+				},
+				Required: []string{"code"},
+			},
+		},
+	})
+
 	return tools
 }
 
