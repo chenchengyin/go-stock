@@ -121,10 +121,10 @@ EventsOn("updateVersion",async (msg) => {
           <n-space vertical >
             <n-image width="100" :src="icon" />
             <h1>
-              <n-badge v-if="!vipLevel"  :value="versionInfo" :offset="[50,10]"  type="success">
+              <n-badge v-if="!vipLevel"  :value="versionInfo" :offset="[80,10]"  type="success">
                 <n-gradient-text type="info" :size="50" >go-stock</n-gradient-text>
               </n-badge>
-              <n-badge v-if="vipLevel"  :value="versionInfo" :offset="[50,10]"  type="success">
+              <n-badge v-if="vipLevel"  :value="versionInfo" :offset="[70,10]"  type="success">
                 <n-gradient-text :type="expired?'error':'warning'" :size="50" >go-stock</n-gradient-text><n-tag :bordered="false" size="small" type="warning">VIP{{vipLevel}}</n-tag>
               </n-badge>
             </h1>
