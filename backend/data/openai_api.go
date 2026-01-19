@@ -43,6 +43,8 @@ type OpenAi struct {
 	CrawlTimeOut     int64   `json:"crawl_time_out"`
 	KDays            int64   `json:"kDays"`
 	BrowserPath      string  `json:"browser_path"`
+	HttpProxy        string  `json:"httpProxy"`
+	HttpProxyEnabled bool    `json:"httpProxyEnabled"`
 }
 
 func (o OpenAi) String() string {
@@ -78,6 +80,8 @@ func NewDeepSeekOpenAi(ctx context.Context, aiConfigId int) *OpenAi {
 		MaxTokens:        aiConfig.MaxTokens,
 		Temperature:      aiConfig.Temperature,
 		TimeOut:          aiConfig.TimeOut,
+		HttpProxy:        aiConfig.HttpProxy,
+		HttpProxyEnabled: aiConfig.HttpProxyEnabled,
 		Prompt:           settingConfig.Prompt,
 		QuestionTemplate: settingConfig.QuestionTemplate,
 		CrawlTimeOut:     settingConfig.CrawlTimeOut,
@@ -977,9 +981,8 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 		thinking = "enabled"
 	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
-	config := GetSettingConfig()
-	if config.HttpProxyEnabled && config.HttpProxy != "" {
-		client.SetProxy(config.HttpProxy)
+	if o.HttpProxyEnabled && o.HttpProxy != "" {
+		client.SetProxy(o.HttpProxy)
 	}
 	bodyMap := map[string]interface{}{
 		"model":       o.Model,
@@ -1138,9 +1141,8 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 		thinking = "enabled"
 	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
-	config := GetSettingConfig()
-	if config.HttpProxyEnabled && config.HttpProxy != "" {
-		client.SetProxy(config.HttpProxy)
+	if o.HttpProxyEnabled && o.HttpProxy != "" {
+		client.SetProxy(o.HttpProxy)
 	}
 	bodyMap := map[string]interface{}{
 		"model":       o.Model,

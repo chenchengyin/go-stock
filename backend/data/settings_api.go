@@ -45,16 +45,18 @@ func (receiver Settings) TableName() string {
 }
 
 type AIConfig struct {
-	ID          uint `gorm:"primarykey"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	Name        string  `json:"name"`
-	BaseUrl     string  `json:"baseUrl"`
-	ApiKey      string  `json:"apiKey" `
-	ModelName   string  `json:"modelName"`
-	MaxTokens   int     `json:"maxTokens"`
-	Temperature float64 `json:"temperature"`
-	TimeOut     int     `json:"timeOut"`
+	ID               uint `gorm:"primarykey"`
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	Name             string  `json:"name"`
+	BaseUrl          string  `json:"baseUrl"`
+	ApiKey           string  `json:"apiKey" `
+	ModelName        string  `json:"modelName"`
+	MaxTokens        int     `json:"maxTokens"`
+	Temperature      float64 `json:"temperature"`
+	TimeOut          int     `json:"timeOut"`
+	HttpProxy        string  `json:"httpProxy"`
+	HttpProxyEnabled bool    `json:"httpProxyEnabled"`
 }
 
 func (AIConfig) TableName() string {
@@ -163,13 +165,15 @@ func updateAiConfigs(aiConfigs []*AIConfig) error {
 		} else {
 			notDeleteIds = append(notDeleteIds, item.ID)
 			e = db.Dao.Model(&AIConfig{}).Where("id=?", item.ID).Updates(map[string]interface{}{
-				"name":        item.Name,
-				"base_url":    item.BaseUrl,
-				"api_key":     item.ApiKey,
-				"model_name":  item.ModelName,
-				"max_tokens":  item.MaxTokens,
-				"temperature": item.Temperature,
-				"time_out":    item.TimeOut,
+				"name":               item.Name,
+				"base_url":           item.BaseUrl,
+				"api_key":            item.ApiKey,
+				"model_name":         item.ModelName,
+				"max_tokens":         item.MaxTokens,
+				"temperature":        item.Temperature,
+				"time_out":           item.TimeOut,
+				"http_proxy":         item.HttpProxy,
+				"http_proxy_enabled": item.HttpProxyEnabled,
 			}).Error
 			if e != nil {
 				return

@@ -34,6 +34,8 @@ const formValue = ref({
     questionTemplate: "{{stockName}}分析和总结",
     crawlTimeOut: 30,
     kDays: 30,
+    httpProxy:"",
+    httpProxyEnabled:false,
   },
   enableDanmu: false,
   browserPath: '',
@@ -57,8 +59,10 @@ function addAiConfig() {
     apiKey: '',
     modelName: 'deepseek-chat',
     temperature: 0.1,
-    maxTokens: 1024,
+    maxTokens: 4096,
     timeOut: 60,
+    httpProxy:"",
+    httpProxyEnabled:false,
   }));
 }
 
@@ -92,6 +96,8 @@ onMounted(() => {
       questionTemplate: res.questionTemplate ? res.questionTemplate : '{{stockName}}分析和总结',
       crawlTimeOut: res.crawlTimeOut,
       kDays: res.kDays,
+      httpProxy:"",
+      httpProxyEnabled:false,
     }
 
 
@@ -390,12 +396,12 @@ function deletePrompt(ID) {
                             label="日K线数据(天)" path="openAI.kDays">
               <n-input-number min="30" step="1" max="60" v-model:value="formValue.openAI.kDays"/>
             </n-form-item-gi>
-            <n-form-item-gi :span="2" label="http代理" path="httpProxyEnabled">
+            <n-form-item-gi :span="2" label="爬虫http代理" path="httpProxyEnabled">
               <n-switch v-model:value="formValue.httpProxyEnabled"/>
             </n-form-item-gi>
             <n-form-item-gi :span="10" v-if="formValue.httpProxyEnabled" title="http代理地址"
                             label="http代理地址" path="httpProxy">
-              <n-input type="text" placeholder="http代理地址" v-model:value="formValue.httpProxy" clearable/>
+              <n-input type="text" placeholder="爬虫http代理地址" v-model:value="formValue.httpProxy" clearable/>
             </n-form-item-gi>
 
 
@@ -451,6 +457,12 @@ function deletePrompt(ID) {
                     </n-form-item-gi>
                     <n-form-item-gi :span="5" label="Timeout(秒)" :path="`openAI.aiConfigs[${index}].timeOut`">
                       <n-input-number min="60" step="1" placeholder="超时(秒)" v-model:value="aiConfig.timeOut"/>
+                    </n-form-item-gi>
+                    <n-form-item-gi :span="12" label="http代理" :path="`openAI.aiConfigs[${index}].httpProxyEnabled`">
+                      <n-switch v-model:value="aiConfig.httpProxyEnabled"/>
+                    </n-form-item-gi>
+                    <n-form-item-gi :span="12" v-if="aiConfig.httpProxyEnabled" title="http代理地址" :path="`openAI.aiConfigs[${index}].httpProxy`">
+                      <n-input type="text" placeholder="http代理地址" v-model:value="aiConfig.httpProxy" clearable/>
                     </n-form-item-gi>
                   </n-grid>
                 </n-card>

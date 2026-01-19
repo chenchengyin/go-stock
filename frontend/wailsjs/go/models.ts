@@ -13,6 +13,8 @@ export namespace data {
 	    maxTokens: number;
 	    temperature: number;
 	    timeOut: number;
+	    httpProxy: string;
+	    httpProxyEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AIConfig(source);
@@ -30,6 +32,8 @@ export namespace data {
 	        this.maxTokens = source["maxTokens"];
 	        this.temperature = source["temperature"];
 	        this.timeOut = source["timeOut"];
+	        this.httpProxy = source["httpProxy"];
+	        this.httpProxyEnabled = source["httpProxyEnabled"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
