@@ -26,6 +26,10 @@ export function AnalyzeSentimentWithFreqWeight(arg1) {
   return window['go']['main']['App']['AnalyzeSentimentWithFreqWeight'](arg1);
 }
 
+export function BatchDeleteAIResponseResult(arg1) {
+  return window['go']['main']['App']['BatchDeleteAIResponseResult'](arg1);
+}
+
 export function ChatWithAgent(arg1, arg2, arg3) {
   return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3);
 }
@@ -50,6 +54,10 @@ export function DelPrompt(arg1) {
   return window['go']['main']['App']['DelPrompt'](arg1);
 }
 
+export function DeleteAIResponseResult(arg1) {
+  return window['go']['main']['App']['DeleteAIResponseResult'](arg1);
+}
+
 export function EMDictCode(arg1) {
   return window['go']['main']['App']['EMDictCode'](arg1);
 }
@@ -70,8 +78,16 @@ export function GetAIResponseResult(arg1) {
   return window['go']['main']['App']['GetAIResponseResult'](arg1);
 }
 
+export function GetAIResponseResultList(arg1) {
+  return window['go']['main']['App']['GetAIResponseResultList'](arg1);
+}
+
 export function GetAiConfigs() {
   return window['go']['main']['App']['GetAiConfigs']();
+}
+
+export function GetAiRecommendStocksList(arg1) {
+  return window['go']['main']['App']['GetAiRecommendStocksList'](arg1);
 }
 
 export function GetConfig() {

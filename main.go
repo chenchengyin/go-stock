@@ -152,9 +152,9 @@ func main() {
 		BackgroundColour:         backgroundColour,
 		Assets:                   assets,
 		Menu:                     AppMenu,
-		Logger:                   nil,
+		Logger:                   logger.NewFileLogger("./logs/wails.log"),
 		LogLevel:                 logger.DEBUG,
-		LogLevelProduction:       logger.ERROR,
+		LogLevelProduction:       logger.INFO,
 		OnStartup:                app.startup,
 		OnDomReady:               app.domReady,
 		OnBeforeClose:            app.beforeClose,
@@ -189,7 +189,7 @@ func main() {
 			WindowIsTranslucent:  true,
 			About: &mac.AboutInfo{
 				Title:   "go-stock",
-				Message: "",
+				Message: "go-stock：AI赋能股票分析✨ ",
 				Icon:    icon,
 			},
 		},
@@ -243,8 +243,9 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.BKDict{})
 	db.Dao.AutoMigrate(&models.WordAnalyze{})
 	db.Dao.AutoMigrate(&models.SentimentResultAnalyze{})
+	db.Dao.AutoMigrate(&models.AiRecommendStocks{})
 
-	updateMultipleModel()
+	//updateMultipleModel()
 }
 
 func initStockDataUS(ctx context.Context) {

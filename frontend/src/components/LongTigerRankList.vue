@@ -168,7 +168,7 @@ function handleEXPLANATION(value, option){
             <template #trigger>
               <n-button tag="a"  text :type="item.CHANGE_RATE>0?'error':'success'" :bordered=false >{{ item.SECURITY_NAME_ABBR }}</n-button>
             </template>
-            <k-line-chart style="width: 800px" :code="item.SECUCODE.split('.')[1].toLowerCase()+item.SECUCODE.split('.')[0]" :chart-height="500" :name="item.SECURITY_NAME_ABBR" :k-days="20" :dark-theme="true"></k-line-chart>
+            <k-line-chart style="width: 800px" :code="item.SECUCODE.split('.')[1].toLowerCase()+item.SECUCODE.split('.')[0]" :chart-height="500" :stockName="item.SECURITY_NAME_ABBR" :k-days="20" :dark-theme="true"></k-line-chart>
           </n-popover>
         </n-td>
         <n-td>

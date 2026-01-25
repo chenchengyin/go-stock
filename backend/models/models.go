@@ -149,6 +149,34 @@ func (receiver AIResponseResult) TableName() string {
 	return "ai_response_result"
 }
 
+// AIResponseResultQuery 分页查询参数
+type AIResponseResultQuery struct {
+	Page      int    `form:"page" json:"page"`           // 页码
+	PageSize  int    `form:"pageSize" json:"pageSize"`   // 每页大小
+	ChatId    string `form:"chatId" json:"chatId"`       // 聊天ID筛选
+	ModelName string `form:"modelName" json:"modelName"` // 模型名称筛选
+	StockCode string `form:"stockCode" json:"stockCode"` // 股票代码筛选
+	StockName string `form:"stockName" json:"stockName"` // 股票名称筛选
+	Question  string `form:"question" json:"question"`   // 问题内容模糊搜索
+	StartDate string `form:"startDate" json:"startDate"` // 开始日期
+	EndDate   string `form:"endDate" json:"endDate"`     // 结束日期
+}
+
+// AIResponseResultPageResp 分页查询响应
+type AIResponseResultPageResp struct {
+	Code    int                      `json:"code"`
+	Message string                   `json:"message"`
+	Data    AIResponseResultPageData `json:"data"`
+}
+
+type AIResponseResultPageData struct {
+	List       []AIResponseResult `json:"list"`
+	Total      int64              `json:"total"`
+	Page       int                `json:"page"`
+	PageSize   int                `json:"pageSize"`
+	TotalPages int                `json:"totalPages"`
+}
+
 type VersionInfo struct {
 	gorm.Model
 	Version           string                `json:"version"`
@@ -875,4 +903,50 @@ type StockConceptInfo struct {
 	BOARDRANK           int     `json:"BOARD_RANK" md:"-"`
 	BOARDYIELD          float64 `json:"BOARD_YIELD" md:"板块/概念涨跌幅(%)"`
 	DERIVEBOARDCODE     string  `json:"DERIVE_BOARD_CODE" md:"-"`
+}
+
+type AiRecommendStocks struct {
+	gorm.Model
+	DataTime                 *time.Time `json:"dataTime" gorm:"index;autoCreateTime"`
+	ModelName                string     `json:"modelName" md:"模型名称"`
+	StockCode                string     `json:"stockCode" md:"股票代码"`
+	StockName                string     `json:"stockName" md:"股票名称"`
+	BkCode                   string     `json:"bkCode" md:"行业/板块代码"`
+	BkName                   string     `json:"bkName" md:"行业/板块名称"`
+	StockPrice               string     `json:"stockPrice" md:"推荐时股票价格"`
+	StockClosePrice          string     `json:"stockClosePrice" md:"推荐时股票收盘价格"`
+	StockPrePrice            string     `json:"stockPrePrice" md:"前一交易日股票价格"`
+	RecommendReason          string     `json:"recommendReason" md:"推荐理由/驱动因素/逻辑"`
+	RecommendBuyPrice        string     `json:"recommendBuyPrice" md:"ai建议买入价"`
+	RecommendStopProfitPrice string     `json:"recommendStopProfitPrice" md:"ai建议止盈价"`
+	RecommendStopLossPrice   string     `json:"recommendStopLossPrice" md:"ai建议止损价"`
+	RiskRemarks              string     `json:"riskRemarks" md:"风险提示"`
+	Remarks                  string     `json:"remarks" md:"备注"`
+}
+
+func (receiver AiRecommendStocks) TableName() string { return "ai_recommend_stocks" }
+
+type AiRecommendStocksQuery struct {
+	Page      int    `form:"page" json:"page"`           // 页码
+	PageSize  int    `form:"pageSize" json:"pageSize"`   // 每页大小
+	StockCode string `form:"stockCode" json:"stockCode"` // 股票代码筛选
+	StockName string `form:"stockName" json:"stockName"` // 股票名称筛选
+	BkCode    string `form:"bkCode" json:"bkCode"`       // 板块代码筛选
+	BkName    string `form:"bkName" json:"bkName"`       // 板块名称筛选
+	StartDate string `form:"startDate" json:"startDate"` // 开始日期
+	EndDate   string `form:"endDate" json:"endDate"`     // 结束日期
+}
+
+type AiRecommendStocksPageResp struct {
+	Code    int                       `json:"code"`
+	Message string                    `json:"message"`
+	Data    AiRecommendStocksPageData `json:"data"`
+}
+
+type AiRecommendStocksPageData struct {
+	List       []AiRecommendStocks `json:"list"`
+	Total      int64               `json:"total"`
+	Page       int                 `json:"page"`
+	PageSize   int                 `json:"pageSize"`
+	TotalPages int                 `json:"totalPages"`
 }

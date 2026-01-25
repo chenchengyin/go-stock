@@ -6,16 +6,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"go-stock/backend/data"
+	"go-stock/backend/db"
+	"go-stock/backend/logger"
+	"time"
+
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/energye/systray"
 	"github.com/go-toast/toast"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"go-stock/backend/data"
-	"go-stock/backend/db"
-	"go-stock/backend/logger"
-	"time"
 )
 
 // startup is called at application startup
@@ -209,6 +210,7 @@ func getScreenResolution() (int, int, int, int, error) {
 	//
 	//width, _, _ := getSystemMetrics.Call(0)
 	//height, _, _ := getSystemMetrics.Call(1)
+	//return int(width), int(height), 1456, 768, nil
 
 	return int(1366), int(768), 1456, 768, nil
 }

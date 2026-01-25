@@ -15,9 +15,9 @@ import {createDiscreteApi,darkTheme,lightTheme , NIcon, NText,NButton,dateZhCN,z
 import {
   AlarmOutline,
   AnalyticsOutline,
-  BarChartSharp, Bonfire, BonfireOutline, EaselSharp,
+  BarChartSharp, Bonfire, BonfireOutline, DiamondOutline, EaselSharp,
   ExpandOutline, Flag,
-  Flame, FlameSharp, InformationOutline,
+  Flame, FlameSharp, FlaskOutline, InformationOutline,
   LogoGithub,
   NewspaperOutline,
   NewspaperSharp, Notifications,
@@ -30,7 +30,7 @@ import {
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList,GetVersionInfo} from "../wailsjs/go/main/App";
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
-import {ReportSearch} from "@vicons/tabler";
+import {ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
 import {BoxSearch20Regular, CommentNote20Filled} from "@vicons/fluent";
 import {FireFilled, FireOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
@@ -446,6 +446,77 @@ const menuOptions = ref([
     show:enableAgent.value,
     icon: renderIcon(Robot),
   },
+    {
+      label: () =>
+          h(
+              RouterLink,
+              {
+                to: {
+                  name: 'research',
+                  query: {
+                    name:"研究中心",
+                  },
+                },
+                onClick: () => {
+                  activeKey.value = 'research'
+                  setTimeout(() => {
+                    EventsEmit("changeResearchTab", {ID: 0, name: 'AI分析报告'})
+                  }, 100)
+                },
+              },
+              {default: () => '研究中心'}
+          ),
+      key: 'research',
+      icon: renderIcon(FlaskOutline),
+      children:[
+          {
+            label: () =>
+                h(
+                    RouterLink,
+                    {
+                      to: {
+                        name: 'research',
+                        query: {
+                          name:"AI分析报告",
+                        },
+                      },
+                      onClick: () => {
+                        activeKey.value = 'research'
+                        setTimeout(() => {
+                          EventsEmit("changeResearchTab", {ID: 0, name: 'AI分析报告'})
+                        }, 100)
+                      },
+                    },
+                    {default: () => 'AI分析报告'}
+                ),
+            key: 'research1',
+            icon: renderIcon(ReportAnalytics),
+          },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"股票推荐记录",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 1, name: '股票推荐记录'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '股票推荐记录'}
+              ),
+          key: 'research2',
+          icon: renderIcon(DiamondOutline),
+        }
+      ],
+    },
   {
     label: () =>
         h(

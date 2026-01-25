@@ -4,12 +4,12 @@ import {GetStockKLine} from "../../wailsjs/go/main/App";
 import * as echarts from "echarts";
 import {onMounted, ref} from "vue";
 import _ from "lodash";
-const { code,name,darkTheme,kDays ,chartHeight} = defineProps({
+const { code,stockName,darkTheme,kDays ,chartHeight} = defineProps({
   code: {
     type: String,
     default: ''
   },
-  name: {
+  stockName: {
     type: String,
     default: ''
   },
@@ -33,13 +33,15 @@ const downBorderColor = '';
 const kLineChartRef = ref(null);
 
 onMounted(() => {
-  handleKLine(code,name)
+  handleKLine(code,stockName)
 })
 
-function  handleKLine(code,name){
-  GetStockKLine(code,name,365).then(result => {
+function  handleKLine(code,stockName){
+  console.log("handleKLine",code,stockName)
+  const chart = echarts.init(kLineChartRef.value);
+  chart.showLoading()
+  GetStockKLine(code,stockName,365).then(result => {
     //console.log("GetStockKLine",result)
-    const chart = echarts.init(kLineChartRef.value);
     const categoryData = [];
     const values = [];
     const volumns=[];
@@ -47,24 +49,28 @@ function  handleKLine(code,name){
       let resultElement=result[i]
       //console.log("resultElement:{}",resultElement)
       categoryData.push(resultElement.day)
-      let flag=resultElement.close>resultElement.open?1:-1
+      let flag=Number(resultElement.close)>Number(resultElement.open)?1:-1
+      if(i>0){
+         flag=Number(resultElement.close)>Number(result[i-1].close)?1:-1
+      }
       values.push([
-        resultElement.open,
-        resultElement.close,
-        resultElement.low,
-        resultElement.high
+        Number(resultElement.open),
+        Number(resultElement.close),
+        Number(resultElement.low),
+        Number(resultElement.high)
       ])
-      volumns.push([i,resultElement.volume/10000,flag])
+      volumns.push([i,Number(resultElement.volume)/10000,flag])
     }
     ////console.log("categoryData",categoryData)
     ////console.log("values",values)
     let option = {
       title: {
-        text: name+" "+code,
-        left: '20px',
+        text: stockName+" "+categoryData[values.length-1]+"  "+values[values.length-1][1]+" "+((values[values.length-1][1]-values[values.length-2][1])/values[values.length-2][1]*100).toFixed(2)+"%",
+        left: '0px',
         textStyle: {
-          color: darkTheme?'#ccc':'#456'
-        }
+          color: Number(values[values.length-1][1])>Number(values[values.length-2][1])?'red':'green',
+          fontSize: 14
+        },
       },
       darkMode: darkTheme,
       //backgroundColor: '#1c1c1c',
@@ -150,7 +156,7 @@ function  handleKLine(code,name){
           left: '8%',
           right: '8%',
           top: '66%',
-          height: '15%'
+          height: '18%'
         }
       ],
       xAxis: [
@@ -184,7 +190,11 @@ function  handleKLine(code,name){
           scale: true,
           splitArea: {
             show: true
-          }
+          },
+          axisLabel: { show: true },
+          axisLine: { show: true },
+          axisTick: { show: true },
+          splitLine: { show: false }
         },
         {
           scale: true,
@@ -354,10 +364,7 @@ function  handleKLine(code,name){
       ]
     };
     chart.setOption(option);
-
-    chart.on('click',{seriesName:'日K'}, function(params) {
-      //console.log("click:",params);
-    });
+    chart.hideLoading()
   })
 }
 function calculateMA(dayCount,values) {

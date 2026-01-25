@@ -40,6 +40,7 @@ type App struct {
 	cronEntrys  map[string]cron.EntryID
 	AiTools     []data.Tool
 	SponsorInfo map[string]any
+	VipLevel    int64
 }
 
 // NewApp creates a new App application struct
@@ -242,6 +243,77 @@ func AddTools(tools []data.Tool) []data.Tool {
 		},
 	})
 
+	//CreateAiRecommendStocks
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "CreateAiRecommendStocks",
+			Description: "创建/保存AI推荐股票记录",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"modelName": map[string]any{
+						"type":        "string",
+						"description": "模型名称",
+					},
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+					},
+					"stockName": map[string]any{
+						"type":        "string",
+						"description": "股票名称",
+					},
+					"bkCode": map[string]any{
+						"type":        "string",
+						"description": "板块/行业代码",
+					},
+					"bkName": map[string]any{
+						"type":        "string",
+						"description": "板块/行业名称",
+					},
+					"stockPrice": map[string]any{
+						"type":        "string",
+						"description": "推荐时股票价格",
+					},
+					"stockPrePrice": map[string]any{
+						"type":        "string",
+						"description": "前一交易日股票价格",
+					},
+					"stockClosePrice": map[string]any{
+						"type":        "string",
+						"description": "推荐时股票收盘价格",
+					},
+					"recommendReason": map[string]any{
+						"type":        "string",
+						"description": "推荐理由/驱动因素/逻辑",
+					},
+					"recommendBuyPrice": map[string]any{
+						"type":        "string",
+						"description": "ai建议买入价",
+					},
+					"recommendStopProfitPrice": map[string]any{
+						"type":        "string",
+						"description": "ai建议止盈价",
+					},
+					"recommendStopLossPrice": map[string]any{
+						"type":        "string",
+						"description": "ai建议止损价",
+					},
+					"riskRemarks": map[string]any{
+						"type":        "string",
+						"description": "风险提示",
+					},
+					"remarks": map[string]any{
+						"type":        "string",
+						"description": "备注",
+					},
+				},
+				Required: []string{"stockCode", "stockName"},
+			},
+		},
+	})
+
 	return tools
 }
 
@@ -315,6 +387,7 @@ func (a *App) CheckUpdate(flag int) {
 
 	if _, vipLevel, ok := a.isVip(sponsorCode, "", releaseVersion); ok {
 		level, _ := convertor.ToInt(vipLevel)
+		a.VipLevel = level
 		if level >= 2 {
 			go a.syncNews()
 		}

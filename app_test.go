@@ -62,3 +62,13 @@ func TestUpdateCheck(t *testing.T) {
 	}
 	logger.SugaredLogger.Infof("releaseVersion:%+v", releaseVersion)
 }
+
+func TestGetScreenResolution(t *testing.T) {
+	x, y, w, h, err := getScreenResolution()
+	if err != nil {
+		logger.SugaredLogger.Errorf("get screen resolution error:%s", err.Error())
+		return
+	}
+	logger.SugaredLogger.Infof("x:%d,y:%d,w:%d,h:%d", x, y, w, h)
+
+}

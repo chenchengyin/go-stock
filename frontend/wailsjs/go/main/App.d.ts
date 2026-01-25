@@ -16,6 +16,8 @@ export function AnalyzeSentiment(arg1:string):Promise<models.SentimentResult>;
 
 export function AnalyzeSentimentWithFreqWeight(arg1:string):Promise<Record<string, any>>;
 
+export function BatchDeleteAIResponseResult(arg1:Array<number>):Promise<string>;
+
 export function ChatWithAgent(arg1:string,arg2:number,arg3:any):Promise<void>;
 
 export function CheckSponsorCode(arg1:string):Promise<Record<string, any>>;
@@ -28,6 +30,8 @@ export function ClsCalendar():Promise<Array<any>>;
 
 export function DelPrompt(arg1:number):Promise<string>;
 
+export function DeleteAIResponseResult(arg1:string):Promise<string>;
+
 export function EMDictCode(arg1:string):Promise<Array<any>>;
 
 export function ExportConfig():Promise<string>;
@@ -38,7 +42,11 @@ export function FollowFund(arg1:string):Promise<string>;
 
 export function GetAIResponseResult(arg1:string):Promise<models.AIResponseResult>;
 
+export function GetAIResponseResultList(arg1:models.AIResponseResultQuery):Promise<models.AIResponseResultPageData>;
+
 export function GetAiConfigs():Promise<Array<data.AIConfig>>;
+
+export function GetAiRecommendStocksList(arg1:models.AiRecommendStocksQuery):Promise<models.AiRecommendStocksPageData>;
 
 export function GetConfig():Promise<data.SettingConfig>;
 

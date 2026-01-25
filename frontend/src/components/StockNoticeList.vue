@@ -123,7 +123,7 @@ function getmMarketCode(market,code) {
             <template #trigger>
               <n-tag type="info"  :bordered="false">{{item.codes[0].short_name }}</n-tag>
             </template>
-            <k-line-chart style="width: 800px" :code="getmMarketCode(item.codes[0].market_code,item.codes[0].stock_code)" :chart-height="500" :name="item.codes[0].short_name" :k-days="20" :dark-theme="true"></k-line-chart>
+            <k-line-chart style="width: 800px" :code="getmMarketCode(item.codes[0].market_code,item.codes[0].stock_code)" :chart-height="500" :stockName="item.codes[0].short_name" :k-days="20" :dark-theme="true"></k-line-chart>
           </n-popover>
         </n-td>
         <n-td>

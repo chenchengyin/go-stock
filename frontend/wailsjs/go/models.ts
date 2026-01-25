@@ -711,6 +711,206 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class AIResponseResultPageData {
+	    list: AIResponseResult[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIResponseResultPageData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.list = this.convertValues(source["list"], AIResponseResult);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AIResponseResultQuery {
+	    page: number;
+	    pageSize: number;
+	    chatId: string;
+	    modelName: string;
+	    stockCode: string;
+	    stockName: string;
+	    question: string;
+	    startDate: string;
+	    endDate: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIResponseResultQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.chatId = source["chatId"];
+	        this.modelName = source["modelName"];
+	        this.stockCode = source["stockCode"];
+	        this.stockName = source["stockName"];
+	        this.question = source["question"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	    }
+	}
+	export class AiRecommendStocks {
+	    ID: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	    // Go type: gorm
+	    DeletedAt: any;
+	    // Go type: time
+	    dataTime?: any;
+	    modelName: string;
+	    stockCode: string;
+	    stockName: string;
+	    bkCode: string;
+	    bkName: string;
+	    stockPrice: string;
+	    stockClosePrice: string;
+	    stockPrePrice: string;
+	    recommendReason: string;
+	    recommendBuyPrice: string;
+	    recommendStopProfitPrice: string;
+	    recommendStopLossPrice: string;
+	    riskRemarks: string;
+	    remarks: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiRecommendStocks(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	        this.DeletedAt = this.convertValues(source["DeletedAt"], null);
+	        this.dataTime = this.convertValues(source["dataTime"], null);
+	        this.modelName = source["modelName"];
+	        this.stockCode = source["stockCode"];
+	        this.stockName = source["stockName"];
+	        this.bkCode = source["bkCode"];
+	        this.bkName = source["bkName"];
+	        this.stockPrice = source["stockPrice"];
+	        this.stockClosePrice = source["stockClosePrice"];
+	        this.stockPrePrice = source["stockPrePrice"];
+	        this.recommendReason = source["recommendReason"];
+	        this.recommendBuyPrice = source["recommendBuyPrice"];
+	        this.recommendStopProfitPrice = source["recommendStopProfitPrice"];
+	        this.recommendStopLossPrice = source["recommendStopLossPrice"];
+	        this.riskRemarks = source["riskRemarks"];
+	        this.remarks = source["remarks"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AiRecommendStocksPageData {
+	    list: AiRecommendStocks[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiRecommendStocksPageData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.list = this.convertValues(source["list"], AiRecommendStocks);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AiRecommendStocksQuery {
+	    page: number;
+	    pageSize: number;
+	    stockCode: string;
+	    stockName: string;
+	    bkCode: string;
+	    bkName: string;
+	    startDate: string;
+	    endDate: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiRecommendStocksQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.stockCode = source["stockCode"];
+	        this.stockName = source["stockName"];
+	        this.bkCode = source["bkCode"];
+	        this.bkName = source["bkName"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	    }
+	}
 	export class Prompt {
 	    ID: number;
 	    name: string;

@@ -72,7 +72,7 @@ function GetMoneyRankSinaData(){
             <template #trigger>
               <n-button tag="a"  text :type="item.changeratio>0?'error':'success'" :bordered=false >{{ item.name }}</n-button>
             </template>
-            <k-line-chart style="width: 800px" :code="item.symbol" :chart-height="500" :name="item.name" :k-days="20" :dark-theme="true"></k-line-chart>
+            <k-line-chart style="width: 800px" :code="item.symbol" :chart-height="500" :stockName="item.name" :k-days="20" :dark-theme="true"></k-line-chart>
           </n-popover>
         </n-td>
         <n-td><n-text :type="item.changeratio>0?'error':'success'">{{item.trade}}</n-text></n-td>

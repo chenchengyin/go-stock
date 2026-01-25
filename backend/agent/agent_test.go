@@ -14,6 +14,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/flow/agent"
 	"github.com/cloudwego/eino/schema"
+	"github.com/duke-git/lancet/v2/fileutil"
 )
 
 // @Author spark
@@ -61,7 +62,7 @@ func TestGetStockAiAgent(t *testing.T) {
 			logger.SugaredLogger.Errorf("failed to recv: %v", err)
 			return
 		}
-		//logger.SugaredLogger.Infof("stream recv: %v", msg)
+		logger.SugaredLogger.Infof("stream recv: %v", msg)
 		if msg.ReasoningContent != "" {
 			md.WriteString(msg.ReasoningContent)
 		}
@@ -76,9 +77,12 @@ func TestGetStockAiAgent(t *testing.T) {
 func TestAgent(t *testing.T) {
 	db.Init("../../data/stock.db")
 
-	ch := NewStockAiAgentApi().Chat("分析一下海立股份，使用工具", 1, nil)
+	md := strings.Builder{}
+	ch := NewStockAiAgentApi().Chat("分析一下立讯精密", 0, nil)
 	for message := range ch {
 		logger.SugaredLogger.Infof("res:%s", message.String())
+		md.WriteString(message.String())
 	}
-
+	logger.SugaredLogger.Info(md.String())
+	fileutil.WriteStringToFile("../../data/result.md", md.String(), false)
 }

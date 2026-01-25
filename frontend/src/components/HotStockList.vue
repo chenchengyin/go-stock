@@ -59,7 +59,7 @@ function getMarketCode(item) {
             <template #trigger>
               <n-tag type="info"  :bordered="false">  {{item.name}} {{item.code}}</n-tag>
             </template>
-            <k-line-chart style="width: 800px" :code="getMarketCode(item)" :chart-height="500" :name="item.name" :k-days="20" :dark-theme="true"></k-line-chart>
+            <k-line-chart style="width: 800px" :code="getMarketCode(item)" :chart-height="500" :stockName="item.name" :k-days="20" :dark-theme="true"></k-line-chart>
           </n-popover>
         </n-text></n-td>
         <n-td><n-text :type="item.percent>0?'error':'success'">{{item.percent}}%</n-text></n-td>

@@ -111,7 +111,7 @@ function handleSearch(value) {
             <template #trigger>
               <n-tag type="info"  :bordered="false">{{item.stockName}}</n-tag>
             </template>
-            <k-line-chart style="width: 800px" :code="getmMarketCode(item.market,item.stockCode)" :chart-height="500" :name="item.stockName" :k-days="20" :dark-theme="true"></k-line-chart>
+            <k-line-chart style="width: 800px" :code="getmMarketCode(item.market,item.stockCode)" :chart-height="500" :stockName="item.stockName" :k-days="20" :dark-theme="true"></k-line-chart>
           </n-popover>
         </n-td>
         <n-td><n-tag type="info"  :bordered="false">{{item.indvInduName}}</n-tag></n-td>

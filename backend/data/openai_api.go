@@ -1817,6 +1817,57 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								})
 							}
 
+							if funcName == "CreateAiRecommendStocks" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：CreateAiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								recommend := models.AiRecommendStocks{}
+								err := json.Unmarshal([]byte(funcArguments), &recommend)
+								if err != nil {
+									logger.SugaredLogger.Infof("CreateAiRecommendStocks error : %s", err.Error())
+									return
+								}
+								err = NewAiRecommendStocksService().CreateAiRecommendStocks(&recommend)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								if err != nil {
+									logger.SugaredLogger.Infof("CreateAiRecommendStocks error : %s", err.Error())
+									ch <- map[string]any{
+										"code":     0,
+										"question": question,
+										"content":  "保存股票推荐失败:" + err.Error(),
+									}
+									return
+								}
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      "保存股票推荐成功",
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
 						}
 						AskAiWithTools(o, err, messages, ch, question, tools, thinkingMode)
 					}

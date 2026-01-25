@@ -80,3 +80,33 @@ func (a *App) AnalyzeSentimentWithFreqWeight(text string) map[string]any {
 		"frequencies": cleanFrequencies,
 	}
 }
+
+func (a *App) GetAIResponseResultList(query models.AIResponseResultQuery) *models.AIResponseResultPageData {
+	page, err := data.NewAIResponseResultService().GetAIResponseResultList(query)
+	if err != nil {
+		return &models.AIResponseResultPageData{}
+	}
+	return page
+}
+func (a *App) DeleteAIResponseResult(id string) string {
+	err := data.NewAIResponseResultService().DeleteAIResponseResult(id)
+	if err != nil {
+		return "删除失败"
+	}
+	return "删除成功"
+}
+func (a *App) BatchDeleteAIResponseResult(ids []uint) string {
+	err := data.NewAIResponseResultService().BatchDeleteAIResponseResult(ids)
+	if err != nil {
+		return "删除失败"
+	}
+	return "删除成功"
+}
+
+func (a *App) GetAiRecommendStocksList(query models.AiRecommendStocksQuery) *models.AiRecommendStocksPageData {
+	page, err := data.NewAiRecommendStocksService().GetAiRecommendStocksList(&query)
+	if err != nil {
+		return &models.AiRecommendStocksPageData{}
+	}
+	return page
+}
