@@ -26,7 +26,7 @@ onBeforeMount(()=> {
   })
 
   GetSponsorInfo().then((res) => {
-    console.log(res)
+   // console.log(res)
     vipLevel.value = res.vipLevel;
     vipStartTime.value = res.vipStartTime;
     vipEndTime.value = res.vipEndTime;
@@ -39,6 +39,8 @@ onBeforeMount(()=> {
     }else{
       //notify.success({content: '未开通VIP'})
     }
+    isValidVip.value = !(vipLevel.value === "" || Number(vipLevel.value) <= 0);
+
   })
 
 })
