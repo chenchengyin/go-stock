@@ -179,6 +179,8 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			sysPrompt = o.Prompt
 		}
 
+		sysPrompt += "最后必须调用CreateAiRecommendStocks工具函数保存ai股票推荐记录。"
+
 		msg := []map[string]interface{}{
 			{
 				"role": "system",

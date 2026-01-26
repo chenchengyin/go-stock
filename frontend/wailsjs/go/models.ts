@@ -793,6 +793,8 @@ export namespace models {
 	    bkCode: string;
 	    bkName: string;
 	    stockPrice: string;
+	    stockCurrentPrice: string;
+	    stockCurrentPriceTime: string;
 	    stockClosePrice: string;
 	    stockPrePrice: string;
 	    recommendReason: string;
@@ -819,6 +821,8 @@ export namespace models {
 	        this.bkCode = source["bkCode"];
 	        this.bkName = source["bkName"];
 	        this.stockPrice = source["stockPrice"];
+	        this.stockCurrentPrice = source["stockCurrentPrice"];
+	        this.stockCurrentPriceTime = source["stockCurrentPriceTime"];
 	        this.stockClosePrice = source["stockClosePrice"];
 	        this.stockPrePrice = source["stockPrePrice"];
 	        this.recommendReason = source["recommendReason"];

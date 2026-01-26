@@ -914,6 +914,8 @@ type AiRecommendStocks struct {
 	BkCode                   string     `json:"bkCode" md:"行业/板块代码"`
 	BkName                   string     `json:"bkName" md:"行业/板块名称"`
 	StockPrice               string     `json:"stockPrice" md:"推荐时股票价格"`
+	StockCurrentPrice        string     `json:"stockCurrentPrice" md:"当前价格"`
+	StockCurrentPriceTime    string     `json:"stockCurrentPriceTime" md:"当前价格时间"`
 	StockClosePrice          string     `json:"stockClosePrice" md:"推荐时股票收盘价格"`
 	StockPrePrice            string     `json:"stockPrePrice" md:"前一交易日股票价格"`
 	RecommendReason          string     `json:"recommendReason" md:"推荐理由/驱动因素/逻辑"`

@@ -5,6 +5,7 @@ import (
 	"go-stock/backend/db"
 	"go-stock/backend/models"
 
+	"github.com/duke-git/lancet/v2/slice"
 	"github.com/duke-git/lancet/v2/strutil"
 )
 
@@ -76,6 +77,20 @@ func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiReco
 	}
 
 	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+
+	stockCodes := slice.Map(list, func(index int, item models.AiRecommendStocks) string {
+		return ConvertTushareCodeToStockCode(item.StockCode)
+	})
+	stockData, _ := NewStockDataApi().GetStockCodeRealTimeData(stockCodes...)
+	for _, info := range *stockData {
+		for idx, item := range list {
+			if ConvertTushareCodeToStockCode(item.StockCode) == ConvertTushareCodeToStockCode(info.Code) {
+				list[idx].StockCurrentPrice = info.Price
+				list[idx].StockPrePrice = info.PreClose
+				list[idx].StockCurrentPriceTime = info.Date + " " + info.Time
+			}
+		}
+	}
 
 	return &models.AiRecommendStocksPageData{
 		List:       list,

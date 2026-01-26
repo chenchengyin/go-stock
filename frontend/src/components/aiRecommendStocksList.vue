@@ -7,7 +7,7 @@ import {
   SaveAsMarkdown,
   ShareAnalysis
 } from "../../wailsjs/go/main/App";
-import {NAvatar, NButton, NEllipsis, NPopover, NText, useMessage, useNotification} from "naive-ui";
+import {NAvatar, NButton, NEllipsis, NTag, NText, useMessage, useNotification} from "naive-ui";
 import KLineChart from "./KLineChart.vue";
 import {format} from "date-fns";
 
@@ -96,10 +96,10 @@ const columnsRef = ref([
       return row.CreatedAt.substring(0, 19).replace('T', ' ')
     }
   },
-  // {
-  //   title: '模型名称',
-  //   key: 'modelName'
-  // },
+  {
+    title: '板块概念',
+    key: 'bkName'
+  },
   {
     title: '股票名称',
     key: 'stockName',
@@ -112,21 +112,71 @@ const columnsRef = ref([
     key: 'stockCode'
   },
   {
-    title: '推荐时股票价格',
-    key: 'stockPrice'
+    title: '最新',
+    key: 'stockCurrentPrice',
+    minWidth: 120,
+    render(row, index) {
+
+      let diff = ((Number(row.stockCurrentPrice) - Number(row.stockPrePrice))/ Number(row.stockPrePrice)*100).toFixed(2)
+
+      if(Number(row.stockCurrentPrice)< Number(row.stockPrePrice)) {
+        return [h(NText, { type: "success", bordered: false }, { default: () => row.stockCurrentPrice+` |  ${diff}%` })]
+      } else {
+        return [h(NText, { type: "error" , bordered: false}, { default: () => row.stockCurrentPrice+` |  ${diff}%` })]
+      }
+    }
   },
   {
-    title: '收盘价格',
-    key: 'stockClosePrice'
+    title: '推荐时',
+    key: 'stockPrice',
+    render(row, index) {
+
+      if(vipLevel.value===""|| Number(vipLevel.value) <=0){
+        return h(NText, { type: "info" }, { default: () => row.stockPrice })
+      }
+
+      let diff = ((Number(row.stockCurrentPrice) - Number(row.stockPrice))/ Number(row.stockPrice)*100).toFixed(2)
+      let flagStr="暂平"
+      let flag="info"
+      if(Number(row.stockCurrentPrice)>Number(row.stockPrice)) {
+        flagStr="暂赢 "+diff+"%"
+        flag="error"
+      }else if(Number(row.stockCurrentPrice)===Number(row.stockPrice)){
+        flagStr="暂平"
+        flag="info"
+      }else{
+        flagStr="暂亏 "+ diff+"%"
+        flag="success"
+      }
+
+      return [h(NText, { type: "info" }, { default: () => row.stockPrice }),h(NTag, { type: flag,size: "tiny", bordered: false }, { default: () => flagStr })]
+    }
   },
-  // {
-  //   title: '前一交易日价格',
-  //   key: 'stockPrePrice',
-  //   show:false,
-  // },
+  {
+    title: '昨收',
+    key: 'stockPrePrice',
+    render(row, index) {
+      return h(NText, { type: "info" }, { default: () => row.stockPrePrice })
+    }
+  },
   {
     title: 'ai建议买入价',
-    key: 'recommendBuyPrice'
+    key: 'recommendBuyPrice',
+    render(row, index) {
+      if(vipLevel.value===""|| Number(vipLevel.value) <=0){
+        return h(NText, { type: "info" }, { default: () => row.recommendBuyPrice })
+      }
+
+
+      if(row.recommendBuyPrice.includes("-")){
+        let prices= row.recommendBuyPrice.split("-")
+        if(Number(row.stockCurrentPrice)>=Number(prices[0])&&Number(row.stockCurrentPrice)<=Number(prices[1])){
+          return [h(NText, { type: "success" }, { default: () => row.recommendBuyPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Buy" })]
+        }
+      }
+      return h(NText, { type: "info" }, { default: () => row.recommendBuyPrice })
+
+    }
   },
   {
     title: 'ai建议止盈价',
