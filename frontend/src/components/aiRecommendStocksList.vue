@@ -268,6 +268,7 @@ function query({
       "modelName":keyword,
       "stockName":keyword,
       "stockCode":keyword,
+      "bkName":keyword,
       "startDate": startDate,
       "endDate": endDate
     }).then((res) => {

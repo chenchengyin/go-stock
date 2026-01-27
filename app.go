@@ -276,7 +276,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 					},
 					"bkName": map[string]any{
 						"type":        "string",
-						"description": "板块/行业名称",
+						"description": "板块/概念/行业名称",
 					},
 					"stockPrice": map[string]any{
 						"type":        "string",
@@ -300,7 +300,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 					},
 					"recommendStopProfitPrice": map[string]any{
 						"type":        "string",
-						"description": "ai建议止盈价",
+						"description": "ai建议止盈价区间最低价和最高价之间用`-`分隔",
 					},
 					"recommendStopLossPrice": map[string]any{
 						"type":        "string",
@@ -312,10 +312,90 @@ func AddTools(tools []data.Tool) []data.Tool {
 					},
 					"remarks": map[string]any{
 						"type":        "string",
-						"description": "备注",
+						"description": "操作总结/备注",
 					},
 				},
-				Required: []string{"stockCode", "stockName"},
+				Required: []string{"stockCode", "stockName", "bkName"},
+			},
+		},
+	})
+
+	//BatchCreateAiRecommendStocks
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "BatchCreateAiRecommendStocks",
+			Description: "批量创建/保存AI推荐股票记录，建议每次批量保存5条记录",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stocks": map[string]any{
+						"type": "array",
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"modelName": map[string]any{
+									"type":        "string",
+									"description": "模型名称",
+								},
+								"stockCode": map[string]any{
+									"type":        "string",
+									"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+								},
+								"stockName": map[string]any{
+									"type":        "string",
+									"description": "股票名称",
+								},
+								"bkCode": map[string]any{
+									"type":        "string",
+									"description": "板块/行业代码",
+								},
+								"bkName": map[string]any{
+									"type":        "string",
+									"description": "板块/概念/行业名称",
+								},
+								"stockPrice": map[string]any{
+									"type":        "string",
+									"description": "推荐时股票价格",
+								},
+								"stockPrePrice": map[string]any{
+									"type":        "string",
+									"description": "前一交易日股票价格",
+								},
+								"stockClosePrice": map[string]any{
+									"type":        "string",
+									"description": "推荐时股票收盘价格",
+								},
+								"recommendReason": map[string]any{
+									"type":        "string",
+									"description": "推荐理由/驱动因素/逻辑",
+								},
+								"recommendBuyPrice": map[string]any{
+									"type":        "string",
+									"description": "ai建议买入价区间最低价和最高价之间用`-`分隔",
+								},
+								"recommendStopProfitPrice": map[string]any{
+									"type":        "string",
+									"description": "ai建议止盈价区间最低价和最高价之间用`-`分隔",
+								},
+								"recommendStopLossPrice": map[string]any{
+									"type":        "string",
+									"description": "ai建议止损价",
+								},
+								"riskRemarks": map[string]any{
+									"type":        "string",
+									"description": "风险提示",
+								},
+								"remarks": map[string]any{
+									"type":        "string",
+									"description": "操作总结/备注",
+								},
+							},
+						},
+					},
+				},
+
+				Required: []string{"stockCode", "stockName", "bkName"},
 			},
 		},
 	})

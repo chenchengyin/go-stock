@@ -21,6 +21,11 @@ func (s *AiRecommendStocksService) CreateAiRecommendStocks(recommend *models.AiR
 	return result.Error
 }
 
+func (s *AiRecommendStocksService) BatchCreateAiRecommendStocks(recommends []*models.AiRecommendStocks) error {
+	result := db.Dao.Create(recommends)
+	return result.Error
+}
+
 // GetAiRecommendStocksList 分页查询AI推荐股票记录
 func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiRecommendStocksQuery) (*models.AiRecommendStocksPageData, error) {
 	var list []models.AiRecommendStocks
@@ -41,6 +46,7 @@ func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiReco
 	if query.BkName != "" {
 		q.Or("bk_name LIKE ?", "%"+query.BkName+"%")
 	}
+
 	if query.StartDate != "" && query.EndDate != "" {
 		query.StartDate = strutil.ReplaceWithMap(query.StartDate, map[string]string{
 			"T": " ",
