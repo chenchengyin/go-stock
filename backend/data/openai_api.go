@@ -1285,6 +1285,83 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 					if choice.FinishReason == "tool_calls" {
 						logger.SugaredLogger.Infof("functions: %+v", functions)
 						for funcName, funcArguments := range functions {
+
+							if funcName == "SearchBk" {
+								words := gjson.Get(funcArguments, "words").String()
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：SearchBk，\n参数：" + words + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+
+								content := "无符合条件的数据"
+
+								res := NewSearchStockApi(words).SearchBk(random.RandInt(50, 120))
+								if convertor.ToString(res["code"]) == "100" {
+									resData := res["data"].(map[string]any)
+									result := resData["result"].(map[string]any)
+									dataList := result["dataList"].([]any)
+									columns := result["columns"].([]any)
+									headers := map[string]string{}
+									for _, v := range columns {
+										//logger.SugaredLogger.Infof("v:%+v", v)
+										d := v.(map[string]any)
+										//logger.SugaredLogger.Infof("key:%s title:%s dateMsg:%s unit:%s", d["key"], d["title"], d["dateMsg"], d["unit"])
+										title := convertor.ToString(d["title"])
+										if convertor.ToString(d["dateMsg"]) != "" {
+											title = title + "[" + convertor.ToString(d["dateMsg"]) + "]"
+										}
+										if convertor.ToString(d["unit"]) != "" {
+											title = title + "(" + convertor.ToString(d["unit"]) + ")"
+										}
+										headers[d["key"].(string)] = title
+									}
+									table := &[]map[string]any{}
+									for _, v := range dataList {
+										d := v.(map[string]any)
+										tmp := map[string]any{}
+										for key, title := range headers {
+											tmp[title] = convertor.ToString(d[key])
+										}
+										*table = append(*table, tmp)
+									}
+									jsonData, _ := json.Marshal(*table)
+									markdownTable, _ := JSONToMarkdownTable(jsonData)
+									//logger.SugaredLogger.Infof("markdownTable=\n%s", markdownTable)
+									content = "\r\n### 工具筛选出的相关板块/概念数据：\r\n" + markdownTable + "\r\n"
+								}
+								logger.SugaredLogger.Infof("SearchBk:words:%s  --> \n%s", words, content)
+
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      content,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+
+								})
+							}
+
 							if funcName == "SearchStockByIndicators" {
 								words := gjson.Get(funcArguments, "words").String()
 
@@ -1330,7 +1407,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									jsonData, _ := json.Marshal(*table)
 									markdownTable, _ := JSONToMarkdownTable(jsonData)
 									//logger.SugaredLogger.Infof("markdownTable=\n%s", markdownTable)
-									content = "\r\n### 工具筛选出的股票数据：\r\n" + markdownTable + "\r\n"
+									content = "\r\n### 工具筛选出的相关股票数据：\r\n" + markdownTable + "\r\n"
 								}
 								logger.SugaredLogger.Infof("SearchStockByIndicators:words:%s  --> \n%s", words, content)
 

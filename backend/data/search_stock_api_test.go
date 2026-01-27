@@ -23,7 +23,9 @@ func TestSearchStock(t *testing.T) {
 	}
 	logger.SugaredLogger.Infof("e:%s", e)
 
-	res := NewSearchStockApi("量比大于2，基本面优秀，2025年三季报已披露，主力连续3日净流入，非创业板非科创板非ST").SearchStock(20)
+	//res := NewSearchStockApi("量比大于2，基本面优秀，2025年三季报已披露，主力连续3日净流入，非创业板非科创板非ST").SearchStock(20)
+	res := NewSearchStockApi("今日涨幅前5的概念板块").SearchBk(50)
+
 	logger.SugaredLogger.Infof("res:%+v", res)
 	data := res["data"].(map[string]any)
 	result := data["result"].(map[string]any)
