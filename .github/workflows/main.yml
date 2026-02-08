@@ -6,6 +6,7 @@ on:
     # Match any new tag
       - '*-release'
       - '*-dev'
+      - '*-pre'
 
 env:
   # Necessary for most environments as build failure can occur due to OOM issues
