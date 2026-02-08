@@ -4,7 +4,7 @@ import {
   GetAiRecommendStocksList,
   GetConfig,
   GetSponsorInfo,
-  SaveAsMarkdown,
+  DeleteAiRecommendStocks,
   ShareAnalysis
 } from "../../wailsjs/go/main/App";
 import {NAvatar, NButton, NEllipsis, NTag, NText, useMessage, useNotification} from "naive-ui";
@@ -88,6 +88,13 @@ const loadingRef = ref(true)
 // RiskRemarks              string     `json:"riskRemarks" md:"风险提示"`
 // Remarks                  string     `json:"remarks" md:"备注"`
 const columnsRef = ref([
+  {
+    title: '推荐模型',
+    key: 'modelName',
+    render(row, index) {
+      return h(NText, { type: "info" }, { default: () => row.modelName })
+    }
+  },
   {
     title: '推荐时间',
     key: 'dataTime',
@@ -174,17 +181,54 @@ const columnsRef = ref([
           return [h(NText, { type: "success" }, { default: () => row.recommendBuyPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Buy" })]
         }
       }
+      if(row.recommendBuyPriceMin&&row.recommendBuyPriceMax&&Number(row.stockCurrentPrice)<Number(row.recommendBuyPriceMax)&&Number(row.stockCurrentPrice)>Number(row.recommendBuyPriceMin)){
+        return [h(NText, { type: "success" }, { default: () => row.recommendBuyPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Buy" })]
+      }
       return h(NText, { type: "info" }, { default: () => row.recommendBuyPrice })
 
     }
   },
   {
     title: 'ai建议止盈价',
-    key: 'recommendStopProfitPrice'
+    key: 'recommendStopProfitPrice',
+    render(row, index) {
+      if(vipLevel.value===""|| Number(vipLevel.value) <=0){
+        return h(NText, { type: "info" }, { default: () => row.recommendStopProfitPrice })
+      }
+      if(row.recommendStopProfitPrice.includes("-")){
+        let prices= row.recommendStopProfitPrice.split("-")
+        if(Number(row.stockCurrentPrice)>=Number(prices[0])&&Number(row.stockCurrentPrice)<=Number(prices[1])){
+          return [h(NText, { type: "success" }, { default: () => row.recommendStopProfitPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Sell" })]
+        }
+      }
+      if(row.recommendStopProfitPriceMin&&Number(row.stockCurrentPrice)>row.recommendStopProfitPriceMin){
+        return [h(NText, { type: "success" }, { default: () => row.recommendStopProfitPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Sell" })]
+      }
+
+      return h(NText, { type: "info" }, { default: () => row.recommendStopProfitPrice })
+    }
   },
   {
     title: 'ai建议止损价',
-    key: 'recommendStopLossPrice'
+    key: 'recommendStopLossPrice',
+    render(row, index) {
+      if(vipLevel.value===""|| Number(vipLevel.value) <=0){
+        return h(NText, { type: "info" }, { default: () => row.recommendStopLossPrice })
+      }
+      if(row.recommendStopLossPrice.includes("-")){
+        let prices= row.recommendStopLossPrice.split("-")
+        if(Number(row.stockCurrentPrice)<=Number(prices[0])){
+          return [h(NText, { type: "success" }, { default: () => row.recommendStopLossPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Sell" })]
+        }
+      }else{
+        let prices=row.recommendStopLossPrice
+        if(Number(row.stockCurrentPrice)<=Number(prices)){
+          return [h(NText, { type: "success" }, { default: () => row.recommendStopLossPrice }),h(NTag, { type: "error", size: "tiny", bordered: false }, { default: () => "Sell" })]
+        }
+      }
+      return h(NText, { type: "info" }, { default: () => row.recommendStopLossPrice })
+
+    }
   },
   {
     title: '推荐理由',
@@ -210,18 +254,18 @@ const columnsRef = ref([
   {
     title: '操作',
     render(row, index) {
-      return h(
-          NButton,
+      return [h(
+          NTag,
           {
             strong: true,
             tertiary: true,
             size: 'small',
             type: 'warning', // 橙色按钮
-            style: 'font-size: 14px; padding: 0 10px;', // 稍微大一点的按钮
-            onClick: () => rowProps(row)
+            onClick: () => showDetail(row)
           },
-          { default: () => '查看详细' }
-      )
+          { default: () => '查看' }
+      ),h(NTag, { strong: true,
+        tertiary: true,size: 'small', type: 'error',  onClick: () => deleteAiRecommendStocks(row.ID) }, { default: () => '删除' })]
     }
   },
 ])
@@ -231,7 +275,10 @@ const paginationReactive = reactive({
   pageSize: 12,
   itemCount: 0,
   keyword: "",
-  range: [new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), new Date(new Date().getTime() +  24 * 60 * 60 * 1000)],
+  range: [
+    new Date(new Date().getTime() - 3 * 24 * 60 * 60 * 1000), // 前3天
+    new Date() // 当天
+  ],
   prefix({ itemCount }) {
     return `${itemCount} 条记录`
   }
@@ -257,7 +304,7 @@ function query({
                  pageSize = 10,
                  order = 'desc',
                  keyword = "",
-                  startDate = "",
+                 startDate = "",
                  endDate = ""
                }) {
   return new Promise((resolve) => {
@@ -327,10 +374,11 @@ function formatDate(dateString) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  // const hours = String(date.getHours()).padStart(2, '0')
+  // const minutes = String(date.getMinutes()).padStart(2, '0')
+  // const seconds = String(date.getSeconds()).padStart(2, '0')
+  //return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  return `${year}-${month}-${day}`
 }
 function getStockCode(stockCode) {
   if(stockCode.indexOf( ".")>0){
@@ -341,33 +389,39 @@ function getStockCode(stockCode) {
   return stockCode
 
 }
-
+function showDetail(row) {
+  if(vipLevel.value===""|| Number(vipLevel.value) <=0){
+    notify.warning({content: '未开通VIP或者已经过期'})
+    return
+  }
+  modalDataRef.title = row.stockName
+  modalDataRef.content = row.recommendReason
+  modalDataRef.riskRemarks = row.riskRemarks
+  modalDataRef.stockCode = getStockCode(row.stockCode)
+  modalDataRef.stockName = row.stockName
+  modalDataRef.visible = true
+  modalDataRef.remarks = row.remarks
+}
 function rowProps(row) {
   return {
     style: 'cursor: pointer;',
     onClick: () => {
-      if(vipLevel.value===""|| Number(vipLevel.value) <=0){
-        notify.warning({content: '未开通VIP或者已经过期'})
-        return
-      }
-
-
-      //message.info(row.stockName)
-      modalDataRef.title = row.stockName
-      modalDataRef.content = row.recommendReason
-      modalDataRef.riskRemarks = row.riskRemarks
-      modalDataRef.stockCode = getStockCode(row.stockCode)
-      modalDataRef.stockName = row.stockName
-      modalDataRef.visible = true
-      modalDataRef.remarks = row.remarks
+      showDetail(row)
     }
   }
 }
+function deleteAiRecommendStocks(id) {
+  DeleteAiRecommendStocks(id).then((res) => {
+    notify.info({content: res})
+    handleSearch()
+  })
+}
+
 </script>
 
 <template>
   <n-input-group>
-    <n-date-picker  v-model:value="paginationReactive.range" type="datetimerange"   style="width: 50%"/>
+    <n-date-picker  v-model:value="paginationReactive.range" type="daterange"   style="width: 50%"/>
     <n-input clearable placeholder="输入关键词搜索" v-model:value="paginationReactive.keyword"/>
     <n-button type="primary" ghost @click="handleSearch"  @input="handleSearch">
       搜索
@@ -375,7 +429,6 @@ function rowProps(row) {
   </n-input-group>
         <n-data-table
             remote
-            :row-props="rowProps"
             size="small"
             :columns="columnsRef"
             :data="dataRef"

@@ -113,6 +113,51 @@ func (s SearchStockApi) SearchBk(pageSize int) map[string]any {
 	return respMap
 }
 
+func (s SearchStockApi) SearchETF(pageSize int) map[string]any {
+	url := "https://np-tjxg-b.eastmoney.com/api/smart-tag/etf/v3/pw/search-code"
+	qgqpBId := NewSettingsApi().Config.QgqpBId
+	if qgqpBId == "" {
+		return map[string]any{
+			"code":    -1,
+			"message": "请先获取东财用户标识（qgqp_b_id）：打开浏览器,访问东财网站，按F12打开开发人员工具-》网络面板，随便点开一个请求，复制请求cookie中qgqp_b_id对应的值。保存到设置中的东财唯一标识输入框",
+		}
+	}
+	resp, err := resty.New().SetTimeout(time.Duration(30)*time.Second).R().
+		SetHeader("Host", "np-tjxg-g.eastmoney.com").
+		SetHeader("Origin", "https://xuangu.eastmoney.com").
+		SetHeader("Referer", "https://xuangu.eastmoney.com/").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0").
+		SetHeader("Content-Type", "application/json").
+		SetBody(fmt.Sprintf(`{
+				"keyWord": "%s",
+				"pageSize": %d,
+				"pageNo": 1,
+				"fingerprint": "%s",
+				"gids": [],
+				"matchWord": "",
+				"timestamp": "%d",
+				"shareToGuba": false,
+				"requestId": "",
+				"needCorrect": true,
+				"removedConditionIdList": [],
+				"xcId": "",
+				"ownSelectAll": false,
+				"dxInfo": [],
+				"extraCondition": ""
+				}`, s.words, pageSize, qgqpBId, time.Now().Unix())).Post(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("SearchETF-err:%+v", err)
+		return map[string]any{
+			"code":    -1,
+			"message": err.Error(),
+		}
+	}
+	respMap := map[string]any{}
+	json.Unmarshal(resp.Body(), &respMap)
+	//logger.SugaredLogger.Infof("resp:%+v", respMap["data"])
+	return respMap
+}
+
 func (s SearchStockApi) HotStrategy() map[string]any {
 	url := fmt.Sprintf("https://np-ipick.eastmoney.com/recommend/stock/heat/ranking?count=20&trace=%d&client=web&biz=web_smart_tag", time.Now().Unix())
 	resp, err := resty.New().SetTimeout(time.Duration(30)*time.Second).R().

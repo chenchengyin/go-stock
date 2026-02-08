@@ -88,7 +88,7 @@ func (a *App) GetAIResponseResultList(query models.AIResponseResultQuery) *model
 	}
 	return page
 }
-func (a *App) DeleteAIResponseResult(id string) string {
+func (a *App) DeleteAIResponseResult(id uint) string {
 	err := data.NewAIResponseResultService().DeleteAIResponseResult(id)
 	if err != nil {
 		return "删除失败"
@@ -109,4 +109,11 @@ func (a *App) GetAiRecommendStocksList(query models.AiRecommendStocksQuery) *mod
 		return &models.AiRecommendStocksPageData{}
 	}
 	return page
+}
+func (a *App) DeleteAiRecommendStocks(id uint) string {
+	err := data.NewAiRecommendStocksService().DeleteAiRecommendStocks(id)
+	if err != nil {
+		return "删除失败"
+	}
+	return "删除成功"
 }

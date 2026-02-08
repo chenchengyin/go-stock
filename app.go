@@ -65,6 +65,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name: "SearchStockByIndicators",
 			Description: "根据自然语言筛选股票，返回自然语言选股条件要求的股票所有相关数据。输入股票名称可以获取当前股票最新的股价交易数据和基础财务指标信息，多个股票名称使用,分隔。" +
+				"例如:分析强势方向：10点半之前涨停，非一字板，行业概念，按成交量从高到低排序。" +
 				"例如:查看涨停板：涨停板，按涨幅从高到低排序。" +
 				"例如:查看跌停板：跌停板，按跌幅从高到低排序。" +
 				"例如:查看龙虎榜：龙虎榜，按涨幅从高到低排序。" +
@@ -90,6 +91,7 @@ func AddTools(tools []data.Tool) []data.Tool {
 					"words": map[string]any{
 						"type": "string",
 						"description": "选股自然语言。" +
+							"例如:分析强势方向：10点半之前涨停，非一字板，行业概念，按成交量从高到低排序。" +
 							"例如:查看涨停板：涨停板，按涨幅从高到低排序。" +
 							"例如:查看跌停板：跌停板，按跌幅从高到低排序。" +
 							"例如:查看龙虎榜：龙虎榜，按涨幅从高到低排序。" +
@@ -121,13 +123,21 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Function: data.ToolFunction{
 			Name: "SearchBk",
 			Description: "根据自然语言查询板块/概念/指数整体数据。" +
+				"例如:近3日涨停家数>5的概念板块。" +
+				"例如:WR买入信号板块" +
+				"例如:WR卖出信号板块" +
 				"例如:存储芯片，成分股" +
-				"例如:查看指数：上证指数。" +
+				"例如:查看指数：上证指数，深证成指，创业板指，科创50。" +
+				"例如:查看指数：上证50，沪深300，中证 500，中证1000。" +
 				"例如:查看存储芯片板块：存储芯片。" +
-				"例如:查看概念板块排名：今日涨幅前5的概念板块。" +
-				"例如:查看概念板块排名：今日净流入前5的概念板块。" +
+				"例如:查看概念板块排名：今日涨幅前15的概念板块。" +
+				"例如:查看概念板块排名：今日净流入前15的概念板块。" +
+				"例如:查看行业排名：今日涨幅前15的行业板块。" +
+				"例如:查看行业排名：今日净流入前15的行业板块。" +
 				"例如:查看板块/概念排名数据：今日主力净流出前15的概念板块。" +
 				"例如:查看板块板块/概念：今日成交量前15的概念板块。" +
+				"例如:查看板块/概念排名数据：今日主力净流出前15的行业板块。" +
+				"例如:查看板块板块/概念：今日成交量前15的行业板块。" +
 				"例如:通过市盈率查询板块：当前市盈率介于30-50的板块/概念。",
 
 			Parameters: &data.FunctionParameters{
@@ -136,14 +146,51 @@ func AddTools(tools []data.Tool) []data.Tool {
 					"words": map[string]any{
 						"type": "string",
 						"description": "板块/概念数据查询自然语言。" +
+							"例如:近3日涨停家数>5的概念板块。" +
+							"例如:WR买入信号板块" +
+							"例如:WR卖出信号板块" +
 							"例如:存储芯片，成分股" +
-							"例如:查看指数：上证指数。" +
+							"例如:查看指数：上证指数，深证成指，创业板指，科创50。" +
+							"例如:查看指数：上证50，沪深300，中证 500，中证1000。" +
 							"例如:查看存储芯片板块：存储芯片。" +
-							"例如:查看概念板块排名：今日涨幅前5的概念板块。" +
-							"例如:查看概念板块排名：今日净流入前5的概念板块。" +
+							"例如:查看概念排名：今日涨幅前15的概念板块。" +
+							"例如:查看概念排名：今日净流入前15的概念板块。" +
+							"例如:查看行业排名：今日涨幅前15的行业板块。" +
+							"例如:查看行业排名：今日净流入前15的行业板块。" +
 							"例如:查看板块/概念排名数据：今日主力净流出前15的概念板块。" +
 							"例如:查看板块板块/概念：今日成交量前15的概念板块。" +
+							"例如:查看板块/概念排名数据：今日主力净流出前15的行业板块。" +
+							"例如:查看板块板块/概念：今日成交量前15的行业板块。" +
 							"例如:通过市盈率查询板块：当前市盈率介于30-50的板块/概念。",
+					},
+				},
+				Required: []string{"words"},
+			},
+		},
+	})
+
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name: "SearchETF",
+			Description: "根据自然语言查询etf数据。" +
+				"例如:创新药或者机器人，按涨幅排序，前50。" +
+				"例如:溢价率介于0%~10%之间，前50。" +
+				"例如:3日涨幅前50的ETF。" +
+				"例如:3日跌幅前50的ETF。" +
+				"例如:今日涨幅前50的ETF。",
+
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"words": map[string]any{
+						"type": "string",
+						"description": "板块/概念数据查询ETF。" +
+							"例如:创新药或者机器人，按涨幅排序，前50。" +
+							"例如:溢价率介于0%~10%之间，前50。" +
+							"例如:3日涨幅前50的ETF。" +
+							"例如:3日跌幅前50的ETF。" +
+							"例如:今日涨幅前50的ETF。",
 					},
 				},
 				Required: []string{"words"},
@@ -304,6 +351,41 @@ func AddTools(tools []data.Tool) []data.Tool {
 		},
 	})
 
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetStockFinancialInfo",
+			Description: "获取股票财务报表信息",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+					},
+				},
+				Required: []string{"stockCode"},
+			},
+		},
+	})
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetStockHolderNum",
+			Description: "获取股票股东人数信息(股东人数与股价比( 注:股票价格通常与股东人数成反比，股东人数越少代表筹码越集中，股价越有可能上涨))",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+					},
+				},
+				Required: []string{"stockCode"},
+			},
+		},
+	})
+
 	//CreateAiRecommendStocks
 	tools = append(tools, data.Tool{
 		Type: "function",
@@ -353,10 +435,27 @@ func AddTools(tools []data.Tool) []data.Tool {
 						"type":        "string",
 						"description": "ai建议买入价区间最低价和最高价之间用`-`分隔",
 					},
+					"recommendBuyPriceMax": map[string]any{
+						"type":        "number",
+						"description": "ai建议最高买入价",
+					},
+					"recommendBuyPriceMin": map[string]any{
+						"type":        "number",
+						"description": "ai建议最低买入价",
+					},
 					"recommendStopProfitPrice": map[string]any{
 						"type":        "string",
 						"description": "ai建议止盈价区间最低价和最高价之间用`-`分隔",
 					},
+					"recommendStopProfitPriceMax": map[string]any{
+						"type":        "number",
+						"description": "ai建议最高止盈价",
+					},
+					"recommendStopProfitPriceMin": map[string]any{
+						"type":        "number",
+						"description": "ai建议最低止盈价",
+					},
+
 					"recommendStopLossPrice": map[string]any{
 						"type":        "string",
 						"description": "ai建议止损价",
@@ -429,9 +528,25 @@ func AddTools(tools []data.Tool) []data.Tool {
 									"type":        "string",
 									"description": "ai建议买入价区间最低价和最高价之间用`-`分隔",
 								},
+								"recommendBuyPriceMin": map[string]any{
+									"type":        "number",
+									"description": "ai建议最低买入价",
+								},
+								"recommendBuyPriceMax": map[string]any{
+									"type":        "number",
+									"description": "ai建议最高买入价",
+								},
 								"recommendStopProfitPrice": map[string]any{
 									"type":        "string",
 									"description": "ai建议止盈价区间最低价和最高价之间用`-`分隔",
+								},
+								"recommendStopProfitPriceMin": map[string]any{
+									"type":        "number",
+									"description": "ai建议最低止盈价",
+								},
+								"recommendStopProfitPriceMax": map[string]any{
+									"type":        "number",
+									"description": "ai建议最高止盈价",
 								},
 								"recommendStopLossPrice": map[string]any{
 									"type":        "string",

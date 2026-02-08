@@ -15,6 +15,7 @@ import (
 	"io"
 	"io/ioutil"
 	url2 "net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1790,6 +1791,9 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 // 获取股票概念题材信息
 func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockConceptInfoResp {
 	//601138.SH
+	if !strutil.ContainsAny(stockCode, []string{"."}) {
+		stockCode = ConvertStockCodeToTushareCode(stockCode)
+	}
 	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_BOARD_CODE%2CBOARD_NAME%2CSELECTED_BOARD_REASON%2CIS_PRECISE%2CBOARD_RANK%2CBOARD_YIELD%2CDERIVE_BOARD_CODE&quoteColumns=f3~05~NEW_BOARD_CODE~BOARD_YIELD&filter=(SECUCODE%3D%22" + stockCode + "%22)(IS_PRECISE%3D%221%22)&pageNumber=1&pageSize=&sortTypes=1&sortColumns=BOARD_RANK&source=HSF10&client=PC&v=005634233622011753"
 	logger.SugaredLogger.Infof("url:%s", url2.QueryEscape(url))
 	var data models.StockConceptInfoResp
@@ -1808,6 +1812,60 @@ func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockC
 		return models.StockConceptInfoResp{}
 	}
 	return data
+}
+
+func (receiver StockDataApi) GetStockFinancialInfo(stockCode string) *models.StockFinancialInfoResp {
+
+	if !strutil.ContainsAny(stockCode, []string{"."}) {
+		stockCode = ConvertStockCodeToTushareCode(stockCode)
+	}
+
+	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_FINANCE_DUPONT&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CORG_CODE%2CORG_TYPE%2CREPORT_DATE%2CREPORT_TYPE%2CREPORT_DATE_NAME%2CSECURITY_TYPE_CODE%2CNOTICE_DATE%2CUPDATE_DATE%2CCURRENCY%2CNETPROFIT%2CTOTAL_OPERATE_INCOME%2CTOTAL_ASSETS%2CTOTAL_LIABILITIES%2CTOTAL_CURRENT_ASSETS%2CTOTAL_NONCURRENT_ASSETS%2CPARENT_NETPROFIT%2CSALE_NPR%2CTOTAL_ASSETS_TR%2CJROA%2CPARENT_NETPROFIT_RATIO%2CEQUITY_MULTIPLIER%2CROE%2CDEBT_ASSET_RATIO%2CTOTAL_INCOME%2CTOTAL_COST%2CTOTAL_EXPENSE%2CMONETARYFUNDS%2CTRADE_FINASSET%2CNOTE_RECE%2CACCOUNTS_RECE%2CFINANCE_RECE%2COTHER_RECE%2CINVENTORY%2CCREDITOR_INVEST%2CLONG_EQUITY_INVEST%2CINVEST_REALESTATE%2CFIXED_ASSET%2CCIP%2CUSERIGHT_ASSET%2CINTANGIBLE_ASSET%2CDEVELOP_EXPENSE%2CGOODWILL%2CLONG_PREPAID_EXPENSE%2CDEFER_TAX_ASSET%2CINVEST_INCOME%2CEXCHANGE_INCOME%2CFAIRVALUE_CHANGE_INCOME%2CASSET_DISPOSAL_INCOME%2COPERATE_COST%2CSURRENDER_VALUE%2CNET_COMPENSATE_EXPENSE%2CNET_CONTRACT_RESERVE%2CPOLICY_BONUS_EXPENSE%2COPERATE_TAX_ADD%2CINCOME_TAX%2CASSET_IMPAIRMENT_INCOME%2CCREDIT_IMPAIRMENT_INCOME%2CNONBUSINESS_EXPENSE%2CFINANCE_EXPENSE%2CSALE_EXPENSE%2CMANAGE_EXPENSE%2CRESEARCH_EXPENSE%2CINTEREST_NI%2CFEE_COMMISSION_NI%2CEARNED_PREMIUM%2CBUSINESS_MANAGE_EXPENSE%2COTHER_CREDITOR_INVEST%2COTHER_EQUITY_INVEST%2CLONG_RECE%2CAVAILABLE_SALE_FINASSET%2CHOLD_MATURITY_INVEST%2CFEE_COMMISSION_EXPENSE&quoteColumns=&filter=(SECUCODE%3D%22" + stockCode + "%22)&pageNumber=1&pageSize=12&sortTypes=-1&sortColumns=REPORT_DATE&source=HSF10&client=PC&v=" + convertor.ToString(time.Now().Unix())
+	logger.SugaredLogger.Infof("url:%s", url)
+	var data models.StockFinancialInfoResp
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter.eastmoney.com").
+		SetHeader("Referer", "https://emweb.securities.eastmoney.com/").
+		SetHeader("Origin", "https://emweb.securities.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0").
+		//SetResult(&data).
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	//logger.SugaredLogger.Infof("resp:%s", string(resp.Body()))
+	err = json.Unmarshal(resp.Body(), &data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return &models.StockFinancialInfoResp{}
+	}
+	logger.SugaredLogger.Infof("data:%v", data)
+	return &data
+}
+
+func (receiver StockDataApi) GetStockHolderNum(stockCode string) *models.StockHolderNumResp {
+	if !strutil.ContainsAny(stockCode, []string{"."}) {
+		stockCode = ConvertStockCodeToTushareCode(stockCode)
+	}
+	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_EH_HOLDERNUM&columns=SECUCODE%2CSECURITY_CODE%2CEND_DATE%2CHOLDER_TOTAL_NUM%2CTOTAL_NUM_RATIO%2CAVG_FREE_SHARES%2CAVG_FREESHARES_RATIO%2CHOLD_FOCUS%2CPRICE%2CAVG_HOLD_AMT%2CHOLD_RATIO_TOTAL%2CFREEHOLD_RATIO_TOTAL&quoteColumns=&filter=(SECUCODE%3D%22" + stockCode + "%22)&pageNumber=1&pageSize=12&sortTypes=-1&sortColumns=END_DATE&source=HSF10&client=PC&v=" + strconv.Itoa(time.Now().Nanosecond())
+	logger.SugaredLogger.Infof("url:%s", url)
+	var data models.StockHolderNumResp
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter.eastmoney.com").
+		SetHeader("Referer", "https://emweb.securities.eastmoney.com/").
+		SetHeader("Origin", "https://emweb.securities.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0").
+		//SetResult(&data).
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	err = json.Unmarshal(resp.Body(), &data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return &models.StockHolderNumResp{}
+	}
+	return &data
 }
 
 // JSONToMarkdownTable 将JSON数据转换为Markdown表格

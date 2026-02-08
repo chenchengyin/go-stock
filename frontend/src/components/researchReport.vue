@@ -1,6 +1,6 @@
 <script setup>
 import {computed, h, onBeforeMount, onBeforeUnmount, onMounted,onUnmounted, ref,reactive} from 'vue'
-import {GetAIResponseResultList, GetConfig, SaveAsMarkdown, ShareAnalysis} from "../../wailsjs/go/main/App";
+import {GetAIResponseResultList, GetConfig, SaveAsMarkdown, ShareAnalysis,DeleteAIResponseResult} from "../../wailsjs/go/main/App";
 import {NAvatar, NButton, NEllipsis, NText, useMessage} from "naive-ui";
 import {MdEditor, MdPreview} from 'md-editor-v3';
 
@@ -74,7 +74,7 @@ const columnsRef = ref([
   {
     title: '操作',
     render(row, index) {
-      return h(
+      return [h(
           NButton,
           {
             strong: true,
@@ -85,7 +85,20 @@ const columnsRef = ref([
             onClick: () => showReport(row)
           },
           { default: () => '查看分析报告' }
-      )
+      ),
+      h(
+          NButton,
+          {
+            strong: true,
+            tertiary: true,
+            size: 'small',
+            type: 'error', // 橙色按钮
+            style: 'font-size: 14px; padding: 0 10px;', // 稍微大一点的按钮
+            onClick: () => deleteAIResponseResult(row.ID)
+          },
+          { default: () => '删除' }
+      ),
+      ]
     }
   },
 ])
@@ -95,7 +108,11 @@ const paginationReactive = reactive({
   pageSize: 12,
   itemCount: 0,
   keyword: "",
-  range: [new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), new Date(new Date().getTime() + 24 * 60 * 60 * 1000)],
+  startDate:"",
+  range: [
+    new Date(new Date().getTime() - 3 * 24 * 60 * 60 * 1000), // 前3天
+    new Date() // 当天
+  ],
   prefix({ itemCount }) {
     return `${itemCount} 条记录`
   }
@@ -230,16 +247,26 @@ function formatDate(dateString) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  // const hours = String(date.getHours()).padStart(2, '0')
+  // const minutes = String(date.getMinutes()).padStart(2, '0')
+  // const seconds = String(date.getSeconds()).padStart(2, '0')
+  //return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  return `${year}-${month}-${day}`
+}
+
+function deleteAIResponseResult(id){
+  DeleteAIResponseResult(id).then(result => {
+    if(result !== ""){
+      message.success(result)
+    }
+    handleSearch()
+  })
 }
 </script>
 
 <template>
   <n-input-group>
-    <n-date-picker  v-model:value="paginationReactive.range" type="datetimerange"   style="width: 50%"/>
+    <n-date-picker  v-model:value="paginationReactive.range" type="daterange"   style="width: 50%"/>
     <n-input clearable placeholder="输入关键词搜索" v-model:value="paginationReactive.keyword"/>
     <n-button type="primary" ghost @click="handleSearch"  @input="handleSearch">
       搜索

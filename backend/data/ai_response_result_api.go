@@ -3,7 +3,9 @@ package data
 import (
 	"go-stock/backend/db"
 	"go-stock/backend/models"
+	"time"
 
+	"github.com/duke-git/lancet/v2/datetime"
 	"github.com/duke-git/lancet/v2/strutil"
 )
 
@@ -38,11 +40,22 @@ func (s *AIResponseResultService) GetAIResponseResultList(query models.AIRespons
 			"T": " ",
 			"Z": "",
 		})
-		query.StartDate = strutil.ReplaceWithMap(query.StartDate, map[string]string{
+		query.EndDate = strutil.ReplaceWithMap(query.EndDate, map[string]string{
 			"T": " ",
 			"Z": "",
 		})
-		q = q.Where("created_at BETWEEN ? AND ?", query.StartDate, query.EndDate)
+
+		startDate, err := time.Parse("2006-01-02 15:04:05", query.StartDate)
+		if err != nil {
+			startDate, _ = time.Parse("2006-01-02", query.StartDate)
+		}
+
+		endDate, err := time.Parse("2006-01-02 15:04:05", query.EndDate)
+		if err != nil {
+			endDate, _ = time.Parse("2006-01-02", query.EndDate)
+		}
+		q = q.Where("created_at BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(endDate))
+		//q = q.Where("created_at BETWEEN ? AND ?", query.StartDate, query.EndDate)
 	}
 
 	// 计算总数
@@ -80,7 +93,7 @@ func (s *AIResponseResultService) GetAIResponseResultList(query models.AIRespons
 }
 
 // DeleteAIResponseResult 根据ID删除AI响应结果
-func (s *AIResponseResultService) DeleteAIResponseResult(id string) error {
+func (s *AIResponseResultService) DeleteAIResponseResult(id uint) error {
 
 	// 使用软删除
 	result := db.Dao.Where("id = ?", id).Delete(&models.AIResponseResult{})

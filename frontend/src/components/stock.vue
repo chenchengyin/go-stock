@@ -109,8 +109,8 @@ const modalShow3 = ref(false)
 const modalShow4 = ref(false)
 const modalShow5 = ref(false)
 const addBTN = ref(true)
-const enableTools = ref(false)
-const thinkingMode = ref(false)
+const enableTools = ref(true)
+const thinkingMode = ref(true)
 const formModel = ref({
   name: "",
   code: "",

@@ -24,7 +24,8 @@ func TestSearchStock(t *testing.T) {
 	logger.SugaredLogger.Infof("e:%s", e)
 
 	//res := NewSearchStockApi("量比大于2，基本面优秀，2025年三季报已披露，主力连续3日净流入，非创业板非科创板非ST").SearchStock(20)
-	res := NewSearchStockApi("今日涨幅前5的概念板块").SearchBk(50)
+	//res := NewSearchStockApi("今日涨幅前5的概念板块").SearchBk(50)
+	res := NewSearchStockApi("今日涨幅前15的ETF").SearchETF(50)
 
 	logger.SugaredLogger.Infof("res:%+v", res)
 	data := res["data"].(map[string]any)
@@ -60,6 +61,19 @@ func TestSearchStock(t *testing.T) {
 	jsonData, _ := json.Marshal(*table)
 	markdownTable, _ := JSONToMarkdownTable(jsonData)
 	logger.SugaredLogger.Infof("markdownTable=\n%s", markdownTable)
+}
+
+func TestGetStockFinancialInfo(t *testing.T) {
+	db.Init("../../data/stock.db")
+	res := NewStockDataApi().GetStockFinancialInfo("600519.SH")
+	MD := util.MarkdownTableWithTitle("股票财报信息", res.Result.Data)
+	logger.SugaredLogger.Infof("res:\n%s", MD)
+}
+func TestGetStockHolderNum(t *testing.T) {
+	db.Init("../../data/stock.db")
+	res := NewStockDataApi().GetStockHolderNum("600519.SH")
+	MD := util.MarkdownTableWithTitle("股票股东人数信息", res.Result.Data)
+	logger.SugaredLogger.Infof("res:\n%s", MD)
 }
 
 func TestSearchStockApi_HotStrategy(t *testing.T) {

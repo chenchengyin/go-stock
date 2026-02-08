@@ -799,7 +799,11 @@ export namespace models {
 	    stockPrePrice: string;
 	    recommendReason: string;
 	    recommendBuyPrice: string;
+	    recommendBuyPriceMin: number;
+	    recommendBuyPriceMax: number;
 	    recommendStopProfitPrice: string;
+	    recommendStopProfitPriceMin: number;
+	    recommendStopProfitPriceMax: number;
 	    recommendStopLossPrice: string;
 	    riskRemarks: string;
 	    remarks: string;
@@ -827,7 +831,11 @@ export namespace models {
 	        this.stockPrePrice = source["stockPrePrice"];
 	        this.recommendReason = source["recommendReason"];
 	        this.recommendBuyPrice = source["recommendBuyPrice"];
+	        this.recommendBuyPriceMin = source["recommendBuyPriceMin"];
+	        this.recommendBuyPriceMax = source["recommendBuyPriceMax"];
 	        this.recommendStopProfitPrice = source["recommendStopProfitPrice"];
+	        this.recommendStopProfitPriceMin = source["recommendStopProfitPriceMin"];
+	        this.recommendStopProfitPriceMax = source["recommendStopProfitPriceMax"];
 	        this.recommendStopLossPrice = source["recommendStopLossPrice"];
 	        this.riskRemarks = source["riskRemarks"];
 	        this.remarks = source["remarks"];
@@ -892,6 +900,7 @@ export namespace models {
 	export class AiRecommendStocksQuery {
 	    page: number;
 	    pageSize: number;
+	    modelName: string;
 	    stockCode: string;
 	    stockName: string;
 	    bkCode: string;
@@ -907,6 +916,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
+	        this.modelName = source["modelName"];
 	        this.stockCode = source["stockCode"];
 	        this.stockName = source["stockName"];
 	        this.bkCode = source["bkCode"];

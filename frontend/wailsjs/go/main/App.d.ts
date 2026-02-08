@@ -30,7 +30,9 @@ export function ClsCalendar():Promise<Array<any>>;
 
 export function DelPrompt(arg1:number):Promise<string>;
 
-export function DeleteAIResponseResult(arg1:string):Promise<string>;
+export function DeleteAIResponseResult(arg1:number):Promise<string>;
+
+export function DeleteAiRecommendStocks(arg1:number):Promise<string>;
 
 export function EMDictCode(arg1:string):Promise<Array<any>>;
 

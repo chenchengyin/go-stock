@@ -58,6 +58,10 @@ export function DeleteAIResponseResult(arg1) {
   return window['go']['main']['App']['DeleteAIResponseResult'](arg1);
 }
 
+export function DeleteAiRecommendStocks(arg1) {
+  return window['go']['main']['App']['DeleteAiRecommendStocks'](arg1);
+}
+
 export function EMDictCode(arg1) {
   return window['go']['main']['App']['EMDictCode'](arg1);
 }

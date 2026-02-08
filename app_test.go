@@ -72,3 +72,9 @@ func TestGetScreenResolution(t *testing.T) {
 	logger.SugaredLogger.Infof("x:%d,y:%d,w:%d,h:%d", x, y, w, h)
 
 }
+
+func TestCheckUpdate(t *testing.T) {
+	db.Init("./data/stock.db")
+	BuildKey = "8171b192a21b4d95a42fdcd54478e3ed"
+	NewApp().CheckUpdate(1)
+}

@@ -860,7 +860,9 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 
 		go func() {
 			defer wg.Done()
-
+			if tools != nil && len(tools) > 0 {
+				return
+			}
 			if checkIsIndexBasic(stock) {
 				return
 			}
@@ -1334,6 +1336,82 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									content = "\r\n### 工具筛选出的相关板块/概念数据：\r\n" + markdownTable + "\r\n"
 								}
 								logger.SugaredLogger.Infof("SearchBk:words:%s  --> \n%s", words, content)
+
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      content,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+
+								})
+							}
+
+							if funcName == "SearchETF" {
+								words := gjson.Get(funcArguments, "words").String()
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：SearchETF，\n参数：" + words + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+
+								content := "无符合条件的数据"
+
+								res := NewSearchStockApi(words).SearchETF(random.RandInt(50, 120))
+								if convertor.ToString(res["code"]) == "100" {
+									resData := res["data"].(map[string]any)
+									result := resData["result"].(map[string]any)
+									dataList := result["dataList"].([]any)
+									columns := result["columns"].([]any)
+									headers := map[string]string{}
+									for _, v := range columns {
+										//logger.SugaredLogger.Infof("v:%+v", v)
+										d := v.(map[string]any)
+										//logger.SugaredLogger.Infof("key:%s title:%s dateMsg:%s unit:%s", d["key"], d["title"], d["dateMsg"], d["unit"])
+										title := convertor.ToString(d["title"])
+										if convertor.ToString(d["dateMsg"]) != "" {
+											title = title + "[" + convertor.ToString(d["dateMsg"]) + "]"
+										}
+										if convertor.ToString(d["unit"]) != "" {
+											title = title + "(" + convertor.ToString(d["unit"]) + ")"
+										}
+										headers[d["key"].(string)] = title
+									}
+									table := &[]map[string]any{}
+									for _, v := range dataList {
+										d := v.(map[string]any)
+										tmp := map[string]any{}
+										for key, title := range headers {
+											tmp[title] = convertor.ToString(d[key])
+										}
+										*table = append(*table, tmp)
+									}
+									jsonData, _ := json.Marshal(*table)
+									markdownTable, _ := JSONToMarkdownTable(jsonData)
+									//logger.SugaredLogger.Infof("markdownTable=\n%s", markdownTable)
+									content = "\r\n### 工具筛选出的相关ETF数据：\r\n" + markdownTable + "\r\n"
+								}
+								logger.SugaredLogger.Infof("SearchETF:words:%s  --> \n%s", words, content)
 
 								messages = append(messages, map[string]interface{}{
 									"role":              "assistant",
@@ -1869,6 +1947,81 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								code := gjson.Get(funcArguments, "code").String()
 								res := NewStockDataApi().GetStockConceptInfo(code)
 								md := util.MarkdownTableWithTitle(code+" 股票所属概念详细信息", res.Result.Data)
+								logger.SugaredLogger.Infof("%s", md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
+							if funcName == "GetStockFinancialInfo" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：GetStockFinancialInfo，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								res := NewStockDataApi().GetStockFinancialInfo(gjson.Get(funcArguments, "stockCode").String())
+								md := util.MarkdownTableWithTitle("股票"+gjson.Get(funcArguments, "stockCode").String()+"财务报表信息", res.Result.Data)
+								logger.SugaredLogger.Infof("%s", md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+							if funcName == "GetStockHolderNum" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：GetStockHolderNum，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								res := NewStockDataApi().GetStockHolderNum(gjson.Get(funcArguments, "stockCode").String())
+								md := util.MarkdownTableWithTitle("股票"+gjson.Get(funcArguments, "stockCode").String()+"股东人数信息", res.Result.Data)
 								logger.SugaredLogger.Infof("%s", md)
 								messages = append(messages, map[string]interface{}{
 									"role":              "assistant",

@@ -4,7 +4,9 @@ package data
 import (
 	"go-stock/backend/db"
 	"go-stock/backend/models"
+	"time"
 
+	"github.com/duke-git/lancet/v2/datetime"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/duke-git/lancet/v2/strutil"
 )
@@ -46,17 +48,42 @@ func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiReco
 	if query.BkName != "" {
 		q.Or("bk_name LIKE ?", "%"+query.BkName+"%")
 	}
+	if query.ModelName != "" {
+		q.Or("model_name LIKE ?", "%"+query.ModelName+"%")
+	}
 
 	if query.StartDate != "" && query.EndDate != "" {
 		query.StartDate = strutil.ReplaceWithMap(query.StartDate, map[string]string{
 			"T": " ",
 			"Z": "",
 		})
+		query.EndDate = strutil.ReplaceWithMap(query.EndDate, map[string]string{
+			"T": " ",
+			"Z": "",
+		})
+		startDate, err := time.Parse("2006-01-02 15:04:05", query.StartDate)
+		if err != nil {
+			startDate, _ = time.Parse("2006-01-02", query.StartDate)
+		}
+
+		endDate, err := time.Parse("2006-01-02 15:04:05", query.EndDate)
+		if err != nil {
+			endDate, _ = time.Parse("2006-01-02", query.EndDate)
+		}
+
+		q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(endDate))
+	}
+	if query.StartDate == "" && query.EndDate == "" {
+		q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(time.Now()), datetime.EndOfDay(time.Now()))
+	}
+
+	if query.StartDate != "" && query.EndDate == "" {
 		query.StartDate = strutil.ReplaceWithMap(query.StartDate, map[string]string{
 			"T": " ",
 			"Z": "",
 		})
-		q = q.Where("data_time BETWEEN ? AND ?", query.StartDate, query.EndDate)
+		startDate, _ := time.Parse("2006-01-02", query.StartDate)
+		q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(startDate))
 	}
 
 	// 计算总数
