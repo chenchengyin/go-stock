@@ -702,18 +702,18 @@ function ReFlesh(source) {
       <n-flex justify="left" style="margin-bottom: 10px">
         <n-switch v-model:value="enableTools" :round="false">
           <template #checked>
-            启用AI函数工具调用
+            工具调用
           </template>
           <template #unchecked>
-            不启用AI函数工具调用
+            非工具调用
           </template>
         </n-switch>
         <n-switch v-model:value="thinkingMode" :round="false">
           <template #checked>
-            启用思考模式
+            思考模式
           </template>
           <template #unchecked>
-            不启用思考模式
+            非思考模式
           </template>
         </n-switch>
 

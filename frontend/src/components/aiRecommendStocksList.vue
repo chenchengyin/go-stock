@@ -9,6 +9,7 @@ import {
 } from "../../wailsjs/go/main/App";
 import {NAvatar, NButton, NEllipsis, NTag, NText, useMessage, useNotification} from "naive-ui";
 import KLineChart from "./KLineChart.vue";
+import sparkLine from "./stockSparkLine.vue"
 import {format} from "date-fns";
 
 const notify = useNotification()
@@ -117,6 +118,13 @@ const columnsRef = ref([
   {
     title: '股票代码',
     key: 'stockCode'
+  },
+  {
+    title: '最新分时',
+    key: 'stockCode',
+    render(row, index) {
+      return h(sparkLine, { idSuffix:row.ID, stockName: row.stockName, stockCode: row.stockCode, lastPrice: row.stockCurrentPrice, openPrice: row.stockPrePrice, tooltip: true }, )
+    }
   },
   {
     title: '最新',
@@ -259,13 +267,13 @@ const columnsRef = ref([
           {
             strong: true,
             tertiary: true,
-            size: 'small',
+            //size: 'small',
             type: 'warning', // 橙色按钮
             onClick: () => showDetail(row)
           },
           { default: () => '查看' }
       ),h(NTag, { strong: true,
-        tertiary: true,size: 'small', type: 'error',  onClick: () => deleteAiRecommendStocks(row.ID) }, { default: () => '删除' })]
+        tertiary: true, type: 'error',  onClick: () => deleteAiRecommendStocks(row.ID) }, { default: () => '删除' })]
     }
   },
 ])

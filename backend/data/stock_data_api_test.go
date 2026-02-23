@@ -297,3 +297,11 @@ func TestGetStockConceptInfo(t *testing.T) {
 	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("601138.SH所属概念/板块信息", res.Result.Data))
 
 }
+
+func TestGetStockHistoryMoneyData(t *testing.T) {
+	db.Init("../../data/stock.db")
+	stockDataApi := NewStockDataApi()
+	res := stockDataApi.GetStockHistoryMoneyData("sh601138")
+	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("601138.SH历史资金流向一览", res))
+
+}

@@ -1321,6 +1321,9 @@ func SearchStockInfoByCode(stock string) *[]string {
 
 // 分时数据
 func (receiver StockDataApi) GetStockMinutePriceData(stockCode string) (*[]MinuteData, string) {
+
+	stockCode = ConvertTushareCodeToStockCode(stockCode)
+
 	url := fmt.Sprintf("https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=%s", stockCode)
 	if strutil.HasPrefixAny(stockCode, []string{"gb_", "GB_"}) {
 		stockCode = strings.Replace(strings.ToUpper(stockCode), "GB_", "us", 1) + ".OQ"
@@ -1748,7 +1751,85 @@ func (receiver StockDataApi) GetCommonKLineData(stockCode string, kLineType stri
 }
 
 // GetStockHistoryMoneyData 获取股票历史资金流向数据
-func (receiver StockDataApi) GetStockHistoryMoneyData() {
+func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models.StockMoneyDataHis {
+
+	stockCode = ConvertStockCodeToTushareCode(stockCode)
+
+	var hisData []models.StockMoneyDataHis
+
+	if strutil.ContainsAny(stockCode, []string{"."}) {
+		stockCode = strutil.ReplaceWithMap(stockCode, map[string]string{
+			"SH": "1",
+			"sh": "1",
+			"SZ": "0",
+			"sz": "0",
+			"BJ": "0",
+			"bj": "0",
+		})
+	} else {
+		if strutil.HasPrefixAny(stockCode, []string{"60", "688"}) {
+			stockCode = stockCode + ".1"
+		} else {
+			stockCode = stockCode + ".0"
+		}
+	}
+	if strutil.ContainsAny(stockCode, []string{"."}) {
+		stockCode = strings.Split(stockCode, ".")[1] + "." + strings.Split(stockCode, ".")[0]
+	}
+
+	url := "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?cb=data&lmt=0&klt=101&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&secid=" + stockCode + "&_=" + convertor.ToString(time.Now().Unix())
+	logger.SugaredLogger.Infof("url:%s", url)
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "push2his.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	body := string(resp.Body())
+	logger.SugaredLogger.Infof("resp:%s", body)
+	vm := otto.New()
+	vm.Run("function data(res){return res};")
+	val, err := vm.Run(body)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	value, err := val.Export()
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	marshal, err := json.Marshal(value)
+	if err != nil {
+		return hisData
+	}
+	var resData models.StockHistoryMoneyDataResp
+	err = json.Unmarshal(marshal, &resData)
+	if err != nil {
+		return hisData
+	}
+	if len(resData.Data.Klines) > 0 {
+		for _, v := range resData.Data.Klines {
+			vals := strings.Split(v, ",")
+			//logger.SugaredLogger.Infof("kline:%v", vals)
+			hisData = append(hisData, models.StockMoneyDataHis{
+				Date: convertor.ToString(vals[0]),
+				F62:  convertor.ToString(vals[1]),
+				F84:  convertor.ToString(vals[2]),
+				F78:  convertor.ToString(vals[3]),
+				F72:  convertor.ToString(vals[4]),
+				F66:  convertor.ToString(vals[5]),
+				F184: convertor.ToString(vals[6]),
+				F87:  convertor.ToString(vals[7]),
+				F81:  convertor.ToString(vals[8]),
+				F75:  convertor.ToString(vals[9]),
+				F69:  convertor.ToString(vals[10]),
+				F2:   convertor.ToString(vals[11]),
+				F3:   convertor.ToString(vals[12]),
+			})
+		}
+	}
+
+	return hisData
 
 }
 
@@ -1794,7 +1875,7 @@ func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockC
 	if !strutil.ContainsAny(stockCode, []string{"."}) {
 		stockCode = ConvertStockCodeToTushareCode(stockCode)
 	}
-	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_BOARD_CODE%2CBOARD_NAME%2CSELECTED_BOARD_REASON%2CIS_PRECISE%2CBOARD_RANK%2CBOARD_YIELD%2CDERIVE_BOARD_CODE&quoteColumns=f3~05~NEW_BOARD_CODE~BOARD_YIELD&filter=(SECUCODE%3D%22" + stockCode + "%22)(IS_PRECISE%3D%221%22)&pageNumber=1&pageSize=&sortTypes=1&sortColumns=BOARD_RANK&source=HSF10&client=PC&v=005634233622011753"
+	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_BOARD_CODE%2CBOARD_NAME%2CSELECTED_BOARD_REASON%2CIS_PRECISE%2CBOARD_RANK%2CBOARD_YIELD%2CDERIVE_BOARD_CODE&quoteColumns=f3~05~NEW_BOARD_CODE~BOARD_YIELD&filter=(SECUCODE%3D%22" + stockCode + "%22)(IS_PRECISE%3D%221%22)&pageNumber=1&pageSize=&sortTypes=1&sortColumns=BOARD_RANK&source=HSF10&client=PC&v=" + convertor.ToString(time.Now().Unix())
 	logger.SugaredLogger.Infof("url:%s", url2.QueryEscape(url))
 	var data models.StockConceptInfoResp
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().

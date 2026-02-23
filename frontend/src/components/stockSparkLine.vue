@@ -2,7 +2,11 @@
 import {onMounted, onBeforeMount, ref, watchEffect} from "vue";
 import * as echarts from 'echarts';
 import {GetStockMinutePriceLineData} from "../../wailsjs/go/main/App"; // 如果您使用多个组件，请将此样式导入放在您的主文件中
-const {stockCode,stockName,lastPrice,openPrice,darkTheme} = defineProps({
+const {idSuffix,stockCode,stockName,lastPrice,openPrice,darkTheme} = defineProps({
+  idSuffix: {
+    type: String,
+    default: ""
+  },
   stockCode: {
     type: String,
     default: ""
@@ -119,7 +123,7 @@ function setChartData(chart) {
 const chart =ref( null)
 
 onMounted(() => {
-  chart.value = echarts.init( document.getElementById('sparkLine'+stockCode));
+  chart.value = echarts.init( document.getElementById('sparkLine'+stockCode+idSuffix));
   setChartData(chart.value);
 })
 
@@ -132,6 +136,6 @@ watchEffect(() => {
 
 </script>
 <template>
-<div style="height: 20px;width: 100%"  :id="'sparkLine'+stockCode">
+<div style="height: 20px;width: 100%"  :id="'sparkLine'+stockCode+idSuffix">
 </div>
 </template>

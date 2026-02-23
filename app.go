@@ -386,6 +386,24 @@ func AddTools(tools []data.Tool) []data.Tool {
 		},
 	})
 
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetStockHistoryMoneyData",
+			Description: "获取股票历史资金流向数据",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+					},
+				},
+				Required: []string{"stockCode"},
+			},
+		},
+	})
+
 	//CreateAiRecommendStocks
 	tools = append(tools, data.Tool{
 		Type: "function",

@@ -1,10 +1,12 @@
 package data
 
 import (
-	"github.com/PuerkitoBio/goquery"
 	"go-stock/backend/logger"
 	"regexp"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/duke-git/lancet/v2/strutil"
 )
 
 // @Author spark
@@ -49,7 +51,9 @@ func RemoveAllDigitChar(s string) string {
 // ConvertStockCodeToTushareCode 将股票代码转换为tushare的股票代码
 func ConvertStockCodeToTushareCode(stockCode string) string {
 	//提取非数字
-	stockCode = RemoveAllNonDigitChar(stockCode) + "." + strings.ToUpper(RemoveAllDigitChar(stockCode))
+	if strutil.HasPrefixAny(stockCode, []string{"SH", "sh", "SZ", "sz", "BJ", "bj", "HK", "hk"}) {
+		stockCode = RemoveAllNonDigitChar(stockCode) + "." + strings.ToUpper(RemoveAllDigitChar(stockCode))
+	}
 	return stockCode
 }
 

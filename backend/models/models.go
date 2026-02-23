@@ -1075,3 +1075,34 @@ type StockHolderNumRespResult struct {
 	HOLDRATIOTOTAL     float64 `json:"HOLD_RATIO_TOTAL" md:"十大股东持股合计(%)"`
 	FREEHOLDRATIOTOTAL float64 `json:"FREEHOLD_RATIO_TOTAL" md:"十大流通股东持股合计(%) "`
 }
+
+type StockHistoryMoneyDataResp struct {
+	Rc     int    `json:"rc"`
+	Rt     int    `json:"rt"`
+	Svr    int    `json:"svr"`
+	Lt     int    `json:"lt"`
+	Full   int    `json:"full"`
+	Dlmkts string `json:"dlmkts"`
+	Data   struct {
+		Code   string   `json:"code"`
+		Market int      `json:"market"`
+		Name   string   `json:"name"`
+		Klines []string `json:"klines"`
+	} `json:"data"`
+}
+
+type StockMoneyDataHis struct {
+	Date string `json:"date" md:"日期"`
+	F2   string `json:"f2" md:"最新价"`
+	F3   string `json:"f3" md:"涨跌幅(%)"`
+	F62  string `json:"f62" md:"主力净额(元)"`
+	F184 string `json:"f184" md:"主力净占比(%)"`
+	F66  string `json:"f66" md:"超大单净额(元)"`
+	F69  string `json:"f69" md:"超大单净占比(%)"`
+	F72  string `json:"f72" md:"大单净额(元)"`
+	F75  string `json:"f75" md:"大单净占比(%)"`
+	F78  string `json:"f78" md:"中单净额(元)"`
+	F81  string `json:"f81" md:"中单净占比(%)"`
+	F84  string `json:"f84" md:"小单净额(元)"`
+	F87  string `json:"f87" md:"小单净占比(%)"`
+}
