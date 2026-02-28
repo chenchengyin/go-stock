@@ -305,3 +305,10 @@ func TestGetStockHistoryMoneyData(t *testing.T) {
 	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("601138.SH历史资金流向一览", res))
 
 }
+
+func TestGetIndustryValuation(t *testing.T) {
+	db.Init("../../data/stock.db")
+	stockDataApi := NewStockDataApi()
+	res := stockDataApi.GetIndustryValuation("AI应用")
+	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle(" 消费电子行业估值", res.Result.Data))
+}

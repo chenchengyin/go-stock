@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
+	"go-stock/backend/util"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,4 +80,41 @@ func TestCheckUpdate(t *testing.T) {
 	db.Init("./data/stock.db")
 	BuildKey = "8171b192a21b4d95a42fdcd54478e3ed"
 	NewApp().CheckUpdate(1)
+}
+
+func TestGetAiRecommendStocksList(t *testing.T) {
+	db.Init("./data/stock.db")
+	pageData, err := data.NewAiRecommendStocksService().GetAiRecommendStocksList(&models.AiRecommendStocksQuery{
+		StartDate: "2025-12-31 00:00:00",
+		EndDate:   "2026-12-31 23:59:59",
+		Page:      int(1),
+		PageSize:  int(10),
+		StockCode: "",
+		StockName: "",
+		BkName:    "",
+	})
+	logger.SugaredLogger.Infof("pageData:%+v", pageData.List)
+	if err != nil {
+		pageData = &models.AiRecommendStocksPageData{}
+	}
+	var dataExport []models.AiRecommendStocksMdExport
+	for _, v := range pageData.List {
+		dataExport = append(dataExport, v.ToMdExportStruct())
+	}
+	content := util.MarkdownTableWithTitle("近期AI分析/推荐股票明细列表", dataExport)
+	logger.SugaredLogger.Infof("content:%s", content)
+}
+
+func TestSummaryStockNews(t *testing.T) {
+	db.Init("./data/stock.db")
+	question := "请对今日 A 股市场做客观、结构化、可用于次日交易决策的深度复盘"
+	app := NewApp()
+	msgs := data.NewDeepSeekOpenAi(app.ctx, 0).NewSummaryStockNewsStreamWithTools(question, nil, app.AiTools, true)
+
+	content := &strings.Builder{}
+	for msg := range msgs {
+		logger.SugaredLogger.Infof("msg:%+v", msg)
+		content.WriteString(msg["content"].(string))
+	}
+	logger.SugaredLogger.Infof("content:%s", content.String())
 }

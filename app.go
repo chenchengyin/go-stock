@@ -404,6 +404,24 @@ func AddTools(tools []data.Tool) []data.Tool {
 		},
 	})
 
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetIndustryValuation",
+			Description: "获取行业/板块平均估值和中值（PE,PEG等）",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"bkName": map[string]any{
+						"type":        "string",
+						"description": "行业/板块名称,如：半导体",
+					},
+				},
+				Required: []string{"bkName"},
+			},
+		},
+	})
+
 	//CreateAiRecommendStocks
 	tools = append(tools, data.Tool{
 		Type: "function",
@@ -584,6 +602,40 @@ func AddTools(tools []data.Tool) []data.Tool {
 				},
 
 				Required: []string{"stockCode", "stockName", "bkName"},
+			},
+		},
+	})
+
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "AiRecommendStocks",
+			Description: "获取近期AI分析/推荐股票明细列表",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"startDate": map[string]any{
+						"type":        "string",
+						"description": "开始时间（如：2026-02-23 00:00:00）",
+					},
+					"endDate": map[string]any{
+						"type":        "string",
+						"description": "结束时间（如：2026-02-26 23:59:59）",
+					},
+					"page": map[string]any{
+						"type":        "string",
+						"description": "分页号（如：1）",
+					},
+					"pageSize": map[string]any{
+						"type":        "string",
+						"description": "分页大小(如： 1500)",
+					},
+					"keyWord": map[string]any{
+						"type":        "string",
+						"description": "搜索关键词",
+					},
+				},
+				Required: []string{"startDate", "endDate", "page", "pageSize"},
 			},
 		},
 	})

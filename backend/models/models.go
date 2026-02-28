@@ -906,8 +906,8 @@ type StockConceptInfo struct {
 }
 
 type AiRecommendStocks struct {
-	gorm.Model
-	DataTime                    *time.Time `json:"dataTime" gorm:"index;autoCreateTime"`
+	gorm.Model                  `md:"-"`
+	DataTime                    *time.Time `json:"dataTime" gorm:"index;autoCreateTime" md:"推荐时间"`
 	ModelName                   string     `json:"modelName" md:"模型名称"`
 	StockCode                   string     `json:"stockCode" md:"股票代码"`
 	StockName                   string     `json:"stockName" md:"股票名称"`
@@ -930,7 +930,58 @@ type AiRecommendStocks struct {
 	Remarks                     string     `json:"remarks" md:"备注"`
 }
 
+type AiRecommendStocksMdExport struct {
+	DataTime                    string  `json:"dataTime"  md:"推荐时间"`
+	ModelName                   string  `json:"modelName" md:"模型名称"`
+	StockCode                   string  `json:"stockCode" md:"股票代码"`
+	StockName                   string  `json:"stockName" md:"股票名称"`
+	BkCode                      string  `json:"bkCode" md:"行业/板块代码"`
+	BkName                      string  `json:"bkName" md:"行业/板块名称"`
+	StockPrice                  string  `json:"stockPrice" md:"推荐时股票价格"`
+	StockCurrentPrice           string  `json:"stockCurrentPrice" md:"当前价格"`
+	StockCurrentPriceTime       string  `json:"stockCurrentPriceTime" md:"当前价格时间"`
+	StockClosePrice             string  `json:"stockClosePrice" md:"推荐时股票收盘价格"`
+	StockPrePrice               string  `json:"stockPrePrice" md:"前一交易日股票价格"`
+	RecommendReason             string  `json:"recommendReason" md:"推荐理由/驱动因素/逻辑"`
+	RecommendBuyPrice           string  `json:"recommendBuyPrice" md:"ai建议买入价范围"`
+	RecommendBuyPriceMin        float64 `json:"recommendBuyPriceMin" md:"ai建议最低买入价"`
+	RecommendBuyPriceMax        float64 `json:"recommendBuyPriceMax" md:"ai建议最高买入价"`
+	RecommendStopProfitPrice    string  `json:"recommendStopProfitPrice" md:"ai建议止盈价范围"`
+	RecommendStopProfitPriceMin float64 `json:"recommendStopProfitPriceMin" md:"ai建议最低止盈价"`
+	RecommendStopProfitPriceMax float64 `json:"recommendStopProfitPriceMax" md:"ai建议最高止盈价"`
+	RecommendStopLossPrice      string  `json:"recommendStopLossPrice" md:"ai建议止损价"`
+	RiskRemarks                 string  `json:"riskRemarks" md:"风险提示"`
+	Remarks                     string  `json:"remarks" md:"备注"`
+}
+
 func (receiver AiRecommendStocks) TableName() string { return "ai_recommend_stocks" }
+
+func (receiver AiRecommendStocks) ToMdExportStruct() AiRecommendStocksMdExport {
+	return AiRecommendStocksMdExport{
+		DataTime:                    receiver.DataTime.Format("2006-01-02 15:04:05"),
+		ModelName:                   receiver.ModelName,
+		StockCode:                   receiver.StockCode,
+		StockName:                   receiver.StockName,
+		BkCode:                      receiver.BkCode,
+		BkName:                      receiver.BkName,
+		StockPrice:                  receiver.StockPrice,
+		StockCurrentPrice:           receiver.StockCurrentPrice,
+		StockCurrentPriceTime:       receiver.StockCurrentPriceTime,
+		StockClosePrice:             receiver.StockClosePrice,
+		StockPrePrice:               receiver.StockPrePrice,
+		RecommendReason:             receiver.RecommendReason,
+		RecommendBuyPrice:           receiver.RecommendBuyPrice,
+		RecommendBuyPriceMin:        receiver.RecommendBuyPriceMin,
+		RecommendBuyPriceMax:        receiver.RecommendBuyPriceMax,
+		RecommendStopProfitPrice:    receiver.RecommendStopProfitPrice,
+		RecommendStopProfitPriceMin: receiver.RecommendStopProfitPriceMin,
+		RecommendStopProfitPriceMax: receiver.RecommendStopProfitPriceMax,
+		RecommendStopLossPrice:      receiver.RecommendStopLossPrice,
+		RiskRemarks:                 receiver.RiskRemarks,
+		Remarks:                     receiver.Remarks,
+	}
+
+}
 
 type AiRecommendStocksQuery struct {
 	Page      int    `form:"page" json:"page"`           // 页码
@@ -1105,4 +1156,34 @@ type StockMoneyDataHis struct {
 	F81  string `json:"f81" md:"中单净占比(%)"`
 	F84  string `json:"f84" md:"小单净额(元)"`
 	F87  string `json:"f87" md:"小单净占比(%)"`
+}
+
+type IndustryValuationResp struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Result  struct {
+		Count int                     `json:"count"`
+		Data  []IndustryValuationData `json:"data"`
+		Pages int                     `json:"pages"`
+	} `json:"result"`
+	Success bool   `json:"success"`
+	Version string `json:"version"`
+}
+
+type IndustryValuationData struct {
+	BOARDCODE            string  `json:"BOARD_CODE" md:"行业/板块代码"`
+	BOARDNAME            string  `json:"BOARD_NAME" md:"行业/板块名称"`
+	INDUSTRYTYPE         string  `json:"INDUSTRY_TYPE" md:"估值类型"`
+	MARKETCAPVAG         float64 `json:"MARKET_CAP_VAG" md:"总市值(元)"`
+	NOMARKETCAPAVAG      float64 `json:"NOMARKETCAP_A_VAG" md:"流通市值(元)"`
+	NOTLIMITEDMARKETCAPA float64 `json:"NOTLIMITED_MARKETCAP_A" md:"-"`
+	PBMRQ                float64 `json:"PB_MRQ" md:"市净率"`
+	PCFOCFTTM            float64 `json:"PCF_OCF_TTM" md:"市现率"`
+	PEGCAR               float64 `json:"PEG_CAR" md:"PEG值"`
+	PELAR                float64 `json:"PE_LAR" md:"PE(静)"`
+	PETTM                float64 `json:"PE_TTM" md:"PE(TTM)"`
+	TOTALMARKETCAP       float64 `json:"TOTAL_MARKET_CAP" md:"-"`
+	TOTALSHARES          float64 `json:"TOTAL_SHARES" md:"-"`
+	TOTALSHARESVAG       float64 `json:"TOTAL_SHARES_VAG" md:"总股本(股)"`
+	TRADEDATE            string  `json:"TRADE_DATE" md:"日期"`
 }

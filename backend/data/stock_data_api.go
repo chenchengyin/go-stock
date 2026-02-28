@@ -1949,6 +1949,40 @@ func (receiver StockDataApi) GetStockHolderNum(stockCode string) *models.StockHo
 	return &data
 }
 
+func (receiver StockDataApi) GetIndustryValuation(bkName string) *models.IndustryValuationResp {
+	url := "https://datacenter-web.eastmoney.com/api/data/v1/get?callback=data&reportName=RPT_VALUEINDUSTRY_STA&columns=ALL&quoteColumns=&source=WEB&client=WEB&pageNumber=1&filter=%28BOARD_NAME%3D%22" + url2.QueryEscape(bkName) + "%22%29&_=" + strconv.Itoa(time.Now().Nanosecond())
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter-web.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	body := string(resp.Body())
+	logger.SugaredLogger.Infof("resp:%s", body)
+	vm := otto.New()
+	vm.Run("function data(res){return res};")
+	val, err := vm.Run(body)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	value, err := val.Export()
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	marshal, err := json.Marshal(value)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	logger.SugaredLogger.Infof("data:%s", string(marshal))
+	data := models.IndustryValuationResp{}
+	err = json.Unmarshal(marshal, &data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	return &data
+}
+
 // JSONToMarkdownTable 将JSON数据转换为Markdown表格
 func JSONToMarkdownTable(jsonData []byte) (string, error) {
 	var data []map[string]interface{}

@@ -1629,6 +1629,71 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								}
 							}
 
+							if funcName == "AiRecommendStocks" {
+								page := gjson.Get(funcArguments, "page").String()
+								pageSize := gjson.Get(funcArguments, "pageSize").String()
+								keyWord := gjson.Get(funcArguments, "keyWord").String()
+								startDate := gjson.Get(funcArguments, "startDate").String()
+								endDate := gjson.Get(funcArguments, "endDate").String()
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：AiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								pageNo, err := convertor.ToInt(page)
+								if err != nil {
+									pageNo = 1
+								}
+								pageSizeNum, err := convertor.ToInt(pageSize)
+								if err != nil {
+									pageSizeNum = 50
+								}
+								pageData, err := NewAiRecommendStocksService().GetAiRecommendStocksList(&models.AiRecommendStocksQuery{
+									StartDate: startDate,
+									EndDate:   endDate,
+									Page:      int(pageNo),
+									PageSize:  int(pageSizeNum),
+									StockCode: keyWord,
+									StockName: keyWord,
+									BkName:    keyWord,
+								})
+								if err != nil {
+									pageData = &models.AiRecommendStocksPageData{}
+								}
+								var dataExport []models.AiRecommendStocksMdExport
+								for _, v := range pageData.List {
+									dataExport = append(dataExport, v.ToMdExportStruct())
+								}
+								content := util.MarkdownTableWithTitle("近期AI分析/推荐股票明细列表", dataExport)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      content,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
 							if funcName == "InteractiveAnswer" {
 								page := gjson.Get(funcArguments, "page").String()
 								pageSize := gjson.Get(funcArguments, "pageSize").String()
@@ -1908,6 +1973,45 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								}
 								res := NewStockDataApi().GetStockMoneyData()
 								md := util.MarkdownTableWithTitle("今日个股资金流向Top50", res.Data.Diff)
+								logger.SugaredLogger.Infof("%s", md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
+							if funcName == "GetIndustryValuation" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：GetIndustryValuation，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								bkName := gjson.Get(funcArguments, "bkName").String()
+								res := NewStockDataApi().GetIndustryValuation(bkName)
+								md := util.MarkdownTableWithTitle(bkName+"行业估值", res.Result.Data)
 								logger.SugaredLogger.Infof("%s", md)
 								messages = append(messages, map[string]interface{}{
 									"role":              "assistant",
