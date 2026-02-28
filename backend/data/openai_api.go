@@ -1845,7 +1845,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 									"content":  "\r\n```\r\n开始调用工具：GetStockResearchReport，\n参数：" + stockCode + "\r\n```\r\n",
 									"time":     time.Now().Format(time.DateTime),
 								}
-								res := NewMarketNewsApi().StockResearchReport(stockCode, 7)
+								res := NewMarketNewsApi().StockResearchReport(stockCode, 30)
 								md := strings.Builder{}
 								for _, a := range res {
 									logger.SugaredLogger.Debugf("value: %+v", a)
@@ -1973,6 +1973,45 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								}
 								res := NewStockDataApi().GetStockMoneyData()
 								md := util.MarkdownTableWithTitle("今日个股资金流向Top50", res.Data.Diff)
+								logger.SugaredLogger.Infof("%s", md)
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md,
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
+
+							if funcName == "CailianpressWeb" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：CailianpressWeb，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								searchWords := gjson.Get(funcArguments, "searchWords").String()
+								res := NewMarketNewsApi().CailianpressWeb(searchWords)
+								md := util.MarkdownTableWithTitle("["+searchWords+"]-新闻资讯", res)
 								logger.SugaredLogger.Infof("%s", md)
 								messages = append(messages, map[string]interface{}{
 									"role":              "assistant",

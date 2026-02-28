@@ -422,6 +422,24 @@ func AddTools(tools []data.Tool) []data.Tool {
 		},
 	})
 
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "CailianpressWeb",
+			Description: "新闻资讯搜索",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"searchWords": map[string]any{
+						"type":        "string",
+						"description": "搜索关键词,多个关键词空格分割",
+					},
+				},
+				Required: []string{"bkName"},
+			},
+		},
+	})
+
 	//CreateAiRecommendStocks
 	tools = append(tools, data.Tool{
 		Type: "function",

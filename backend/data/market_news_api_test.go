@@ -81,7 +81,7 @@ func TestLongTiger(t *testing.T) {
 
 func TestStockResearchReport(t *testing.T) {
 	db.Init("../../data/stock.db")
-	resp := NewMarketNewsApi().StockResearchReport("688082", 7)
+	resp := NewMarketNewsApi().StockResearchReport("002046", 7)
 	for _, a := range resp {
 		logger.SugaredLogger.Debugf("value: %+v", a)
 		data := a.(map[string]any)

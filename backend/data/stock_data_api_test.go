@@ -61,7 +61,7 @@ func TestGetTelegraphSearch(t *testing.T) {
 }
 func TestCailianpressWeb(t *testing.T) {
 	db.Init("../../data/stock.db")
-	searchWords := "半导体 新能源汽车 机器人"
+	searchWords := "伊朗"
 	res := NewMarketNewsApi().CailianpressWeb(searchWords)
 	md := util.MarkdownTableWithTitle(searchWords+"财联社新闻", res.List)
 	logger.SugaredLogger.Info(md)
