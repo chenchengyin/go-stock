@@ -432,10 +432,10 @@ func AddTools(tools []data.Tool) []data.Tool {
 				Properties: map[string]any{
 					"searchWords": map[string]any{
 						"type":        "string",
-						"description": "搜索关键词,多个关键词空格分割",
+						"description": "搜索关键词",
 					},
 				},
-				Required: []string{"bkName"},
+				Required: []string{"searchWords"},
 			},
 		},
 	})
