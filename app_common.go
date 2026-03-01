@@ -117,3 +117,23 @@ func (a *App) DeleteAiRecommendStocks(id uint) string {
 	}
 	return "删除成功"
 }
+
+func (a *App) GetPromptTemplateList(query models.PromptTemplateQuery) *models.PromptTemplatePageData {
+	page, err := data.NewPromptTemplateApi().GetPromptTemplateList(&query)
+	if err != nil {
+		return &models.PromptTemplatePageData{}
+	}
+	return page
+}
+
+func (a *App) AddPromptTemplate(template models.PromptTemplate) string {
+	return data.NewPromptTemplateApi().AddPrompt(template)
+}
+
+func (a *App) UpdatePromptTemplate(template models.PromptTemplate) string {
+	return data.NewPromptTemplateApi().AddPrompt(template)
+}
+
+func (a *App) DeletePromptTemplate(id uint) string {
+	return data.NewPromptTemplateApi().DelPrompt(id)
+}

@@ -27,6 +27,7 @@ declare module 'vue' {
     Market: typeof import('./src/components/market.vue')['default']
     MoneyTrend: typeof import('./src/components/moneyTrend.vue')['default']
     NewsList: typeof import('./src/components/newsList.vue')['default']
+    PromptTemplateList: typeof import('./src/components/promptTemplateList.vue')['default']
     RankTable: typeof import('./src/components/rankTable.vue')['default']
     ResearchIndex: typeof import('./src/components/researchIndex.vue')['default']
     ResearchReport: typeof import('./src/components/researchReport.vue')['default']

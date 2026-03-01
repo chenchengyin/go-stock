@@ -116,9 +116,9 @@ onMounted(() => {
 
   })
 
-  GetPromptTemplates("", "").then(res => {
-    promptTemplates.value = res
-  })
+  // GetPromptTemplates("", "").then(res => {
+  //   promptTemplates.value = res
+  // })
 })
 onBeforeUnmount(() => {
   message.destroyAll()

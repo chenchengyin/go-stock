@@ -10,6 +10,8 @@ export function AddGroup(arg1:data.Group):Promise<string>;
 
 export function AddPrompt(arg1:models.Prompt):Promise<string>;
 
+export function AddPromptTemplate(arg1:models.PromptTemplate):Promise<string>;
+
 export function AddStockGroup(arg1:number,arg2:string):Promise<string>;
 
 export function AnalyzeSentiment(arg1:string):Promise<models.SentimentResult>;
@@ -33,6 +35,8 @@ export function DelPrompt(arg1:number):Promise<string>;
 export function DeleteAIResponseResult(arg1:number):Promise<string>;
 
 export function DeleteAiRecommendStocks(arg1:number):Promise<string>;
+
+export function DeletePromptTemplate(arg1:number):Promise<string>;
 
 export function EMDictCode(arg1:string):Promise<Array<any>>;
 
@@ -67,6 +71,8 @@ export function GetIndustryMoneyRankSina(arg1:string,arg2:string):Promise<Array<
 export function GetIndustryRank(arg1:string,arg2:number):Promise<Array<any>>;
 
 export function GetMoneyRankSina(arg1:string):Promise<Array<Record<string, any>>>;
+
+export function GetPromptTemplateList(arg1:models.PromptTemplateQuery):Promise<models.PromptTemplatePageData>;
 
 export function GetPromptTemplates(arg1:string,arg2:string):Promise<any>;
 
@@ -155,3 +161,5 @@ export function UnFollowFund(arg1:string):Promise<string>;
 export function UpdateConfig(arg1:data.SettingConfig):Promise<string>;
 
 export function UpdateGroupSort(arg1:number,arg2:number):Promise<boolean>;
+
+export function UpdatePromptTemplate(arg1:models.PromptTemplate):Promise<string>;

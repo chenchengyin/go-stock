@@ -4,6 +4,7 @@ import {GetAIResponseResultList} from "../../wailsjs/go/main/App";
 import {NButton, NEllipsis, NText} from "naive-ui";
 import ResearchReport from "./researchReport.vue";
 import AiRecommendStocksList from "./aiRecommendStocksList.vue";
+import PromptTemplateList from "./promptTemplateList.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -39,6 +40,9 @@ function updateTab(name) {
       </n-tab-pane>
       <n-tab-pane name="股票推荐记录">
         <AiRecommendStocksList/>
+      </n-tab-pane>
+      <n-tab-pane name="提示词模板">
+        <PromptTemplateList/>
       </n-tab-pane>
     </n-tabs>
   </n-card>

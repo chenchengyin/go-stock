@@ -943,6 +943,106 @@ export namespace models {
 	        this.type = source["type"];
 	    }
 	}
+	export class PromptTemplate {
+	    ID: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	    name: string;
+	    content: string;
+	    type: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	        this.name = source["name"];
+	        this.content = source["content"];
+	        this.type = source["type"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PromptTemplatePageData {
+	    list: PromptTemplate[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptTemplatePageData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.list = this.convertValues(source["list"], PromptTemplate);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PromptTemplateQuery {
+	    page: number;
+	    pageSize: number;
+	    name: string;
+	    type: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PromptTemplateQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.content = source["content"];
+	    }
+	}
 	export class SentimentResult {
 	    Score: number;
 	    Category: number;

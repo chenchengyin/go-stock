@@ -250,6 +250,30 @@ func (p PromptTemplate) TableName() string {
 	return "prompt_templates"
 }
 
+// PromptTemplateQuery 分页查询参数
+type PromptTemplateQuery struct {
+	Page     int    `form:"page" json:"page"`         // 页码
+	PageSize int    `form:"pageSize" json:"pageSize"` // 每页大小
+	Name     string `form:"name" json:"name"`         // 模板名称筛选
+	Type     string `form:"type" json:"type"`         // 模板类型筛选
+	Content  string `form:"content" json:"content"`   // 内容模糊搜索
+}
+
+// PromptTemplatePageResp 分页查询响应
+type PromptTemplatePageResp struct {
+	Code    int                    `json:"code"`
+	Message string                 `json:"message"`
+	Data    PromptTemplatePageData `json:"data"`
+}
+
+type PromptTemplatePageData struct {
+	List       []PromptTemplate `json:"list"`
+	Total      int64            `json:"total"`
+	Page       int              `json:"page"`
+	PageSize   int              `json:"pageSize"`
+	TotalPages int              `json:"totalPages"`
+}
+
 type Prompt struct {
 	ID      int    `json:"ID"`
 	Name    string `json:"name"`

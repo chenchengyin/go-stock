@@ -14,6 +14,10 @@ export function AddPrompt(arg1) {
   return window['go']['main']['App']['AddPrompt'](arg1);
 }
 
+export function AddPromptTemplate(arg1) {
+  return window['go']['main']['App']['AddPromptTemplate'](arg1);
+}
+
 export function AddStockGroup(arg1, arg2) {
   return window['go']['main']['App']['AddStockGroup'](arg1, arg2);
 }
@@ -60,6 +64,10 @@ export function DeleteAIResponseResult(arg1) {
 
 export function DeleteAiRecommendStocks(arg1) {
   return window['go']['main']['App']['DeleteAiRecommendStocks'](arg1);
+}
+
+export function DeletePromptTemplate(arg1) {
+  return window['go']['main']['App']['DeletePromptTemplate'](arg1);
 }
 
 export function EMDictCode(arg1) {
@@ -128,6 +136,10 @@ export function GetIndustryRank(arg1, arg2) {
 
 export function GetMoneyRankSina(arg1) {
   return window['go']['main']['App']['GetMoneyRankSina'](arg1);
+}
+
+export function GetPromptTemplateList(arg1) {
+  return window['go']['main']['App']['GetPromptTemplateList'](arg1);
 }
 
 export function GetPromptTemplates(arg1, arg2) {
@@ -304,4 +316,8 @@ export function UpdateConfig(arg1) {
 
 export function UpdateGroupSort(arg1, arg2) {
   return window['go']['main']['App']['UpdateGroupSort'](arg1, arg2);
+}
+
+export function UpdatePromptTemplate(arg1) {
+  return window['go']['main']['App']['UpdatePromptTemplate'](arg1);
 }

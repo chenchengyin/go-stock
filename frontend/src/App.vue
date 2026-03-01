@@ -30,7 +30,7 @@ import {
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList,GetVersionInfo} from "../wailsjs/go/main/App";
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
-import {ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
+import {Prompt, ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
 import {BoxSearch20Regular, CommentNote20Filled} from "@vicons/fluent";
 import {FireFilled, FireOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
@@ -514,7 +514,30 @@ const menuOptions = ref([
               ),
           key: 'research2',
           icon: renderIcon(DiamondOutline),
-        }
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"提示词模板",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 3, name: '提示词模板'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '提示词模板'}
+              ),
+          key: 'research3',
+          icon: renderIcon(Prompt),
+        },
       ],
     },
   {

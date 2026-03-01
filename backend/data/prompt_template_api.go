@@ -26,6 +26,59 @@ func (t PromptTemplateApi) GetPromptTemplates(name string, promptType string) *[
 
 	return &result
 }
+
+// GetPromptTemplateList 分页查询PromptTemplate记录
+func (t PromptTemplateApi) GetPromptTemplateList(query *models.PromptTemplateQuery) (*models.PromptTemplatePageData, error) {
+	var list []models.PromptTemplate
+	var total int64
+
+	q := db.Dao.Model(&models.PromptTemplate{})
+
+	// 构建查询条件
+	if query.Name != "" {
+		q = q.Where("name LIKE ?", "%"+query.Name+"%")
+	}
+	if query.Type != "" {
+		q = q.Where("type LIKE ?", "%"+query.Type+"%")
+	}
+	if query.Content != "" {
+		q = q.Where("content LIKE ?", "%"+query.Content+"%")
+	}
+
+	// 计算总数
+	err := q.Count(&total).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 设置默认分页参数
+	page := query.Page
+	pageSize := query.PageSize
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	// 执行分页查询
+	offset := (page - 1) * pageSize
+	err = q.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+
+	return &models.PromptTemplatePageData{
+		List:       list,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
 func (t PromptTemplateApi) AddPrompt(template models.PromptTemplate) string {
 	var tmp models.PromptTemplate
 	db.Dao.Model(&models.PromptTemplate{}).Where("id=?", template.ID).First(&tmp)
