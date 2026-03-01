@@ -426,13 +426,16 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Type: "function",
 		Function: data.ToolFunction{
 			Name:        "CailianpressWeb",
-			Description: "新闻资讯搜索",
+			Description: "财经新闻资讯搜索",
 			Parameters: &data.FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"searchWords": map[string]any{
-						"type":        "string",
-						"description": "搜索关键词",
+						"type": "string",
+						"description": "搜索关键词（不要使用分隔符如空格逗号）" +
+							"板块/概念名称：半导体\n" +
+							"股票名称：中科曙光\n" +
+							"政策：十五五规划\n",
 					},
 				},
 				Required: []string{"searchWords"},
