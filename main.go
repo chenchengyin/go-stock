@@ -247,7 +247,6 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.AllStockInfo{})
 
 	//updateMultipleModel()
-	go syncAllStockInfo()
 }
 
 func initStockDataUS(ctx context.Context) {

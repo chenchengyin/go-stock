@@ -42,8 +42,8 @@ const formValue = ref({
   enableNews: false,
   darkTheme: true,
   enableFund: false,
-  enablePushNews: false,
-  enableOnlyPushRedNews: false,
+  enablePushNews: true,
+  enableOnlyPushRedNews: true,
   sponsorCode: "",
   httpProxy:"",
   httpProxyEnabled:false,
@@ -57,10 +57,10 @@ function addAiConfig() {
     name: '',
     baseUrl: 'https://api.deepseek.com',
     apiKey: '',
-    modelName: 'deepseek-chat',
+    modelName: 'deepseek-reasoner',
     temperature: 0.1,
-    maxTokens: 4096,
-    timeOut: 60,
+    maxTokens: 8192,
+    timeOut: 6000,
     httpProxy:"",
     httpProxyEnabled:false,
   }));
@@ -406,16 +406,16 @@ function deletePrompt(ID) {
 
 
             <n-gi :span="24" v-if="formValue.openAI.enable">
-              <n-divider title-placement="left">Prompt 内容设置</n-divider>
+              <n-divider title-placement="left">默认提示词设置</n-divider>
             </n-gi>
-            <n-form-item-gi :span="12" v-if="formValue.openAI.enable" label="模型系统 Prompt" path="openAI.prompt">
+            <n-form-item-gi :span="12" v-if="formValue.openAI.enable" label="默认系统提示词" path="openAI.prompt">
               <n-input v-model:value="formValue.openAI.prompt" type="textarea" :show-count="true"
-                       placeholder="请输入系统prompt" :autosize="{ minRows: 4, maxRows: 8 }"/>
+                       placeholder="请输入系统提示词" :autosize="{ minRows: 4, maxRows: 8 }"/>
             </n-form-item-gi>
-            <n-form-item-gi :span="12" v-if="formValue.openAI.enable" label="模型用户 Prompt"
+            <n-form-item-gi :span="12" v-if="formValue.openAI.enable" label="默认个股分析提示词"
                             path="openAI.questionTemplate">
               <n-input v-model:value="formValue.openAI.questionTemplate" type="textarea" :show-count="true"
-                       placeholder="请输入用户prompt:例如{{stockName}}[{{stockCode}}]分析和总结"
+                       placeholder="请输入个股分析提示词:例如{{stockName}}[{{stockCode}}]分析和总结"
                        :autosize="{ minRows: 4, maxRows: 8 }"/>
             </n-form-item-gi>
 
@@ -477,7 +477,7 @@ function deletePrompt(ID) {
             <n-gi :span="24">
               <n-space vertical>
                 <n-space justify="center">
-                  <n-button type="warning" @click="managePrompts">管理提示词模板</n-button>
+<!--                  <n-button type="warning" @click="managePrompts">管理提示词模板</n-button>-->
                   <n-button type="primary" strong @click="saveConfig">保存设置</n-button>
                   <n-button type="info" @click="exportConfig">导出配置</n-button>
                   <n-button type="error" @click="importConfig">导入配置</n-button>

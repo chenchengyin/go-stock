@@ -1117,6 +1117,7 @@ func (a *App) domReady(ctx context.Context) {
 	go func() {
 		a.CheckUpdate(0)
 		go a.CheckStockBaseInfo(a.ctx)
+		go syncAllStockInfo(a.ctx)
 
 		a.cron.AddFunc("0 0 2 * * *", func() {
 			logger.SugaredLogger.Errorf("Checking for updates...")
@@ -1127,7 +1128,7 @@ func (a *App) domReady(ctx context.Context) {
 			a.CheckUpdate(0)
 		})
 		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
-			syncAllStockInfo()
+			syncAllStockInfo(a.ctx)
 		})
 	}()
 
@@ -1164,7 +1165,11 @@ func (a *App) domReady(ctx context.Context) {
 
 }
 
-func syncAllStockInfo() {
+func syncAllStockInfo(ctx context.Context) {
+	defer PanicHandler()
+	defer func() {
+		go runtime.EventsEmit(ctx, "loadingMsg", "done")
+	}()
 	db.Dao.Unscoped().Model(&models.AllStockInfo{}).Where("1=1").Delete(&models.AllStockInfo{})
 	for page := 1; page < 3; page++ {
 		res := data.NewStockDataApi().GetAllStocks(page, 3000, "")
