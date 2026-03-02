@@ -32,7 +32,7 @@ import {AnalyzeSentiment, GetConfig, GetGroupList,GetVersionInfo} from "../wails
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
 import {Prompt, ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
-import {BoxSearch20Regular, CommentNote20Filled} from "@vicons/fluent";
+import {AppsList20Regular, BoxSearch20Regular, CommentNote20Filled} from "@vicons/fluent";
 import {FireFilled, FireOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
 
 
@@ -537,6 +537,29 @@ const menuOptions = ref([
               ),
           key: 'research3',
           icon: renderIcon(Prompt),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"最新股价数据",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 3, name: '最新股价数据'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '最新股价数据'}
+              ),
+          key: 'research4',
+          icon: renderIcon(AppsList20Regular),
         },
       ],
     },

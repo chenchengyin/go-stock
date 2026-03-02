@@ -66,6 +66,10 @@ func (a *App) GetHotStrategy() map[string]any {
 	return data.NewSearchStockApi("").HotStrategy()
 }
 
+func (a *App) GetAllStocks(page int, pageSize int, name string) *models.AllStocksResp {
+	return data.NewStockDataApi().GetAllStocks(page, pageSize, name)
+}
+
 func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int) {
 	ch := agent.NewStockAiAgentApi().Chat(question, aiConfigId, sysPromptId)
 	for msg := range ch {
@@ -136,4 +140,68 @@ func (a *App) UpdatePromptTemplate(template models.PromptTemplate) string {
 
 func (a *App) DeletePromptTemplate(id uint) string {
 	return data.NewPromptTemplateApi().DelPrompt(id)
+}
+
+func (a *App) GetAllStockInfoList(query data.AllStockInfoQuery) *data.AllStockInfoPageData {
+	page, err := data.NewStockDataApi().GetAllStockInfoList(&query)
+	if err != nil {
+		return &data.AllStockInfoPageData{}
+	}
+	return page
+}
+
+func (a *App) GetAllStockInfoById(id uint) *models.AllStockInfo {
+	stock, err := data.NewStockDataApi().GetAllStockInfoById(id)
+	if err != nil {
+		return &models.AllStockInfo{}
+	}
+	return stock
+}
+
+func (a *App) AddAllStockInfo(stock models.AllStockInfo) string {
+	err := data.NewStockDataApi().AddAllStockInfo(stock)
+	if err != nil {
+		return "操作失败: " + err.Error()
+	}
+	return "操作成功"
+}
+
+func (a *App) DeleteAllStockInfo(id uint) string {
+	err := data.NewStockDataApi().DeleteAllStockInfo(id)
+	if err != nil {
+		return "删除失败: " + err.Error()
+	}
+	return "删除成功"
+}
+
+func (a *App) BatchDeleteAllStockInfo(ids []uint) string {
+	err := data.NewStockDataApi().BatchDeleteAllStockInfo(ids)
+	if err != nil {
+		return "批量删除失败: " + err.Error()
+	}
+	return "批量删除成功"
+}
+
+func (a *App) GetAllMarkets() []string {
+	markets, err := data.NewStockDataApi().GetAllMarkets()
+	if err != nil {
+		return []string{}
+	}
+	return markets
+}
+
+func (a *App) GetAllIndustries() []string {
+	industries, err := data.NewStockDataApi().GetAllIndustries()
+	if err != nil {
+		return []string{}
+	}
+	return industries
+}
+
+func (a *App) GetAllConcepts() []string {
+	concepts, err := data.NewStockDataApi().GetAllConcepts()
+	if err != nil {
+		return []string{}
+	}
+	return concepts
 }

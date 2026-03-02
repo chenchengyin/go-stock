@@ -12,6 +12,8 @@ declare module 'vue' {
     AgentChat: typeof import('./src/components/agent-chat.vue')['default']
     AgentChat_bk: typeof import('./src/components/agent-chat_bk.vue')['default']
     AiRecommendStocksList: typeof import('./src/components/aiRecommendStocksList.vue')['default']
+    AllStockInfoList: typeof import('./src/components/allStockInfoList.vue')['default']
+    AllStockList: typeof import('./src/components/allStockList.vue')['default']
     AnalyzeMartket: typeof import('./src/components/AnalyzeMartket.vue')['default']
     ClsCalendarTimeLine: typeof import('./src/components/ClsCalendarTimeLine.vue')['default']
     EmbeddedUrl: typeof import('./src/components/EmbeddedUrl.vue')['default']

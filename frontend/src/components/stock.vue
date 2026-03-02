@@ -475,23 +475,22 @@ onBeforeMount(() => {
     })
   })
 })
+// 监听分组列表变化，重新初始化拖拽
+const unwatch = watch(groupList, () => {
+  nextTick(() => {
+    initDraggableTabs();
+  });
+});
 
+// 在组件卸载时清理监听器
+onBeforeUnmount(() => {
+  unwatch();
+});
 onMounted(() => {
   nextTick(() => {
     initDraggableTabs();
   });
 
-  // 监听分组列表变化，重新初始化拖拽
-  const unwatch = watch(groupList, () => {
-    nextTick(() => {
-      initDraggableTabs();
-    });
-  });
-
-  // 在组件卸载时清理监听器
-  onBeforeUnmount(() => {
-    unwatch();
-  });
   message.loading("Loading...")
   GetFollowList(currentGroupId.value).then(result => {
 

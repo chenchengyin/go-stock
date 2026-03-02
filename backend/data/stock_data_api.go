@@ -590,7 +590,19 @@ func (receiver StockDataApi) GetStockList(key string) []StockBasic {
 	var result4 []models.StockInfoUS
 	db.Dao.Model(&models.StockInfoUS{}).Where("name like ? or code like ? or e_name like ?", "%"+key+"%", "%"+key+"%", "%"+key+"%").Find(&result4)
 
+	var result5 []models.AllStockInfo
+	db.Dao.Model(&models.AllStockInfo{}).Where("secucode like ? or sec_uri_tynameabbr like ?", "%"+key+"%", "%"+key+"%").Find(&result5)
+
+	// 创建一个 map 来存储已存在的股票，用于去重
+	// 使用 TsCode 作为唯一标识符
+	existingStocks := make(map[string]bool)
+	for _, item := range result {
+		existingStocks[item.TsCode] = true
+	}
 	for _, item := range result2 {
+		if existingStocks[item.TsCode] {
+			continue
+		}
 		result = append(result, StockBasic{
 			TsCode:   item.TsCode,
 			Name:     item.Name,
@@ -599,22 +611,45 @@ func (receiver StockDataApi) GetStockList(key string) []StockBasic {
 			Market:   item.Market,
 			ListDate: item.ListDate,
 		})
+		existingStocks[item.TsCode] = true
+
 	}
 	for _, item := range result3 {
+		if existingStocks[item.Code] {
+			continue
+		}
 		result = append(result, StockBasic{
 			TsCode:   item.Code,
 			Name:     item.Name,
 			Fullname: item.Name,
 			Market:   "HK",
 		})
+		existingStocks[item.Code] = true
 	}
 	for _, item := range result4 {
+		code := strings.ToLower(strings.Replace(item.Code, "us", "gb_", 1))
+		if existingStocks[code] {
+			continue
+		}
 		result = append(result, StockBasic{
-			TsCode:   strings.ToLower(strings.Replace(item.Code, "us", "gb_", 1)),
+			TsCode:   code,
 			Name:     item.Name,
 			Fullname: item.Name,
 			Market:   "US",
 		})
+		existingStocks[code] = true
+	}
+	for _, item := range result5 {
+		if existingStocks[item.SECUCODE] {
+			continue
+		}
+		result = append(result, StockBasic{
+			TsCode:   item.SECUCODE,
+			Name:     item.SECURITYNAMEABBR,
+			Fullname: item.SECURITYNAMEABBR,
+			Market:   item.MARKET,
+		})
+		existingStocks[item.SECUCODE] = true
 	}
 
 	return result
@@ -1983,6 +2018,39 @@ func (receiver StockDataApi) GetIndustryValuation(bkName string) *models.Industr
 	return &data
 }
 
+func (receiver StockDataApi) GetAllStocks(page int, pageSize int, name string) *models.AllStocksResp {
+	logger.SugaredLogger.Infof("GetAllStocks page:%d,pageSize:%d,name:%s", page, pageSize, name)
+	search := ""
+	if name != "" {
+		search = fmt.Sprintf("(SECURITY_NAME_ABBR in (\"%s\"))", name)
+	}
+	url := "https://data.eastmoney.com/dataapi/xuangu/list?st=CHANGE_RATE&sr=-1&ps=" + convertor.ToString(pageSize) + "&p=" + convertor.ToString(page) + "&sty=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_PRICE%2CCHANGE_RATE%2CVOLUME_RATIO%2CHIGH_PRICE%2CLOW_PRICE%2CPRE_CLOSE_PRICE%2CVOLUME%2CDEAL_AMOUNT%2CTURNOVERRATE%2CMARKET%2CCONCEPT%2CINDUSTRY&filter=%28MARKET+in+%28%22%E4%B8%8A%E4%BA%A4%E6%89%80%E4%B8%BB%E6%9D%BF%22%2C%22%E6%B7%B1%E4%BA%A4%E6%89%80%E4%B8%BB%E6%9D%BF%22%2C%22%E6%B7%B1%E4%BA%A4%E6%89%80%E5%88%9B%E4%B8%9A%E6%9D%BF%22%2C%22%E4%B8%8A%E4%BA%A4%E6%89%80%E7%A7%91%E5%88%9B%E6%9D%BF%22%2C%22%E4%B8%8A%E4%BA%A4%E6%89%80%E9%A3%8E%E9%99%A9%E8%AD%A6%E7%A4%BA%E6%9D%BF%22%2C%22%E6%B7%B1%E4%BA%A4%E6%89%80%E9%A3%8E%E9%99%A9%E8%AD%A6%E7%A4%BA%E6%9D%BF%22%2C%22%E5%8C%97%E4%BA%AC%E8%AF%81%E5%88%B8%E4%BA%A4%E6%98%93%E6%89%80%22%29%29" + url2.QueryEscape(search) + "&source=SELECT_SECURITIES&client=WEB&hyversion=v2"
+	logger.SugaredLogger.Infof("url:%s", url)
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "data.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	}
+	data := models.AllStocksResp{}
+	err = json.Unmarshal(resp.Body(), &data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return &models.AllStocksResp{}
+	}
+	//for _, info := range data.Result.Data {
+	//	toAllStockInfo := info.ToAllStockInfo()
+	//	oldInfo := NewStockDataApi().GetStockInfoByCode(info.SECUCODE)
+	//	toAllStockInfo.ID = oldInfo.ID
+	//	err := NewStockDataApi().AddAllStockInfo(toAllStockInfo)
+	//	if err != nil {
+	//		logger.SugaredLogger.Errorf("err:%s", err.Error())
+	//	}
+	//}
+	return &data
+}
+
 // JSONToMarkdownTable 将JSON数据转换为Markdown表格
 func JSONToMarkdownTable(jsonData []byte) (string, error) {
 	var data []map[string]interface{}
@@ -2043,4 +2111,149 @@ type MinuteData struct {
 	Price  float64 `json:"price"`
 	Volume float64 `json:"volume"`
 	Amount float64 `json:"amount"`
+}
+
+// AllStockInfoQuery 分页查询参数
+type AllStockInfoQuery struct {
+	Page          int    `form:"page" json:"page"`                 // 页码
+	PageSize      int    `form:"pageSize" json:"pageSize"`         // 每页大小
+	SecurityCode  string `form:"securityCode" json:"securityCode"` // 股票代码筛选
+	SecurityName  string `form:"securityName" json:"securityName"` // 股票名称筛选
+	Market        string `form:"market" json:"market"`             // 交易所筛选
+	Industry      string `form:"industry" json:"industry"`         // 行业筛选
+	Concept       string `form:"concept" json:"concept"`           // 概念筛选
+	MinPrice      string `form:"minPrice" json:"minPrice"`         // 最低价筛选
+	MaxPrice      string `form:"maxPrice" json:"maxPrice"`         // 最高价筛选
+	MinChange     string `form:"minChange" json:"minChange"`       // 最小涨跌幅筛选
+	MaxChange     string `form:"maxChange" json:"maxChange"`       // 最大涨跌幅筛选
+	SearchKeyWord string `form:"searchKeyWord" json:"searchKeyWord"`
+}
+
+// AllStockInfoPageData 分页查询结果
+type AllStockInfoPageData struct {
+	List       []models.AllStockInfo `json:"list"`
+	Total      int64                 `json:"total"`
+	Page       int                   `json:"page"`
+	PageSize   int                   `json:"pageSize"`
+	TotalPages int                   `json:"totalPages"`
+}
+
+// GetAllStockInfoList 分页查询AllStockInfo记录
+func (receiver StockDataApi) GetAllStockInfoList(query *AllStockInfoQuery) (*AllStockInfoPageData, error) {
+	var list []models.AllStockInfo
+	var total int64
+
+	q := db.Dao.Model(&models.AllStockInfo{})
+
+	// 构建查询条件
+	if query.SecurityCode != "" {
+		q = q.Where("secucode LIKE ?", "%"+query.SecurityCode+"%")
+	}
+	if query.SecurityName != "" {
+		q = q.Where("sec_uri_tynameabbr LIKE ?", "%"+query.SecurityName+"%")
+	}
+	if query.Market != "" {
+		q = q.Where("MARKET = ?", query.Market)
+	}
+	if query.Industry != "" {
+		q = q.Where("INDUSTRY LIKE ?", "%"+query.Industry+"%")
+	}
+	if query.Concept != "" {
+		q = q.Where("CONCEPT LIKE ?", "%"+query.Concept+"%")
+	}
+	if query.SearchKeyWord != "" {
+		q = q.Where("secucode LIKE ? OR sec_uri_tynameabbr LIKE ?", "%"+query.SearchKeyWord+"%", "%"+query.SearchKeyWord+"%")
+		q.Or("CONCEPT LIKE ? OR INDUSTRY LIKE ?", "%"+query.SearchKeyWord+"%", "%"+query.SearchKeyWord+"%")
+	}
+
+	// 计算总数
+	err := q.Count(&total).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 设置默认分页参数
+	page := query.Page
+	pageSize := query.PageSize
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	// 执行分页查询
+	offset := (page - 1) * pageSize
+	err = q.Offset(offset).Limit(pageSize).Order("maxtradedate DESC, secucode ASC").Find(&list).Error
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
+
+	return &AllStockInfoPageData{
+		List:       list,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// GetAllStockInfoById 根据ID获取单个AllStockInfo记录
+func (receiver StockDataApi) GetAllStockInfoById(id uint) (*models.AllStockInfo, error) {
+	var stock models.AllStockInfo
+	err := db.Dao.Model(&models.AllStockInfo{}).Where("id = ?", id).First(&stock).Error
+	if err != nil {
+		return nil, err
+	}
+	return &stock, nil
+}
+
+// AddAllStockInfo 添加或更新AllStockInfo记录
+func (receiver StockDataApi) AddAllStockInfo(stock models.AllStockInfo) error {
+	if stock.ID > 0 {
+		// 更新操作
+		return db.Dao.Model(&models.AllStockInfo{}).Where("id = ?", stock.ID).Updates(stock).Error
+	} else {
+		// 新增操作
+		return db.Dao.Model(&models.AllStockInfo{}).Create(&stock).Error
+	}
+}
+
+// DeleteAllStockInfo 删除AllStockInfo记录
+func (receiver StockDataApi) DeleteAllStockInfo(id uint) error {
+	return db.Dao.Model(&models.AllStockInfo{}).Where("id = ?", id).Delete(&models.AllStockInfo{}).Error
+}
+
+// BatchDeleteAllStockInfo 批量删除AllStockInfo记录
+func (receiver StockDataApi) BatchDeleteAllStockInfo(ids []uint) error {
+	return db.Dao.Model(&models.AllStockInfo{}).Where("id IN ?", ids).Delete(&models.AllStockInfo{}).Error
+}
+
+// GetAllMarkets 获取所有交易所列表
+func (receiver StockDataApi) GetAllMarkets() ([]string, error) {
+	var markets []string
+	err := db.Dao.Model(&models.AllStockInfo{}).Distinct("MARKET").Where("MARKET IS NOT NULL AND MARKET != ''").Order("MARKET").Pluck("MARKET", &markets).Error
+	return markets, err
+}
+
+// GetAllIndustries 获取所有行业列表
+func (receiver StockDataApi) GetAllIndustries() ([]string, error) {
+	var industries []string
+	err := db.Dao.Model(&models.AllStockInfo{}).Distinct("INDUSTRY").Where("INDUSTRY IS NOT NULL AND INDUSTRY != ''").Order("INDUSTRY").Pluck("INDUSTRY", &industries).Error
+	return industries, err
+}
+
+// GetAllConcepts 获取所有概念列表
+func (receiver StockDataApi) GetAllConcepts() ([]string, error) {
+	var concepts []string
+	err := db.Dao.Model(&models.AllStockInfo{}).Distinct("CONCEPT").Where("CONCEPT IS NOT NULL AND CONCEPT != ''").Order("CONCEPT").Pluck("CONCEPT", &concepts).Error
+	return concepts, err
+}
+
+func (receiver StockDataApi) GetStockInfoByCode(secucode string) models.AllStockInfo {
+	var stock models.AllStockInfo
+	db.Dao.Model(&models.AllStockInfo{}).Where("secucode = ?", secucode).First(&stock)
+	return stock
 }

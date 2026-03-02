@@ -54,6 +54,78 @@ export namespace data {
 		    return a;
 		}
 	}
+	export class AllStockInfoPageData {
+	    list: models.AllStockInfo[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AllStockInfoPageData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.list = this.convertValues(source["list"], models.AllStockInfo);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AllStockInfoQuery {
+	    page: number;
+	    pageSize: number;
+	    securityCode: string;
+	    securityName: string;
+	    market: string;
+	    industry: string;
+	    concept: string;
+	    minPrice: string;
+	    maxPrice: string;
+	    minChange: string;
+	    maxChange: string;
+	    searchKeyWord: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AllStockInfoQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.securityCode = source["securityCode"];
+	        this.securityName = source["securityName"];
+	        this.market = source["market"];
+	        this.industry = source["industry"];
+	        this.concept = source["concept"];
+	        this.minPrice = source["minPrice"];
+	        this.maxPrice = source["maxPrice"];
+	        this.minChange = source["minChange"];
+	        this.maxChange = source["maxChange"];
+	        this.searchKeyWord = source["searchKeyWord"];
+	    }
+	}
 	export class FundBasic {
 	    ID: number;
 	    // Go type: time
@@ -925,6 +997,118 @@ export namespace models {
 	        this.endDate = source["endDate"];
 	    }
 	}
+	export class AllStockInfo {
+	    ID: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	    // Go type: gorm
+	    DeletedAt: any;
+	    SECUCODE: string;
+	    SECURITY_CODE: string;
+	    SECURITY_NAME_ABBR: string;
+	    NEW_PRICE: string;
+	    CHANGE_RATE: string;
+	    VOLUME_RATIO: string;
+	    HIGH_PRICE: string;
+	    LOW_PRICE: string;
+	    PRE_CLOSE_PRICE: string;
+	    VOLUME: string;
+	    DEAL_AMOUNT: string;
+	    TURNOVERRATE: string;
+	    MARKET: string;
+	    CONCEPT: string;
+	    INDUSTRY: string;
+	    MAX_TRADE_DATE: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AllStockInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	        this.DeletedAt = this.convertValues(source["DeletedAt"], null);
+	        this.SECUCODE = source["SECUCODE"];
+	        this.SECURITY_CODE = source["SECURITY_CODE"];
+	        this.SECURITY_NAME_ABBR = source["SECURITY_NAME_ABBR"];
+	        this.NEW_PRICE = source["NEW_PRICE"];
+	        this.CHANGE_RATE = source["CHANGE_RATE"];
+	        this.VOLUME_RATIO = source["VOLUME_RATIO"];
+	        this.HIGH_PRICE = source["HIGH_PRICE"];
+	        this.LOW_PRICE = source["LOW_PRICE"];
+	        this.PRE_CLOSE_PRICE = source["PRE_CLOSE_PRICE"];
+	        this.VOLUME = source["VOLUME"];
+	        this.DEAL_AMOUNT = source["DEAL_AMOUNT"];
+	        this.TURNOVERRATE = source["TURNOVERRATE"];
+	        this.MARKET = source["MARKET"];
+	        this.CONCEPT = source["CONCEPT"];
+	        this.INDUSTRY = source["INDUSTRY"];
+	        this.MAX_TRADE_DATE = source["MAX_TRADE_DATE"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AllStocksResp {
+	    version: any;
+	    // Go type: struct { Nextpage bool "json:\"nextpage\""; Currentpage int "json:\"currentpage\""; Data []models
+	    result: any;
+	    success: boolean;
+	    message: string;
+	    code: number;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AllStocksResp(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.result = this.convertValues(source["result"], Object);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.code = source["code"];
+	        this.url = source["url"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Prompt {
 	    ID: number;
 	    name: string;
@@ -1061,6 +1245,48 @@ export namespace models {
 	        this.PositiveCount = source["PositiveCount"];
 	        this.NegativeCount = source["NegativeCount"];
 	        this.Description = source["Description"];
+	    }
+	}
+	export class StockInfo {
+	    SECUCODE: string;
+	    SECURITY_CODE: string;
+	    SECURITY_NAME_ABBR: string;
+	    NEW_PRICE: any;
+	    CHANGE_RATE: any;
+	    VOLUME_RATIO: any;
+	    HIGH_PRICE: any;
+	    LOW_PRICE: any;
+	    PRE_CLOSE_PRICE: any;
+	    VOLUME: any;
+	    DEAL_AMOUNT: any;
+	    TURNOVERRATE: any;
+	    MARKET: string;
+	    CONCEPT: any;
+	    INDUSTRY: string;
+	    MAX_TRADE_DATE: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new StockInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.SECUCODE = source["SECUCODE"];
+	        this.SECURITY_CODE = source["SECURITY_CODE"];
+	        this.SECURITY_NAME_ABBR = source["SECURITY_NAME_ABBR"];
+	        this.NEW_PRICE = source["NEW_PRICE"];
+	        this.CHANGE_RATE = source["CHANGE_RATE"];
+	        this.VOLUME_RATIO = source["VOLUME_RATIO"];
+	        this.HIGH_PRICE = source["HIGH_PRICE"];
+	        this.LOW_PRICE = source["LOW_PRICE"];
+	        this.PRE_CLOSE_PRICE = source["PRE_CLOSE_PRICE"];
+	        this.VOLUME = source["VOLUME"];
+	        this.DEAL_AMOUNT = source["DEAL_AMOUNT"];
+	        this.TURNOVERRATE = source["TURNOVERRATE"];
+	        this.MARKET = source["MARKET"];
+	        this.CONCEPT = source["CONCEPT"];
+	        this.INDUSTRY = source["INDUSTRY"];
+	        this.MAX_TRADE_DATE = source["MAX_TRADE_DATE"];
 	    }
 	}
 	export class VersionInfo {

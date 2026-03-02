@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
 	"go-stock/backend/util"
 	"io/ioutil"
 	"regexp"
@@ -66,7 +67,23 @@ func TestCailianpressWeb(t *testing.T) {
 	md := util.MarkdownTableWithTitle(searchWords+"财联社新闻", res.List)
 	logger.SugaredLogger.Info(md)
 }
+func TestGetAllStocks(t *testing.T) {
+	db.Init("../../data/stock.db")
+	db.Dao.AutoMigrate(&models.AllStockInfo{})
 
+	db.Dao.Unscoped().Model(&models.AllStockInfo{}).Where("1=1").Delete(&models.AllStockInfo{})
+	for page := 1; page < 3; page++ {
+		res := NewStockDataApi().GetAllStocks(page, 3000, "")
+		var datas []models.AllStockInfo
+		for _, data := range (*res).Result.Data {
+			datas = append(datas, data.ToAllStockInfo())
+		}
+		err := db.Dao.CreateInBatches(&datas, 500).Error
+		if err != nil {
+			logger.SugaredLogger.Errorf("db.Dao.CreateInBatches error:%s", err.Error())
+		}
+	}
+}
 func TestSearchStockInfoByCode(t *testing.T) {
 	db.Init("../../data/stock.db")
 	SearchStockInfoByCode("sh600745")

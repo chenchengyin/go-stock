@@ -244,8 +244,10 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.WordAnalyze{})
 	db.Dao.AutoMigrate(&models.SentimentResultAnalyze{})
 	db.Dao.AutoMigrate(&models.AiRecommendStocks{})
+	db.Dao.AutoMigrate(&models.AllStockInfo{})
 
 	//updateMultipleModel()
+	go syncAllStockInfo()
 }
 
 func initStockDataUS(ctx context.Context) {

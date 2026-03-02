@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	"github.com/duke-git/lancet/v2/convertor"
 	"gorm.io/gorm"
 	"gorm.io/plugin/soft_delete"
 )
@@ -1210,4 +1211,84 @@ type IndustryValuationData struct {
 	TOTALSHARES          float64 `json:"TOTAL_SHARES" md:"-"`
 	TOTALSHARESVAG       float64 `json:"TOTAL_SHARES_VAG" md:"总股本(股)"`
 	TRADEDATE            string  `json:"TRADE_DATE" md:"日期"`
+}
+
+type AllStocksResp struct {
+	Version interface{} `json:"version"`
+	Result  struct {
+		Nextpage    bool          `json:"nextpage"`
+		Currentpage int           `json:"currentpage"`
+		Data        []StockInfo   `json:"data"`
+		Config      []interface{} `json:"config"`
+		Count       int           `json:"count"`
+	} `json:"result"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Code    int    `json:"code"`
+	Url     string `json:"url"`
+}
+
+type StockInfo struct {
+	SECUCODE         string `json:"SECUCODE" md:"股票代码" gorm:"index;secucode"`
+	SECURITYCODE     string `json:"SECURITY_CODE" md:"股票代码(精简)" gorm:"index;securitycode"`
+	SECURITYNAMEABBR string `json:"SECURITY_NAME_ABBR" md:"股票名称" gorm:"index;securitynameabbr"`
+	NEWPRICE         any    `json:"NEW_PRICE" md:"最新价" gorm:"newprice"`
+	CHANGERATE       any    `json:"CHANGE_RATE" md:"涨跌幅(%)" gorm:"changerate"`
+	VOLUMERATIO      any    `json:"VOLUME_RATIO" md:"量比" gorm:"volumeratio"`
+	HIGHPRICE        any    `json:"HIGH_PRICE" md:"最高价" gorm:"highprice"`
+	LOWPRICE         any    `json:"LOW_PRICE" md:"最低价" gorm:"lowprice"`
+	PRECLOSEPRICE    any    `json:"PRE_CLOSE_PRICE" md:"前一交易日收盘价" gorm:"precloseprice"`
+	VOLUME           any    `json:"VOLUME" md:"成交量" gorm:"volume"`
+	DEALAMOUNT       any    `json:"DEAL_AMOUNT" md:"成交额（元）" gorm:"dealamount"`
+	TURNOVERRATE     any    `json:"TURNOVERRATE" md:"换手率(%)" gorm:"turnoverrate"`
+	MARKET           string `json:"MARKET" md:"交易所" gorm:"index;market"`
+	CONCEPT          any    `json:"CONCEPT" md:"所属概念" gorm:"index;concept"`
+	INDUSTRY         string `json:"INDUSTRY" md:"所属行业" gorm:"index;industry"`
+	MAXTRADEDATE     string `json:"MAX_TRADE_DATE" md:"数据日期" gorm:"index;maxtradedate"`
+}
+
+func (receiver StockInfo) ToAllStockInfo() AllStockInfo {
+	return AllStockInfo{
+		SECUCODE:         receiver.SECUCODE,
+		SECURITYCODE:     receiver.SECURITYCODE,
+		SECURITYNAMEABBR: receiver.SECURITYNAMEABBR,
+		NEWPRICE:         convertor.ToString(receiver.NEWPRICE),
+		CHANGERATE:       convertor.ToString(receiver.CHANGERATE),
+		VOLUMERATIO:      convertor.ToString(receiver.VOLUMERATIO),
+		HIGHPRICE:        convertor.ToString(receiver.HIGHPRICE),
+		LOWPRICE:         convertor.ToString(receiver.LOWPRICE),
+		PRECLOSEPRICE:    convertor.ToString(receiver.PRECLOSEPRICE),
+		VOLUME:           convertor.ToString(receiver.VOLUME),
+		DEALAMOUNT:       convertor.ToString(receiver.DEALAMOUNT),
+		TURNOVERRATE:     convertor.ToString(receiver.TURNOVERRATE),
+		MARKET:           receiver.MARKET,
+		CONCEPT:          convertor.ToString(receiver.CONCEPT),
+		INDUSTRY:         receiver.INDUSTRY,
+		MAXTRADEDATE:     receiver.MAXTRADEDATE,
+	}
+
+}
+
+type AllStockInfo struct {
+	gorm.Model
+	SECUCODE         string `json:"SECUCODE" md:"股票代码" gorm:"index;secucode"`
+	SECURITYCODE     string `json:"SECURITY_CODE" md:"股票代码(精简)" gorm:"index;securitycode"`
+	SECURITYNAMEABBR string `json:"SECURITY_NAME_ABBR" md:"股票名称" gorm:"index;securitynameabbr"`
+	NEWPRICE         string `json:"NEW_PRICE" md:"最新价" gorm:"newprice"`
+	CHANGERATE       string `json:"CHANGE_RATE" md:"涨跌幅(%)" gorm:"changerate"`
+	VOLUMERATIO      string `json:"VOLUME_RATIO" md:"量比" gorm:"volumeratio"`
+	HIGHPRICE        string `json:"HIGH_PRICE" md:"最高价" gorm:"highprice"`
+	LOWPRICE         string `json:"LOW_PRICE" md:"最低价" gorm:"lowprice"`
+	PRECLOSEPRICE    string `json:"PRE_CLOSE_PRICE" md:"前一交易日收盘价" gorm:"precloseprice"`
+	VOLUME           string `json:"VOLUME" md:"成交量" gorm:"volume"`
+	DEALAMOUNT       string `json:"DEAL_AMOUNT" md:"成交额（元）" gorm:"dealamount"`
+	TURNOVERRATE     string `json:"TURNOVERRATE" md:"换手率(%)" gorm:"turnoverrate"`
+	MARKET           string `json:"MARKET" md:"交易所" gorm:"index;market"`
+	CONCEPT          string `json:"CONCEPT" md:"所属概念" gorm:"index;concept"`
+	INDUSTRY         string `json:"INDUSTRY" md:"所属行业" gorm:"index;industry"`
+	MAXTRADEDATE     string `json:"MAX_TRADE_DATE" md:"数据日期" gorm:"index;maxtradedate"`
+}
+
+func (s AllStockInfo) TableName() string {
+	return "all_stock_info"
 }

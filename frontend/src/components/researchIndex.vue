@@ -5,6 +5,8 @@ import {NButton, NEllipsis, NText} from "naive-ui";
 import ResearchReport from "./researchReport.vue";
 import AiRecommendStocksList from "./aiRecommendStocksList.vue";
 import PromptTemplateList from "./promptTemplateList.vue";
+import AllStockList from "./allStockList.vue";
+import AllStockInfoList from "./allStockInfoList.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -44,10 +46,15 @@ function updateTab(name) {
       <n-tab-pane name="提示词模板">
         <PromptTemplateList/>
       </n-tab-pane>
+      <n-tab-pane name="最新股价数据">
+        <AllStockList/>
+      </n-tab-pane>
+<!--      <n-tab-pane name="全部股票信息">-->
+<!--        <AllStockInfoList/>-->
+<!--      </n-tab-pane>-->
     </n-tabs>
   </n-card>
 </template>
 
 <style scoped>
-
 </style>

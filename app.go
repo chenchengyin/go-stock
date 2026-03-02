@@ -1126,6 +1126,9 @@ func (a *App) domReady(ctx context.Context) {
 			logger.SugaredLogger.Errorf("Checking for updates...")
 			a.CheckUpdate(0)
 		})
+		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
+			syncAllStockInfo()
+		})
 	}()
 
 	//检查谷歌浏览器
@@ -1159,6 +1162,21 @@ func (a *App) domReady(ctx context.Context) {
 	}
 	logger.SugaredLogger.Infof("domReady-cronEntrys:%+v", a.cronEntrys)
 
+}
+
+func syncAllStockInfo() {
+	db.Dao.Unscoped().Model(&models.AllStockInfo{}).Where("1=1").Delete(&models.AllStockInfo{})
+	for page := 1; page < 3; page++ {
+		res := data.NewStockDataApi().GetAllStocks(page, 3000, "")
+		var datas []models.AllStockInfo
+		for _, data := range (*res).Result.Data {
+			datas = append(datas, data.ToAllStockInfo())
+		}
+		err := db.Dao.CreateInBatches(&datas, 1000).Error
+		if err != nil {
+			logger.SugaredLogger.Errorf("db.Dao.CreateInBatches error:%s", err.Error())
+		}
+	}
 }
 func (a *App) CheckStockBaseInfo(ctx context.Context) {
 	defer PanicHandler()
