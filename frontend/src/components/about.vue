@@ -211,7 +211,7 @@ EventsOn("updateVersion",async (msg) => {
           </div>
           <n-divider title-placement="center">关于版权和技术支持申明</n-divider>
           <div style="justify-self: center;text-align: left" >
-            <p style="color: #FAA04A">如有问题，请先查看项目文档，如果问题依然存在，请优先加群（491605333）咨询。</p>
+            <p style="color: #FAA04A">如有问题，请先查看项目文档和微信公众号教程，如果问题依然存在，请优先加群（491605333）咨询。</p>
             <p>
               如需软件商业授权或定制开发，请联系作者微信(备注 商业咨询)：ArvinLovegood
             </p>
