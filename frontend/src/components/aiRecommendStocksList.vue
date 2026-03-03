@@ -41,9 +41,7 @@ onBeforeMount(()=> {
       //notify.success({content: '未开通VIP'})
     }
     isValidVip.value = !(vipLevel.value === "" || Number(vipLevel.value) <= 0);
-
   })
-
 })
 onMounted(() => {
   query({

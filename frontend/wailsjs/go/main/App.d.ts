@@ -70,7 +70,7 @@ export function GetAllStockInfoById(arg1:number):Promise<models.AllStockInfo>;
 
 export function GetAllStockInfoList(arg1:data.AllStockInfoQuery):Promise<data.AllStockInfoPageData>;
 
-export function GetAllStocks(arg1:number,arg2:number,arg3:string):Promise<models.AllStocksResp>;
+export function GetAllStocks(arg1:number,arg2:number,arg3:string,arg4:models.TechnicalIndicators):Promise<models.AllStocksResp>;
 
 export function GetConfig():Promise<data.SettingConfig>;
 

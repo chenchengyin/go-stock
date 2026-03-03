@@ -1172,7 +1172,7 @@ func syncAllStockInfo(ctx context.Context) {
 	}()
 	db.Dao.Unscoped().Model(&models.AllStockInfo{}).Where("1=1").Delete(&models.AllStockInfo{})
 	for page := 1; page < 3; page++ {
-		res := data.NewStockDataApi().GetAllStocks(page, 3000, "")
+		res := data.NewStockDataApi().GetAllStocks(page, 3000, "", models.TechnicalIndicators{})
 		var datas []models.AllStockInfo
 		for _, data := range (*res).Result.Data {
 			datas = append(datas, data.ToAllStockInfo())

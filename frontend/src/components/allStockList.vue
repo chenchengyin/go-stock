@@ -3,12 +3,13 @@ import {h, onBeforeMount, onMounted, ref, reactive} from 'vue'
 import {
   GetAllStockInfoList,
   GetAllStocks,
-  GetConfig
+  GetConfig, GetSponsorInfo
 } from "../../wailsjs/go/main/App";
 import {NButton, NInput, NTag, NText, useMessage, useNotification, NDataTable, NSpace, NPagination} from "naive-ui";
 import sparkLine from "./stockSparkLine.vue"
 import klineChart from "./KLineChart.vue"
 import KLineChart from "./KLineChart.vue";
+import {format} from "date-fns";
 
 const notify = useNotification()
 const message = useMessage()
@@ -23,6 +24,25 @@ onBeforeMount(() => {
       editorDataRef.darkTheme = true
     }
   })
+
+  GetSponsorInfo().then((res) => {
+    // console.log(res)
+    vipLevel.value = res.vipLevel;
+    vipStartTime.value = res.vipStartTime;
+    vipEndTime.value = res.vipEndTime;
+    //判断时间是否到期
+    if (res.vipLevel) {
+      if (res.vipEndTime < format(new Date(), 'yyyy-MM-dd HH:mm:ss')) {
+        //notify.warning({content: 'VIP已到期'})
+        expired.value = true;
+      }
+    }else{
+      //notify.success({content: '未开通VIP'})
+    }
+    isValidVip.value = !(vipLevel.value === "" || Number(vipLevel.value) <= 0);
+
+  })
+
 })
 
 onMounted(() => {
@@ -32,7 +52,11 @@ onMounted(() => {
 
 const dataRef = ref([])
 const loadingRef = ref(false)
-
+const vipLevel=ref("");
+const vipStartTime=ref("");
+const vipEndTime=ref("");
+const expired=ref(false)
+const isValidVip=ref(false) // 是否是会员
 const columnsRef = ref([
   // {
   //   title: '数据时间',
@@ -42,7 +66,7 @@ const columnsRef = ref([
   {
     title: '股票代码',
     key: 'SECUCODE',
-    width: 120,
+    width: 100,
     render(row) {
       return h(NText, { type: "info" }, { default: () => row.SECUCODE })
     }
@@ -50,7 +74,7 @@ const columnsRef = ref([
   {
     title: '股票名称',
     key: 'SECURITY_NAME_ABBR',
-    width: 120,
+    width: 100,
     render(row) {
       return h(NText, { type: "success" }, { default: () => row.SECURITY_NAME_ABBR })
     }
@@ -66,7 +90,7 @@ const columnsRef = ref([
   {
     title: '涨跌幅(%)',
     key: 'CHANGE_RATE',
-    width: 120,
+    width: 100,
     render(row) {
       const rate = row.CHANGE_RATE
       const type = rate >= 0 ? 'error' : 'success'
@@ -146,7 +170,7 @@ const columnsRef = ref([
   {
     title: '换手率(%)',
     key: 'TURNOVERRATE',
-    width: 100,
+    width: 80,
     render(row) {
       return h(NText, { type: "info" }, { default: () => row.TURNOVERRATE.toFixed(2) + '%' })
     }
@@ -162,28 +186,31 @@ const columnsRef = ref([
   {
     title: '所属行业',
     key: 'INDUSTRY',
-    width: 120,
+    width: 100,
     render(row) {
       return h(NTag, { type: "primary", size: "small" }, { default: () => row.INDUSTRY })
     }
   },
-  // {
-  //   title: '所属概念',
-  //   key: 'CONCEPT',
-  //   width: 200,
-  //   render(row) {
-  //     if(typeof row.CONCEPT === 'string'){
-  //       return h(NTag, { type: "info", size: "small" ,style: "margin-right: 4px;" }, { default: () => row.CONCEPT })
-  //     }else{
-  //       if (!row.CONCEPT || row.CONCEPT.length === 0) {
-  //         return h(NText, { type: "secondary" }, { default: () => '无' })
-  //       }
-  //       return row.CONCEPT.map(concept =>
-  //           h(NTag, { type: "info", size: "small", style: "margin-right: 4px;" }, { default: () => concept })
-  //       )
-  //     }
-  //   }
-  // },
+  {
+    title: '所属概念',
+    key: 'CONCEPT',
+    width: 100,
+    ellipsis: {
+      tooltip: true
+    },
+    render(row) {
+      if(typeof row.CONCEPT === 'string'){
+        return h(NTag, { type: "info", size: "small" ,style: "margin-right: 4px;" }, { default: () => row.CONCEPT })
+      }else{
+        if (!row.CONCEPT || row.CONCEPT.length === 0) {
+          return h(NText, { type: "secondary" }, { default: () => '无' })
+        }
+        return row.CONCEPT.map(concept =>
+            h(NTag, { type: "info", size: "small", style: "margin-right: 4px;" }, { default: () => concept })
+        )
+      }
+    }
+  },
   // {
   //   title: '交易所',
   //   key: 'MARKET',
@@ -213,7 +240,7 @@ const paginationReactive = reactive({
   keyword:"",
   page: 1,
   pageCount: 1,
-  pageSize: 15,
+  pageSize: 10,
   itemCount: 0,
   prefix({ itemCount }) {
     return `${itemCount} 只股票`
@@ -227,9 +254,12 @@ const optionsReactive= reactive([
  ])
 
 function loadStocks(page, pageSize) {
+  if((vipLevel.value===""|| Number(vipLevel.value) <=0)){
+    handleReset()
+  }
   if (!loadingRef.value) {
     loadingRef.value = true
-    GetAllStocks(page, pageSize, paginationReactive.keyword).then((res) => {
+    GetAllStocks(page, pageSize, paginationReactive.keyword, technicalIndicatorReactive).then((res) => {
       console.log(res)
       if (res && res.result && res.result.data) {
         dataRef.value = res.result.data
@@ -250,7 +280,13 @@ function loadStocks(page, pageSize) {
     })
   }
 }
+function handleCheckedChange(checked) {
 
+  if(checked&&(vipLevel.value===""|| Number(vipLevel.value) <=0)){
+    handleReset()
+    message.warning('未开通VIP或者已经过期，无法使用技术面筛选')
+  }
+}
 function handlePageChange(currentPage) {
   loadStocks(currentPage, paginationReactive.pageSize)
 }
@@ -311,10 +347,177 @@ function getStockCode(stockCode) {
   return stockCode
 
 }
+const technicalIndicatorReactive = reactive({
+  MACD_GOLDEN_FORK: false,
+  KDJ_GOLDEN_FORK: false,
+  BREAK_THROUGH: false,
+  LOW_FUNDS_INFLOW: false,
+  HIGH_FUNDS_OUTFLOW: false,
+  BREAKUP_MA_5DAYS: false,
+  LONG_AVG_ARRAY: false,
+  SHORT_AVG_ARRAY: false,
+  UPPER_LARGE_VOLUME: false,
+  DOWN_NARROW_VOLUME: false,
+  ONE_DAYANG_LINE: false,
+  TWO_DAYANG_LINES: false,
+  RISE_SUN: false,
+  POWER_FULGUN: false,
+  RESTORE_JUSTICE: false,
+  DOWN_7DAYS: false,
+  UPPER_8DAYS:false,
+  UPPER_9DAYS:false,
+  UPPER_4DAYS:false,
+  HEAVEN_RULE:false,
+  UPSIDE_VOLUME: false,
+  BEARISH_ENGULFING: false,
+  REVERSING_HAMMER: false,
+  SHOOTING_STAR: false,
+  EVENING_STAR: false,
+  FIRST_DAWN: false,
+  PREGNANT: false,
+  BLACK_CLOUD_TOPS: false,
+  MORNING_STAR: false,
+  NARROW_FINISH: false,
+})
+
+function handleReset(){
+  technicalIndicatorReactive.MACD_GOLDEN_FORK = false
+  technicalIndicatorReactive.KDJ_GOLDEN_FORK = false
+  technicalIndicatorReactive.BREAK_THROUGH = false
+  technicalIndicatorReactive.LOW_FUNDS_INFLOW = false
+  technicalIndicatorReactive.HIGH_FUNDS_OUTFLOW = false
+  technicalIndicatorReactive.BREAKUP_MA_5DAYS = false
+  technicalIndicatorReactive.LONG_AVG_ARRAY = false
+  technicalIndicatorReactive.SHORT_AVG_ARRAY = false
+  technicalIndicatorReactive.UPPER_LARGE_VOLUME = false
+  technicalIndicatorReactive.DOWN_NARROW_VOLUME = false
+  technicalIndicatorReactive.ONE_DAYANG_LINE = false
+  technicalIndicatorReactive.TWO_DAYANG_LINES = false
+  technicalIndicatorReactive.RISE_SUN = false
+  technicalIndicatorReactive.POWER_FULGUN = false
+  technicalIndicatorReactive.RESTORE_JUSTICE = false
+  technicalIndicatorReactive.DOWN_7DAYS = false
+  technicalIndicatorReactive.UPPER_8DAYS=false
+  technicalIndicatorReactive.UPPER_9DAYS=false
+  technicalIndicatorReactive.UPPER_4DAYS=false
+  technicalIndicatorReactive.HEAVEN_RULE=false
+  technicalIndicatorReactive.ONE_DAYANG_LINE=false
+  technicalIndicatorReactive.TWO_DAYANG_LINES= false
+  technicalIndicatorReactive.RISE_SUN=false
+  technicalIndicatorReactive.POWER_FULGUN=false
+  technicalIndicatorReactive.RESTORE_JUSTICE=false
+  technicalIndicatorReactive.DOWN_7DAYS=false
+  technicalIndicatorReactive.UPPER_8DAYS=false
+  technicalIndicatorReactive.UPPER_9DAYS=false
+  technicalIndicatorReactive.UPPER_4DAYS=false
+  technicalIndicatorReactive.HEAVEN_RULE=false
+  technicalIndicatorReactive.UPSIDE_VOLUME=false
+  technicalIndicatorReactive.BEARISH_ENGULFING=false
+  technicalIndicatorReactive.REVERSING_HAMMER=false
+  technicalIndicatorReactive.SHOOTING_STAR=false
+  technicalIndicatorReactive.EVENING_STAR=false
+  technicalIndicatorReactive.FIRST_DAWN=false
+  technicalIndicatorReactive.PREGNANT=false
+  technicalIndicatorReactive.BLACK_CLOUD_TOPS=false
+  technicalIndicatorReactive.MORNING_STAR=false
+  technicalIndicatorReactive.NARROW_FINISH=false
+}
 </script>
 
 <template>
   <div>
+    <n-space justify="start">
+      <n-checkbox   @update:checked="handleCheckedChange" v-model:checked="technicalIndicatorReactive.MACD_GOLDEN_FORK">
+        MACD金叉
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.KDJ_GOLDEN_FORK">
+        KDJ金叉
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.BREAK_THROUGH">
+        放量突破
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.LOW_FUNDS_INFLOW">
+        低位资金净流入
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.HIGH_FUNDS_OUTFLOW">
+        高位资金净流出
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.BREAKUP_MA_5DAYS">
+        向上突破5日均线
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.LONG_AVG_ARRAY">
+        均线多头排列
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.SHORT_AVG_ARRAY">
+        均线空头排列
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.UPPER_LARGE_VOLUME">
+        连涨放量
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.DOWN_NARROW_VOLUME">
+        下跌无量
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.ONE_DAYANG_LINE">
+        一根大阳线
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.TWO_DAYANG_LINES">
+        两根大阳线
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"     v-model:checked="technicalIndicatorReactive.RISE_SUN">
+        旭日东升
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.POWER_FULGUN">
+        强势多方炮
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.RESTORE_JUSTICE">
+        拨云见日
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"     v-model:checked="technicalIndicatorReactive.DOWN_7DAYS">
+        七仙女下凡(七连阴)
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.UPPER_8DAYS">
+        八仙过海(八连阳)
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.UPPER_9DAYS">
+        九阳神功(九连阳)
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.UPPER_4DAYS">
+        四串阳
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.HEAVEN_RULE">
+        天量法则
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.UPSIDE_VOLUME">
+        放量上攻
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.BEARISH_ENGULFING">
+        穿头破脚
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.REVERSING_HAMMER">
+        倒转锤头
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.SHOOTING_STAR">
+        射击之星
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.EVENING_STAR">
+        黄昏之星
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.FIRST_DAWN">
+        曙光初现
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.PREGNANT">
+        身怀六甲
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.BLACK_CLOUD_TOPS">
+        乌云盖顶
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.MORNING_STAR">
+        早晨之星
+      </n-checkbox>
+      <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.NARROW_FINISH">
+        窄幅整理
+      </n-checkbox>
+    </n-space>
     <n-input-group>
 <!--    <n-input clearable placeholder="输入股票名称" v-model:value="paginationReactive.keyword"/>-->
       <n-auto-complete
@@ -334,6 +537,8 @@ function getStockCode(stockCode) {
     <n-button type="primary" ghost @click="handleSearch"  @input="handleSearch">
       搜索
     </n-button>
+      <n-button @click="handleReset">重置</n-button>
+
     </n-input-group>
     <!-- 数据表格 -->
     <n-data-table
@@ -345,7 +550,7 @@ function getStockCode(stockCode) {
       :pagination="paginationReactive"
       :row-key="(rowData) => rowData.SECUCODE"
       flex-height
-      style="height: calc(100vh - 210px);margin-top: 10px"
+      style="height: calc(100vh - 320px);margin-top: 10px"
       @update:page="handlePageChange"
     />
     

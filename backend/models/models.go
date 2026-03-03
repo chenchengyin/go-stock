@@ -1292,3 +1292,36 @@ type AllStockInfo struct {
 func (s AllStockInfo) TableName() string {
 	return "all_stock_info"
 }
+
+type TechnicalIndicators struct {
+	MACDGOLDENFORK   bool `json:"MACD_GOLDEN_FORK"`
+	KDJGOLDENFORK    bool `json:"KDJ_GOLDEN_FORK"`
+	BREAKTHROUGH     bool `json:"BREAK_THROUGH"`
+	LOWFUNDSINFLOW   bool `json:"LOW_FUNDS_INFLOW"`
+	HIGHFUNDSOUTFLOW bool `json:"HIGH_FUNDS_OUTFLOW"`
+	BREAKUPMA5DAYS   bool `json:"BREAKUP_MA_5DAYS"`
+	LONGAVGARRAY     bool `json:"LONG_AVG_ARRAY"`
+	SHORTAVGARRAY    bool `json:"SHORT_AVG_ARRAY"`
+	UPPERLARGEVOLUME bool `json:"UPPER_LARGE_VOLUME"`
+	DOWNNARROWVOLUME bool `json:"DOWN_NARROW_VOLUME"`
+	ONEDAYANGLINE    bool `json:"ONE_DAYANG_LINE"`
+	TWODAYANGLINES   bool `json:"TWO_DAYANG_LINES"`
+	RISESUN          bool `json:"RISE_SUN"`
+	POWERFULGUN      bool `json:"POWER_FULGUN"`
+	RESTOREJUSTICE   bool `json:"RESTORE_JUSTICE"`
+	DOWN7DAYS        bool `json:"DOWN_7DAYS"`
+	UPPER8DAYS       bool `json:"UPPER_8DAYS"`
+	UPPER9DAYS       bool `json:"UPPER_9DAYS"`
+	UPPER4DAYS       bool `json:"UPPER_4DAYS"`
+	HEAVENRULE       bool `json:"HEAVEN_RULE"`
+	UPSIDEVOLUME     bool `json:"UPSIDE_VOLUME"`
+	BEARISHENGULFING bool `json:"BEARISH_ENGULFING"`
+	REVERSINGHAMMER  bool `json:"REVERSING_HAMMER"`
+	SHOOTINGSTAR     bool `json:"SHOOTING_STAR"`
+	EVENINGSTAR      bool `json:"EVENING_STAR"`
+	FIRSTDAWN        bool `json:"FIRST_DAWN"`
+	PREGNANT         bool `json:"PREGNANT"`
+	BLACKCLOUDTOPS   bool `json:"BLACK_CLOUD_TOPS"`
+	MORNINGSTAR      bool `json:"MORNING_STAR"`
+	NARROWFINISH     bool `json:"NARROW_FINISH"`
+}

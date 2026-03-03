@@ -66,8 +66,8 @@ func (a *App) GetHotStrategy() map[string]any {
 	return data.NewSearchStockApi("").HotStrategy()
 }
 
-func (a *App) GetAllStocks(page int, pageSize int, name string) *models.AllStocksResp {
-	return data.NewStockDataApi().GetAllStocks(page, pageSize, name)
+func (a *App) GetAllStocks(page int, pageSize int, name string, technicalIndicators models.TechnicalIndicators) *models.AllStocksResp {
+	return data.NewStockDataApi().GetAllStocks(page, pageSize, name, technicalIndicators)
 }
 
 func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int) {

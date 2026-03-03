@@ -134,8 +134,8 @@ export function GetAllStockInfoList(arg1) {
   return window['go']['main']['App']['GetAllStockInfoList'](arg1);
 }
 
-export function GetAllStocks(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GetAllStocks'](arg1, arg2, arg3);
+export function GetAllStocks(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetAllStocks'](arg1, arg2, arg3, arg4);
 }
 
 export function GetConfig() {

@@ -1289,6 +1289,76 @@ export namespace models {
 	        this.MAX_TRADE_DATE = source["MAX_TRADE_DATE"];
 	    }
 	}
+	export class TechnicalIndicators {
+	    MACD_GOLDEN_FORK: boolean;
+	    KDJ_GOLDEN_FORK: boolean;
+	    BREAK_THROUGH: boolean;
+	    LOW_FUNDS_INFLOW: boolean;
+	    HIGH_FUNDS_OUTFLOW: boolean;
+	    BREAKUP_MA_5DAYS: boolean;
+	    LONG_AVG_ARRAY: boolean;
+	    SHORT_AVG_ARRAY: boolean;
+	    UPPER_LARGE_VOLUME: boolean;
+	    DOWN_NARROW_VOLUME: boolean;
+	    ONE_DAYANG_LINE: boolean;
+	    TWO_DAYANG_LINES: boolean;
+	    RISE_SUN: boolean;
+	    POWER_FULGUN: boolean;
+	    RESTORE_JUSTICE: boolean;
+	    DOWN_7DAYS: boolean;
+	    UPPER_8DAYS: boolean;
+	    UPPER_9DAYS: boolean;
+	    UPPER_4DAYS: boolean;
+	    HEAVEN_RULE: boolean;
+	    UPSIDE_VOLUME: boolean;
+	    BEARISH_ENGULFING: boolean;
+	    REVERSING_HAMMER: boolean;
+	    SHOOTING_STAR: boolean;
+	    EVENING_STAR: boolean;
+	    FIRST_DAWN: boolean;
+	    PREGNANT: boolean;
+	    BLACK_CLOUD_TOPS: boolean;
+	    MORNING_STAR: boolean;
+	    NARROW_FINISH: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TechnicalIndicators(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.MACD_GOLDEN_FORK = source["MACD_GOLDEN_FORK"];
+	        this.KDJ_GOLDEN_FORK = source["KDJ_GOLDEN_FORK"];
+	        this.BREAK_THROUGH = source["BREAK_THROUGH"];
+	        this.LOW_FUNDS_INFLOW = source["LOW_FUNDS_INFLOW"];
+	        this.HIGH_FUNDS_OUTFLOW = source["HIGH_FUNDS_OUTFLOW"];
+	        this.BREAKUP_MA_5DAYS = source["BREAKUP_MA_5DAYS"];
+	        this.LONG_AVG_ARRAY = source["LONG_AVG_ARRAY"];
+	        this.SHORT_AVG_ARRAY = source["SHORT_AVG_ARRAY"];
+	        this.UPPER_LARGE_VOLUME = source["UPPER_LARGE_VOLUME"];
+	        this.DOWN_NARROW_VOLUME = source["DOWN_NARROW_VOLUME"];
+	        this.ONE_DAYANG_LINE = source["ONE_DAYANG_LINE"];
+	        this.TWO_DAYANG_LINES = source["TWO_DAYANG_LINES"];
+	        this.RISE_SUN = source["RISE_SUN"];
+	        this.POWER_FULGUN = source["POWER_FULGUN"];
+	        this.RESTORE_JUSTICE = source["RESTORE_JUSTICE"];
+	        this.DOWN_7DAYS = source["DOWN_7DAYS"];
+	        this.UPPER_8DAYS = source["UPPER_8DAYS"];
+	        this.UPPER_9DAYS = source["UPPER_9DAYS"];
+	        this.UPPER_4DAYS = source["UPPER_4DAYS"];
+	        this.HEAVEN_RULE = source["HEAVEN_RULE"];
+	        this.UPSIDE_VOLUME = source["UPSIDE_VOLUME"];
+	        this.BEARISH_ENGULFING = source["BEARISH_ENGULFING"];
+	        this.REVERSING_HAMMER = source["REVERSING_HAMMER"];
+	        this.SHOOTING_STAR = source["SHOOTING_STAR"];
+	        this.EVENING_STAR = source["EVENING_STAR"];
+	        this.FIRST_DAWN = source["FIRST_DAWN"];
+	        this.PREGNANT = source["PREGNANT"];
+	        this.BLACK_CLOUD_TOPS = source["BLACK_CLOUD_TOPS"];
+	        this.MORNING_STAR = source["MORNING_STAR"];
+	        this.NARROW_FINISH = source["NARROW_FINISH"];
+	    }
+	}
 	export class VersionInfo {
 	    ID: number;
 	    // Go type: time

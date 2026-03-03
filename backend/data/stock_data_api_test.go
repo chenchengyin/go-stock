@@ -73,7 +73,10 @@ func TestGetAllStocks(t *testing.T) {
 
 	db.Dao.Unscoped().Model(&models.AllStockInfo{}).Where("1=1").Delete(&models.AllStockInfo{})
 	for page := 1; page < 3; page++ {
-		res := NewStockDataApi().GetAllStocks(page, 3000, "")
+		res := NewStockDataApi().GetAllStocks(page, 3000, "", models.TechnicalIndicators{
+			BEARISHENGULFING: true,
+			BLACKCLOUDTOPS:   true,
+		})
 		var datas []models.AllStockInfo
 		for _, data := range (*res).Result.Data {
 			datas = append(datas, data.ToAllStockInfo())
@@ -83,6 +86,16 @@ func TestGetAllStocks(t *testing.T) {
 			logger.SugaredLogger.Errorf("db.Dao.CreateInBatches error:%s", err.Error())
 		}
 	}
+}
+func TestFilterStocks(t *testing.T) {
+	db.Init("../../data/stock.db")
+
+	res := NewStockDataApi().GetAllStocks(1, 100, "上海石化", models.TechnicalIndicators{
+		MACDGOLDENFORK: false,
+		BREAKUPMA5DAYS: false,
+	})
+	logger.SugaredLogger.Infof("%+#v", len((*res).Result.Data))
+
 }
 func TestSearchStockInfoByCode(t *testing.T) {
 	db.Init("../../data/stock.db")
