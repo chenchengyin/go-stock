@@ -84,7 +84,8 @@ const columnsRef = ref([
     key: 'NEW_PRICE',
     width: 100,
     render(row) {
-      return h(NText, { type: "info" }, { default: () => row.NEW_PRICE.toFixed(2) })
+      const price = row.NEW_PRICE
+      return h(NText, { type: "info" }, { default: () => isNumeric(price) ? price : '-' })
     }
   },
   {
@@ -92,7 +93,7 @@ const columnsRef = ref([
     key: 'CHANGE_RATE',
     width: 100,
     render(row) {
-      const rate = row.CHANGE_RATE
+      const rate = toNumber(row.CHANGE_RATE, 0)
       const type = rate >= 0 ? 'error' : 'success'
       const sign = rate >= 0 ? '+' : ''
       return h(NText, { type: type }, { default: () => `${sign}${rate.toFixed(2)}%` })
@@ -118,7 +119,8 @@ const columnsRef = ref([
     key: 'HIGH_PRICE',
     width: 100,
     render(row) {
-      return h(NText, { type: "info" }, { default: () => row.HIGH_PRICE.toFixed(2) })
+      const price = row.HIGH_PRICE
+      return h(NText, { type: "info" }, { default: () => isNumeric(price) ? price : '-' })
     }
   },
   {
@@ -126,7 +128,8 @@ const columnsRef = ref([
     key: 'LOW_PRICE',
     width: 100,
     render(row) {
-      return h(NText, { type: "info" }, { default: () => row.LOW_PRICE.toFixed(2) })
+      const price = row.LOW_PRICE
+      return h(NText, { type: "info" }, { default: () => isNumeric(price) ? price : '-' })
     }
   },
   // {
@@ -142,7 +145,7 @@ const columnsRef = ref([
     key: 'VOLUME',
     width: 120,
     render(row) {
-      const volume = row.VOLUME
+      const volume = toNumber(row.VOLUME, 0)
       let displayVolume = volume
       if (volume >= 100000000) {
         displayVolume = (volume / 100000000).toFixed(2) + '亿'
@@ -157,7 +160,7 @@ const columnsRef = ref([
     key: 'DEAL_AMOUNT',
     width: 120,
     render(row) {
-      const amount = row.DEAL_AMOUNT
+      const amount = toNumber(row.DEAL_AMOUNT, 0)
       let displayAmount = amount
       if (amount >= 100000000) {
         displayAmount = (amount / 100000000).toFixed(2) + '亿'
@@ -168,11 +171,12 @@ const columnsRef = ref([
     }
   },
   {
-    title: '换手率(%)',
+    title: '换手率 (%)',
     key: 'TURNOVERRATE',
     width: 80,
     render(row) {
-      return h(NText, { type: "info" }, { default: () => row.TURNOVERRATE.toFixed(2) + '%' })
+      const rate = row.TURNOVERRATE
+      return h(NText, { type: "info" }, { default: () => isNumeric(rate) ? rate : '-' })
     }
   },
   {
@@ -180,7 +184,8 @@ const columnsRef = ref([
     key: 'VOLUME_RATIO',
     width: 80,
     render(row) {
-      return h(NText, { type: "info" }, { default: () => row.VOLUME_RATIO.toFixed(2) })
+      const ratio = row.VOLUME_RATIO
+      return h(NText, { type: "info" }, { default: () => isNumeric(ratio) ? ratio : '-' })
     }
   },
   {
@@ -422,6 +427,21 @@ function handleReset(){
   technicalIndicatorReactive.MORNING_STAR=false
   technicalIndicatorReactive.NARROW_FINISH=false
 }
+
+// 判断是否是数字
+const isNumeric = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return false
+  }
+  return !isNaN(Number(value))
+}
+
+// 安全转换数字
+const toNumber = (value, defaultValue = 0) => {
+  const num = Number(value)
+  return isNaN(num) ? defaultValue : num
+}
+
 </script>
 
 <template>
@@ -550,7 +570,7 @@ function handleReset(){
       :pagination="paginationReactive"
       :row-key="(rowData) => rowData.SECUCODE"
       flex-height
-      style="height: calc(100vh - 320px);margin-top: 10px"
+      style="height: calc(100vh - 300px);margin-top: 10px"
       @update:page="handlePageChange"
     />
     
