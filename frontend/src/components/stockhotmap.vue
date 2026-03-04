@@ -27,7 +27,16 @@ import EmbeddedUrl from "./EmbeddedUrl.vue";
     <n-tab-pane name="消息墙" tab="消息墙">
       <embedded-url url="https://go-stock.sparkmemory.top:16667/go-stock"  :height="'calc(100vh - 252px)'"/>
     </n-tab-pane>
+    <n-tab-pane name="现货黄金" tab="现货黄金走势">
+      <embedded-url url="https://www.tradinghero.com/chart?symbol=XAUUSD.GOODS"  :height="'calc(100vh - 252px)'"/>
+    </n-tab-pane>
 
+    <n-tab-pane name="金十期货" tab="金十期货">
+      <embedded-url url="https://qihuo.jin10.com/"  :height="'calc(100vh - 252px)'"/>
+    </n-tab-pane>
+    <n-tab-pane name="金十数据" tab="金十数据">
+      <embedded-url url="https://datas.jin10.com/#/category/52005"  :height="'calc(100vh - 252px)'"/>
+    </n-tab-pane>
 
 
     <n-tab-pane name="欢迎推荐更多有趣的财经网页" tab="欢迎推荐更多有趣的财经网页">

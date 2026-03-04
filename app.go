@@ -64,7 +64,8 @@ func AddTools(tools []data.Tool) []data.Tool {
 		Type: "function",
 		Function: data.ToolFunction{
 			Name: "SearchStockByIndicators",
-			Description: "根据自然语言筛选股票，返回自然语言选股条件要求的股票所有相关数据。输入股票名称可以获取当前股票最新的股价交易数据和基础财务指标信息，多个股票名称使用,分隔。" +
+			Description: "根据自然语言筛选股票。可以使用K线形态描述来选股，输入股票名称可以获取当前股票最新的股价交易数据和基础财务指标信息，多个股票名称使用,分隔。" +
+				"例如：K线形态选股：倒转锤头或射击之星或身怀六甲" +
 				"例如:分析强势方向：10点半之前涨停，非一字板，行业概念，按成交量从高到低排序。" +
 				"例如:查看涨停板：涨停板，按涨幅从高到低排序。" +
 				"例如:查看跌停板：跌停板，按跌幅从高到低排序。" +
@@ -90,7 +91,8 @@ func AddTools(tools []data.Tool) []data.Tool {
 				Properties: map[string]any{
 					"words": map[string]any{
 						"type": "string",
-						"description": "选股自然语言。" +
+						"description": "选股自然语言。可以使用K线形态描述来选股。" +
+							"例如：K线形态选股：倒转锤头或射击之星或身怀六甲" +
 							"例如:分析强势方向：10点半之前涨停，非一字板，行业概念，按成交量从高到低排序。" +
 							"例如:查看涨停板：涨停板，按涨幅从高到低排序。" +
 							"例如:查看跌停板：跌停板，按跌幅从高到低排序。" +
@@ -657,6 +659,28 @@ func AddTools(tools []data.Tool) []data.Tool {
 					},
 				},
 				Required: []string{"startDate", "endDate", "page", "pageSize"},
+			},
+		},
+	})
+
+	tools = append(tools, data.Tool{
+		Type: "function",
+		Function: data.ToolFunction{
+			Name:        "GetSecuritiesCompanyOpinion",
+			Description: "获取券商/机构的市场分析观点/要点",
+			Parameters: &data.FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"startDate": map[string]any{
+						"type":        "string",
+						"description": "开始时间（如：2026-02-23）",
+					},
+					"endDate": map[string]any{
+						"type":        "string",
+						"description": "结束时间（如：2026-02-26）",
+					},
+				},
+				Required: []string{"startDate", "endDate"},
 			},
 		},
 	})

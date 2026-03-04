@@ -1325,3 +1325,33 @@ type TechnicalIndicators struct {
 	MORNINGSTAR      bool `json:"MORNING_STAR"`
 	NARROWFINISH     bool `json:"NARROW_FINISH"`
 }
+
+type SecuritiesCompanyOpinionResp struct {
+	Hits        int                             `json:"hits"`
+	Size        int                             `json:"size"`
+	Data        []*SecuritiesCompanyOpinionData `json:"data"`
+	TotalPage   int                             `json:"TotalPage"`
+	AuthorName  string                          `json:"authorName"`
+	PageNo      int                             `json:"pageNo"`
+	OrgSName    string                          `json:"orgSName"`
+	CurrentYear int                             `json:"currentYear"`
+}
+
+type SecuritiesCompanyOpinionData struct {
+	Id           int64       `json:"id"`
+	Title        string      `json:"title"`
+	Author       interface{} `json:"author"`
+	OrgName      string      `json:"orgName"`
+	OrgCode      string      `json:"orgCode"`
+	OrgSName     string      `json:"orgSName"`
+	PublishDate  string      `json:"publishDate"`
+	EncodeUrl    string      `json:"encodeUrl"`
+	Researcher   string      `json:"researcher"`
+	Market       string      `json:"market"`
+	IndustryCode string      `json:"industryCode"`
+	IndustryName string      `json:"industryName"`
+	AuthorID     interface{} `json:"authorID"`
+	Count        int         `json:"count"`
+	OrgType      string      `json:"orgType"`
+	OpinionData  string      `json:"opinionData"`
+}

@@ -294,3 +294,13 @@ func TestNtfy(t *testing.T) {
 	logger.SugaredLogger.Debugf("value: %s", filepath.Base("https://go-stock.sparkmemory.top/%E5%88%86%E6%9E%90%E6%8A%A5%E5%91%8A/2025/12/11/%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF[%E5%B8%82%E5%9C%BA%E8%B5%84%E8%AE%AF]-(2025-12-11)AI%E5%88%86%E6%9E%90%E7%BB%93%E6%9E%9C_20251211131509.html"))
 	logger.SugaredLogger.Debugf("value: %s", strutil.After("/data/go-stock-site/docs/分析报告/2025/12/09/市场资讯[市场资讯]-(2025-12-09)AI分析结果.md", "/data/go-stock-site/docs/"))
 }
+
+func TestGetSecuritiesCompanyOpinion(t *testing.T) {
+	res := NewMarketNewsApi().GetSecuritiesCompanyOpinion("2026-03-01", "2026-03-03")
+	md := strings.Builder{}
+	for _, d := range res.Data {
+		md.WriteString(d.OpinionData + "\n")
+	}
+	logger.SugaredLogger.Debugf("%s", md.String())
+
+}

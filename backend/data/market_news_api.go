@@ -1058,6 +1058,53 @@ func (m MarketNewsApi) GetIndustryReportInfo(infoCode string) string {
 	return markdown
 }
 
+func (receiver MarketNewsApi) GetSecuritiesCompanyOpinion(startDate string, endDate string) *models.SecuritiesCompanyOpinionResp {
+	res := models.SecuritiesCompanyOpinionResp{}
+
+	url := fmt.Sprintf("https://reportapi.eastmoney.com/report/jg?cb=data&pageSize=50&beginTime=%s&endTime=%s&pageNo=1&fields=&qType=4&orgCode=&author=&p=1&pageNum=1&pageNumber=1&_=%d", startDate, endDate, time.Now().Unix())
+	resp, err := resty.New().SetTimeout(time.Duration(30)*time.Second).R().
+		SetHeader("Host", "reportapi.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetSecuritiesCompanyOpinion err:%s", err.Error())
+		return &res
+	}
+	body := resp.Body()
+	vm := otto.New()
+	vm.Run("function data(res){return res};")
+
+	val, _ := vm.Run(body)
+
+	data, _ := val.Object().Value().Export()
+	marshal, _ := json.Marshal(data)
+
+	json.Unmarshal(marshal, &res)
+
+	for _, d := range (&res).Data {
+		logger.SugaredLogger.Debugf("PublishDate: %s,OrgSName: %s,Title: %s,EncodeUrl: %s", d.PublishDate, d.OrgSName, d.Title, d.EncodeUrl)
+		markdown := receiver.GetSecuritiesCompanyOpinionContent(d.OrgSName, d.EncodeUrl)
+		d.OpinionData = markdown
+	}
+	return &res
+}
+
+func (m MarketNewsApi) GetSecuritiesCompanyOpinionContent(OrgSName, encodeUrl string) string {
+	url := "https://data.eastmoney.com/report/zw_brokerreport.jshtml?encodeUrl=" + encodeUrl
+	resp, _ := resty.New().R().
+		SetHeader("Host", "data.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
+		Get(url)
+	body := resp.Body()
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(body)))
+	title, _ := doc.Find("div.c-title").Html()
+	content, _ := doc.Find("div.ctx-content").Html()
+	markdown, err := util.HTMLToMarkdown("<h1>" + OrgSName + "</h1>" + title + content)
+	if err != nil {
+	}
+	return markdown
+}
+
 func (m MarketNewsApi) ReutersNew() *models.ReutersNews {
 	client := resty.New()
 	config := GetSettingConfig()

@@ -2039,6 +2039,48 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 								})
 							}
 
+							if funcName == "GetSecuritiesCompanyOpinion" {
+								ch <- map[string]any{
+									"code":     1,
+									"question": question,
+									"chatId":   streamResponse.Id,
+									"model":    streamResponse.Model,
+									"content":  "\r\n```\r\n开始调用工具：GetSecuritiesCompanyOpinion，\n参数：" + funcArguments + "\r\n```\r\n",
+									"time":     time.Now().Format(time.DateTime),
+								}
+								startDate := gjson.Get(funcArguments, "startDate").String()
+								endDate := gjson.Get(funcArguments, "endDate").String()
+								res := NewMarketNewsApi().GetSecuritiesCompanyOpinion(startDate, endDate)
+								md := strings.Builder{}
+								for _, d := range res.Data {
+									md.WriteString(d.OpinionData + "\r\n")
+								}
+								logger.SugaredLogger.Infof("%s", md.String())
+								messages = append(messages, map[string]interface{}{
+									"role":              "assistant",
+									"content":           currentAIContent.String(),
+									"reasoning_content": reasoningContentText.String(),
+									"tool_calls": []map[string]any{
+										{
+											"id":           currentCallId,
+											"tool_call_id": currentCallId,
+											"type":         "function",
+											"function": map[string]string{
+												"name":       funcName,
+												"arguments":  funcArguments,
+												"parameters": funcArguments,
+											},
+										},
+									},
+								})
+								messages = append(messages, map[string]interface{}{
+									"role":         "tool",
+									"content":      md.String(),
+									"tool_call_id": currentCallId,
+									//"reasoning_content": reasoningContentText.String(),
+									//"tool_calls":        choice.Delta.ToolCalls,
+								})
+							}
 							if funcName == "GetIndustryValuation" {
 								ch <- map[string]any{
 									"code":     1,

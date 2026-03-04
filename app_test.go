@@ -107,7 +107,7 @@ func TestGetAiRecommendStocksList(t *testing.T) {
 
 func TestSummaryStockNews(t *testing.T) {
 	db.Init("./data/stock.db")
-	question := "请对今日 A 股市场做客观、结构化、可用于次日交易决策的深度复盘"
+	question := "分析今日的市场行情走势是否和券商的观点一致"
 	app := NewApp()
 	msgs := data.NewDeepSeekOpenAi(app.ctx, 0).NewSummaryStockNewsStreamWithTools(question, nil, app.AiTools, true)
 
