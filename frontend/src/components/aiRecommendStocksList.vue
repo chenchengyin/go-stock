@@ -418,7 +418,7 @@ function rowProps(row) {
 }
 function deleteAiRecommendStocks(id) {
   DeleteAiRecommendStocks(id).then((res) => {
-    notify.info({content: res})
+    notify.info({content: res, duration: 2000})
     handleSearch()
   })
 }
