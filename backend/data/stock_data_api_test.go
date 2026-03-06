@@ -90,9 +90,8 @@ func TestGetAllStocks(t *testing.T) {
 func TestFilterStocks(t *testing.T) {
 	db.Init("../../data/stock.db")
 
-	res := NewStockDataApi().GetAllStocks(1, 100, "上海石化", models.TechnicalIndicators{
-		MACDGOLDENFORK: false,
-		BREAKUPMA5DAYS: false,
+	res := NewStockDataApi().GetAllStocks(1, 100, "", models.TechnicalIndicators{
+		CONCERN_RANK_7DAYS: 50,
 	})
 	logger.SugaredLogger.Infof("%+#v", len((*res).Result.Data))
 

@@ -546,17 +546,17 @@ const menuOptions = ref([
                     to: {
                       name: 'research',
                       query: {
-                        name:"最新股价数据",
+                        name:"股票信息筛选",
                       },
                     },
                     onClick: () => {
                       activeKey.value = 'research'
                       setTimeout(() => {
-                        EventsEmit("changeResearchTab", {ID: 3, name: '最新股价数据'})
+                        EventsEmit("changeResearchTab", {ID: 3, name: '股票信息筛选'})
                       }, 100)
                     },
                   },
-                  {default: () => '最新股价数据'}
+                  {default: () => '股票信息筛选'}
               ),
           key: 'research4',
           icon: renderIcon(AppsList20Regular),

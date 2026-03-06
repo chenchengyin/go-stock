@@ -245,7 +245,7 @@ const paginationReactive = reactive({
   keyword:"",
   page: 1,
   pageCount: 1,
-  pageSize: 10,
+  pageSize: 9,
   itemCount: 0,
   prefix({ itemCount }) {
     return `${itemCount} 只股票`
@@ -383,6 +383,10 @@ const technicalIndicatorReactive = reactive({
   BLACK_CLOUD_TOPS: false,
   MORNING_STAR: false,
   NARROW_FINISH: false,
+  UPP_DAYS:0,
+  CONCERN_RANK_7DAYS:0,
+  UPNDAY:0,
+  DOWNNDAY :0,
 })
 
 function handleReset(){
@@ -426,6 +430,10 @@ function handleReset(){
   technicalIndicatorReactive.BLACK_CLOUD_TOPS=false
   technicalIndicatorReactive.MORNING_STAR=false
   technicalIndicatorReactive.NARROW_FINISH=false
+  technicalIndicatorReactive.UPP_DAYS=0
+  technicalIndicatorReactive.CONCERN_RANK_7DAYS=0
+  technicalIndicatorReactive.UPNDAY=0
+  technicalIndicatorReactive.DOWNNDAY=0
 }
 
 // 判断是否是数字
@@ -445,9 +453,9 @@ const toNumber = (value, defaultValue = 0) => {
 </script>
 
 <template>
-  <div>
     <n-space justify="start">
-      <n-checkbox   @update:checked="handleCheckedChange" v-model:checked="technicalIndicatorReactive.MACD_GOLDEN_FORK">
+      <n-card size="small" :bordered="false"  style="text-align: left">
+        <n-checkbox   @update:checked="handleCheckedChange" v-model:checked="technicalIndicatorReactive.MACD_GOLDEN_FORK">
         MACD金叉
       </n-checkbox>
       <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.KDJ_GOLDEN_FORK">
@@ -537,6 +545,35 @@ const toNumber = (value, defaultValue = 0) => {
       <n-checkbox  @update:checked="handleCheckedChange"    v-model:checked="technicalIndicatorReactive.NARROW_FINISH">
         窄幅整理
       </n-checkbox>
+      </n-card>
+      <n-card size="small" :bordered="false"  style="text-align: left">
+        <n-radio-group size="small"  @update:checked="handleCheckedChange" name="UPP_DAYS"   v-model:value="technicalIndicatorReactive.UPP_DAYS">
+          <n-radio :value="3">人气排名连涨:3天及以上</n-radio>
+          <n-radio :value="5">人气排名连涨:5天及以上</n-radio>
+          <n-radio :value="7">人气排名连涨:7天及以上</n-radio>
+        </n-radio-group>
+        <n-divider vertical/>
+        <n-radio-group  size="small" @update:checked="handleCheckedChange"  name="CONCERN_RANK_7DAYS"  v-model:value="technicalIndicatorReactive.CONCERN_RANK_7DAYS">
+          <n-radio :value="10"> 7日关注排名:前10名</n-radio>
+          <n-radio :value="50"> 7日关注排名:前50名</n-radio>
+          <n-radio :value="100"> 7日关注排名:前100名</n-radio>
+        </n-radio-group>
+
+        <n-radio-group  size="small" @update:checked="handleCheckedChange" name="UPNDAY"  v-model:value="technicalIndicatorReactive.UPNDAY">
+          <n-radio :value="3"> 连涨天数:3天及以上</n-radio>
+          <n-radio :value="5"> 连涨天数:5天及以上</n-radio>
+          <n-radio :value="8"> 连涨天数:8天及以上</n-radio>
+        </n-radio-group>
+        <n-divider vertical/>
+        <n-radio-group  size="small" @update:checked="handleCheckedChange" name="DOWNNDAY"  v-model:value="technicalIndicatorReactive.DOWNNDAY">
+          <n-radio :value="3"> 连跌天数:3天及以上</n-radio>
+          <n-radio :value="5"> 连跌天数:5天及以上</n-radio>
+          <n-radio :value="8"> 连跌天数:8天及以上</n-radio>
+          <n-radio :value="10"> 连跌天数:10天及以上</n-radio>
+          <n-radio :value="14"> 连跌天数:14天及以上</n-radio>
+        </n-radio-group>
+      </n-card>
+
     </n-space>
     <n-input-group>
 <!--    <n-input clearable placeholder="输入股票名称" v-model:value="paginationReactive.keyword"/>-->
@@ -570,7 +607,7 @@ const toNumber = (value, defaultValue = 0) => {
       :pagination="paginationReactive"
       :row-key="(rowData) => rowData.SECUCODE"
       flex-height
-      style="height: calc(100vh - 300px);margin-top: 10px"
+      style="height: calc(100vh - 380px);margin-top: 10px"
       @update:page="handlePageChange"
     />
     
@@ -588,7 +625,6 @@ const toNumber = (value, defaultValue = 0) => {
 <!--        @update:page-size="handlePageSizeChange"-->
 <!--      />-->
 <!--    </div>-->
-  </div>
 
   <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 850px;">
     <n-card size="small">

@@ -2042,6 +2042,17 @@ func (receiver StockDataApi) GetAllStocks(page int, pageSize int, name string, t
 				indicatorConditions = append(indicatorConditions, condition)
 			}
 		}
+		if value.Kind() == reflect.Int && value.Int() != 0 {
+			// 获取 JSON 标签作为字段名
+			jsonTag := field.Tag.Get("json")
+			operator := field.Tag.Get("operator")
+
+			if jsonTag != "" {
+				// 构建查询条件格式：如 (UPP_DAYS>=3)
+				condition := fmt.Sprintf("(%s%s%d)", jsonTag, operator, value.Int())
+				indicatorConditions = append(indicatorConditions, condition)
+			}
+		}
 	}
 	// 拼接所有条件
 	if len(indicatorConditions) > 0 {
@@ -2055,7 +2066,7 @@ func (receiver StockDataApi) GetAllStocks(page int, pageSize int, name string, t
 		search = fmt.Sprintf("(SECURITY_NAME_ABBR in (\"%s\"))", name)
 	}
 	url := "https://data.eastmoney.com/dataapi/xuangu/list?st=CHANGE_RATE&sr=-1&ps=" + convertor.ToString(pageSize) + "&p=" + convertor.ToString(page) + "&sty=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_PRICE%2CCHANGE_RATE%2CVOLUME_RATIO%2CHIGH_PRICE%2CLOW_PRICE%2CPRE_CLOSE_PRICE%2CVOLUME%2CDEAL_AMOUNT%2CTURNOVERRATE%2CMARKET%2CCONCEPT%2CINDUSTRY&filter=%28MARKET+in+%28%22%E4%B8%8A%E4%BA%A4%E6%89%80%E4%B8%BB%E6%9D%BF%22%2C%22%E6%B7%B1%E4%BA%A4%E6%89%80%E4%B8%BB%E6%9D%BF%22%2C%22%E6%B7%B1%E4%BA%A4%E6%89%80%E5%88%9B%E4%B8%9A%E6%9D%BF%22%2C%22%E4%B8%8A%E4%BA%A4%E6%89%80%E7%A7%91%E5%88%9B%E6%9D%BF%22%2C%22%E4%B8%8A%E4%BA%A4%E6%89%80%E9%A3%8E%E9%99%A9%E8%AD%A6%E7%A4%BA%E6%9D%BF%22%2C%22%E6%B7%B1%E4%BA%A4%E6%89%80%E9%A3%8E%E9%99%A9%E8%AD%A6%E7%A4%BA%E6%9D%BF%22%2C%22%E5%8C%97%E4%BA%AC%E8%AF%81%E5%88%B8%E4%BA%A4%E6%98%93%E6%89%80%22%29%29" + url2.QueryEscape(search+indicators) + "&source=SELECT_SECURITIES&client=WEB&hyversion=v2"
-	logger.SugaredLogger.Infof("url:%s", url)
+	//logger.SugaredLogger.Infof("url:%s", url)
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "data.eastmoney.com").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").

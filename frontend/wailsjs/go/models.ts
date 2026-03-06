@@ -1320,6 +1320,10 @@ export namespace models {
 	    BLACK_CLOUD_TOPS: boolean;
 	    MORNING_STAR: boolean;
 	    NARROW_FINISH: boolean;
+	    UPP_DAYS: number;
+	    CONCERN_RANK_7DAYS: number;
+	    UPNDAY: number;
+	    DOWNNDAY: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new TechnicalIndicators(source);
@@ -1357,6 +1361,10 @@ export namespace models {
 	        this.BLACK_CLOUD_TOPS = source["BLACK_CLOUD_TOPS"];
 	        this.MORNING_STAR = source["MORNING_STAR"];
 	        this.NARROW_FINISH = source["NARROW_FINISH"];
+	        this.UPP_DAYS = source["UPP_DAYS"];
+	        this.CONCERN_RANK_7DAYS = source["CONCERN_RANK_7DAYS"];
+	        this.UPNDAY = source["UPNDAY"];
+	        this.DOWNNDAY = source["DOWNNDAY"];
 	    }
 	}
 	export class VersionInfo {

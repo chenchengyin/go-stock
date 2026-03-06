@@ -46,7 +46,7 @@ function updateTab(name) {
       <n-tab-pane name="提示词模板">
         <PromptTemplateList/>
       </n-tab-pane>
-      <n-tab-pane name="最新股价数据">
+      <n-tab-pane name="股票信息筛选">
         <AllStockList/>
       </n-tab-pane>
 <!--      <n-tab-pane name="全部股票信息">-->
