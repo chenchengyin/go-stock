@@ -43,7 +43,8 @@
 [//]: # (- 优云智算（by UCloud）：万卡规模4090免费用10小时，新人注册另增50万tokens，海量热门源项目镜像一键部署，[注册链接]&#40;https://www.compshare.cn/image-community?ytag=GPU_YY-gh_gostock&#41;)
 - 火山方舟：新用户每个模型注册即送50万tokens，[注册链接](https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=IJSE43PZ)
 - 硅基流动(siliconflow)，注册即送2000万Tokens，[注册链接](https://cloud.siliconflow.cn/i/foufCerk)
-- Tushare大数据开放社区,免费提供各类金融数据,助力行业和量化研究(注意：Tushare只需要120积分即可，注册完成个人资料补充即可得120积分！！！)，[注册链接](https://tushare.pro/register?reg=701944)
+
+[//]: # (- Tushare大数据开放社区,免费提供各类金融数据,助力行业和量化研究&#40;注意：Tushare只需要120积分即可，注册完成个人资料补充即可得120积分！！！&#41;，[注册链接]&#40;https://tushare.pro/register?reg=701944&#41;)
 - 软件快速迭代开发中,请大家优先测试和使用最新发布的版本。
 - 欢迎大家提出宝贵的建议，欢迎提issue,PR。当然更欢迎[赞助我](#都划到这了如果我的项目对您有帮助请赞助我吧)。💕
 
