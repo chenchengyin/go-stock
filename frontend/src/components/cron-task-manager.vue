@@ -71,6 +71,7 @@
       :style="{ width: '750px' }"
       @close="resetForm"
       :z-index="2000"
+      to="body"
     >
       <n-form
         ref="formRef"
@@ -97,9 +98,6 @@
               v-model:value="formData.cronExpr"
               placeholder="通过下方选择器生成或直接输入"
               clearable
-              readonly
-              @click="showCronBuilder = true"
-              style="cursor: pointer"
             >
               <template #suffix>
                 <n-button size="small" @click="showCronBuilder = true">
@@ -327,7 +325,8 @@
       title="Cron 表达式配置器"
       preset="dialog"
       :style="{ width: '850px' }"
-      :z-index="2100"
+      :z-index="11000"
+      to="body"
     >
       <n-card size="small">
         <n-space :vertical="true" :size="12">
@@ -506,6 +505,9 @@ import {
 
 const message = useMessage()
 
+// 表单引用
+const formRef = ref(null)
+
 // 响应式数据
 const loading = ref(false)
 const submitting = ref(false)
@@ -535,9 +537,9 @@ const formData = reactive({
 
 // 表单验证规则
 const formRules = {
-  name: { required: true, message: '请输入任务名称', trigger: 'blur' },
-  cronExpr: { required: true, message: '请输入 Cron 表达式', trigger: 'blur' },
-  taskType: { required: true, message: '请选择任务类型', trigger: 'change' }
+  name: { required: true, message: '请输入任务名称', trigger: [ 'blur'] },
+  cronExpr: { required: true, message: '请输入 Cron 表达式', trigger: ['blur'] },
+  taskType: { required: true, message: '请选择任务类型', trigger: [ 'blur'] }
 }
 
 // 选项数据
@@ -1282,6 +1284,16 @@ const checkCronInterval = async (cronExpr) => {
 // 提交表单
 const handleSubmit = async () => {
   try {
+    // 先整体校验表单（会同步更新所有校验状态）
+    if (formRef.value) {
+      try {
+        await formRef.value.validate()
+      } catch {
+        // 表单校验未通过，直接返回
+        return
+      }
+    }
+
     // 简单验证 Cron 表达式
     if (!await validateCronExpression()) {
       return
