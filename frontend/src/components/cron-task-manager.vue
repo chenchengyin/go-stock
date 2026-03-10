@@ -75,6 +75,7 @@
     >
       <n-form
         ref="formRef"
+        :model="formData"
         :rules="formRules"
         label-placement="left"
         label-width="130px"
@@ -537,9 +538,9 @@ const formData = reactive({
 
 // 表单验证规则
 const formRules = {
-  name: { required: true, message: '请输入任务名称', trigger: [ 'blur'] },
-  cronExpr: { required: true, message: '请输入 Cron 表达式', trigger: ['blur'] },
-  taskType: { required: true, message: '请选择任务类型', trigger: [ 'blur'] }
+  name: { required: true, message: '请输入任务名称', trigger: ['input', 'blur'] },
+  cronExpr: { required: true, message: '请输入 Cron 表达式', trigger: ['input', 'blur'] },
+  taskType: { required: true, message: '请选择任务类型', trigger: [ 'input', 'blur'] }
 }
 
 // 选项数据
@@ -1387,6 +1388,10 @@ const resetForm = () => {
   Object.assign(cronDay, { type: '*', start: 1, end: 31 })
   Object.assign(cronMonth, { type: '*', start: 1, end: 12 })
   Object.assign(cronWeek, { type: '*', days: [] })
+  // 重置表单校验状态
+  if (formRef.value) {
+    formRef.value.restoreValidation()
+  }
 }
 
 // 任务列表数据
