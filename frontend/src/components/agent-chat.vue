@@ -89,10 +89,9 @@ const allowToolTip = ref(true);
 const chatSenderRef = ref(null);
 const selectOptions = ref([]);
 const selectValue = ref("default");
-onBeforeUnmount(() => {
-  EventsOff("agent-message")
-})
-EventsOn("agent-message", (data) => {
+
+// 定义事件处理函数，方便在挂载和卸载时管理
+const handleAgentMessage = (data) => {
   console.log(data)
   if(data['role']==="assistant"){
     loading.value = false;
@@ -116,8 +115,15 @@ EventsOn("agent-message", (data) => {
     isStreamLoad.value = false;
     loading.value = false;
   }
+}
+
+onBeforeUnmount(() => {
+  EventsOff("agent-message", handleAgentMessage)
 })
+
 onBeforeMount(() => {
+  // 每次挂载前都重新注册事件监听
+  EventsOn("agent-message", handleAgentMessage)
   GetAiConfigs().then(res=>{
     console.log(res)
     selectOptions.value = res

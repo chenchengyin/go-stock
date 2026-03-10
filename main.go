@@ -245,6 +245,8 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.SentimentResultAnalyze{})
 	db.Dao.AutoMigrate(&models.AiRecommendStocks{})
 	db.Dao.AutoMigrate(&models.AllStockInfo{})
+	db.Dao.AutoMigrate(&models.CronTask{})
+	db.Dao.AutoMigrate(&models.AiAssistantSession{})
 
 	//updateMultipleModel()
 }

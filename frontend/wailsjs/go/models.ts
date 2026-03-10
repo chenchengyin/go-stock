@@ -728,6 +728,25 @@ export namespace data {
 
 }
 
+export namespace lo {
+	
+	export class Tuple2_string_string_ {
+	    A: string;
+	    B: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Tuple2_string_string_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.A = source["A"];
+	        this.B = source["B"];
+	    }
+	}
+
+}
+
 export namespace models {
 	
 	export class AIResponseResult {
@@ -847,6 +866,22 @@ export namespace models {
 	        this.question = source["question"];
 	        this.startDate = source["startDate"];
 	        this.endDate = source["endDate"];
+	    }
+	}
+	export class AiAssistantMessage {
+	    role: string;
+	    content: string;
+	    reasoning: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AiAssistantMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.content = source["content"];
+	        this.reasoning = source["reasoning"];
 	    }
 	}
 	export class AiRecommendStocks {
@@ -1108,6 +1143,120 @@ export namespace models {
 		    }
 		    return a;
 		}
+	}
+	export class CronTask {
+	    id: number;
+	    // Go type: time
+	    createdAt: any;
+	    // Go type: time
+	    updatedAt: any;
+	    name: string;
+	    cronExpr: string;
+	    taskType: string;
+	    target: string;
+	    params: string;
+	    enable: boolean;
+	    // Go type: time
+	    lastRunAt?: any;
+	    // Go type: time
+	    nextRunAt?: any;
+	    runCount: number;
+	    status: string;
+	    description: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CronTask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	        this.updatedAt = this.convertValues(source["updatedAt"], null);
+	        this.name = source["name"];
+	        this.cronExpr = source["cronExpr"];
+	        this.taskType = source["taskType"];
+	        this.target = source["target"];
+	        this.params = source["params"];
+	        this.enable = source["enable"];
+	        this.lastRunAt = this.convertValues(source["lastRunAt"], null);
+	        this.nextRunAt = this.convertValues(source["nextRunAt"], null);
+	        this.runCount = source["runCount"];
+	        this.status = source["status"];
+	        this.description = source["description"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CronTaskPageResp {
+	    total: number;
+	    data: CronTask[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CronTaskPageResp(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.data = this.convertValues(source["data"], CronTask);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CronTaskQuery {
+	    page: number;
+	    pageSize: number;
+	    name: string;
+	    taskType: string;
+	    status: string;
+	    enable?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CronTaskQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.name = source["name"];
+	        this.taskType = source["taskType"];
+	        this.status = source["status"];
+	        this.enable = source["enable"];
+	    }
 	}
 	export class Prompt {
 	    ID: number;

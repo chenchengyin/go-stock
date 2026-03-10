@@ -152,7 +152,7 @@ type ToolFunction struct {
 	Parameters  *FunctionParameters `json:"parameters"`
 }
 
-func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysPromptId *int, tools []Tool, thinking bool) <-chan map[string]any {
+func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysPromptId *int, tools []Tool, thinking bool, history []map[string]interface{}) <-chan map[string]any {
 	ch := make(chan map[string]any, 512)
 	defer func() {
 		if err := recover(); err != nil {
@@ -374,6 +374,10 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 
 		wg.Wait()
 
+		// 插入对话历史（AI 助手记忆）
+		for _, m := range history {
+			msg = append(msg, m)
+		}
 		if userQuestion == "" {
 			userQuestion = "请根据当前时间，总结和分析股票市场新闻中的投资机会"
 		}
@@ -386,7 +390,7 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 	return ch
 }
 
-func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int, think bool) <-chan map[string]any {
+func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int, think bool, history []map[string]interface{}) <-chan map[string]any {
 	ch := make(chan map[string]any, 512)
 	defer func() {
 		if err := recover(); err != nil {
@@ -576,6 +580,10 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			"role":    "assistant",
 			"content": messageText.String(),
 		})
+		// 插入对话历史（AI 助手记忆）
+		for _, m := range history {
+			msg = append(msg, m)
+		}
 		if userQuestion == "" {
 			userQuestion = "请根据当前时间，总结和分析股票市场新闻中的投资机会"
 		}
@@ -668,9 +676,9 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			question = strutil.ReplaceWithMap(userQuestion, replaceTemplates)
 		}
 
-		logger.SugaredLogger.Infof("NewChatStream stock:%s stockCode:%s", stock, stockCode)
-		logger.SugaredLogger.Infof("Prompt：%s", sysPrompt)
-		logger.SugaredLogger.Infof("final question:%s", question)
+		//logger.SugaredLogger.Infof("NewChatStream stock:%s stockCode:%s", stock, stockCode)
+		//logger.SugaredLogger.Infof("Prompt：%s", sysPrompt)
+		//logger.SugaredLogger.Infof("final question:%s", question)
 		wg := &sync.WaitGroup{}
 		wg.Add(8)
 
@@ -1003,10 +1011,13 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 		}
 	}
 
-	resp, err := client.R().
+	req := client.R().
 		SetDoNotParseResponse(true).
-		SetBody(bodyMap).
-		Post("/chat/completions")
+		SetBody(bodyMap)
+	if o.ctx != nil {
+		req = req.SetContext(o.ctx)
+	}
+	resp, err := req.Post("/chat/completions")
 
 	body := resp.RawBody()
 	defer body.Close()
@@ -1164,10 +1175,13 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 		}
 	}
 
-	resp, err := client.R().
+	req := client.R().
 		SetDoNotParseResponse(true).
-		SetBody(bodyMap).
-		Post("/chat/completions")
+		SetBody(bodyMap)
+	if o.ctx != nil {
+		req = req.SetContext(o.ctx)
+	}
+	resp, err := req.Post("/chat/completions")
 
 	body := resp.RawBody()
 	defer body.Close()

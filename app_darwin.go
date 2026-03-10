@@ -28,6 +28,9 @@ func (a *App) startup(ctx context.Context) {
 	// Perform your setup here
 	a.ctx = ctx
 
+	// 应用启动时自动创建已启用的定时任务
+	a.InitCronTasks()
+
 	// 监听设置更新事件
 	runtime.EventsOn(ctx, "updateSettings", func(optionalData ...interface{}) {
 		config := data.GetSettingConfig()

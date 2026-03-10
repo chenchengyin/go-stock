@@ -109,7 +109,7 @@ func TestSummaryStockNews(t *testing.T) {
 	db.Init("./data/stock.db")
 	question := "分析今日的市场行情走势是否和券商的观点一致"
 	app := NewApp()
-	msgs := data.NewDeepSeekOpenAi(app.ctx, 0).NewSummaryStockNewsStreamWithTools(question, nil, app.AiTools, true)
+	msgs := data.NewDeepSeekOpenAi(app.ctx, 0).NewSummaryStockNewsStreamWithTools(question, nil, app.AiTools, true, nil)
 
 	content := &strings.Builder{}
 	for msg := range msgs {
@@ -117,4 +117,9 @@ func TestSummaryStockNews(t *testing.T) {
 		content.WriteString(msg["content"].(string))
 	}
 	logger.SugaredLogger.Infof("content:%s", content.String())
+}
+
+func TestCalculateNextRunTime(t *testing.T) {
+	db.Init("./data/stock.db")
+	t.Log(NewApp().CalculateNextRunTime("0 0 0 * * ?"))
 }

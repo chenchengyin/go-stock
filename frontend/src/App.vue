@@ -26,9 +26,10 @@ import {
   SettingsOutline, Skull, SkullOutline, SkullSharp,
   SparklesOutline,
   StarOutline,
-  Wallet, WarningOutline,
+  Wallet, WarningOutline, TimeOutline,
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList,GetVersionInfo} from "../wailsjs/go/main/App";
+import FloatingAiAssistant from "./components/FloatingAiAssistant.vue";
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
 import {Prompt, ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
@@ -561,6 +562,29 @@ const menuOptions = ref([
           key: 'research4',
           icon: renderIcon(AppsList20Regular),
         },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'cronTasks',
+                      query: {
+                        name:"定时任务",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 5, name: '定时任务'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '定时任务'}
+              ),
+          key: 'research5',
+          icon: renderIcon(TimeOutline),
+        },
       ],
     },
   {
@@ -853,6 +877,7 @@ onMounted(() => {
                 :y-offset="150"
                 :rotate="-15"
             >
+              <FloatingAiAssistant />
               <n-flex>
                 <n-grid x-gap="12" :cols="1">
                   <n-gi>

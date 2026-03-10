@@ -3,6 +3,7 @@ package main
 import (
 	"go-stock/backend/agent"
 	"go-stock/backend/data"
+	"go-stock/backend/logger"
 	"go-stock/backend/models"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -71,6 +72,11 @@ func (a *App) GetAllStocks(page int, pageSize int, name string, technicalIndicat
 }
 
 func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.SugaredLogger.Errorf("ChatWithAgent panic: %v", r)
+		}
+	}()
 	ch := agent.NewStockAiAgentApi().Chat(question, aiConfigId, sysPromptId)
 	for msg := range ch {
 		runtime.EventsEmit(a.ctx, "agent-message", msg)

@@ -227,7 +227,7 @@ function reAiSummary() {
   aiSummary.value = ""
   summaryModal.value = true
   loading.value = true
-  SummaryStockNews(question.value,aiConfigId.value, sysPromptId.value,enableTools.value,thinkingMode.value)
+  SummaryStockNews(question.value,aiConfigId.value, sysPromptId.value,enableTools.value,thinkingMode.value,"summaryStockNews","")
 }
 
 function getAiSummary() {

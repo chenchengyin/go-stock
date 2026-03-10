@@ -3,6 +3,9 @@
 import {models} from '../models';
 import {data} from '../models';
 import {context} from '../models';
+import {lo} from '../models';
+
+export function AbortSummaryStockNews():Promise<void>;
 
 export function AddAllStockInfo(arg1:models.AllStockInfo):Promise<string>;
 
@@ -24,6 +27,10 @@ export function BatchDeleteAIResponseResult(arg1:Array<number>):Promise<string>;
 
 export function BatchDeleteAllStockInfo(arg1:Array<number>):Promise<string>;
 
+export function CalculateNextRunTime(arg1:string):Promise<string>;
+
+export function CalculateNextRunTimes(arg1:string,arg2:number):Promise<Array<string>>;
+
 export function ChatWithAgent(arg1:string,arg2:number,arg3:any):Promise<void>;
 
 export function CheckSponsorCode(arg1:string):Promise<Record<string, any>>;
@@ -34,6 +41,8 @@ export function CheckUpdate(arg1:number):Promise<void>;
 
 export function ClsCalendar():Promise<Array<any>>;
 
+export function CreateCronTask(arg1:models.CronTask):Promise<string>;
+
 export function DelPrompt(arg1:number):Promise<string>;
 
 export function DeleteAIResponseResult(arg1:number):Promise<string>;
@@ -42,9 +51,15 @@ export function DeleteAiRecommendStocks(arg1:number):Promise<string>;
 
 export function DeleteAllStockInfo(arg1:number):Promise<string>;
 
+export function DeleteCronTask(arg1:number):Promise<string>;
+
 export function DeletePromptTemplate(arg1:number):Promise<string>;
 
 export function EMDictCode(arg1:string):Promise<Array<any>>;
+
+export function EnableCronTask(arg1:number,arg2:boolean):Promise<string>;
+
+export function ExecuteCronTaskNow(arg1:number):Promise<string>;
 
 export function ExportConfig():Promise<string>;
 
@@ -55,6 +70,8 @@ export function FollowFund(arg1:string):Promise<string>;
 export function GetAIResponseResult(arg1:string):Promise<models.AIResponseResult>;
 
 export function GetAIResponseResultList(arg1:models.AIResponseResultQuery):Promise<models.AIResponseResultPageData>;
+
+export function GetAiAssistantSession():Promise<Array<models.AiAssistantMessage>>;
 
 export function GetAiConfigs():Promise<Array<data.AIConfig>>;
 
@@ -73,6 +90,12 @@ export function GetAllStockInfoList(arg1:data.AllStockInfoQuery):Promise<data.Al
 export function GetAllStocks(arg1:number,arg2:number,arg3:string,arg4:models.TechnicalIndicators):Promise<models.AllStocksResp>;
 
 export function GetConfig():Promise<data.SettingConfig>;
+
+export function GetCronTaskByID(arg1:number):Promise<models.CronTask>;
+
+export function GetCronTaskList(arg1:models.CronTaskQuery):Promise<models.CronTaskPageResp>;
+
+export function GetCronTaskTypes():Promise<Array<lo.Tuple2_string_string_>>;
 
 export function GetFollowList(arg1:number):Promise<any>;
 
@@ -124,6 +147,8 @@ export function HotTopic(arg1:number):Promise<Array<any>>;
 
 export function IndustryResearchReport(arg1:string):Promise<Array<any>>;
 
+export function InitCronTasks():Promise<void>;
+
 export function InitializeGroupSort():Promise<boolean>;
 
 export function InvestCalendarTimeLine(arg1:string):Promise<Array<any>>;
@@ -144,11 +169,15 @@ export function RemoveStockGroup(arg1:string,arg2:string,arg3:number):Promise<st
 
 export function SaveAIResponseResult(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number):Promise<void>;
 
+export function SaveAiAssistantSession(arg1:Array<models.AiAssistantMessage>):Promise<void>;
+
 export function SaveAsMarkdown(arg1:string,arg2:string):Promise<string>;
 
 export function SaveImage(arg1:string,arg2:string):Promise<string>;
 
 export function SaveWordFile(arg1:string,arg2:string):Promise<string>;
+
+export function SearchCronTasks(arg1:string):Promise<Array<models.CronTask>>;
 
 export function SearchStock(arg1:string):Promise<Record<string, any>>;
 
@@ -166,11 +195,13 @@ export function SetStockSort(arg1:number,arg2:string):Promise<void>;
 
 export function ShareAnalysis(arg1:string,arg2:string):Promise<string>;
 
+export function ShareText(arg1:string,arg2:string):Promise<string>;
+
 export function StockNotice(arg1:string):Promise<Array<any>>;
 
 export function StockResearchReport(arg1:string):Promise<Array<any>>;
 
-export function SummaryStockNews(arg1:string,arg2:number,arg3:any,arg4:boolean,arg5:boolean):Promise<void>;
+export function SummaryStockNews(arg1:string,arg2:number,arg3:any,arg4:boolean,arg5:boolean,arg6:string,arg7:string):Promise<void>;
 
 export function UnFollow(arg1:string):Promise<string>;
 
@@ -178,6 +209,10 @@ export function UnFollowFund(arg1:string):Promise<string>;
 
 export function UpdateConfig(arg1:data.SettingConfig):Promise<string>;
 
+export function UpdateCronTask(arg1:models.CronTask):Promise<string>;
+
 export function UpdateGroupSort(arg1:number,arg2:number):Promise<boolean>;
 
 export function UpdatePromptTemplate(arg1:models.PromptTemplate):Promise<string>;
+
+export function ValidateCronExpr(arg1:string):Promise<string>;

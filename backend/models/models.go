@@ -1359,3 +1359,64 @@ type SecuritiesCompanyOpinionData struct {
 	OrgType      string      `json:"orgType"`
 	OpinionData  string      `json:"opinionData"`
 }
+
+type CronTask struct {
+	ID          uint       `json:"id" gorm:"primarykey"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	Name        string     `json:"name" gorm:"size:255;not null"`
+	CronExpr    string     `json:"cronExpr" gorm:"size:100;not null"`
+	TaskType    string     `json:"taskType" gorm:"size:50;not null"` // stock_analysis, fund_analysis, news_fetch, custom
+	Target      string     `json:"target" gorm:"size:255"`           // 股票代码或其他目标
+	Params      string     `json:"params" gorm:"type:text"`          // JSON 格式的任务参数
+	Enable      bool       `json:"enable" gorm:"default:true"`
+	LastRunAt   *time.Time `json:"lastRunAt"`
+	NextRunAt   *time.Time `json:"nextRunAt"`
+	RunCount    int64      `json:"runCount" gorm:"default:0"`
+	Status      string     `json:"status" gorm:"size:20;default:active"` // active, paused, error
+	Description string     `json:"description" gorm:"size:500"`
+}
+
+func (CronTask) TableName() string {
+	return "cron_tasks"
+}
+
+type CronTaskQuery struct {
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+	Name     string `json:"name"`
+	TaskType string `json:"taskType"`
+	Status   string `json:"status"`
+	Enable   *bool  `json:"enable"`
+}
+
+type CronTaskPageResp struct {
+	Total int        `json:"total"`
+	Data  []CronTask `json:"data"`
+}
+
+type CronTaskPageData struct {
+	List       []CronTask `json:"list"`
+	TotalCount int        `json:"totalCount"`
+	Page       int        `json:"page"`
+	PageSize   int        `json:"pageSize"`
+}
+
+// AiAssistantSession 悬浮 AI 助手会话表，保存最近一次对话
+type AiAssistantSession struct {
+	ID        uint      `json:"id" gorm:"primarykey"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Messages  string    `json:"messages" gorm:"type:text"` // JSON 数组，每项 { role, content, reasoning }
+}
+
+func (AiAssistantSession) TableName() string {
+	return "ai_assistant_sessions"
+}
+
+// AiAssistantMessage 单条消息，供前后端 JSON 序列化
+type AiAssistantMessage struct {
+	Role      string `json:"role"`
+	Content   string `json:"content"`
+	Reasoning string `json:"reasoning"`
+}

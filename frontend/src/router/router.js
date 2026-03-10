@@ -7,6 +7,7 @@ import fundView from "../components/fund.vue";
 import marketView from "../components/market.vue";
 import agentChat from "../components/agent-chat.vue"
 import research from "../components/researchIndex.vue";
+import cronTaskManager from "../components/cron-task-manager.vue"
 
 const routes = [
     { path: '/', component: stockView,name: 'stock'},
@@ -16,6 +17,7 @@ const routes = [
     { path: '/market', component: marketView,name: 'market' },
     { path: '/agent', component: agentChat,name: 'agent' },
     { path: '/research', component: research,name: 'research' },
+    { path: '/cron-tasks', component: cronTaskManager,name: 'cronTasks' },
 
 ]
 
