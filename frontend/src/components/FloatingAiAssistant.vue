@@ -425,6 +425,14 @@ async function loadHistory() {
         content: m.content ?? '',
         reasoning: m.reasoning ?? ''
       }))
+      // 默认展开最后一条助手回答
+      for (let i = messages.value.length - 1; i >= 0; i--) {
+        const msg = messages.value[i]
+        if (msg && msg.role === 'assistant' && (msg.content ?? '').trim()) {
+          expandedBubbles.value = { ...expandedBubbles.value, [i]: true }
+          break
+        }
+      }
     }
   } catch (_) {
     // ignore
@@ -538,6 +546,14 @@ function onSummaryStockNews(msg) {
     isStreamLoad.value = false
     sentFromFloating.value = false
     isAborted.value = false
+    // 默认展开最新一条助手回答
+    for (let i = messages.value.length - 1; i >= 0; i--) {
+      const m = messages.value[i]
+      if (m && m.role === 'assistant' && (m.content ?? '').trim()) {
+        expandedBubbles.value = { ...expandedBubbles.value, [i]: true }
+        break
+      }
+    }
     saveHistory()
     nextTick(scrollToBottom)
     return

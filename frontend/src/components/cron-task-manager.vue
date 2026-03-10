@@ -70,6 +70,7 @@
       preset="dialog"
       :style="{ width: '750px' }"
       @close="resetForm"
+      :z-index="2000"
     >
       <n-form
         ref="formRef"
@@ -326,6 +327,7 @@
       title="Cron 表达式配置器"
       preset="dialog"
       :style="{ width: '850px' }"
+      :z-index="2100"
     >
       <n-card size="small">
         <n-space :vertical="true" :size="12">
