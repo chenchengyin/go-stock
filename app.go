@@ -91,6 +91,15 @@ func (a *App) CheckSponsorCode(sponsorCode string) map[string]any {
 				"msg":  "赞助码错误，请输入正确的赞助码!",
 			}
 		}
+
+		// 校验通过后，将赞助码持久化到 Settings 中
+		config := data.GetSettingConfig()
+		// 只在赞助码变更时写库，避免无谓更新
+		if config.SponsorCode != sponsorCode {
+			config.SponsorCode = sponsorCode
+			data.UpdateConfig(config)
+		}
+
 		return map[string]any{
 			"code": 1,
 			"msg":  "赞助码校验成功，感谢您的支持!",

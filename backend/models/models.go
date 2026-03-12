@@ -1419,4 +1419,5 @@ type AiAssistantMessage struct {
 	Role      string `json:"role"`
 	Content   string `json:"content"`
 	Reasoning string `json:"reasoning"`
+	Time      string `json:"time"` // 消息时间，格式如 "2006-01-02 15:04:05"
 }

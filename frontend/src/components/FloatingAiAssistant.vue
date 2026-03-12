@@ -121,6 +121,9 @@
                       <NSpin size="small" />
                       <span>思考中...</span>
                     </div>
+                    <div v-if="msg.time" class="msg-meta">
+                      <span class="msg-time">{{ msg.time }}</span>
+                    </div>
                   </div>
                   <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">
                     <NIcon :component="PersonCircleOutline" size="20" />
@@ -444,7 +447,8 @@ async function loadHistory() {
       messages.value = list.map(m => ({
         role: m.role ?? '',
         content: m.content ?? '',
-        reasoning: m.reasoning ?? ''
+        reasoning: m.reasoning ?? '',
+        time: m.time ?? ''
       }))
       // 默认展开最后一条助手回答
       for (let i = messages.value.length - 1; i >= 0; i--) {
@@ -462,7 +466,12 @@ async function loadHistory() {
 
 function saveHistory() {
   if (messages.value.length === 0) return
-  const list = messages.value.map(m => ({ role: m.role, content: m.content, reasoning: m.reasoning ?? '' }))
+  const list = messages.value.map(m => ({
+    role: m.role,
+    content: m.content,
+    reasoning: m.reasoning ?? '',
+    time: m.time ?? ''
+  }))
   SaveAiAssistantSession(list).catch(() => {})
 }
 
@@ -473,7 +482,8 @@ function openPanel() {
       {
         role: 'assistant',
         content: '我是 go-stock AI 助手，可随时在这里提问。支持股票、市场、投资等相关问题。',
-        reasoning: ''
+        reasoning: '',
+        time: new Date().toLocaleString()
       }
     ]
   }
@@ -534,12 +544,14 @@ function sendMessage() {
   messages.value.push({
     role: 'user',
     content: text,
-    reasoning: ''
+    reasoning: '',
+    time: new Date().toLocaleString()
   })
   messages.value.push({
     role: 'assistant',
     content: '',
-    reasoning: ''
+    reasoning: '',
+    time: new Date().toLocaleString()
   })
   inputValue.value = ''
   isStreamLoad.value = true
@@ -938,6 +950,17 @@ onMounted(() => {
   margin-top: 6px;
   font-size: 12px;
   color: var(--n-text-color-3);
+}
+
+.msg-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  display: flex;
+  justify-content: flex-end;
+}
+.message-item.user .msg-meta {
+  justify-content: flex-start;
 }
 
 .chat-footer {
