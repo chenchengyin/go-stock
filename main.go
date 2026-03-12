@@ -13,6 +13,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -132,12 +133,25 @@ func main() {
 
 	//frameless := getFrameless()
 
+	// 计算默认窗口大小：优先使用上次保存的用户尺寸，否则自适应
+	config := data.GetSettingConfig()
+
+	appWidth := config.WindowWidth
+	appHeight := config.WindowHeight
+
+	// 若用户尚未调整过窗口或记录为 0，则按屏幕比例给一个合适默认值
+	if appWidth <= 0 || appHeight <= 0 {
+		appWidth = width * 7 / 10
+		appHeight = height * 7 / 10
+	}
+	log.SugaredLogger.Info("screen resolution: " + convertor.ToString(width) + "x" + convertor.ToString(height))
+	log.SugaredLogger.Info("window size: " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight))
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT,
-		// 默认窗口大小为屏幕 4/5
-		Width:     width * 4 / 5,
-		Height:    height * 4 / 5,
+		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT + " " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight),
+		// 默认窗口大小：自适应但保留明显边距
+		Width:     appWidth,
+		Height:    appHeight,
 		MinWidth:  minWidth,
 		MinHeight: minHeight,
 		// 限制最大尺寸不超过屏幕

@@ -181,12 +181,25 @@ func onReady(a *App) {
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	defer PanicHandler()
 
+	// 记录当前窗口大小，供下次启动时还原
+	if a.ctx != nil {
+		w, h := runtime.WindowGetSize(ctx)
+		logger.SugaredLogger.Infof(" window size: %dx%d", w, h)
+		if w > 0 && h > 0 {
+			cfg := data.GetSettingConfig()
+			cfg.WindowWidth = w
+			cfg.WindowHeight = h
+			data.UpdateConfig(cfg)
+			logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
+		}
+	}
+
 	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:         runtime.QuestionDialog,
 		Title:        "go-stock",
 		Message:      "确定关闭吗？",
 		Buttons:      []string{"确定"},
-		Icon:         icon,
+		Icon:         icon2,
 		CancelButton: "取消",
 	})
 
@@ -217,7 +230,7 @@ func getScreenResolution() (int, int, int, int, error) {
 
 	if screenWidth == 0 || screenHeight == 0 {
 		// 回退到一个较为通用的分辨率，避免启动失败
-		return 1920, 1080, 1200, 800, fmt.Errorf("getSystemMetrics failed")
+		return 1000, 800, 900, 600, fmt.Errorf("getSystemMetrics failed")
 	}
 
 	w := int(screenWidth)

@@ -5,12 +5,13 @@ package main
 
 import (
 	"context"
+	"go-stock/backend/data"
+	"go-stock/backend/logger"
+
 	"github.com/coocood/freecache"
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/mathutil"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"go-stock/backend/data"
-	"go-stock/backend/logger"
 )
 
 // App struct
@@ -56,12 +57,25 @@ func (a *App) domReady(ctx context.Context) {
 // Returning true will cause the application to continue, false will continue shutdown as normal.
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 
+	// 记录当前窗口大小，供下次启动时还原
+	if a.ctx != nil {
+		w, h := runtime.WindowGetSize(ctx)
+		logger.SugaredLogger.Infof(" window size: %dx%d", w, h)
+		if w > 0 && h > 0 {
+			cfg := data.GetSettingConfig()
+			cfg.WindowWidth = w
+			cfg.WindowHeight = h
+			data.UpdateConfig(cfg)
+			logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
+		}
+	}
+
 	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:         runtime.QuestionDialog,
 		Title:        "go-stock",
 		Message:      "确定关闭吗？",
 		Buttons:      []string{"确定"},
-		Icon:         icon,
+		Icon:         icon2,
 		CancelButton: "取消",
 	})
 

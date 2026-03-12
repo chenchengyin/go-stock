@@ -985,8 +985,16 @@ func addStockFollowData(follow data.FollowedStock, stockData *data.StockInfo) {
 // shutdown is called at application termination
 func (a *App) shutdown(ctx context.Context) {
 	defer PanicHandler()
-	// Perform your teardown here
-	//os.Exit(0)
+	// 记录当前窗口大小，供下次启动时还原
+	if a.ctx != nil {
+		if w, h := runtime.WindowGetSize(a.ctx); w > 0 && h > 0 {
+			cfg := data.GetSettingConfig()
+			cfg.WindowWidth = w
+			cfg.WindowHeight = h
+			data.UpdateConfig(cfg)
+			logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
+		}
+	}
 	logger.SugaredLogger.Infof("application shutdown Version:%s", Version)
 }
 
