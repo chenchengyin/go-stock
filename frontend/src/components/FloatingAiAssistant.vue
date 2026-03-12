@@ -144,6 +144,18 @@
                   class="chat-footer-select"
                 />
                 <NSelect
+                  v-model:value="sysPromptId"
+                  :options="sysPromptOptions"
+                  size="small"
+                  clearable
+                  to="body"
+                  placement="top-start"
+                  placeholder="系统提示词"
+                  :consistent-menu-width="false"
+                  :menu-props="{ style: { zIndex: 10002 } }"
+                  class="chat-footer-prompt"
+                />
+                <NSelect
                   v-model:value="userPromptId"
                   :options="userPromptOptions"
                   size="small"
@@ -249,6 +261,15 @@ const sentFromFloating = ref(false)
 const messages = ref([])
 const aiConfigOptions = ref([])
 const aiConfigId = ref(null)
+
+// 系统提示词模板（System Prompt）
+const sysPromptTemplates = ref([])
+const sysPromptOptions = computed(() =>
+  sysPromptTemplates.value.map(t => ({ label: t.name ?? '', value: t.ID ?? t.id }))
+)
+const sysPromptId = ref(null)
+
+// 用户提示词模板（User Prompt）
 const userPromptTemplates = ref([])
 const userPromptOptions = computed(() =>
   userPromptTemplates.value.map(t => ({ label: t.name ?? '', value: t.ID ?? t.id }))
@@ -527,15 +548,18 @@ function sendMessage() {
   saveHistory()
 
   const configId = aiConfigId.value ?? aiConfigOptions.value[0]?.value ?? 0
+  // 系统提示词：传递模板 ID，后端根据 ID 读取 System Prompt
+  const sysId = sysPromptId.value != null ? Number(sysPromptId.value) : null
   // 记忆模式：带上最近 N 条对话（排除当前这条空的 assistant 占位）
   let historyJSON = ''
   if (memoryMode.value) {
     const historyMessages = messages.value.slice(0, -1)
     const maxHistory = Math.max(1, Number(memoryCount.value) || 5)
-    const toSend = historyMessages.length <= maxHistory ? historyMessages : historyMessages.slice(-maxHistory)
+    const toSend =
+      historyMessages.length <= maxHistory ? historyMessages : historyMessages.slice(-maxHistory)
     historyJSON = JSON.stringify(toSend.map(m => ({ role: m.role, content: m.content ?? '', reasoning: m.reasoning ?? '' })))
   }
-  SummaryStockNews(text, configId, 0, true, thinkingMode.value, AI_ASSISTANT_EVENT, historyJSON)
+  SummaryStockNews(text, configId, sysId, true, thinkingMode.value, AI_ASSISTANT_EVENT, historyJSON)
   nextTick(scrollToBottom)
 }
 
@@ -606,8 +630,11 @@ onMounted(() => {
       aiConfigId.value = aiConfigOptions.value[0].value
     }
   })
-  GetPromptTemplates('', '模型用户Prompt').then(res => {
-    userPromptTemplates.value = Array.isArray(res) ? res : []
+  // 加载所有提示词模板，前端按类型拆分为“系统提示词”和“用户提示词”
+  GetPromptTemplates('', '').then(res => {
+    const list = Array.isArray(res) ? res : []
+    sysPromptTemplates.value = list.filter(t => t.type === '模型系统Prompt')
+    userPromptTemplates.value = list.filter(t => t.type === '模型用户Prompt')
   })
   GetVersionInfo().then(res => {
     if (res?.icon) appIcon.value = res.icon
