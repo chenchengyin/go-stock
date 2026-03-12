@@ -1209,3 +1209,23 @@ func (m MarketNewsApi) GetNews24HoursList(source string, limit int) *[]*models.T
 	}
 	return &uniqueNews
 }
+
+func (m MarketNewsApi) GetNewsListData(keyWord string, startTime time.Time, limit int) *[]*models.Telegraph {
+	news := &[]*models.Telegraph{}
+	db.Dao.Model(news).Preload("TelegraphTags").Where("created_at>? and (title like ? or content like ?)", startTime, "%"+keyWord+"%", "%"+keyWord+"%").Order("data_time desc,is_red desc").Limit(limit).Find(news)
+	// 内容去重
+	uniqueNews := make([]*models.Telegraph, 0)
+	seenContent := make(map[string]bool)
+
+	for _, item := range *news {
+		contentKey := strings.TrimSpace(item.Content)
+		if item.Title != "" {
+			contentKey = strings.TrimSpace(item.Title)
+		}
+		if contentKey != "" && !seenContent[contentKey] {
+			seenContent[contentKey] = true
+			uniqueNews = append(uniqueNews, item)
+		}
+	}
+	return &uniqueNews
+}

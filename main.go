@@ -115,15 +115,13 @@ func main() {
 	//})
 	log.SugaredLogger.Info("version: " + Version)
 	log.SugaredLogger.Info("commit: " + VersionCommit)
-	// Create application with options
-	//var width, height int
-	//var err error
-	//
-	width, _, minWidth, minHeight, err := getScreenResolution()
+	// 根据屏幕分辨率自适应窗口尺寸
+	width, height, minWidth, minHeight, err := getScreenResolution()
 	if err != nil {
 		log.SugaredLogger.Error("get screen resolution error")
+		// 获取失败时给一个合理的默认值
 		width = 1456
-		//height = 768
+		height = 900
 	}
 
 	darkTheme := data.GetSettingConfig().DarkTheme
@@ -136,13 +134,15 @@ func main() {
 
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title:     "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT,
+		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT,
+		// 默认窗口大小为屏幕 4/5
 		Width:     width * 4 / 5,
-		Height:    920,
+		Height:    height * 4 / 5,
 		MinWidth:  minWidth,
 		MinHeight: minHeight,
-		//MaxWidth:                 width,
-		//MaxHeight:                height,
+		// 限制最大尺寸不超过屏幕
+		MaxWidth:                 width,
+		MaxHeight:                height,
 		DisableResize:            false,
 		Fullscreen:               false,
 		Frameless:                false,

@@ -370,23 +370,49 @@ func Tools(tools []Tool) []Tool {
 		},
 	})
 
+	//tools = append(tools, Tool{
+	//	Type: "function",
+	//	Function: ToolFunction{
+	//		Name:        "CailianpressWeb",
+	//		Description: "财经新闻资讯搜索",
+	//		Parameters: &FunctionParameters{
+	//			Type: "object",
+	//			Properties: map[string]any{
+	//				"searchWords": map[string]any{
+	//					"type": "string",
+	//					"description": "搜索关键词（不要使用分隔符如空格逗号），为空时返回最新10条新闻资讯" +
+	//						"板块/概念名称：半导体\n" +
+	//						"股票名称：中科曙光\n" +
+	//						"政策：十五五规划\n",
+	//				},
+	//			},
+	//			Required: []string{},
+	//		},
+	//	},
+	//})
+
 	tools = append(tools, Tool{
 		Type: "function",
 		Function: ToolFunction{
-			Name:        "CailianpressWeb",
-			Description: "财经新闻资讯搜索",
+			Name:        "GetNewsListData",
+			Description: "获取新闻资讯",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
-					"searchWords": map[string]any{
-						"type": "string",
-						"description": "搜索关键词（不要使用分隔符如空格逗号）" +
-							"板块/概念名称：半导体\n" +
-							"股票名称：中科曙光\n" +
-							"政策：十五五规划\n",
+					"keyWord": map[string]any{
+						"type":        "string",
+						"description": "搜索时的关键词，可为空",
+					},
+					"startTime": map[string]any{
+						"type":        "string",
+						"description": "开始时间（如：2026-02-23 00:00:00）",
+					},
+					"limit": map[string]any{
+						"type":        "string",
+						"description": "返回条数",
 					},
 				},
-				Required: []string{"searchWords"},
+				Required: []string{"startTime", "limit"},
 			},
 		},
 	})

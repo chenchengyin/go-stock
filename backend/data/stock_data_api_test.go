@@ -62,7 +62,7 @@ func TestGetTelegraphSearch(t *testing.T) {
 }
 func TestCailianpressWeb(t *testing.T) {
 	db.Init("../../data/stock.db")
-	searchWords := "北向资金"
+	searchWords := ""
 	res := NewMarketNewsApi().CailianpressWeb(searchWords)
 	md := util.MarkdownTableWithTitle(searchWords+"财联社新闻", res.List)
 	logger.SugaredLogger.Info(md)
@@ -340,4 +340,32 @@ func TestGetIndustryValuation(t *testing.T) {
 	stockDataApi := NewStockDataApi()
 	res := stockDataApi.GetIndustryValuation("AI应用")
 	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle(" 消费电子行业估值", res.Result.Data))
+}
+
+func Test11(t *testing.T) {
+	url := "https://www.iwencai.com/customized/chart/get-robot-data"
+	body := `{
+		"source": "Ths_iwencai_Xuangu",
+			"version": "2.0",
+			"query_area": "",
+			"block_list": "",
+			"add_info": "{\"urp\":{\"scene\":1,\"company\":1,\"business\":1},\"contentType\":\"json\",\"searchInfo\":true}",
+			"question": "立讯精密",
+			"perpage": "50",
+			"page": 1,
+			"secondary_intent": "stock",
+			"log_info": "{\"input_type\":\"typewrite\"}",
+			"rsh": ""
+	}`
+	resp, err := resty.New().R().
+		SetHeader("hexin-v", "AwdKLt3GIiwTSKag8Wve7senlrrUDN9ZNeNfTtnUJrC98S2u4dxrPkWw747q").
+		SetHeader("Content-Type", "application/json;charset=UTF-8").
+		//SetHeader("Cookie", "v=AwdKLt3GIiwTSKag8Wve7senlrrUDN9ZNeNfTtnUJrC98S2u4dxrPkWw747q; other_uid=Ths_iwencai_Xuangu_dt6xi9pjkvlje9ogva7vw9v24diwgcr4;").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36").
+		SetBody(body).Post(url)
+	if err != nil {
+		logger.SugaredLogger.Error(err.Error())
+		return
+	}
+	logger.SugaredLogger.Infof("%s", resp.String())
 }

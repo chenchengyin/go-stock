@@ -9,6 +9,7 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"syscall"
 	"time"
 
 	"github.com/duke-git/lancet/v2/convertor"
@@ -208,12 +209,23 @@ func getFrameless() bool {
 }
 
 func getScreenResolution() (int, int, int, int, error) {
-	//user32 := syscall.NewLazyDLL("user32.dll")
-	//getSystemMetrics := user32.NewProc("GetSystemMetrics")
-	//
-	//width, _, _ := getSystemMetrics.Call(0)
-	//height, _, _ := getSystemMetrics.Call(1)
-	//return int(width), int(height), 1456, 768, nil
+	user32 := syscall.NewLazyDLL("user32.dll")
+	getSystemMetrics := user32.NewProc("GetSystemMetrics")
 
-	return int(1366), int(768), 1456, 768, nil
+	screenWidth, _, _ := getSystemMetrics.Call(0)  // SM_CXSCREEN
+	screenHeight, _, _ := getSystemMetrics.Call(1) // SM_CYSCREEN
+
+	if screenWidth == 0 || screenHeight == 0 {
+		// 回退到一个较为通用的分辨率，避免启动失败
+		return 1920, 1080, 1200, 800, fmt.Errorf("getSystemMetrics failed")
+	}
+
+	w := int(screenWidth)
+	h := int(screenHeight)
+
+	// 最小宽高设为屏幕 3/5，避免在高分屏上窗口太小
+	minW := w * 3 / 5
+	minH := h * 3 / 5
+
+	return w, h, minW, minH, nil
 }

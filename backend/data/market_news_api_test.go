@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coocood/freecache"
 	"github.com/duke-git/lancet/v2/random"
@@ -303,4 +304,14 @@ func TestGetSecuritiesCompanyOpinion(t *testing.T) {
 	}
 	logger.SugaredLogger.Debugf("%s", md.String())
 
+}
+func TestGetNewsListData(t *testing.T) {
+	db.Init("../../data/stock.db")
+	res := NewMarketNewsApi().GetNewsListData("", time.Now().Add(-time.Hour*24*2), 2)
+	md := strings.Builder{}
+	md.WriteString("### " + "最近新闻资讯" + "\r\n")
+	for _, d := range *res {
+		md.WriteString(d.DataTime.Format(time.DateTime) + " " + d.Content + "\r\n")
+	}
+	logger.SugaredLogger.Infof("%s", md.String())
 }
