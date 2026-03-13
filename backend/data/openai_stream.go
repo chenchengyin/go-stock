@@ -65,10 +65,8 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 			"content":           "当前本地时间是:" + time.Now().Format("2006-01-02 15:04:05"),
 		})
 		wg := &sync.WaitGroup{}
-		wg.Add(4)
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
 			content := util.MarkdownTableWithTitle("当前最新投资者互动数据", datas.Results)
 			msg = append(msg, map[string]interface{}{
@@ -80,10 +78,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"reasoning_content": "使用工具查询",
 				"content":           content,
 			})
-		}()
+		})
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var market strings.Builder
 			res := NewMarketNewsApi().GetGDP()
 			md := util.MarkdownTableWithTitle("国内生产总值(GDP)", res.GDPResult.Data)
@@ -107,10 +104,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"reasoning_content": "使用工具查询",
 				"content":           "\n# 国内宏观经济数据：\n" + market.String(),
 			})
-		}()
+		})
 
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			md := strings.Builder{}
 			res := NewMarketNewsApi().ClsCalendar()
 			for _, a := range res {
@@ -136,26 +132,7 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				"reasoning_content": "使用工具查询",
 				"content":           "近期重大事件/会议如下：\n" + md.String(),
 			})
-		}()
-
-		go func() {
-			defer wg.Done()
-			news := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(200, 1000))
-			messageText := strings.Builder{}
-			for _, telegraph := range *news {
-				messageText.WriteString("## " + telegraph.DataTime.Format("2006-01-02 15:04:05") + ":" + "\n")
-				messageText.WriteString("### " + telegraph.Content + "\n")
-			}
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "市场资讯",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":              "assistant",
-				"reasoning_content": "使用工具查询",
-				"content":           messageText.String(),
-			})
-		}()
+		})
 
 		wg.Wait()
 
