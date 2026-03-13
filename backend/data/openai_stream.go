@@ -66,19 +66,19 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 		})
 		wg := &sync.WaitGroup{}
 
-		wg.Go(func() {
-			datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
-			content := util.MarkdownTableWithTitle("当前最新投资者互动数据", datas.Results)
-			msg = append(msg, map[string]interface{}{
-				"role":    "user",
-				"content": "投资者互动数据",
-			})
-			msg = append(msg, map[string]interface{}{
-				"role":              "assistant",
-				"reasoning_content": "使用工具查询",
-				"content":           content,
-			})
-		})
+		//wg.Go(func() {
+		//	datas := NewMarketNewsApi().InteractiveAnswer(1, 100, "")
+		//	content := util.MarkdownTableWithTitle("当前最新投资者互动数据", datas.Results)
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":    "user",
+		//		"content": "投资者互动数据",
+		//	})
+		//	msg = append(msg, map[string]interface{}{
+		//		"role":              "assistant",
+		//		"reasoning_content": "使用工具查询",
+		//		"content":           content,
+		//	})
+		//})
 
 		wg.Go(func() {
 			var market strings.Builder
