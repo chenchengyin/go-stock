@@ -118,6 +118,10 @@ export function ExportConfig() {
   return window['go']['main']['App']['ExportConfig']();
 }
 
+export function FetchAiModels(arg1, arg2) {
+  return window['go']['main']['App']['FetchAiModels'](arg1, arg2);
+}
+
 export function Follow(arg1) {
   return window['go']['main']['App']['Follow'](arg1);
 }

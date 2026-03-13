@@ -123,3 +123,9 @@ func TestCalculateNextRunTime(t *testing.T) {
 	db.Init("./data/stock.db")
 	t.Log(NewApp().CalculateNextRunTime("0 0 0 * * ?"))
 }
+
+func TestFetchAiModels(t *testing.T) {
+	app := NewApp()
+	models := app.FetchAiModels("https://ark.cn-beijing.volces.com/api/v3", "")
+	t.Log(models)
+}

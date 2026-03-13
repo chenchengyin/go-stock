@@ -1602,6 +1602,53 @@ func (a *App) SaveAiAssistantSession(messages []models.AiAssistantMessage) error
 	return data.SaveAiAssistantSession(messages)
 }
 
+// FetchAiModels
+//
+//	@Description: 根据接口地址与 apiKey 自动获取支持的模型列表（OpenAI/DeepSeek 兼容 /models 接口）
+//	@receiver a
+//	@param baseUrl 接口地址（如 https://api.deepseek.com）
+//	@param apiKey  鉴权令牌
+//	@return []string 模型 ID 列表
+func (a *App) FetchAiModels(baseUrl, apiKey string) []string {
+	baseUrl = strutil.Trim(baseUrl)
+	apiKey = strutil.Trim(apiKey)
+	if baseUrl == "" || apiKey == "" {
+		return []string{}
+	}
+
+	type modelItem struct {
+		ID string `json:"id"`
+	}
+	var respData struct {
+		Data []modelItem `json:"data"`
+	}
+
+	client := resty.New()
+	client.SetBaseURL(baseUrl)
+	client.SetHeader("Authorization", "Bearer "+apiKey)
+	client.SetHeader("Content-Type", "application/json")
+
+	resp, err := client.R().
+		SetResult(&respData).
+		Get("/models")
+	if err != nil {
+		logger.SugaredLogger.Errorf("FetchAiModels error: %v", err)
+		return []string{}
+	}
+	if resp.IsError() {
+		logger.SugaredLogger.Errorf("FetchAiModels http error: %s", resp.Status())
+		return []string{}
+	}
+
+	modelsList := make([]string, 0, len(respData.Data))
+	for _, m := range respData.Data {
+		if strings.TrimSpace(m.ID) != "" {
+			modelsList = append(modelsList, m.ID)
+		}
+	}
+	return modelsList
+}
+
 // InitCronTasks 在应用启动时，自动为启用状态的定时任务创建调度
 func (a *App) InitCronTasks() {
 	tasks := data.NewCronTaskApi().GetAll()

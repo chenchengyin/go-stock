@@ -145,9 +145,13 @@ func updateAiConfigs(aiConfigs []*AIConfig) error {
 		}
 		return db.Dao.Exec("DELETE FROM sqlite_sequence WHERE name='ai_config'").Error
 	}
+	// 仅收集大于 0 的 ID，用于识别已存在的配置；
+	// ID<=0 视为“新配置”，强制走插入逻辑，避免多个 ID 为 0 的配置互相覆盖。
 	var ids []uint
 	lo.ForEach(aiConfigs, func(item *AIConfig, index int) {
-		ids = append(ids, item.ID)
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+		}
 	})
 	var existAiConfigs []*AIConfig
 	err := db.Dao.Model(&AIConfig{}).Select("id").Where("id in (?) ", ids).Find(&existAiConfigs).Error
@@ -165,7 +169,8 @@ func updateAiConfigs(aiConfigs []*AIConfig) error {
 		if e != nil {
 			return
 		}
-		if !idMap[item.ID] {
+		// ID<=0 一律视为新配置，走插入逻辑；否则根据是否已存在决定更新或新增
+		if item.ID <= 0 || !idMap[item.ID] {
 			addAiConfigs = append(addAiConfigs, item)
 		} else {
 			notDeleteIds = append(notDeleteIds, item.ID)

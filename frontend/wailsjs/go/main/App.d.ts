@@ -63,6 +63,8 @@ export function ExecuteCronTaskNow(arg1:number):Promise<string>;
 
 export function ExportConfig():Promise<string>;
 
+export function FetchAiModels(arg1:string,arg2:string):Promise<Array<string>>;
+
 export function Follow(arg1:string):Promise<string>;
 
 export function FollowFund(arg1:string):Promise<string>;

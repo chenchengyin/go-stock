@@ -1,12 +1,15 @@
 <script setup>
 import {h, onBeforeUnmount, onMounted, ref} from "vue";
 import {
-  AddPrompt, DelPrompt,
+  AddPrompt,
+  DelPrompt,
   ExportConfig,
   GetConfig,
   GetPromptTemplates,
   SendDingDingMessageByType,
-  UpdateConfig, CheckSponsorCode
+  UpdateConfig,
+  CheckSponsorCode,
+  FetchAiModels
 } from "../../wailsjs/go/main/App";
 import {NTag, useMessage} from "naive-ui";
 import {data, models} from "../../wailsjs/go/models";
@@ -71,6 +74,34 @@ function removeAiConfig(index) {
   const originalCount = formValue.value.openAI.aiConfigs.length;
   // 使用filter创建新数组确保响应式更新
   formValue.value.openAI.aiConfigs = formValue.value.openAI.aiConfigs.filter((_, i) => i !== index);
+}
+
+// 根据接口地址与 apiKey 自动获取模型列表，并填充到当前 aiConfig
+async function fetchAiModels(aiConfig) {
+  if (!aiConfig.baseUrl || !aiConfig.apiKey) {
+    message.warning('请先填写接口地址和 apiKey')
+    return
+  }
+  if (aiConfig._loadingModels) {
+    return
+  }
+  aiConfig._loadingModels = true
+  try {
+    const list = await FetchAiModels(aiConfig.baseUrl, aiConfig.apiKey)
+    const options = (list || []).map(id => ({ label: id, value: id }))
+    aiConfig._modelOptions = options
+    if (!aiConfig.modelName && options.length > 0) {
+      aiConfig.modelName = options[0].value
+    }
+    if (!options.length) {
+      message.warning('未从接口获取到可用模型，请检查地址和 apiKey')
+    }
+  } catch (e) {
+    console.error('FetchAiModels error', e)
+    message.error('获取模型列表失败，请检查接口地址和 apiKey')
+  } finally {
+    aiConfig._loadingModels = false
+  }
 }
 
 
@@ -447,7 +478,15 @@ function deletePrompt(ID) {
                                show-password-on="click"/>
                     </n-form-item-gi>
                     <n-form-item-gi :span="8" label="模型名称" :path="`openAI.aiConfigs[${index}].modelName`">
-                      <n-input type="text" placeholder="AI模型名称" v-model:value="aiConfig.modelName" clearable/>
+                      <n-select
+                        v-model:value="aiConfig.modelName"
+                        :options="aiConfig._modelOptions || []"
+                        filterable
+                        tag
+                        :loading="aiConfig._loadingModels"
+                        placeholder="点击获取模型列表或手动输入"
+                        @click="fetchAiModels(aiConfig)"
+                      />
                     </n-form-item-gi>
                     <n-form-item-gi :span="5" label="Temperature" :path="`openAI.aiConfigs[${index}].temperature`">
                       <n-input-number placeholder="temperature" v-model:value="aiConfig.temperature" :step="0.1"/>
