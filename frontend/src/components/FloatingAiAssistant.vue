@@ -278,7 +278,7 @@ const userPromptOptions = computed(() =>
   userPromptTemplates.value.map(t => ({ label: t.name ?? '', value: t.ID ?? t.id }))
 )
 const userPromptId = ref(null)
-const thinkingMode = ref(true)
+const thinkingMode = ref(false)
 const memoryMode = ref(true)
 const memoryCount = ref(5)
 const memoryCountOptions = [

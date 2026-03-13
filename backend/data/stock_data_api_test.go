@@ -369,3 +369,10 @@ func Test11(t *testing.T) {
 	}
 	logger.SugaredLogger.Infof("%s", resp.String())
 }
+
+func TestGetStockRZRQInfo(t *testing.T) {
+	db.Init("../../data/stock.db")
+	stockDataApi := NewStockDataApi()
+	res := stockDataApi.GetStockRZRQInfo("SZ001389")
+	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("SZ001389融资融券信息", res.Result.Data))
+}

@@ -78,7 +78,7 @@ const indexInterval = ref(null)
 const indexIndustryRank = ref(null)
 const stockCode= ref('')
 const enableTools= ref(true)
-const thinkingMode = ref(true)
+const thinkingMode = ref(false)
 const treemapRef = ref(null);
 let treemapchart =null;
 

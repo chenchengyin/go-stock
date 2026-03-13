@@ -434,7 +434,6 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 							"content":  reasoningContent,
 							"time":     time.Now().Format(time.DateTime),
 						}
-						currentAIContent.WriteString(reasoningContent)
 					}
 					if choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0 {
 						for _, call := range choice.Delta.ToolCalls {

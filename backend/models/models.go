@@ -1421,3 +1421,33 @@ type AiAssistantMessage struct {
 	Reasoning string `json:"reasoning"`
 	Time      string `json:"time"` // 消息时间，格式如 "2006-01-02 15:04:05"
 }
+
+type StockRZRQInfoResp struct {
+	Version string `json:"version"`
+	Result  struct {
+		Pages int             `json:"pages"`
+		Data  []StockRZRQInfo `json:"data"`
+		Count int             `json:"count"`
+	} `json:"result"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Code    int    `json:"code"`
+}
+
+type StockRZRQInfo struct {
+	MARKETNAME       string  `json:"MARKET_NAME" md:"交易所"`
+	MARKETCODE       string  `json:"MARKET_CODE" md:"交易所代码"`
+	TRADEDATE        string  `json:"TRADE_DATE" md:"交易日期"`
+	SECURITYCODE     string  `json:"SECURITY_CODE" md:"股票代码"`
+	SECUCODE         string  `json:"SECUCODE" md:"股票代码"`
+	SECURITYNAMEABBR string  `json:"SECURITY_NAME_ABBR" md:"股票名称"`
+	FINBALANCE       int64   `json:"FIN_BALANCE" md:"融资余额(元)"`
+	FINBUYAMT        int     `json:"FIN_BUY_AMT" md:"融资买入额(元)"`
+	FINREPAYAMT      int     `json:"FIN_REPAY_AMT" md:"融资还款额(元)"`
+	LOANBALANCE      float64 `json:"LOAN_BALANCE" md:"融券余额(元)"`
+	LOANSELLVOL      int     `json:"LOAN_SELL_VOL" md:"融券卖出量(股)"`
+	LOANREPAYVOL     int     `json:"LOAN_REPAY_VOL" md:"融券还款量(股)"`
+	MARGINBALANCE    float64 `json:"MARGIN_BALANCE" md:"两融余额(股)"`
+	LOANBALANCEVOL   int     `json:"LOAN_BALANCE_VOL" md:"融券余量(股)"`
+	FINNETBUYAMT     int     `json:"FIN_NETBUY_AMT" md:"融资净买入额(元)"`
+}

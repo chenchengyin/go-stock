@@ -355,6 +355,24 @@ func Tools(tools []Tool) []Tool {
 	tools = append(tools, Tool{
 		Type: "function",
 		Function: ToolFunction{
+			Name:        "GetStockRZRQInfo",
+			Description: "获取股票融资融券信息，包括融资余额、融券余额、两融余额、融资净买入等。适用于 A 股两融标的。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码。如：601138.SH、000001.SZ 或 sh601138、sz000001",
+					},
+				},
+				Required: []string{"stockCode"},
+			},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
 			Name:        "GetIndustryValuation",
 			Description: "获取行业/板块平均估值和中值（PE,PEG等）",
 			Parameters: &FunctionParameters{
@@ -631,6 +649,24 @@ func Tools(tools []Tool) []Tool {
 					},
 				},
 				Required: []string{"startDate", "endDate", "page", "pageSize"},
+			},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "StockNotice",
+			Description: "获取上市公司公告列表。可查询一只或多只股票的最新公告（如业绩预告、重大事项、募集资金、减持、增持、监管问题、财务异常等），多只股票用英文逗号分隔。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stock_list": map[string]any{
+						"type":        "string",
+						"description": "股票代码，多只用英文逗号分隔。例如：600584,600900 或 002046,601138",
+					},
+				},
+				Required: []string{"stock_list"},
 			},
 		},
 	})

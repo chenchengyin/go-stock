@@ -2298,3 +2298,23 @@ func (receiver StockDataApi) GetStockInfoByCode(secucode string) models.AllStock
 	db.Dao.Model(&models.AllStockInfo{}).Where("secucode = ?", secucode).First(&stock)
 	return stock
 }
+
+// GetStockRZRQInfo 获取融资融券信息
+func (receiver StockDataApi) GetStockRZRQInfo(stockCode string) models.StockRZRQInfoResp {
+	var StockRZRQInfoResp models.StockRZRQInfoResp
+	if !strutil.ContainsAny(stockCode, []string{"."}) {
+		stockCode = ConvertStockCodeToTushareCode(stockCode)
+	}
+	filter := url2.QueryEscape(fmt.Sprintf("(SECUCODE=\"%s\")", stockCode))
+	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_RZRQ_STOCKS_DETAIL&columns=MARKET_NAME%2CMARKET_CODE%2CTRADE_DATE%2CSECURITY_CODE%2CSECUCODE%2CSECURITY_NAME_ABBR%2CFIN_BALANCE%2CFIN_BUY_AMT%2CFIN_REPAY_AMT%2CLOAN_BALANCE%2CLOAN_SELL_VOL%2CLOAN_REPAY_VOL%2CMARGIN_BALANCE%2CLOAN_BALANCE_VOL%2CFIN_NETBUY_AMT&quoteColumns=&filter=" + filter + "&pageNumber=1&pageSize=50&sortTypes=-1&sortColumns=TRADE_DATE&source=Datacenter&client=PC&v=" + convertor.ToString(time.Now().Unix())
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		return StockRZRQInfoResp
+	}
+	json.Unmarshal(resp.Body(), &StockRZRQInfoResp)
+	return StockRZRQInfoResp
+}

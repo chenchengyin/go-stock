@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coocood/freecache"
+	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/random"
 	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/go-resty/resty/v2"
@@ -106,10 +107,35 @@ func TestIndustryResearchReport(t *testing.T) {
 func TestStockNotice(t *testing.T) {
 	db.Init("../../data/stock.db")
 	resp := NewMarketNewsApi().StockNotice("600584,600900")
-	for _, a := range resp {
-		logger.SugaredLogger.Debugf("value: %+v", a)
+	// 转为可表格化的结构：东方财富接口返回的 list 中每项为 map，字段名多为驼峰
+	type row struct {
+		Title      string `md:"公告标题"`
+		NoticeDate string `md:"公告日期"`
+		ColumnName string `md:"公告类型"`
 	}
+	var rows []row
+	for _, a := range resp {
+		m, ok := a.(map[string]any)
+		if !ok {
+			continue
+		}
+		if m["columns"].([]any) != nil && len(m["columns"].([]any)) > 0 {
+			columns := m["columns"].([]any)[0].(map[string]any)
+			rows = append(rows, row{
+				Title:      convertor.ToString(m["title"]),
+				NoticeDate: convertor.ToString(m["notice_date"]),
+				ColumnName: convertor.ToString(columns["column_name"]),
+			})
+		} else {
+			rows = append(rows, row{
+				Title:      convertor.ToString(m["title"]),
+				NoticeDate: convertor.ToString(m["notice_date"]),
+			})
+		}
 
+	}
+	md := util.MarkdownTableWithTitle("上市公司公告", rows)
+	logger.SugaredLogger.Infof(md)
 }
 
 func TestEMDictCode(t *testing.T) {
