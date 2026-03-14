@@ -95,6 +95,13 @@ const columnsRef = ref([
     }
   },
   {
+    title: '评级',
+    key: 'rating',
+    render(row, index) {
+      return h(NText, { type: "info" }, { default: () => row.rating || '-' })
+    }
+  },
+  {
     title: '推荐时间',
     key: 'dataTime',
     render(row, index) {
@@ -360,7 +367,7 @@ function handleSearch() {
   if (!loadingRef.value) {
     loadingRef.value = true
     query({
-      page: 1,
+      page: paginationReactive?.page ?? 1,
       pageSize: paginationReactive.pageSize,
       order: "desc",
       keyword: paginationReactive.keyword,
@@ -368,7 +375,7 @@ function handleSearch() {
       endDate: formatDate(paginationReactive.range[1])
     }).then((data) => {
       dataRef.value = data.data
-      paginationReactive.page = 1
+      paginationReactive.page = data.page
       paginationReactive.pageCount = data.pageCount
       paginationReactive.itemCount = data.total
       loadingRef.value = false

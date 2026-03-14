@@ -934,6 +934,7 @@ type AiRecommendStocks struct {
 	gorm.Model                  `md:"-"`
 	DataTime                    *time.Time `json:"dataTime" gorm:"index;autoCreateTime" md:"推荐时间"`
 	ModelName                   string     `json:"modelName" md:"模型名称"`
+	Rating                      string     `json:"rating" md:"评级"`
 	StockCode                   string     `json:"stockCode" md:"股票代码"`
 	StockName                   string     `json:"stockName" md:"股票名称"`
 	BkCode                      string     `json:"bkCode" md:"行业/板块代码"`
@@ -958,6 +959,7 @@ type AiRecommendStocks struct {
 type AiRecommendStocksMdExport struct {
 	DataTime                    string  `json:"dataTime"  md:"推荐时间"`
 	ModelName                   string  `json:"modelName" md:"模型名称"`
+	Rating                      string  `json:"rating" md:"评级"`
 	StockCode                   string  `json:"stockCode" md:"股票代码"`
 	StockName                   string  `json:"stockName" md:"股票名称"`
 	BkCode                      string  `json:"bkCode" md:"行业/板块代码"`
@@ -985,6 +987,7 @@ func (receiver AiRecommendStocks) ToMdExportStruct() AiRecommendStocksMdExport {
 	return AiRecommendStocksMdExport{
 		DataTime:                    receiver.DataTime.Format("2006-01-02 15:04:05"),
 		ModelName:                   receiver.ModelName,
+		Rating:                      receiver.Rating,
 		StockCode:                   receiver.StockCode,
 		StockName:                   receiver.StockName,
 		BkCode:                      receiver.BkCode,

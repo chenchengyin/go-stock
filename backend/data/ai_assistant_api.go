@@ -6,7 +6,7 @@ import (
 	"go-stock/backend/models"
 )
 
-const maxSavedMessages = 200
+const maxSavedMessages = 65535 * 10000
 
 // GetAiAssistantSession 获取最近一次会话的消息列表
 func GetAiAssistantSession() ([]models.AiAssistantMessage, error) {
@@ -26,7 +26,7 @@ func GetAiAssistantSession() ([]models.AiAssistantMessage, error) {
 	return list, nil
 }
 
-// SaveAiAssistantSession 保存会话消息到数据库（只保留最近一条会话，最多 maxSavedMessages 条消息）
+// SaveAiAssistantSession 保存会话消息到数据库（每次保存一条新会话记录，单条最多 maxSavedMessages 条消息）
 func SaveAiAssistantSession(messages []models.AiAssistantMessage) error {
 	if len(messages) == 0 {
 		return nil
@@ -41,11 +41,6 @@ func SaveAiAssistantSession(messages []models.AiAssistantMessage) error {
 	}
 	payload := string(raw)
 
-	var row models.AiAssistantSession
-	err = db.Dao.Model(&models.AiAssistantSession{}).Order("updated_at DESC").First(&row).Error
-	if err != nil {
-		// 无记录则新建
-		return db.Dao.Create(&models.AiAssistantSession{Messages: payload}).Error
-	}
-	return db.Dao.Model(&row).Update("messages", payload).Error
+	// 始终创建新会话记录，保留历史会话
+	return db.Dao.Create(&models.AiAssistantSession{Messages: payload}).Error
 }

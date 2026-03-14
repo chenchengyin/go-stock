@@ -426,11 +426,41 @@ func Tools(tools []Tool) []Tool {
 						"description": "开始时间（如：2026-02-23 00:00:00）",
 					},
 					"limit": map[string]any{
-						"type":        "string",
-						"description": "返回条数",
+						"type":        "number",
+						"description": "每页条数（未传 page/pageSize 时生效，默认 20）",
+					},
+					"page": map[string]any{
+						"type":        "number",
+						"description": "页码，从 1 开始",
+					},
+					"pageSize": map[string]any{
+						"type":        "number",
+						"description": "每页条数，与 page 配合使用",
 					},
 				},
-				Required: []string{"startTime", "limit"},
+				Required: []string{"startTime"},
+			},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "SendToDingDing",
+			Description: "将指定标题和内容以 Markdown 形式发送到钉钉机器人。用于把分析结果、摘要或通知推送到钉钉群。需在设置中开启钉钉推送并配置机器人 Webhook。通知内容需尽可能精简。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"title": map[string]any{
+						"type":        "string",
+						"description": "消息标题，会显示为「go-stock {title}」",
+					},
+					"message": map[string]any{
+						"type":        "string",
+						"description": "消息正文，支持 Markdown 格式，通知内容需尽可能精简",
+					},
+				},
+				Required: []string{"title", "message"},
 			},
 		},
 	})
@@ -447,6 +477,10 @@ func Tools(tools []Tool) []Tool {
 					"modelName": map[string]any{
 						"type":        "string",
 						"description": "模型名称",
+					},
+					"rating": map[string]any{
+						"type":        "string",
+						"description": "评级(买入:强烈看好，预期显著跑赢行业 / 大盘，涨幅空间大。 增持:依然看好，预期跑赢行业 / 大盘，但强度弱于买入。中性:不看多也不看空，预期基本持平市场 / 行业。减持:不看好，预期跑输行业 / 大盘，建议减仓。卖出:强烈看空，预期大幅跑输，建议回避。)",
 					},
 					"stockCode": map[string]any{
 						"type":        "string",
@@ -518,7 +552,7 @@ func Tools(tools []Tool) []Tool {
 						"description": "操作总结/备注",
 					},
 				},
-				Required: []string{"stockCode", "stockName", "bkName"},
+				Required: []string{"rating", "stockCode", "stockName", "bkName", "modelName", "recommendReason", "stockPrice"},
 			},
 		},
 	})
@@ -540,6 +574,10 @@ func Tools(tools []Tool) []Tool {
 								"modelName": map[string]any{
 									"type":        "string",
 									"description": "模型名称",
+								},
+								"rating": map[string]any{
+									"type":        "string",
+									"description": "评级(买入:强烈看好，预期显著跑赢行业 / 大盘，涨幅空间大。 增持:依然看好，预期跑赢行业 / 大盘，但强度弱于买入。中性:不看多也不看空，预期基本持平市场 / 行业。减持:不看好，预期跑输行业 / 大盘，建议减仓。卖出:强烈看空，预期大幅跑输，建议回避。)",
 								},
 								"stockCode": map[string]any{
 									"type":        "string",
@@ -614,7 +652,7 @@ func Tools(tools []Tool) []Tool {
 					},
 				},
 
-				Required: []string{"stockCode", "stockName", "bkName"},
+				Required: []string{"rating", "stockCode", "stockName", "bkName", "modelName", "recommendReason", "stockPrice"},
 			},
 		},
 	})

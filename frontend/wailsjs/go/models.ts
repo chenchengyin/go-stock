@@ -901,6 +901,7 @@ export namespace models {
 	    // Go type: time
 	    dataTime?: any;
 	    modelName: string;
+	    rating: string;
 	    stockCode: string;
 	    stockName: string;
 	    bkCode: string;
@@ -933,6 +934,7 @@ export namespace models {
 	        this.DeletedAt = this.convertValues(source["DeletedAt"], null);
 	        this.dataTime = this.convertValues(source["dataTime"], null);
 	        this.modelName = source["modelName"];
+	        this.rating = source["rating"];
 	        this.stockCode = source["stockCode"];
 	        this.stockName = source["stockName"];
 	        this.bkCode = source["bkCode"];

@@ -1,8 +1,10 @@
 package data
 
 import (
-	"github.com/go-resty/resty/v2"
 	"go-stock/backend/logger"
+
+	"github.com/duke-git/lancet/v2/strutil"
+	"github.com/go-resty/resty/v2"
 )
 
 // @Author spark
@@ -43,6 +45,14 @@ func getApiURL() string {
 }
 
 func (DingDingAPI) SendToDingDing(title, message string) string {
+	message = strutil.ReplaceWithMap(message, map[string]string{
+		"\\n":   "\n",
+		"\\r":   "\r",
+		"\\t":   "\t",
+		"\\\\n": "\n",
+		"\\\\r": "\r",
+		"\\\\t": "\t",
+	})
 	// 发送钉钉消息
 	resp, err := resty.New().R().
 		SetHeader("Content-Type", "application/json").

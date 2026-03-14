@@ -1210,13 +1210,24 @@ func (m MarketNewsApi) GetNews24HoursList(source string, limit int) *[]*models.T
 	return &uniqueNews
 }
 
-func (m MarketNewsApi) GetNewsListData(keyWord string, startTime time.Time, limit int) *[]*models.Telegraph {
+// GetNewsListData 分页获取新闻列表，page 从 1 开始，pageSize 为每页条数（<=0 时默认 20）。返回本页去重后的列表与总条数。
+func (m MarketNewsApi) GetNewsListData(keyWord string, startTime time.Time, page, pageSize int) (*[]*models.Telegraph, int64) {
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if page < 1 {
+		page = 1
+	}
+	whereCond := "created_at>? and (title like ? or content like ?)"
+	args := []any{startTime, "%" + keyWord + "%", "%" + keyWord + "%"}
+	var total int64
+	db.Dao.Model(&models.Telegraph{}).Where(whereCond, args...).Count(&total)
+	offset := (page - 1) * pageSize
 	news := &[]*models.Telegraph{}
-	db.Dao.Model(news).Preload("TelegraphTags").Where("created_at>? and (title like ? or content like ?)", startTime, "%"+keyWord+"%", "%"+keyWord+"%").Order("data_time desc,is_red desc").Limit(limit).Find(news)
+	db.Dao.Model(news).Preload("TelegraphTags").Where(whereCond, args...).Order("data_time desc,is_red desc").Offset(offset).Limit(pageSize).Find(news)
 	// 内容去重
 	uniqueNews := make([]*models.Telegraph, 0)
 	seenContent := make(map[string]bool)
-
 	for _, item := range *news {
 		contentKey := strings.TrimSpace(item.Content)
 		if item.Title != "" {
@@ -1227,5 +1238,5 @@ func (m MarketNewsApi) GetNewsListData(keyWord string, startTime time.Time, limi
 			uniqueNews = append(uniqueNews, item)
 		}
 	}
-	return &uniqueNews
+	return &uniqueNews, total
 }

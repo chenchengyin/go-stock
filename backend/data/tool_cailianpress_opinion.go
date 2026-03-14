@@ -1,13 +1,14 @@
 package data
 
 import (
-	"go-stock/backend/logger"
+	"strconv"
 	"strings"
 	"time"
 
-	"go-stock/backend/util"
-
 	"github.com/tidwall/gjson"
+
+	"go-stock/backend/logger"
+	"go-stock/backend/util"
 )
 
 func init() {
@@ -91,15 +92,26 @@ func handleGetNewsListData(o *OpenAi, funcArguments string, ctx *ToolContext) er
 	keyWord := gjson.Get(funcArguments, "keyWord").String()
 	startTime := gjson.Get(funcArguments, "startTime").String()
 	limit := gjson.Get(funcArguments, "limit").Int()
+	page := gjson.Get(funcArguments, "page").Int()
+	pageSize := gjson.Get(funcArguments, "pageSize").Int()
+	if pageSize <= 0 {
+		pageSize = limit
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if page < 1 {
+		page = 1
+	}
 
 	parseTime, err := time.Parse(time.DateTime, startTime)
 	if err != nil {
 		parseTime = time.Now().Add(-time.Hour * 24)
 	}
-	res := NewMarketNewsApi().GetNewsListData(keyWord, parseTime, int(limit))
+	list, total := NewMarketNewsApi().GetNewsListData(keyWord, parseTime, int(page), int(pageSize))
 	md := strings.Builder{}
-	md.WriteString("### " + "最近新闻资讯" + "\r\n")
-	for _, d := range *res {
+	md.WriteString("### " + "最近新闻资讯" + "（共 " + strconv.FormatInt(total, 10) + " 条，本页 " + strconv.Itoa(len(*list)) + " 条）\r\n")
+	for _, d := range *list {
 		md.WriteString(d.DataTime.Format(time.DateTime) + " " + d.Content + "\r\n")
 	}
 	logger.SugaredLogger.Infof("%s", md.String())

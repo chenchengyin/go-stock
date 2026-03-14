@@ -2,14 +2,16 @@ package data
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
 	"go-stock/backend/util"
-	"path/filepath"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/coocood/freecache"
 	"github.com/duke-git/lancet/v2/convertor"
@@ -333,10 +335,10 @@ func TestGetSecuritiesCompanyOpinion(t *testing.T) {
 }
 func TestGetNewsListData(t *testing.T) {
 	db.Init("../../data/stock.db")
-	res := NewMarketNewsApi().GetNewsListData("", time.Now().Add(-time.Hour*24*2), 2)
+	list, total := NewMarketNewsApi().GetNewsListData("", time.Now().Add(-time.Hour*24*2), 1, 2)
 	md := strings.Builder{}
-	md.WriteString("### " + "最近新闻资讯" + "\r\n")
-	for _, d := range *res {
+	md.WriteString("### " + "最近新闻资讯" + "（共 " + strconv.FormatInt(total, 10) + " 条）\r\n")
+	for _, d := range *list {
 		md.WriteString(d.DataTime.Format(time.DateTime) + " " + d.Content + "\r\n")
 	}
 	logger.SugaredLogger.Infof("%s", md.String())
