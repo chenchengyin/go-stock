@@ -121,8 +121,8 @@ func main() {
 	if err != nil {
 		log.SugaredLogger.Error("get screen resolution error")
 		// 获取失败时给一个合理的默认值
-		width = 1456
-		height = 900
+		width = 1412
+		height = 834
 	}
 
 	darkTheme := data.GetSettingConfig().DarkTheme
@@ -141,8 +141,8 @@ func main() {
 
 	// 若用户尚未调整过窗口或记录为 0，则按屏幕比例给一个合适默认值
 	if appWidth <= 0 || appHeight <= 0 {
-		appWidth = width * 7 / 10
-		appHeight = height * 7 / 10
+		appWidth = width * 5 / 10
+		appHeight = height * 5 / 10
 	}
 	log.SugaredLogger.Info("screen resolution: " + convertor.ToString(width) + "x" + convertor.ToString(height))
 	log.SugaredLogger.Info("window size: " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight))
@@ -150,13 +150,13 @@ func main() {
 	err = wails.Run(&options.App{
 		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT + " " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight),
 		// 默认窗口大小：自适应但保留明显边距
-		Width:     appWidth,
-		Height:    appHeight,
-		MinWidth:  minWidth,
-		MinHeight: minHeight,
+		Width:  appWidth,
+		Height: appHeight,
+		//MinWidth:  minWidth,
+		//MinHeight: minHeight,
 		// 限制最大尺寸不超过屏幕
-		MaxWidth:                 width,
-		MaxHeight:                height,
+		//MaxWidth:                 width,
+		//MaxHeight:                height,
 		DisableResize:            false,
 		Fullscreen:               false,
 		Frameless:                false,

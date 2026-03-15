@@ -236,9 +236,9 @@ func getScreenResolution() (int, int, int, int, error) {
 	w := int(screenWidth)
 	h := int(screenHeight)
 
-	// 最小宽高设为屏幕 3/5，避免在高分屏上窗口太小
-	minW := w * 3 / 5
-	minH := h * 3 / 5
+	// 最小宽高设为屏幕 2/5，避免在高分屏上窗口太小
+	minW := w * 2 / 5
+	minH := h * 2 / 5
 
 	return w, h, minW, minH, nil
 }
