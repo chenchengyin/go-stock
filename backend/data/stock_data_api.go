@@ -46,7 +46,7 @@ type StockDataApi struct {
 type StockInfo struct {
 	gorm.Model
 	Date     string  `json:"日期" gorm:"index"`
-	Time     string  `json:"时间" gorm:"index"`
+	Time     string  `json:"时间" gorm:"index" `
 	Code     string  `json:"股票代码" gorm:"index"`
 	Name     string  `json:"股票名称" gorm:"index"`
 	PrePrice float64 `json:"上次当前价格"`
@@ -2139,12 +2139,17 @@ func JSONToMarkdownTable(jsonData []byte) (string, error) {
 }
 
 type KLineData struct {
-	Day    string `json:"day"`
-	Open   string `json:"open"`
-	High   string `json:"high"`
-	Low    string `json:"low"`
-	Close  string `json:"close"`
-	Volume string `json:"volume"`
+	Day           string `json:"day" md:"时间/日期"`
+	Open          string `json:"open" md:"开盘价"`
+	Close         string `json:"close" md:"收盘价"`
+	High          string `json:"high" md:"最高价"`
+	Low           string `json:"low" md:"最低价"`
+	Volume        string `json:"volume" md:"成交量"`
+	Amount        string `json:"amount" md:"成交额"`
+	ChangePercent string `json:"changePercent" md:"涨跌幅"`
+	ChangeValue   string `json:"changeValue" md:"涨跌额"`
+	Amplitude     string `json:"amplitude" md:"振幅"`
+	TurnoverRate  string `json:"turnoverRate" md:"换手率"`
 }
 
 type MinuteData struct {

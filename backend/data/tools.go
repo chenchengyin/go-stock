@@ -171,6 +171,36 @@ func Tools(tools []Tool) []Tool {
 	tools = append(tools, Tool{
 		Type: "function",
 		Function: ToolFunction{
+			Name:        "GetEastMoneyKLine",
+			Description: "获取股票 K 线数据。支持日/周/月/季/年 K 线及 1/5/15/30/60 分钟线，可选前复权(qfq)或后复权(hfq)。股票代码格式：A股 000001.SZ、600000.SH，港股 00700.HK 等。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码。A股如 000001.SZ、600000.SH；港股如 00700.HK。",
+					},
+					"kLineType": map[string]any{
+						"type":        "string",
+						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K，quarter/季/104=季K，year/年/105=年K；分钟线：1/5/15/30/60。",
+					},
+					"adjustFlag": map[string]any{
+						"type":        "string",
+						"description": "复权类型，仅日K有效：空=不复权，qfq=前复权，hfq=后复权。",
+					},
+					"limit": map[string]any{
+						"type":        "number",
+						"description": "获取 K 线根数（日K为天数，周K为周数，月K为月数，分钟为天数内分钟数等）。",
+					},
+				},
+				Required: []string{"stockCode", "kLineType", "limit"},
+			},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
 			Name:        "InteractiveAnswer",
 			Description: "获取投资者与上市公司互动问答的数据,反映当前投资者关注的热点问题",
 			Parameters: &FunctionParameters{
