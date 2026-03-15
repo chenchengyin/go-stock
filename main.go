@@ -117,7 +117,7 @@ func main() {
 	log.SugaredLogger.Info("version: " + Version)
 	log.SugaredLogger.Info("commit: " + VersionCommit)
 	// 根据屏幕分辨率自适应窗口尺寸
-	width, height, minWidth, minHeight, err := getScreenResolution()
+	width, height, _, _, err := getScreenResolution()
 	if err != nil {
 		log.SugaredLogger.Error("get screen resolution error")
 		// 获取失败时给一个合理的默认值
