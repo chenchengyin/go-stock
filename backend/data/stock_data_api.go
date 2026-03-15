@@ -2139,17 +2139,18 @@ func JSONToMarkdownTable(jsonData []byte) (string, error) {
 }
 
 type KLineData struct {
-	Day           string `json:"day" md:"时间/日期"`
-	Open          string `json:"open" md:"开盘价"`
-	Close         string `json:"close" md:"收盘价"`
-	High          string `json:"high" md:"最高价"`
-	Low           string `json:"low" md:"最低价"`
-	Volume        string `json:"volume" md:"成交量"`
-	Amount        string `json:"amount" md:"成交额"`
-	ChangePercent string `json:"changePercent" md:"涨跌幅"`
-	ChangeValue   string `json:"changeValue" md:"涨跌额"`
-	Amplitude     string `json:"amplitude" md:"振幅"`
-	TurnoverRate  string `json:"turnoverRate" md:"换手率"`
+	Day           string            `json:"day" md:"时间/日期"`
+	Open          string            `json:"open" md:"开盘价"`
+	Close         string            `json:"close" md:"收盘价"`
+	High          string            `json:"high" md:"最高价"`
+	Low           string            `json:"low" md:"最低价"`
+	Volume        string            `json:"volume" md:"成交量"`
+	Amount        string            `json:"amount" md:"成交额"`
+	ChangePercent string            `json:"changePercent" md:"涨跌幅"`
+	ChangeValue   string            `json:"changeValue" md:"涨跌额"`
+	Amplitude     string            `json:"amplitude" md:"振幅"`
+	TurnoverRate  string            `json:"turnoverRate" md:"换手率"`
+	MA            map[string]string `json:"ma,omitempty" md:"均线"` // 周期 -> 均线值，如 "5":"12.34"，由 GetKLineWithMA 填充
 }
 
 type MinuteData struct {

@@ -53,6 +53,22 @@ type EastMoneyKLineResponse struct {
 	} `json:"data"`
 }
 
+// CallAuctionData 竞价数据结构
+type CallAuctionData struct {
+	Time         string // 时间 (HH:MM:SS)
+	Price        string // 撮合价格
+	Volume       string // 撮合数量 (手)
+	Amount       string // 撮合金额 (元)
+	ChangeNum    string // 增减量
+	ChangeRatio  string // 增减比例 (%)
+	MatchedVol   string // 匹配量
+	UnmatchedVol string // 未匹配量
+	AskPrice1    string // 卖一价
+	AskVol1      string // 卖一量
+	BidPrice1    string // 买一价
+	BidVol1      string // 买一量
+}
+
 // NewEastMoneyKLineApi 创建东方财富 K 线 API 实例
 func NewEastMoneyKLineApi(config *SettingConfig) *EastMoneyKLineApi {
 	return &EastMoneyKLineApi{
@@ -303,15 +319,77 @@ func (receiver *EastMoneyKLineApi) GetLatestKLine(stockCode string, kLineType st
 	return nil
 }
 
-// GetKLineWithMA 获取带均线的 K 线数据
+// GetKLineWithMA 获取带均线的 K 线数据，支持任意周期的简单移动平均（SMA，以收盘价计算）。
+// maPeriods 为均线周期，如 5,10,20,60,120；若未传则默认 5,10,20,60。
 func (receiver *EastMoneyKLineApi) GetKLineWithMA(stockCode string, kLineType string, days int, maPeriods ...int) (*[]KLineData, error) {
-	kLines := receiver.GetKLineData(stockCode, kLineType, "", days)
+	periods := maPeriods
+	if len(periods) == 0 {
+		periods = []int{5, 10, 20, 60}
+	}
+	maxPeriod := getMaxPeriod(periods)
+	fetchDays := days + maxPeriod
+	if fetchDays < 1 {
+		fetchDays = maxPeriod + 60
+	}
+	full := receiver.GetKLineData(stockCode, kLineType, "", fetchDays)
+	if full == nil || len(*full) == 0 {
+		return full, nil
+	}
+	total := len(*full)
+	// 收盘价序列（完整长度，用于计算均线）
+	closes := make([]float64, total)
+	for i, k := range *full {
+		v, _ := parseFloatToFloat(k.Close)
+		closes[i] = v
+	}
+	// 只返回最后 days 条
+	if total > days {
+		*full = (*full)[total-days:]
+		total = len(*full)
+	}
+	offset := len(closes) - total // 截取后在 closes 中的起始下标
+	// 对每个周期计算 SMA，并写回每条 K 线的 MA
+	for _, p := range periods {
+		if p <= 0 {
+			continue
+		}
+		for i := 0; i < total; i++ {
+			idx := offset + i
+			ma := computeSMA(closes, idx, p)
+			if ma < 0 {
+				continue
+			}
+			if (*full)[i].MA == nil {
+				(*full)[i].MA = make(map[string]string)
+			}
+			(*full)[i].MA[fmt.Sprintf("%d", p)] = fmt.Sprintf("%.4f", ma)
+		}
+	}
+	return full, nil
+}
 
-	// TODO: 计算均线
-	// 这里可以实现均线计算逻辑
-	// 需要获取足够的历史数据来计算各周期的均线值
+// computeSMA 计算 closes 从 idx 往前 period 根的收盘价简单移动平均；不足 period 根返回 -1。
+func computeSMA(closes []float64, idx, period int) float64 {
+	start := idx - period + 1
+	if start < 0 {
+		return -1
+	}
+	sum := 0.0
+	for j := start; j <= idx; j++ {
+		sum += closes[j]
+	}
+	return sum / float64(period)
+}
 
-	return kLines, nil
+// parseFloatToFloat 将 K 线价格字符串转为 float64
+func parseFloatToFloat(s string) (float64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "-" || s == "null" {
+		return 0, nil
+	}
+	var f float64
+	_, err := fmt.Sscanf(s, "%f", &f)
+	return f, err
 }
 
 func getMaxPeriod(periods []int) int {

@@ -201,6 +201,36 @@ func Tools(tools []Tool) []Tool {
 	tools = append(tools, Tool{
 		Type: "function",
 		Function: ToolFunction{
+			Name:        "GetEastMoneyKLineWithMA",
+			Description: "获取股票 K 线数据并带多条均线（SMA，按收盘价计算）。用于技术分析时同时查看 K 线与均线。股票代码格式同 GetEastMoneyKLine。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码。A股如 000001.SZ、600000.SH；港股如 00700.HK。",
+					},
+					"kLineType": map[string]any{
+						"type":        "string",
+						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K；分钟线：1/5/15/30/60。",
+					},
+					"limit": map[string]any{
+						"type":        "number",
+						"description": "获取 K 线根数（如 60 表示最近 60 根）。",
+					},
+					"maPeriods": map[string]any{
+						"type":        "string",
+						"description": "均线周期，逗号分隔，如 \"5,10,20,60\"。不传则默认 5,10,20,60。",
+					},
+				},
+				Required: []string{"stockCode", "kLineType", "limit"},
+			},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
 			Name:        "InteractiveAnswer",
 			Description: "获取投资者与上市公司互动问答的数据,反映当前投资者关注的热点问题",
 			Parameters: &FunctionParameters{

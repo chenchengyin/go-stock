@@ -3,6 +3,7 @@ package data
 import (
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"go-stock/backend/util"
 	"testing"
 )
 
@@ -235,4 +236,15 @@ func TestEastMoneyKLineApi_GetBatchKLineData(t *testing.T) {
 			t.Errorf("股票%s的 K 线数据为空", code)
 		}
 	}
+}
+
+func TestGetKLineWithMA(t *testing.T) {
+	config := GetSettingConfig()
+	api := NewEastMoneyKLineApi(config)
+	kLines, err := api.GetKLineWithMA("000001.SZ", "101", 10, 5, 10, 20, 60, 120)
+	if err != nil {
+		t.Errorf("GetKLineWithMA() error = %v", err)
+		return
+	}
+	logger.SugaredLogger.Infof("GetKLineWithMA() = %v", util.MarkdownTableWithTitle("K 线数据", kLines))
 }
