@@ -28,8 +28,10 @@ func normalizeKLineType(s string) string {
 		return "103"
 	case "quarter", "季", "104", "季k", "季k线":
 		return "104"
-	case "year", "年", "105", "年k", "年k线":
+	case "halfyear", "半年", "105", "半年k", "半年k线", "半年k线图":
 		return "105"
+	case "year", "年", "106", "年k", "年k线":
+		return "106"
 	case "1", "1min", "1分钟":
 		return "1"
 	case "5", "5min", "5分钟":
@@ -40,6 +42,8 @@ func normalizeKLineType(s string) string {
 		return "30"
 	case "60", "60min", "60分钟":
 		return "60"
+	case "120", "120min", "120分钟", "2h", "两小时", "2小时":
+		return "120"
 	default:
 		return s
 	}

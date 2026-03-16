@@ -24,16 +24,18 @@ type EastMoneyKLineApi struct {
 type KLineType string
 
 const (
-	KLineType1Min    KLineType = "1"   // 1 分钟
-	KLineType5Min    KLineType = "5"   // 5 分钟
-	KLineType15Min   KLineType = "15"  // 15 分钟
-	KLineType30Min   KLineType = "30"  // 30 分钟
-	KLineType60Min   KLineType = "60"  // 60 分钟
-	KLineTypeDay     KLineType = "101" // 日 K
-	KLineTypeWeek    KLineType = "102" // 周 K
-	KLineTypeMonth   KLineType = "103" // 月 K
-	KLineTypeQuarter KLineType = "104" // 季 K
-	KLineTypeYear    KLineType = "105" // 年 K
+	KLineType1Min     KLineType = "1"   // 1 分钟
+	KLineType5Min     KLineType = "5"   // 5 分钟
+	KLineType15Min    KLineType = "15"  // 15 分钟
+	KLineType30Min    KLineType = "30"  // 30 分钟
+	KLineType60Min    KLineType = "60"  // 60 分钟
+	KLineType120Min   KLineType = "120" // 120 分钟
+	KLineTypeDay      KLineType = "101" // 日 K
+	KLineTypeWeek     KLineType = "102" // 周 K
+	KLineTypeMonth    KLineType = "103" // 月 K
+	KLineTypeQuarter  KLineType = "104" // 季 K
+	KLineTypeHalfYear KLineType = "105" // 半年 K
+	KLineTypeYear     KLineType = "106" // 年 K
 )
 
 // EastMoneyKLineResponse 东方财富 K 线响应结构
@@ -79,7 +81,7 @@ func NewEastMoneyKLineApi(config *SettingConfig) *EastMoneyKLineApi {
 
 // GetKLineData 获取 K 线数据
 // stockCode: 股票代码 (如：000001.SZ, 600000.SH, HK.00700 等)
-// kLineType: K 线类型 (101=日 K, 102=周 K, 103=月 K, 104=季 K, 105=年 K, 或者分钟级别)
+// kLineType: K 线类型 (101=日 K, 102=周 K, 103=月 K, 104=季 K, 105=半年 K, 106=年 K，或者分钟级别)
 // adjustFlag: 复权标志 (空=不复权，qfq=前复权，hfq=后复权)
 // days: 获取天数
 func (receiver *EastMoneyKLineApi) GetKLineData(stockCode, kLineType, adjustFlag string, days int) *[]KLineData {
@@ -169,7 +171,7 @@ func (receiver *EastMoneyKLineApi) GetQuarterKLine(stockCode string, quarters in
 
 // GetYearKLine 获取年 K 线数据
 func (receiver *EastMoneyKLineApi) GetYearKLine(stockCode string, years int) *[]KLineData {
-	return receiver.GetKLineData(stockCode, "105", "", years)
+	return receiver.GetKLineData(stockCode, "106", "", years)
 }
 
 // GetAdjustedKLine 获取复权 K 线数据

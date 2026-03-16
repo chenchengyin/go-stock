@@ -182,7 +182,7 @@ func Tools(tools []Tool) []Tool {
 					},
 					"kLineType": map[string]any{
 						"type":        "string",
-						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K，quarter/季/104=季K，year/年/105=年K；分钟线：1/5/15/30/60。",
+						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K，quarter/季/104=季K，halfYear/半年/105=半年K，year/年/106=年K；分钟线：1/5/15/30/60/120。",
 					},
 					"adjustFlag": map[string]any{
 						"type":        "string",
@@ -212,7 +212,7 @@ func Tools(tools []Tool) []Tool {
 					},
 					"kLineType": map[string]any{
 						"type":        "string",
-						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K；分钟线：1/5/15/30/60。",
+						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K；分钟线：1/5/15/30/60/120。",
 					},
 					"limit": map[string]any{
 						"type":        "number",
@@ -220,7 +220,7 @@ func Tools(tools []Tool) []Tool {
 					},
 					"maPeriods": map[string]any{
 						"type":        "string",
-						"description": "均线周期，逗号分隔，如 \"5,10,20,60\"。不传则默认 5,10,20,60。",
+						"description": "均线周期，逗号分隔，如 \"5,10,20,60\"。不传则默认 5,10,20,60,120。",
 					},
 				},
 				Required: []string{"stockCode", "kLineType", "limit"},
