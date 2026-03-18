@@ -344,6 +344,43 @@ func Tools(tools []Tool) []Tool {
 	tools = append(tools, Tool{
 		Type: "function",
 		Function: ToolFunction{
+			Name: "GetMutualTop10Deal",
+			Description: "获取互联互通渠道即:北向资金（沪股通、深股通）南向资金（港股通）当日十大成交股数据。" +
+				"MUTUAL_TYPE=001 表示沪股通十大成交股；" +
+				"002 表示港股通(沪)十大成交股；" +
+				"003 表示深股通十大成交股；" +
+				"004 表示港股通(深)十大成交股。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"mutualType": map[string]any{
+						"type": "string",
+						"description": "互联互通通道类型：" +
+							"001=沪股通十大成交股，" +
+							"002=港股通(沪)十大成交股，" +
+							"003=深股通十大成交股，" +
+							"004=港股通(深)十大成交股",
+					},
+					"tradeDate": map[string]any{
+						"type":        "string",
+						"description": "交易日期，格式：YYYY-MM-DD，例如 2026-03-16",
+					},
+					"page": map[string]any{
+						"type":        "number",
+						"description": "页码，从 1 开始，默认 1",
+					},
+					"pageSize": map[string]any{
+						"type":        "number",
+						"description": "每页条数，默认 10",
+					},
+				},
+				Required: []string{"mutualType", "tradeDate"},
+			},
+		},
+	})
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
 			Name:        "GetStockConceptInfo",
 			Description: "获取股票所属概念详细信息",
 			Parameters: &FunctionParameters{

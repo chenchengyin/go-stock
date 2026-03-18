@@ -376,3 +376,10 @@ func TestGetStockRZRQInfo(t *testing.T) {
 	res := stockDataApi.GetStockRZRQInfo("SZ001389")
 	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("SZ001389融资融券信息", res.Result.Data))
 }
+
+func TestGetMutualTop10Deal(t *testing.T) {
+	db.Init("../../data/stock.db")
+	stockDataApi := NewStockDataApi()
+	res := stockDataApi.GetMutualTop10Deal("002", "2026-03-17", 1, 10)
+	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("SZ000001 mutual top 10 deal", res.Result.Data))
+}

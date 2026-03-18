@@ -903,6 +903,44 @@ type StockMoneyDataDiff struct {
 	F265 string  `json:"f265" md:"板块代码"`
 }
 
+// MutualTop10DealResp 沪深港通十大成交股响应
+type MutualTop10DealResp struct {
+	Code    int                 `json:"code"`
+	Message string              `json:"message"`
+	Result  MutualTop10DealData `json:"result"`
+	Success bool                `json:"success"`
+	Version string              `json:"version"`
+}
+
+// MutualTop10DealData 结果集
+type MutualTop10DealData struct {
+	Pages int                 `json:"pages"`
+	Data  []MutualTop10Record `json:"data"`
+	Count int                 `json:"count"`
+}
+
+// MutualTop10Record 单条互联互通十大成交股记录
+// MUTUAL_TYPE 含义：001=沪股通十大成交股, 002=港股通(沪)十大成交股, 003=深股通十大成交股, 004=港股通(深)十大成交股
+// 字段名参考东方财富 datacenter RPT_MUTUAL_TOP10DEAL 报表
+type MutualTop10Record struct {
+	MUTUALTYPE         string      `json:"MUTUAL_TYPE" md:"通道类型"`
+	SECURITYCODE       string      `json:"SECURITY_CODE" md:"股票代码"`
+	DERIVESECURITYCODE string      `json:"DERIVE_SECURITY_CODE" md:"完整股票代码"`
+	SECURITYNAME       string      `json:"SECURITY_NAME" md:"股票名称"`
+	TRADEDATE          string      `json:"TRADE_DATE" md:"交易日期"`
+	CLOSEPRICE         float64     `json:"CLOSE_PRICE" md:"收盘价"`
+	CHANGERATE         float64     `json:"CHANGE_RATE" md:"涨跌幅"`
+	NETBUYAMT          interface{} `json:"NET_BUY_AMT" md:"净买入额"`
+	RANK               int         `json:"RANK" md:"成交金额排名"`
+	BUYAMT             interface{} `json:"BUY_AMT" md:"买入额"`
+	SELLAMT            interface{} `json:"SELL_AMT" md:"卖出额"`
+	DEALAMT            int64       `json:"DEAL_AMT" md:"成交金额"`
+	DEALAMOUNT         float64     `json:"DEAL_AMOUNT" md:"总成交金额"`
+	MUTUALRATIO        float64     `json:"MUTUAL_RATIO" md:"占比成交"`
+	TURNOVERRATE       float64     `json:"TURNOVERRATE" md:"换手率"`
+	CHANGE             float64     `json:"CHANGE" md:"涨跌额"`
+}
+
 type StockConceptInfoResp struct {
 	Version string                 `json:"version"`
 	Result  StockConceptInfoResult `json:"result"`

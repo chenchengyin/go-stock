@@ -1905,6 +1905,68 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 	return resData
 }
 
+// GetMutualTop10Deal 获取互联互通（沪股通/深股通/港股通）十大成交股数据
+// mutualType: 001=沪股通十大成交股, 002=港股通(沪)十大成交股 , 003=深股通十大成交股, 004=港股通(深)十大成交股
+// tradeDate: 交易日期，格式如 2026-03-16
+func (receiver StockDataApi) GetMutualTop10Deal(mutualType, tradeDate string, page, pageSize int) *models.MutualTop10DealResp {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	filter := fmt.Sprintf("(MUTUAL_TYPE=\"%s\")(TRADE_DATE='%s')", mutualType, tradeDate)
+	encodedFilter := url2.QueryEscape(filter)
+
+	url := fmt.Sprintf("https://datacenter-web.eastmoney.com/web/api/data/v1/get?callback=data&sortColumns=RANK&sortTypes=1&pageSize=%d&pageNumber=%d&reportName=RPT_MUTUAL_TOP10DEAL&columns=ALL&source=WEB&client=WEB&filter=%s&_=%d",
+		pageSize, page, encodedFilter, time.Now().UnixMilli())
+
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter-web.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetMutualTop10Deal err:%s", err.Error())
+		return &models.MutualTop10DealResp{}
+	}
+
+	body := string(resp.Body())
+	logger.SugaredLogger.Infof("GetMutualTop10Deal resp:%s", body)
+
+	vm := otto.New()
+	// 将 JSONP 回调 data(...) 转成普通对象
+	_, err = vm.Run("function data(res){return res};")
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetMutualTop10Deal vm func error:%s", err.Error())
+		return &models.MutualTop10DealResp{}
+	}
+	val, err := vm.Run(body)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetMutualTop10Deal vm run error:%s", err.Error())
+		return &models.MutualTop10DealResp{}
+	}
+	value, err := val.Export()
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetMutualTop10Deal export error:%s", err.Error())
+		return &models.MutualTop10DealResp{}
+	}
+
+	marshal, err := json.Marshal(value)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetMutualTop10Deal marshal error:%s", err.Error())
+		return &models.MutualTop10DealResp{}
+	}
+
+	var resData models.MutualTop10DealResp
+	err = json.Unmarshal(marshal, &resData)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetMutualTop10Deal unmarshal error:%s", err.Error())
+		return &models.MutualTop10DealResp{}
+	}
+	return &resData
+}
+
 // 获取股票概念题材信息
 func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockConceptInfoResp {
 	//601138.SH
