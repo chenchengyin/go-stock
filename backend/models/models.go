@@ -1448,7 +1448,7 @@ type AiAssistantSession struct {
 	ID        uint      `json:"id" gorm:"primarykey"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
-	Messages  string    `json:"messages" gorm:"type:text"` // JSON 数组，每项 { role, content, reasoning }
+	Messages  string    `json:"messages" gorm:"type:text"` // JSON 数组，每项 { role, content, reasoning, time, modelName }
 }
 
 func (AiAssistantSession) TableName() string {
@@ -1460,7 +1460,8 @@ type AiAssistantMessage struct {
 	Role      string `json:"role"`
 	Content   string `json:"content"`
 	Reasoning string `json:"reasoning"`
-	Time      string `json:"time"` // 消息时间，格式如 "2006-01-02 15:04:05"
+	Time      string `json:"time"`                // 消息时间，格式如 "2006-01-02 15:04:05"
+	ModelName string `json:"modelName,omitempty"` // 助手回复所用模型展示名（如配置名称 + 模型名）
 }
 
 type StockRZRQInfoResp struct {

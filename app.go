@@ -1437,6 +1437,11 @@ func (a *App) GlobalStockIndexes() map[string]any {
 	return data.NewMarketNewsApi().GlobalStockIndexes(30)
 }
 
+// GlobalStockIndexesReadable 将全球指数 JSON 转为 AI 易读 Markdown 文本。
+func (a *App) GlobalStockIndexesReadable() string {
+	return data.NewMarketNewsApi().GlobalStockIndexesReadable(30)
+}
+
 func (a *App) SummaryStockNews(question string, aiConfigId int, sysPromptId *int, enableTools bool, think bool, eventName string, historyJSON string) {
 	ctx, cancel := context.WithCancel(a.ctx)
 

@@ -40,11 +40,10 @@ func TestGetSinaNews(t *testing.T) {
 
 func TestGlobalStockIndexes(t *testing.T) {
 	resp := NewMarketNewsApi().GlobalStockIndexes(30)
-	bytes, err := json.Marshal(resp)
-	if err != nil {
-		return
-	}
-	logger.SugaredLogger.Debugf("resp: %+v", string(bytes))
+
+	md := NewMarketNewsApi().GlobalStockIndexesToReadable(resp)
+
+	logger.SugaredLogger.Debugf("resp: \n%s", md)
 }
 
 func TestGetIndustryRank(t *testing.T) {

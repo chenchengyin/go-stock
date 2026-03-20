@@ -877,6 +877,7 @@ export namespace models {
 	    content: string;
 	    reasoning: string;
 	    time: string;
+	    modelName?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AiAssistantMessage(source);
@@ -888,6 +889,7 @@ export namespace models {
 	        this.content = source["content"];
 	        this.reasoning = source["reasoning"];
 	        this.time = source["time"];
+	        this.modelName = source["modelName"];
 	    }
 	}
 	export class AiRecommendStocks {

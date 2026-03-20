@@ -543,6 +543,14 @@ func Tools(tools []Tool) []Tool {
 	tools = append(tools, Tool{
 		Type: "function",
 		Function: ToolFunction{
+			Name:        "GlobalStockIndexesReadable",
+			Description: "获取全球主要指数概览，并输出为 AI 易读的 Markdown 结构化文本。",
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
 			Name:        "SendToDingDing",
 			Description: "将指定标题和内容以 Markdown 形式发送到钉钉机器人。用于把分析结果、摘要或通知推送到钉钉群。需在设置中开启钉钉推送并配置机器人 Webhook。通知内容需尽可能精简。",
 			Parameters: &FunctionParameters{
@@ -825,6 +833,14 @@ func Tools(tools []Tool) []Tool {
 				},
 				Required: []string{"startDate", "endDate"},
 			},
+		},
+	})
+
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name:        "GetCurrentTime",
+			Description: "获取当前本地时间（格式：YYYY-MM-DD HH:mm:ss）",
 		},
 	})
 

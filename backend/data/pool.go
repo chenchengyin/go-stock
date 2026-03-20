@@ -26,7 +26,10 @@ func NewBrowserPool(size int) *BrowserPool {
 			crawlTimeOut = 30
 		}
 		if path != "" {
-			ctx, _ := context.WithTimeout(context.Background(), time.Duration(crawlTimeOut)*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(crawlTimeOut)*time.Second)
+			// Note: cancel is intentionally not called here as chromedp handles
+			// context cleanup via chromedp.Cancel() in Put/Close methods
+			_ = cancel
 			ctx, _ = chromedp.NewExecAllocator(
 				ctx,
 				chromedp.ExecPath(path),

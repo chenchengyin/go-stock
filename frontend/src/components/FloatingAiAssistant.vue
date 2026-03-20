@@ -68,10 +68,25 @@
                   </div>
                   <div class="msg-bubble">
                     <template v-if="needBubbleCollapse(msg) && !isBubbleExpanded(displayFromIndex + index) && !(index === displayedMessages.length - 1 && isStreamLoad)">
-                      <div class="msg-content msg-content-collapsed">
-                        {{ getBubblePreview(msg) }}
+                      <div v-if="msg.role === 'assistant'" class="ai-reply-export-root">
+                        <div class="msg-content msg-content-collapsed" style="text-align: left">
+                          {{ getBubblePreview(msg) }}
+                        </div>
                       </div>
+                      <template v-else>
+                        <div class="msg-content msg-content-collapsed" style="text-align: left">
+                          {{ getBubblePreview(msg) }}
+                        </div>
+                        <div v-if="msg.role === 'user' && msg.time" class="msg-meta msg-meta-user-inner">
+                          <span class="msg-time">{{ msg.time }}</span>
+                        </div>
+                      </template>
+
                       <div class="msg-bubble-actions" v-if="msg.role === 'assistant'">
+                        <div v-if="msg.modelName || msg.time" class="msg-meta-row-assistant">
+                          <span v-if="msg.modelName" class="msg-model-name" :title="msg.modelName">{{ msg.modelName }}</span>
+                          <span v-if="msg.time" class="msg-time">{{ msg.time }}</span>
+                        </div>
                         <NButton quaternary size="tiny" class="msg-expand-btn" @click="toggleBubble(displayFromIndex + index)">
                           <template #icon>
                             <NIcon :component="ChevronDownOutline" />
@@ -84,6 +99,19 @@
                           </template>
                           复制
                         </NButton>
+                        <NButton
+                          quaternary
+                          size="tiny"
+                          class="msg-export-img-btn"
+                          :loading="exportImageKey === (displayFromIndex + '-' + index)"
+                          title="导出为图片"
+                          @click="exportAiReplyImage(displayFromIndex, index, $event)"
+                        >
+                          <template #icon>
+                            <NIcon :component="ImageOutline" />
+                          </template>
+                          导出图
+                        </NButton>
                         <NButton quaternary size="tiny" class="msg-share-btn" :loading="shareLoading" @click="shareAiContent(msg)">
                           <template #icon>
                             <NIcon :component="ShareSocialOutline" />
@@ -93,13 +121,45 @@
                       </div>
                     </template>
                     <template v-else>
-                      <div v-if="msg.role === 'assistant' && msg.reasoning" class="msg-reasoning">
-                        {{ msg.reasoning }}
+                      <div v-if="msg.role === 'assistant'" class="ai-reply-export-root">
+                        <div v-if="msg.reasoning" class="msg-reasoning">
+                          {{ msg.reasoning }}
+                        </div>
+                        <div class="msg-content">
+                          <MdPreview
+                            :theme="theme"
+                            :style="{ textAlign: 'left' }"
+                            v-if="msg.content"
+                            :model-value="msg.content"
+                            :editor-id="'ai-msg-' + (displayFromIndex + index)"
+                            class="msg-markdown"
+                          />
+                        </div>
                       </div>
-                      <div class="msg-content">
-                        <MdPreview :theme="theme" :style="{ textAlign: msg.role === 'user' ? 'right' : 'left' }" v-if="msg.content" :model-value="msg.content" :editor-id="'ai-msg-' + (displayFromIndex + index)" class="msg-markdown" />
+                      <div v-else class="msg-content">
+                        <!-- 用户提问时间：气泡内、正文下方右对齐 -->
+                        <div v-if="msg.role === 'user' && msg.time" class="msg-meta msg-meta-user-inner">
+                          <span class="msg-time">{{ msg.time }}</span>
+                        </div>
+                        <MdPreview
+                          :theme="theme"
+                          :style="{ textAlign: 'right' }"
+                          v-if="msg.content"
+                          :model-value="msg.content"
+                          :editor-id="'ai-msg-' + (displayFromIndex + index)"
+                          class="msg-markdown"
+                        />
                       </div>
+
                       <div class="msg-bubble-actions" v-if="msg.role === 'assistant'">
+                        <div v-if="msg.role === 'assistant' && isStreamLoad && index === displayedMessages.length - 1" class="msg-loading msg-loading-row">
+                          <NSpin size="small" />
+                          <span>思考中...</span>
+                        </div>
+                        <div v-if="msg.modelName || msg.time" class="msg-meta-row-assistant">
+                          <span v-if="msg.modelName" class="msg-model-name" :title="msg.modelName">{{ msg.modelName }}</span>
+                          <span v-if="msg.time" class="msg-time">{{ msg.time }}</span>
+                        </div>
                         <NButton v-if="needBubbleCollapse(msg) && !(index === displayedMessages.length - 1 && isStreamLoad)" quaternary size="tiny" class="msg-expand-btn" @click="toggleBubble(displayFromIndex + index)">
                           <template #icon>
                             <NIcon :component="ChevronUpOutline" />
@@ -112,6 +172,19 @@
                           </template>
                           复制
                         </NButton>
+                        <NButton
+                          quaternary
+                          size="tiny"
+                          class="msg-export-img-btn"
+                          :loading="exportImageKey === (displayFromIndex + '-' + index)"
+                          title="导出为图片"
+                          @click="exportAiReplyImage(displayFromIndex, index, $event)"
+                        >
+                          <template #icon>
+                            <NIcon :component="ImageOutline" />
+                          </template>
+                          导出图
+                        </NButton>
                         <NButton quaternary size="tiny" class="msg-share-btn" :loading="shareLoading" @click="shareAiContent(msg)">
                           <template #icon>
                             <NIcon :component="ShareSocialOutline" />
@@ -120,13 +193,6 @@
                         </NButton>
                       </div>
                     </template>
-                    <div v-if="msg.role === 'assistant' && isStreamLoad && index === displayedMessages.length - 1" class="msg-loading">
-                      <NSpin size="small" />
-                      <span>思考中...</span>
-                    </div>
-                    <div v-if="msg.time" class="msg-meta">
-                      <span class="msg-time">{{ msg.time }}</span>
-                    </div>
                   </div>
                   <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">
                     <NIcon :component="PersonCircleOutline" size="20" />
@@ -241,15 +307,18 @@ import {
   SparklesOutline,
   PersonCircleOutline,
   CopyOutline,
-  ShareSocialOutline
+  ShareSocialOutline,
+  ImageOutline
 } from '@vicons/ionicons5'
 import { AbortSummaryStockNews, GetAiAssistantSession, GetAiConfigs, GetConfig, GetPromptTemplates, GetSponsorInfo, GetVersionInfo, SaveAiAssistantSession, ShareText, SummaryStockNews } from '../../wailsjs/go/main/App'
 import { EventsOn, EventsOff } from '../../wailsjs/runtime'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
+import html2canvas from 'html2canvas'
 
 const DEFAULT_VISIBLE_COUNT = 20
 const COLLAPSE_CHAR_LIMIT = 200
+const STORAGE_KEY_MODEL_ID = 'go-stock-ai-last-model-id'
 
 const route = useRoute()
 // 注意：抽屉遮罩层 z-index 很高，使用全局 notification/message 可能被遮罩盖住。
@@ -267,6 +336,15 @@ const sentFromFloating = ref(false)
 const messages = ref([])
 const aiConfigOptions = ref([])
 const aiConfigId = ref(null)
+
+/** 当前选中配置在列表中的展示文案（与底部「选择模型」一致），用于写入每条助手回复 */
+function modelLabelForConfig(configId) {
+  const opts = aiConfigOptions.value
+  if (!opts?.length) return ''
+  const id = configId != null ? Number(configId) : Number(opts[0].value)
+  const found = opts.find(o => Number(o.value) === id)
+  return found?.label != null ? String(found.label) : ''
+}
 
 // 系统提示词模板（System Prompt）
 const sysPromptTemplates = ref([])
@@ -303,6 +381,8 @@ const scrollbarRef = ref(null)
 const darkTheme = ref(false)
 const appIcon = ref('')
 const shareLoading = ref(false)
+/** 正在导出图片的消息键 `${displayFromIndex}-${index}`，空表示未在导出 */
+const exportImageKey = ref('')
 const shareTipVisible = ref(false)
 const shareTipText = ref('')
 const vipLevel = ref(0)
@@ -363,6 +443,60 @@ function shareAiContent(msg) {
     return
   }
   shareTextToCommunity(text, 'AI助手')
+}
+
+function assistantReplyExportTarget(editorId, bubble) {
+  const root = bubble?.querySelector('.ai-reply-export-root')
+  if (root) return root
+  return (
+    document.getElementById(`${editorId}-preview-wrapper`) ||
+    document.getElementById(`${editorId}-preview`) ||
+    bubble?.querySelector('.md-editor-preview') ||
+    null
+  )
+}
+
+async function exportAiReplyImage(displayFromIndex, index, evt) {
+  const msg = messages.value[displayFromIndex + index]
+  if (msg?.role !== 'assistant') return
+  if (!getBubbleFullText(msg).trim()) {
+    shareTipText.value = '暂无可导出的 AI 回答内容'
+    shareTipVisible.value = true
+    return
+  }
+  const editorId = 'ai-msg-' + (displayFromIndex + index)
+  const bubble = evt?.currentTarget?.closest?.('.msg-bubble')
+  const key = `${displayFromIndex}-${index}`
+  if (exportImageKey.value) return
+  exportImageKey.value = key
+  await nextTick()
+  try {
+    const target = assistantReplyExportTarget(editorId, bubble)
+    if (!target) {
+      shareTipText.value = '未找到预览区域，请展开回答后重试'
+      shareTipVisible.value = true
+      return
+    }
+    const canvas = await html2canvas(target, {
+      useCORS: true,
+      scale: 2,
+      allowTaint: true,
+      logging: false,
+      backgroundColor: darkTheme.value ? '#1e1e1e' : '#ffffff'
+    })
+    const link = document.createElement('a')
+    const safeTime = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')
+    link.href = canvas.toDataURL('image/png')
+    link.download = `go-stock-ai-${safeTime}.png`
+    link.click()
+    shareTipText.value = '已导出为 PNG 图片'
+    shareTipVisible.value = true
+  } catch (e) {
+    shareTipText.value = '导出图片失败: ' + (e?.message ?? e)
+    shareTipVisible.value = true
+  } finally {
+    exportImageKey.value = ''
+  }
 }
 
 async function copyAiContent(msg) {
@@ -440,9 +574,7 @@ function showMoreHistory() {
   nextTick(scrollToBottom)
 }
 
-const theme = computed(() => {
-  return darkTheme ? 'dark' : 'light'
-})
+const theme = computed(() => (darkTheme.value ? 'dark' : 'light'))
 async function loadHistory() {
   try {
     const list = await GetAiAssistantSession()
@@ -451,7 +583,8 @@ async function loadHistory() {
         role: m.role ?? '',
         content: m.content ?? '',
         reasoning: m.reasoning ?? '',
-        time: m.time ?? ''
+        time: m.time ?? '',
+        modelName: m.modelName ?? ''
       }))
       // 默认展开最后一条助手回答
       for (let i = messages.value.length - 1; i >= 0; i--) {
@@ -473,7 +606,8 @@ function saveHistory() {
     role: m.role,
     content: m.content,
     reasoning: m.reasoning ?? '',
-    time: m.time ?? ''
+    time: m.time ?? '',
+    modelName: m.modelName ?? ''
   }))
   SaveAiAssistantSession(list).catch(() => {})
 }
@@ -486,7 +620,8 @@ function openPanel() {
         role: 'assistant',
         content: '我是 go-stock AI 助手，可随时在这里提问。支持股票、市场、投资等相关问题。',
         reasoning: '',
-        time: new Date().toLocaleString()
+        time: new Date().toLocaleString(),
+        modelName: ''
       }
     ]
   }
@@ -548,21 +683,23 @@ function sendMessage() {
     role: 'user',
     content: text,
     reasoning: '',
-    time: new Date().toLocaleString()
+    time: new Date().toLocaleString(),
+    modelName: ''
   })
+  const configId = aiConfigId.value ?? aiConfigOptions.value[0]?.value ?? 0
+  const modelName = modelLabelForConfig(configId)
   messages.value.push({
     role: 'assistant',
     content: '',
     reasoning: '',
-    time: new Date().toLocaleString()
+    time: new Date().toLocaleString(),
+    modelName
   })
   inputValue.value = ''
   isStreamLoad.value = true
   isAborted.value = false
   sentFromFloating.value = true
   saveHistory()
-
-  const configId = aiConfigId.value ?? aiConfigOptions.value[0]?.value ?? 0
   // 系统提示词：传递模板 ID，后端根据 ID 读取 System Prompt
   const sysId = sysPromptId.value != null ? Number(sysPromptId.value) : null
   // 记忆模式：带上最近 N 条对话（排除当前这条空的 assistant 占位）
@@ -667,14 +804,30 @@ onMounted(() => {
         value: id
       }
     })
-    if (aiConfigOptions.value.length && (aiConfigId.value == null)) {
-      aiConfigId.value = aiConfigOptions.value[0].value
+    if (aiConfigOptions.value.length) {
+      // 优先使用 localStorage 中保存的上一次模型 ID
+      const lastModelId = localStorage.getItem(STORAGE_KEY_MODEL_ID)
+      if (lastModelId) {
+        const foundId = Number(lastModelId)
+        // 检查该 ID 是否仍然可用
+        const isValid = aiConfigOptions.value.some(opt => opt.value === foundId)
+        aiConfigId.value = isValid ? foundId : aiConfigOptions.value[0].value
+      } else {
+        aiConfigId.value = aiConfigOptions.value[0].value
+      }
     }
   })
   loadPromptTemplates()
   GetVersionInfo().then(res => {
     if (res?.icon) appIcon.value = res.icon
   })
+})
+
+// 监听模型选择变化，保存到 localStorage
+watch(aiConfigId, (newId) => {
+  if (newId != null) {
+    localStorage.setItem(STORAGE_KEY_MODEL_ID, String(newId))
+  }
 })
 </script>
 
@@ -917,14 +1070,41 @@ onMounted(() => {
 }
 .msg-bubble-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
   align-items: center;
   margin-top: 8px;
 }
+.msg-meta-row-assistant {
+  flex: 1 1 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--n-text-color-3);
+}
+.msg-meta-row-assistant .msg-time {
+  flex-shrink: 0;
+}
+.msg-model-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.msg-loading-row {
+  flex: 1 1 100%;
+  justify-content: flex-end;
+  margin-top: 0;
+}
 .msg-share-btn,
 .msg-expand-btn,
-.msg-copy-btn {
+.msg-copy-btn,
+.msg-export-img-btn {
   padding: 2px 10px;
   font-size: 12px;
   border-radius: 12px;
@@ -935,21 +1115,24 @@ onMounted(() => {
 }
 .msg-share-btn:hover,
 .msg-expand-btn:hover,
-.msg-copy-btn:hover {
+.msg-copy-btn:hover,
+.msg-export-img-btn:hover {
   border-color: var(--n-primary-color);
   background-color: var(--n-primary-color);
   color: #fff;
 }
 .message-item.user .msg-bubble .msg-share-btn,
 .message-item.user .msg-bubble .msg-expand-btn,
-.message-item.user .msg-bubble .msg-copy-btn {
+.message-item.user .msg-bubble .msg-copy-btn,
+.message-item.user .msg-bubble .msg-export-img-btn {
   color: rgba(255, 255, 255, 0.92);
   background-color: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.65);
 }
 .message-item.user .msg-bubble .msg-share-btn:hover,
 .message-item.user .msg-bubble .msg-expand-btn:hover,
-.message-item.user .msg-bubble .msg-copy-btn:hover {
+.message-item.user .msg-bubble .msg-copy-btn:hover,
+.message-item.user .msg-bubble .msg-export-img-btn:hover {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.95);
   background-color: rgba(255, 255, 255, 0.32);
@@ -981,10 +1164,17 @@ onMounted(() => {
   font-size: 11px;
   color: var(--n-text-color-3);
   display: flex;
-  justify-content: flex-end;
 }
-.message-item.user .msg-meta {
-  justify-content: flex-start;
+.msg-meta-user-inner {
+  justify-content: flex-end;
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+.message-item.user .msg-meta-user-inner {
+  color: rgba(255, 255, 255, 0.78);
+}
+.msg-meta-right {
+  flex: auto;
 }
 
 .chat-footer {

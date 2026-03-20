@@ -355,6 +355,96 @@ func (m MarketNewsApi) GlobalStockIndexes(crawlTimeOut uint) map[string]any {
 	return res["data"].(map[string]any)
 }
 
+// GlobalStockIndexesReadable 获取全球指数并转换为 AI 易读的 Markdown 文本。
+func (m MarketNewsApi) GlobalStockIndexesReadable(crawlTimeOut uint) string {
+	data := m.GlobalStockIndexes(crawlTimeOut)
+	return m.GlobalStockIndexesToReadable(data)
+}
+
+// GlobalStockIndexesToReadable 将 GlobalStockIndexes 返回的 JSON 转为 AI 易读格式（Markdown）。
+//
+//	输入示例：map[string]any{
+//	  "america": []any{...},
+//	  "asia":    []any{...},
+//	  "europe":  []any{...},
+//	  "other":   []any{...},
+//	  "common":  []any{...},
+//	}
+func (m MarketNewsApi) GlobalStockIndexesToReadable(data map[string]any) string {
+	if len(data) == 0 {
+		return "暂无全球指数数据。"
+	}
+	type regionDef struct {
+		Key   string
+		Title string
+	}
+	regions := []regionDef{
+		{Key: "common", Title: "重点关注"},
+		{Key: "asia", Title: "亚洲市场"},
+		{Key: "america", Title: "美洲市场"},
+		{Key: "europe", Title: "欧洲市场"},
+		{Key: "other", Title: "其他市场"},
+	}
+
+	stateText := func(v string) string {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "open":
+			return "开盘"
+		case "close":
+			return "收盘"
+		default:
+			if v == "" {
+				return "-"
+			}
+			return v
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# 全球主要指数概览\n")
+	sb.WriteString("> 数据来源：腾讯财经，已按区域整理。\n\n")
+
+	written := 0
+	for _, region := range regions {
+		raw, ok := data[region.Key]
+		if !ok || raw == nil {
+			continue
+		}
+		list, ok := raw.([]any)
+		if !ok || len(list) == 0 {
+			continue
+		}
+		written++
+		sb.WriteString("## ")
+		sb.WriteString(region.Title)
+		sb.WriteString("\n")
+		sb.WriteString("| 指数 | 地区 | 最新点位 | 涨跌幅(%) | 状态 |\n")
+		sb.WriteString("| --- | --- | ---: | ---: | --- |\n")
+
+		for _, item := range list {
+			row, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			name := convertor.ToString(row["name"])
+			location := convertor.ToString(row["location"])
+			zxj := convertor.ToString(row["zxj"])
+			zdf := convertor.ToString(row["zdf"])
+			state := stateText(convertor.ToString(row["state"]))
+			if name == "" {
+				name = convertor.ToString(row["code"])
+			}
+			sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s |\n", name, location, zxj, zdf, state))
+		}
+		sb.WriteString("\n")
+	}
+
+	if written == 0 {
+		return "暂无可解析的全球指数数据。"
+	}
+	return sb.String()
+}
+
 func (m MarketNewsApi) GetIndustryRank(sort string, cnt int) map[string]any {
 
 	url := fmt.Sprintf("https://proxy.finance.qq.com/ifzqgtimg/appstock/app/mktHs/rank?l=%d&p=1&t=01/averatio&ordertype=&o=%s", cnt, sort)

@@ -139,6 +139,8 @@ export function GetfundList(arg1:string):Promise<Array<data.FundBasic>>;
 
 export function GlobalStockIndexes():Promise<Record<string, any>>;
 
+export function GlobalStockIndexesReadable():Promise<string>;
+
 export function Greet(arg1:string):Promise<data.StockInfo>;
 
 export function HotEvent(arg1:number):Promise<any>;

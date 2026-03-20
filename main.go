@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	assistantweb "go-stock/ai-assistant-web"
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	log "go-stock/backend/logger"
@@ -67,6 +68,7 @@ func main() {
 	}()
 
 	checkDir("data")
+	data.SponsorDecryptKeyHex = BuildKey
 	db.Init("")
 	data.InitAnalyzeSentiment()
 	go AutoMigrate()
@@ -146,6 +148,15 @@ func main() {
 	}
 	log.SugaredLogger.Info("screen resolution: " + convertor.ToString(width) + "x" + convertor.ToString(height))
 	log.SugaredLogger.Info("window size: " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight))
+
+	// 作为 go-stock 子组件启动独立 Web 服务
+	// 端口默认由 AI_ASSISTANT_WEB_ADDR 决定。
+	go func() {
+		if err := assistantweb.Start(); err != nil {
+			log.SugaredLogger.Errorf("ai-assistant-web start error: %v", err)
+		}
+	}()
+
 	// Create application with options
 	err = wails.Run(&options.App{
 		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT + " " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight),
