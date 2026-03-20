@@ -12,7 +12,7 @@ import (
 
 // DefaultSponsorAESKeyHex 与 main.checkDir 在 BuildKey 为空时的回退值一致，
 // 供 ai-assistant-web 等独立进程解密本地配置中的赞助码。
-const DefaultSponsorAESKeyHex = "cc1e0d684e32f176c56ff1fcf384dcd9"
+const DefaultSponsorAESKeyHex = ""
 
 // SponsorDecryptKeyHex 由主程序在启动时同步为 ldflags 注入的 BuildKey；为空则使用 DefaultSponsorAESKeyHex。
 var SponsorDecryptKeyHex string
