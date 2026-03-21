@@ -99,6 +99,8 @@ export function GetCronTaskList(arg1:models.CronTaskQuery):Promise<models.CronTa
 
 export function GetCronTaskTypes():Promise<Array<lo.Tuple2_string_string_>>;
 
+export function GetEffectiveSponsorVip():Promise<Record<string, any>>;
+
 export function GetFollowList(arg1:number):Promise<any>;
 
 export function GetFollowedFund():Promise<Array<data.FollowedFund>>;
@@ -122,6 +124,10 @@ export function GetPromptTemplates(arg1:string,arg2:string):Promise<any>;
 export function GetSponsorInfo():Promise<Record<string, any>>;
 
 export function GetStockCommonKLine(arg1:string,arg2:string,arg3:number):Promise<any>;
+
+export function GetStockEastMoneyKLine(arg1:string,arg2:string,arg3:string,arg4:number):Promise<any>;
+
+export function GetStockEastMoneyKLinePage(arg1:string,arg2:string,arg3:string,arg4:number,arg5:string):Promise<any>;
 
 export function GetStockKLine(arg1:string,arg2:string,arg3:number):Promise<any>;
 

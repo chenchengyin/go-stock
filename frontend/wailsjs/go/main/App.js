@@ -190,6 +190,10 @@ export function GetCronTaskTypes() {
   return window['go']['main']['App']['GetCronTaskTypes']();
 }
 
+export function GetEffectiveSponsorVip() {
+  return window['go']['main']['App']['GetEffectiveSponsorVip']();
+}
+
 export function GetFollowList(arg1) {
   return window['go']['main']['App']['GetFollowList'](arg1);
 }
@@ -236,6 +240,14 @@ export function GetSponsorInfo() {
 
 export function GetStockCommonKLine(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetStockCommonKLine'](arg1, arg2, arg3);
+}
+
+export function GetStockEastMoneyKLine(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetStockEastMoneyKLine'](arg1, arg2, arg3, arg4);
+}
+
+export function GetStockEastMoneyKLinePage(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['GetStockEastMoneyKLinePage'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function GetStockKLine(arg1, arg2, arg3) {
