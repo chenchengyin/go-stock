@@ -66,6 +66,15 @@ func NewApp() *App {
 func (a *App) GetSponsorInfo() map[string]any {
 	return a.SponsorInfo
 }
+
+// GetEffectiveSponsorVip 从本地配置解密赞助信息并判断当前是否在 VIP 有效期内（与 ai-assistant-web / data.EffectiveSponsorVipLevel 一致）。
+func (a *App) GetEffectiveSponsorVip() map[string]any {
+	level, active := data.EffectiveSponsorVipLevel()
+	return map[string]any{
+		"vipLevel": level,
+		"active":   active,
+	}
+}
 func (a *App) CheckSponsorCode(sponsorCode string) map[string]any {
 	sponsorCode = strutil.Trim(sponsorCode)
 	if sponsorCode != "" {
@@ -165,13 +174,12 @@ func (a *App) CheckUpdate(flag int) {
 			releaseVersion.Commit = *commit
 		}
 
-		if !(IsWindows() || IsMacOS()) {
-			go runtime.EventsEmit(a.ctx, "updateVersion", releaseVersion)
-			return
-		}
+		// 构建下载链接
 		downloadUrl := fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-windows-amd64.exe", releaseVersion.TagName)
 		if IsMacOS() {
 			downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-darwin-universal", releaseVersion.TagName)
+		} else if IsLinux() {
+			downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-linux-amd64", releaseVersion.TagName)
 		}
 		downloadUrl, _, done := a.isVip(sponsorCode, downloadUrl, releaseVersion)
 		if !done {
@@ -285,6 +293,17 @@ func (a *App) isVip(sponsorCode string, downloadUrl string, releaseVersion *mode
 				}
 			} else {
 				downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-darwin-universal", releaseVersion.TagName)
+			}
+		}
+		if IsLinux() {
+			if isVip {
+				if a.SponsorInfo["linuxDownUrl"] == nil {
+					downloadUrl = fmt.Sprintf("https://gitproxy.click/https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-linux-amd64", releaseVersion.TagName)
+				} else {
+					downloadUrl = a.SponsorInfo["linuxDownUrl"].(string)
+				}
+			} else {
+				downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-linux-amd64", releaseVersion.TagName)
 			}
 		}
 
@@ -1417,6 +1436,37 @@ func (a *App) GetStockMinutePriceLineData(stockCode, stockName string) map[strin
 
 func (a *App) GetStockCommonKLine(stockCode, stockName string, days int64) *[]data.KLineData {
 	return data.NewStockDataApi().GetCommonKLineData(stockCode, "day", days)
+}
+
+// GetStockEastMoneyKLine 东方财富多周期 K 线（分钟：1/5/10/60/120；日 101、周 102、半年 105、年 106）。
+// klt 与东方财富接口一致；10 分钟由 1 分钟数据聚合。limit 为根数上限（最大 5000）。
+func (a *App) GetStockEastMoneyKLine(stockCode, stockName string, klt string, limit int) *[]data.KLineData {
+	return a.GetStockEastMoneyKLinePage(stockCode, stockName, klt, limit, "")
+}
+
+// GetStockEastMoneyKLinePage 分页拉取 K 线：end 为东财 end 参数（YYYYMMDD 或 YYYYMMDDHHmmss），空字符串表示取最新一段（同 GetStockEastMoneyKLine）。
+func (a *App) GetStockEastMoneyKLinePage(stockCode, stockName string, klt string, limit int, end string) *[]data.KLineData {
+	if limit <= 0 {
+		limit = 500
+	}
+	if limit > 5000 {
+		limit = 5000
+	}
+	klt = strings.TrimSpace(klt)
+	if klt == "" {
+		klt = "1"
+	}
+	api := data.NewEastMoneyKLineApi(data.GetSettingConfig())
+	end = strings.TrimSpace(end)
+	if klt == "10" {
+		fetchN := limit * 10
+		if fetchN > 5000 {
+			fetchN = 5000
+		}
+		raw := api.GetKLineDataBefore(stockCode, "1", "", fetchN, end)
+		return data.AggregateKLineEveryN(raw, 10)
+	}
+	return api.GetKLineDataBefore(stockCode, klt, "", limit, end)
 }
 
 func (a *App) GetTelegraphList(source string) *[]*models.Telegraph {

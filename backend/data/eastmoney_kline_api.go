@@ -4,11 +4,54 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/logger"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 )
+
+// 模拟 Windows 上 Chrome 从 quote.eastmoney.com 请求 push2his 行情接口（与 DevTools Network 常见字段对齐）。
+// 不显式设置 Accept-Encoding：由 net/http 默认协商 gzip 并自动解压；若声明 br/zstd 而 Transport 不解压会导致乱码/失败。
+const eastMoneyKlineChromeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+func setEastMoneyKlineBrowserHeaders(r *resty.Request) {
+	r.SetHeader("User-Agent", eastMoneyKlineChromeUA)
+	r.SetHeader("Accept", "application/json, text/plain, */*")
+	r.SetHeader("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
+	r.SetHeader("Referer", "https://quote.eastmoney.com/")
+	r.SetHeader("Origin", "https://quote.eastmoney.com")
+	r.SetHeader("Sec-Ch-Ua", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
+	r.SetHeader("Sec-Ch-Ua-Mobile", "?0")
+	r.SetHeader("Sec-Ch-Ua-Platform", `"Windows"`)
+	r.SetHeader("Sec-Fetch-Dest", "empty")
+	r.SetHeader("Sec-Fetch-Mode", "cors")
+	r.SetHeader("Sec-Fetch-Site", "same-site")
+	r.SetHeader("Priority", "u=1, i")
+	r.SetHeader("Cache-Control", "no-cache")
+	r.SetHeader("Pragma", "no-cache")
+}
+
+// fetchKLineJSONBytesByHTTP 每次调用均发起真实 GET，不缓存 K 线响应；cookieHeader 仅来自 chromedp 缓存或当次刷新。
+func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string, cookieHeader string) ([]byte, error) {
+	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
+	setEastMoneyKlineBrowserHeaders(req)
+	if ch := strings.TrimSpace(cookieHeader); ch != "" {
+		req.SetHeader("Cookie", ch)
+	}
+	resp, err := req.Get(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode() != 200 {
+		b := resp.Body()
+		if len(b) > 500 {
+			b = b[:500]
+		}
+		return nil, fmt.Errorf("HTTP %d: %q", resp.StatusCode(), string(b))
+	}
+	return resp.Body(), nil
+}
 
 // @Author spark
 // @Date 2026/3/15
@@ -40,6 +83,7 @@ const (
 
 // EastMoneyKLineResponse 东方财富 K 线响应结构
 type EastMoneyKLineResponse struct {
+	Rc      int    `json:"rc"` // 接口实际返回 rc，成功为 0
 	Version string `json:"version"`
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -79,12 +123,19 @@ func NewEastMoneyKLineApi(config *SettingConfig) *EastMoneyKLineApi {
 	}
 }
 
-// GetKLineData 获取 K 线数据
-// stockCode: 股票代码 (如：000001.SZ, 600000.SH, HK.00700 等)
-// kLineType: K 线类型 (101=日 K, 102=周 K, 103=月 K, 104=季 K, 105=半年 K, 106=年 K，或者分钟级别)
-// adjustFlag: 复权标志 (空=不复权，qfq=前复权，hfq=后复权)
-// days: 获取天数
+// GetKLineData 获取 K 线数据（最新一段，等价于 end=20500101）
 func (receiver *EastMoneyKLineApi) GetKLineData(stockCode, kLineType, adjustFlag string, days int) *[]KLineData {
+	return receiver.GetKLineDataBefore(stockCode, kLineType, adjustFlag, days, "20500101")
+}
+
+// GetKLineData2 与 GetKLineData 相同，保留给历史测试/调用方。
+func (receiver *EastMoneyKLineApi) GetKLineData2(stockCode, kLineType, adjustFlag string, days int) *[]KLineData {
+	return receiver.GetKLineDataBefore(stockCode, kLineType, adjustFlag, days, "20500101")
+}
+
+// GetKLineDataBefore 获取 end 时间点之前的 limit 根 K 线。
+// end 为空或 "20500101" 表示取到最新；否则为东方财富格式：日/周等为 YYYYMMDD，分钟线多为 YYYYMMDDHHmmss（与 f51 字段一致即可）。
+func (receiver *EastMoneyKLineApi) GetKLineDataBefore(stockCode, kLineType, adjustFlag string, limit int, end string) *[]KLineData {
 	kLines := &[]KLineData{}
 
 	// 转换股票代码格式
@@ -94,39 +145,57 @@ func (receiver *EastMoneyKLineApi) GetKLineData(stockCode, kLineType, adjustFlag
 		return kLines
 	}
 
+	if limit <= 0 {
+		return kLines
+	}
+	if strings.TrimSpace(end) == "" {
+		end = "20500101"
+	}
+
 	// 构建 fields 参数
 	fields := "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116"
 	if adjustFlag != "" {
 		fields = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116,f113,f114,f115"
 	}
 
-	// 构建 URL
-	url := fmt.Sprintf("https://push2his.eastmoney.com/api/qt/stock/kline/get?"+
-		"secid=%s&klt=%s&fqt=%s&end=20500101&lmt=%d&"+
-		"fields1=f1,f2,f3,f4,f5,f6&fields2=%s&"+
-		"wbp2u=|0|0|0|web&_=%d",
-		secid, kLineType, receiver.getAdjustType(adjustFlag), days, fields, time.Now().UnixMilli())
+	// 与浏览器一致：fields1/fields2 保持逗号不编码；仅 wbp2u 中的 | 需编码为 %7C
+	// （url.Values.Encode 会把逗号编成 %2C，东财侧可能直接掐连接，表现为 EOF）
+	wbp2u := url.QueryEscape("|0|0|0|web")
+	reqURL := fmt.Sprintf(
+		"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=%s&klt=%s&fqt=%s&end=%s&lmt=%d&fields1=f1,f2,f3,f4,f5,f6&fields2=%s&wbp2u=%s&_=%d",
+		secid, kLineType, receiver.getAdjustType(adjustFlag), end, limit, fields, wbp2u, time.Now().UnixMilli(),
+	)
 
-	logger.SugaredLogger.Infof("GetKLineData url: %s", url)
+	logger.SugaredLogger.Infof("GetKLineDataBefore url: %s", reqURL)
 
-	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
-		SetHeader("Host", "push2his.eastmoney.com").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
-		SetHeader("Referer", "https://quote.eastmoney.com/").
-		Get(url)
+	if receiver.config != nil && strings.TrimSpace(receiver.config.BrowserPath) == "" {
+		logger.SugaredLogger.Infof("东财 K 线未配置 BrowserPath，HTTP 请求不带 chromedp cookie")
+	}
+	cookieHeader := EastMoneyCookieHeaderForPush2his(receiver.config)
 
-	if err != nil {
-		logger.SugaredLogger.Errorf("GetKLineData error: %v", err)
+	var body []byte
+	var fetchErr error
+	body, fetchErr = receiver.fetchKLineJSONBytesByHTTP(reqURL, cookieHeader)
+
+	if fetchErr != nil {
+		logger.SugaredLogger.Errorf("GetKLineData error: %v", fetchErr)
 		return kLines
 	}
-
 	var response EastMoneyKLineResponse
-	err = json.Unmarshal(resp.Body(), &response)
+	err := json.Unmarshal(body, &response)
 	if err != nil {
-		logger.SugaredLogger.Errorf("json.Unmarshal error: %v", err)
+		preview := body
+		if len(preview) > 400 {
+			preview = preview[:400]
+		}
+		logger.SugaredLogger.Errorf("json.Unmarshal error: %v body_prefix=%q", err, string(preview))
 		return kLines
 	}
 
+	if response.Rc != 0 {
+		logger.SugaredLogger.Errorf("API error: rc=%d code=%d message=%s", response.Rc, response.Code, response.Message)
+		return kLines
+	}
 	if response.Code != 0 {
 		logger.SugaredLogger.Errorf("API error: code=%d, message=%s", response.Code, response.Message)
 		return kLines
@@ -402,6 +471,74 @@ func getMaxPeriod(periods []int) int {
 		}
 	}
 	return max
+}
+
+// AggregateKLineEveryN 将连续 n 根 1 分钟 K 线合并为一根（用于东方财富无原生 10 分钟周期时）。
+// 假定 src 已按时间正序排列。
+func AggregateKLineEveryN(src *[]KLineData, n int) *[]KLineData {
+	if src == nil || n < 2 {
+		return src
+	}
+	arr := *src
+	if len(arr) == 0 {
+		return src
+	}
+	out := make([]KLineData, 0, len(arr)/n+1)
+	for i := 0; i < len(arr); {
+		end := i + n
+		if end > len(arr) {
+			end = len(arr)
+		}
+		chunk := arr[i:end]
+		first := chunk[0]
+		last := chunk[len(chunk)-1]
+		highF := -1e18
+		lowF := 1e18
+		volSum := 0.0
+		amtSum := 0.0
+		for _, c := range chunk {
+			h, _ := parseFloatToFloat(c.High)
+			l, _ := parseFloatToFloat(c.Low)
+			v, _ := parseFloatToFloat(c.Volume)
+			a, _ := parseFloatToFloat(c.Amount)
+			if h > highF {
+				highF = h
+			}
+			if l < lowF {
+				lowF = l
+			}
+			volSum += v
+			amtSum += a
+		}
+		openS := first.Open
+		closeS := last.Close
+		highS := fmt.Sprintf("%.4f", highF)
+		lowS := fmt.Sprintf("%.4f", lowF)
+		if highF <= -1e17 {
+			highS = first.High
+		}
+		if lowF >= 1e17 {
+			lowS = first.Low
+		}
+		out = append(out, KLineData{
+			Day:           last.Day,
+			Open:          openS,
+			Close:         closeS,
+			High:          highS,
+			Low:           lowS,
+			Volume:        fmt.Sprintf("%.0f", volSum),
+			Amount:        fmt.Sprintf("%.2f", amtSum),
+			ChangePercent: last.ChangePercent,
+			ChangeValue:   last.ChangeValue,
+			TurnoverRate:  last.TurnoverRate,
+			Amplitude:     last.Amplitude,
+		})
+		i = end
+		if len(chunk) < n {
+			break
+		}
+	}
+	return &out
 }
 
 // ValidateStockCode 验证股票代码是否有效

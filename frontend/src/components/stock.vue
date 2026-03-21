@@ -8,6 +8,7 @@ import {
   GetAiConfigs,
   GetAIResponseResult,
   GetConfig,
+  GetEffectiveSponsorVip,
   GetFollowList,
   GetGroupList,
   GetPromptTemplates,
@@ -71,6 +72,7 @@ import {keys, padStart} from "lodash";
 import {useRoute, useRouter} from 'vue-router'
 import MoneyTrend from "./moneyTrend.vue";
 import StockSparkLine from "./stockSparkLine.vue";
+import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
 
 const route = useRoute()
 const router = useRouter()
@@ -108,6 +110,12 @@ const modalShow2 = ref(false)
 const modalShow3 = ref(false)
 const modalShow4 = ref(false)
 const modalShow5 = ref(false)
+const modalShow6 = ref(false)
+const lwKlineCode = ref('')
+const lwKlineName = ref('')
+/** 用于功能权限：仅在赞助有效期内为解密等级，否则为 0（与 EffectiveSponsorVipLevel 一致） */
+const vipLevel = ref(0)
+const klineAutoCloseTimer = ref(null)
 const addBTN = ref(true)
 const enableTools = ref(true)
 const thinkingMode = ref(false)
@@ -511,8 +519,9 @@ onMounted(() => {
   })
 
   GetVersionInfo().then((res) => {
-    icon.value = res.icon;
-  });
+    icon.value = res.icon
+    refreshEffectiveVip()
+  })
   // 创建 WebSocket 连接
   ws.value = new WebSocket('ws://8.134.249.145:16688/ws'); // 替换为你的 WebSocket 服务器地址
   //ws.value = new WebSocket('ws://localhost:16688/ws'); // 替换为你的 WebSocket 服务器地址
@@ -585,6 +594,11 @@ onBeforeUnmount(() => {
   message.destroyAll()
   notify.destroyAll()
   clearInterval(feishiInterval.value)
+  // 清理多周期 K 线自动关闭定时器
+  if (klineAutoCloseTimer.value) {
+    clearTimeout(klineAutoCloseTimer.value)
+    klineAutoCloseTimer.value = null
+  }
 
   EventsOff("refresh")
   EventsOff("showSearch")
@@ -1475,6 +1489,63 @@ function showMoney(code, name) {
   modalShow5.value = true
 }
 
+/** 新浪/应用内代码转为东方财富接口常用格式（如 600519.SH） */
+function toEastMoneyCode(code) {
+  if (!code) return ''
+  const c = String(code).trim()
+  if (c.toLowerCase().startsWith('gb_')) return ''
+  if (/\.(SH|SZ|BJ|HK|SS)$/i.test(c)) return c.toUpperCase()
+  const lower = c.toLowerCase()
+  if (lower.startsWith('sh')) return lower.slice(2) + '.SH'
+  if (lower.startsWith('sz')) return lower.slice(2) + '.SZ'
+  if (lower.startsWith('bj')) return lower.slice(2) + '.BJ'
+  if (lower.startsWith('hk')) return lower.slice(2).toUpperCase() + '.HK'
+  if (/^\d+$/.test(c)) {
+    const d = c[0]
+    if (d === '6') return c + '.SH'
+    if (d === '0' || d === '3') return c + '.SZ'
+    if (d === '8' || d === '9') return c + '.BJ'
+    return c + '.SZ'
+  }
+  return c.toUpperCase()
+}
+
+async function refreshEffectiveVip() {
+  try {
+    const r = await GetEffectiveSponsorVip()
+    const active = !!r?.active
+    const lvl = Number(r?.vipLevel ?? 0)
+    vipLevel.value = active && !Number.isNaN(lvl) ? lvl : 0
+  } catch (_) {
+    vipLevel.value = 0
+  }
+}
+
+async function showLightweightKline(code, name) {
+  const em = toEastMoneyCode(code)
+  if (!em) {
+    message.warning('当前代码暂不支持东方财富多周期K线（美股等请使用「日K」图）')
+    return
+  }
+  lwKlineCode.value = em
+  lwKlineName.value = name || ''
+  await refreshEffectiveVip()
+  // 检查 VIP 权限：有效期内 VIP2 及以上（与 AI 助手 Web 端校验一致）
+  if (vipLevel.value < 2) {
+    message.warning('多周期 K 线仅限 VIP2 及以上用户使用，您当前权限不足，将在 10 秒后自动关闭')
+    lwKlineCode.value = em
+    lwKlineName.value = name || ''
+    modalShow6.value = true
+    // 10 秒后自动关闭
+    klineAutoCloseTimer.value = setTimeout(() => {
+      modalShow6.value = false
+      message.info('权限不足，多周期 K 线已自动关闭')
+    }, 10000)
+    return
+  }
+  modalShow6.value = true
+}
+
 function showK(code, name) {
   data.code = code
   data.name = name
@@ -1898,6 +1969,14 @@ function searchStockReport(stockCode) {
     },
   })
 }
+
+// 监听多周期 K 线模态框关闭，清除定时器
+watch(modalShow6, (newVal) => {
+  if (!newVal && klineAutoCloseTimer.value) {
+    clearTimeout(klineAutoCloseTimer.value)
+    klineAutoCloseTimer.value = null
+  }
+})
 </script>
 
 <template>
@@ -2011,14 +2090,22 @@ function searchStockReport(stockCode) {
               </n-button>
             </template>
             <template #footer>
-              <n-flex justify="center">
-                <n-text :type="'info'">{{ result["日期"] + " " + result["时间"] }}</n-text>
-                <n-tag size="small" v-if="result.volume>0" :type="result.profitType">{{ result.volume + "股" }}</n-tag>
-                <n-tag size="small" v-if="result.costPrice>0" :type="result.profitType">
-                  {{
-                    "成本:" + result.costPrice + "*" + result.costVolume + " " + result.profit + "%" + " ( " + result.profitAmount + " ¥ )"
-                  }}
-                </n-tag>
+              <n-flex vertical :size="8">
+                <n-flex justify="center">
+                  <n-text :type="'info'">{{ result["日期"] + " " + result["时间"] }}</n-text>
+                  <n-tag size="small" v-if="result.volume>0" :type="result.profitType">{{ result.volume + "股" }}</n-tag>
+                  <n-tag size="small" v-if="result.costPrice>0" :type="result.profitType">
+                    {{
+                      "成本:" + result.costPrice + "*" + result.costVolume + " " + result.profit + "%" + " ( " + result.profitAmount + " ¥ )"
+                    }}
+                  </n-tag>
+                </n-flex>
+                <n-flex justify="center">
+                  <n-button size="tiny" type="primary" secondary
+                            @click="showLightweightKline(result['股票代码'],result['股票名称'])">
+                    多周期K线
+                  </n-button>
+                </n-flex>
               </n-flex>
             </template>
             <template #action>
@@ -2157,14 +2244,22 @@ function searchStockReport(stockCode) {
               </n-button>
             </template>
             <template #footer>
-              <n-flex justify="center">
-                <n-text :type="'info'">{{ result["日期"] + " " + result["时间"] }}</n-text>
-                <n-tag size="small" v-if="result.volume>0" :type="result.profitType">{{ result.volume + "股" }}</n-tag>
-                <n-tag size="small" v-if="result.costPrice>0" :type="result.profitType">
-                  {{
-                    "成本:" + result.costPrice + "*" + result.costVolume + " " + result.profit + "%" + " ( " + result.profitAmount + " ¥ )"
-                  }}
-                </n-tag>
+              <n-flex vertical :size="8">
+                <n-flex justify="center">
+                  <n-text :type="'info'">{{ result["日期"] + " " + result["时间"] }}</n-text>
+                  <n-tag size="small" v-if="result.volume>0" :type="result.profitType">{{ result.volume + "股" }}</n-tag>
+                  <n-tag size="small" v-if="result.costPrice>0" :type="result.profitType">
+                    {{
+                      "成本:" + result.costPrice + "*" + result.costVolume + " " + result.profit + "%" + " ( " + result.profitAmount + " ¥ )"
+                    }}
+                  </n-tag>
+                </n-flex>
+                <n-flex justify="center">
+                  <n-button size="tiny" type="primary" secondary
+                            @click="showLightweightKline(result['股票代码'],result['股票名称'])">
+                    多周期K线
+                  </n-button>
+                </n-flex>
               </n-flex>
             </template>
             <template #action>
@@ -2396,6 +2491,28 @@ function searchStockReport(stockCode) {
   <n-modal v-model:show="modalShow5" :title="data.name+'资金趋势'" style="width: 1000px" :preset="'card'">
     <money-trend :code="data.code" :name="data.name" :days="360" :dark-theme="data.darkTheme"
                  :chart-height="500"></money-trend>
+  </n-modal>
+  <n-modal
+    v-model:show="modalShow6"
+    :title="(lwKlineName || '') + ' — 多周期K线'"
+    preset="card"
+    style="width: min(1100px, 96vw); max-width: 96vw; box-sizing: border-box"
+    :content-style="{
+      maxHeight: 'min(85vh, 820px)',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      minWidth: 0,
+      boxSizing: 'border-box',
+    }"
+  >
+    <stock-lightweight-kline-chart
+      v-if="modalShow6"
+      :key="'lightweight-' + lwKlineCode"
+      :code="lwKlineCode"
+      :stock-name="lwKlineName"
+      :dark-theme="data.darkTheme"
+      :chart-height="500"
+    />
   </n-modal>
 </template>
 

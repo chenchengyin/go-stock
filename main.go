@@ -13,6 +13,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/slice"
@@ -81,6 +82,21 @@ func main() {
 	log.SugaredLogger.Info("starting...")
 	log.SugaredLogger.Infof("version: %s  commit: %s", Version, VersionCommit)
 	//log.SugaredLogger.Infof("build key: %s", BuildKey)
+
+	// 程序启动时预缓存东财 Cookie
+	go func() {
+		config := data.GetSettingConfig()
+		browserPath := strings.TrimSpace(config.BrowserPath)
+		if browserPath != "" {
+			log.SugaredLogger.Info("预缓存东财 Cookie...")
+			_, err := data.FetchEastMoneyCookiesViaChromedp(browserPath, 3*time.Minute)
+			if err != nil {
+				log.SugaredLogger.Warnf("预缓存东财 Cookie 失败：%v", err)
+			} else {
+				log.SugaredLogger.Info("东财 Cookie 预缓存完成")
+			}
+		}
+	}()
 
 	// Create an instance of the app structure
 	app := NewApp()

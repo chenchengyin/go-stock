@@ -1815,10 +1815,12 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 
 	url := "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?cb=data&lmt=0&klt=101&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&secid=" + stockCode + "&_=" + convertor.ToString(time.Now().Unix())
 	logger.SugaredLogger.Infof("url:%s", url)
-	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
-		SetHeader("Host", "push2his.eastmoney.com").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
-		Get(url)
+	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
+	setEastMoneyKlineBrowserHeaders(req)
+	if ch := EastMoneyCookieHeaderForPush2his(receiver.config); ch != "" {
+		req.SetHeader("Cookie", ch)
+	}
+	resp, err := req.Get(url)
 	if err != nil {
 		logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
