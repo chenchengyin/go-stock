@@ -26,10 +26,13 @@ jobs:
             os: 'windows-latest'
           - name: 'go-stock-linux-amd64'
             platform: 'linux/amd64'
-            os: 'ubuntu-latest'
+            os: 'ubuntu-20.04'  # 改为使用Ubuntu 20.04，确保兼容性
+            # 添加额外的包管理器步骤
+            apt_packages: 'libwebkit2gtk-4.0-dev,libgtk-3-dev,gcc,libglib2.0-dev'
           - name: 'go-stock-linux-arm64'
             platform: 'linux/arm64'
-            os: 'ubuntu-latest'
+            os: 'ubuntu-20.04'  # 改为使用Ubuntu 20.04
+            apt_packages: 'libwebkit2gtk-4.0-dev,libgtk-3-dev,gcc,libglib2.0-dev'
           - name: 'go-stock-darwin-universal'
             platform: 'darwin/universal'
             os: 'macos-latest'
@@ -46,6 +49,13 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: recursive
+
+      # 为Linux添加额外的依赖安装步骤
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libgtk-3-dev gcc libglib2.0-dev
 
       - name: Get commit message (Windows)
         if: runner.os == 'Windows'
