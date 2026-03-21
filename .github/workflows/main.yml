@@ -24,9 +24,12 @@ jobs:
           - name: 'go-stock-windows-amd64.exe'
             platform:  'windows/amd64'
             os: 'windows-latest'
-#          - name: 'go-stock-linux-amd64'
-#            platform: 'linux/amd64'
-#            os: 'ubuntu-latest'
+          - name: 'go-stock-linux-amd64'
+            platform: 'linux/amd64'
+            os: 'ubuntu-latest'
+          - name: 'go-stock-linux-arm64'
+            platform: 'linux/arm64'
+            os: 'ubuntu-latest'
           - name: 'go-stock-darwin-universal'
             platform: 'darwin/universal'
             os: 'macos-latest'
@@ -44,11 +47,19 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Get commit message
-        id: get_commit_message
+      - name: Get commit message (Windows)
+        if: runner.os == 'Windows'
+        id: get_commit_message_windows
+        shell: pwsh
         run: |
           $commit_message = & git log -1 --pretty=format:"%s"
           echo "::set-output name=commit_message::$commit_message"
+
+      - name: Get commit message (Linux/macOS)
+        if: runner.os != 'Windows'
+        id: get_commit_message_unix
+        run: |
+          echo "::set-output name=commit_message::$(git log -1 --pretty=format:"%s")"
 
       - name: Build wails x go-stock
         uses: ArvinLovegood/wails-build-action@v3.7
@@ -59,7 +70,7 @@ jobs:
           package: true
           go-version: '1.26'
           build-tags: ${{ github.ref_name }}
-          build-commit-message: ${{ steps.get_commit_message.outputs.commit_message }}
+          build-commit-message: ${{ steps.get_commit_message_windows.outputs.commit_message || steps.get_commit_message_unix.outputs.commit_message }}
           build-statement: ${{ env.OFFICIAL_STATEMENT }}
           build-key: ${{ env.BUILD_KEY }}
           node-version: '20.x'
