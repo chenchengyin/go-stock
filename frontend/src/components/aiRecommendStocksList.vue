@@ -8,7 +8,7 @@ import {
   ShareAnalysis
 } from "../../wailsjs/go/main/App";
 import {NAvatar, NButton, NEllipsis, NTag, NText, useMessage, useNotification} from "naive-ui";
-import KLineChart from "./KLineChart.vue";
+import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
 import sparkLine from "./stockSparkLine.vue"
 import {format} from "date-fns";
 
@@ -453,10 +453,10 @@ function deleteAiRecommendStocks(id) {
             style="height: calc(100vh - 210px);margin-top: 10px"
         />
 
-  <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 850px;">
+  <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 950px;">
     <n-gradient-text :size="16" type="warning">{{modalDataRef.remarks}}</n-gradient-text>
     <n-card size="small">
-      <KLineChart style="width: 800px" :code="getStockCode(modalDataRef.stockCode)" :chart-height="500" :stock-name="modalDataRef.stockName" :k-days="30" :dark-theme="editorDataRef.darkTheme"></KLineChart>
+      <StockLightweightKlineChart style="width: 1000px" :code="getStockCode(modalDataRef.stockCode)" :chart-height="350" :stock-name="modalDataRef.stockName" :dark-theme="editorDataRef.darkTheme"></StockLightweightKlineChart>
     </n-card>
     <n-card size="small">
     <n-text type="info">{{modalDataRef.content}}</n-text>

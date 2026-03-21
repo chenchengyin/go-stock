@@ -1347,6 +1347,7 @@ watch(
         <div class="lw-kline-toolbar__main">
           <NFlex vertical :size="8">
             <NFlex :size="6" wrap style="row-gap: 6px">
+              <NText depth="3" style="font-size: 12px; margin-right: 4px">周期</NText>
               <NButton
                 v-for="it in INTERVALS"
                 :key="it.klt"
