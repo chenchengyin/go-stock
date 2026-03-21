@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import * as echarts from "echarts";
 import {computed, h, onBeforeMount, onBeforeUnmount, onMounted,onUnmounted, ref} from 'vue'
 import {
@@ -18,6 +18,7 @@ import {
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import NewsList from "./newsList.vue";
 import KLineChart from "./KLineChart.vue";
+import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
 import { CaretDown, CaretUp, PulseOutline,} from "@vicons/ionicons5";
 import {NAvatar, NButton, NFlex, NText, useMessage, useNotification} from "naive-ui";
 import {MdPreview} from "md-editor-v3";
@@ -442,53 +443,72 @@ function ReFlesh(source) {
       </n-tab-pane>
       <n-tab-pane name="重大指数" tab="重大指数">
         <n-tabs type="segment" animated>
-          <n-tab-pane name="恒生科技指数" tab="恒生科技指数">
-            <k-line-chart code="hkHSTECH" :chart-height="panelHeight" stockName="恒生科技指数" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+
+<!--          <n-tab-pane name="西部数据" tab="西部数据">-->
+<!--            <StockLightweightKlineChart code="105.WDC" :chart-height="panelHeight" stock-name="西部数据"-->
+<!--                                        :dark-theme="true"></StockLightweightKlineChart>-->
+<!--          </n-tab-pane>-->
+
+          <n-tab-pane name="上证指数" tab="上证指数"  >
+            <StockLightweightKlineChart code="000001.SH" :chart-height="panelHeight-130" stock-name="上证指数" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
-          <n-tab-pane name="科创50" tab="科创50"  >
-            <k-line-chart code="sh000688" :chart-height="panelHeight" stockName="科创50" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+          <n-tab-pane name="深证指数" tab="深证指数"  >
+            <StockLightweightKlineChart code="399001.SZ" :chart-height="panelHeight-130" stock-name="深证指数" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
-          <n-tab-pane name="科创芯片" tab="科创芯片"  >
-            <k-line-chart code="sh000685" :chart-height="panelHeight" stockName="科创芯片" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+          <n-tab-pane name="创业板指" tab="创业板指"  >
+            <StockLightweightKlineChart code="399006.SZ" :chart-height="panelHeight-130" stock-name="创业板指" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
-          <n-tab-pane name="证券龙头" tab="证券龙头"  >
-            <k-line-chart code="sz399437" :chart-height="panelHeight" stockName="证券龙头" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+
+          <n-tab-pane name="恒生指数" tab="恒生指数">
+            <StockLightweightKlineChart code="100.HSI" :chart-height="panelHeight" stock-name="恒生指数"
+                                        :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
-          <n-tab-pane name="高端装备" tab="高端装备"  >
-            <k-line-chart code="sz399437" :chart-height="panelHeight" stockName="高端装备" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+          <n-tab-pane name="道琼斯" tab="道琼斯">
+            <StockLightweightKlineChart code="100.DJIA" :chart-height="panelHeight" stock-name="道琼斯"
+                                        :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
-          <n-tab-pane name="中证银行" tab="中证银行">
-            <k-line-chart code="sz399986" :chart-height="panelHeight" stockName="中证银行" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+          <n-tab-pane name="标普500" tab="标普500">
+            <StockLightweightKlineChart code="100.SPX" :chart-height="panelHeight" stock-name="标普500"
+                                        :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
-          <n-tab-pane name="上证医药" tab="上证医药">
-            <k-line-chart code="sh000037" :chart-height="panelHeight" stockName="上证医药" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+          <n-tab-pane name="纳斯达克" tab="纳斯达克">
+            <StockLightweightKlineChart code="100.NDX" :chart-height="panelHeight" stock-name="纳斯达克"
+                                        :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
+
           <n-tab-pane name="沪深300" tab="沪深300">
-            <k-line-chart code="sh000300" :chart-height="panelHeight" stockName="沪深300" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+            <StockLightweightKlineChart code="000300.SH" :chart-height="panelHeight-130" stock-name="沪深 300" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
           <n-tab-pane name="上证50" tab="上证50">
-            <k-line-chart code="sh000016" :chart-height="panelHeight" stockName="上证50" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+            <StockLightweightKlineChart code="000016.SH" :chart-height="panelHeight-130" stock-name="上证 50" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
           <n-tab-pane name="中证A500" tab="中证A500">
-            <k-line-chart code="sh000510" :chart-height="panelHeight" stockName="中证A500" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+            <StockLightweightKlineChart code="000510.SH" :chart-height="panelHeight-130" stock-name="中证 A500" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
           <n-tab-pane name="中证1000" tab="中证1000">
-            <k-line-chart code="sh000852" :chart-height="panelHeight" stockName="中证1000" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+            <StockLightweightKlineChart code="000852.SH" :chart-height="panelHeight-130" stock-name="中证 1000" :dark-theme="true"></StockLightweightKlineChart>
+          </n-tab-pane>
+
+          <n-tab-pane name="科创50" tab="科创50"  >
+            <StockLightweightKlineChart code="000688.SH" :chart-height="panelHeight-130" stock-name="科创 50" :dark-theme="true"></StockLightweightKlineChart>
+          </n-tab-pane>
+          <n-tab-pane name="科创芯片" tab="科创芯片"  >
+            <StockLightweightKlineChart code="000685.SH" :chart-height="panelHeight-130" stock-name="科创芯片" :dark-theme="true"></StockLightweightKlineChart>
+          </n-tab-pane>
+          <n-tab-pane name="证券龙头" tab="证券龙头"  >
+            <StockLightweightKlineChart code="399437.SZ" :chart-height="panelHeight-130" stock-name="证券龙头" :dark-theme="true"></StockLightweightKlineChart>
+          </n-tab-pane>
+          <n-tab-pane name="高端装备" tab="高端装备"  >
+            <StockLightweightKlineChart code="399437.SZ" :chart-height="panelHeight-130" stock-name="高端装备" :dark-theme="true"></StockLightweightKlineChart>
+          </n-tab-pane>
+          <n-tab-pane name="中证银行" tab="中证银行">
+            <StockLightweightKlineChart code="399986.SZ" :chart-height="panelHeight-130" stock-name="中证银行" :dark-theme="true"></StockLightweightKlineChart>
+          </n-tab-pane>
+          <n-tab-pane name="上证医药" tab="上证医药">
+            <StockLightweightKlineChart code="000037.SH" :chart-height="panelHeight-130" stock-name="上证医药" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
           <n-tab-pane name="中证白酒" tab="中证白酒">
-            <k-line-chart code="sz399997" :chart-height="panelHeight" stockName="中证白酒" :k-days="20"
-                          :dark-theme="true"></k-line-chart>
+            <StockLightweightKlineChart code="399997.SZ" :chart-height="panelHeight-130" stock-name="中证白酒" :dark-theme="true"></StockLightweightKlineChart>
           </n-tab-pane>
           <n-tab-pane name="富时中国三倍做多" tab="富时中国三倍做多">
             <k-line-chart code="usYINN.AM" :chart-height="panelHeight" stockName="富时中国三倍做多" :k-days="20"

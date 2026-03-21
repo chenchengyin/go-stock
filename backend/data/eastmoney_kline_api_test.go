@@ -79,7 +79,7 @@ func TestEastMoneyKLineApi_GetMonthKLine(t *testing.T) {
 	api := NewEastMoneyKLineApi(config)
 
 	// 测试获取月 K 线数据
-	stockCode := "00700.HK" // 腾讯控股
+	stockCode := "100.HSI" // 长和
 	kLines := api.GetMonthKLine(stockCode, 12)
 
 	logger.SugaredLogger.Infof("获取到 %d 条月 K 线数据", len(*kLines))

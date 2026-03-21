@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/duke-git/lancet/v2/validator"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -271,9 +272,11 @@ func (receiver *EastMoneyKLineApi) convertStockCode(stockCode string) string {
 				return "0." + code
 			case "HK":
 				return "128." + code
+			case "BK":
+				return "90." + code
+
 			default:
-				// 默认按深市处理
-				return "0." + code
+				return stockCode
 			}
 		}
 	}
@@ -290,11 +293,17 @@ func (receiver *EastMoneyKLineApi) convertStockCode(stockCode string) string {
 			return "0." + code
 		case "BJ":
 			return "0." + code
+		case "HK":
+			return "128." + code
+		case "BK":
+			return "90." + code
+		default:
+			return stockCode
 		}
 	}
 
 	// 纯数字代码，根据代码规则判断市场
-	if len(stockCode) >= 1 {
+	if len(stockCode) >= 1 && validator.IsNumber(stockCode) {
 		firstChar := stockCode[0:1]
 		switch firstChar {
 		case "6": // 沪市主板
@@ -305,11 +314,11 @@ func (receiver *EastMoneyKLineApi) convertStockCode(stockCode string) string {
 			return "0." + stockCode
 		default:
 			// 其他情况默认按深市处理
-			return "0." + stockCode
+			return stockCode
 		}
 	}
 
-	return ""
+	return stockCode
 }
 
 // getAdjustType 获取复权类型对应的数字
