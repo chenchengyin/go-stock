@@ -3,15 +3,11 @@ package data
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/logger"
 	"io"
 	"math/rand"
-	"net"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -28,7 +24,9 @@ import (
 func getRandomUA() string {
 	ua, _ := uaFake.New()
 	if ua != nil {
-		return ua.GetRandom()
+		randomUA := ua.Filter().Platform("desktop").Get()
+		logger.SugaredLogger.Infof("User-Agent: %s", randomUA)
+		return randomUA
 	}
 	// 如果库获取失败，返回备用 UA
 	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -39,7 +37,6 @@ func setEastMoneyKlineBrowserHeaders(r *resty.Request, referer string) {
 	r.SetHeader("User-Agent", getRandomUA())
 	r.SetHeader("Accept", "*/*")
 	r.SetHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
-	//r.SetHeader("Accept-Encoding", "gzip, deflate")
 	r.SetHeader("Connection", "keep-alive")
 	r.SetHeader("Referer", referer)
 }
@@ -49,8 +46,19 @@ func setEastMoneyKlineBrowserHeaders(r *resty.Request, referer string) {
 func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string) ([]byte, error) {
 	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
 	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
+	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
+	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*5, reqURL)
+	if err != nil {
+		logger.SugaredLogger.Errorf("FetchEastMoneyCookiesViaChromedp error: %v", err)
+	}
+	if err == nil {
+		logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+		req.SetHeader("Cookie", cookieHeader)
+	}
+
 	resp, err := req.Get(reqURL)
 	if err != nil {
+		logger.SugaredLogger.Errorf("HTTP error: %v", err)
 		return nil, err
 	}
 	if resp.StatusCode() != 200 {
@@ -201,44 +209,44 @@ type CallAuctionData struct {
 func NewEastMoneyKLineApi(config *SettingConfig) *EastMoneyKLineApi {
 	client := resty.New()
 
-	// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
-	dialer := &net.Dialer{
-		Timeout:       10 * time.Second,
-		KeepAlive:     30 * time.Second,
-		DualStack:     false, // 禁用双栈
-		FallbackDelay: -1,    // 禁用 Happy Eyeballs
-	}
-
-	client.SetTransport(&http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// 强制只使用 IPv4
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return nil, err
-			}
-			// 解析 A 记录（IPv4）
-			ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
-			if err != nil {
-				return nil, err
-			}
-			if len(ips) == 0 {
-				return nil, fmt.Errorf("no IPv4 address found for %s", host)
-			}
-			ipv4 := ips[0].String()
-			return dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, port))
-		},
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: "push2his.eastmoney.com",
-		},
-		DisableCompression:  true, // 禁用自动压缩，手动处理 gzip
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
-	})
-
-	client.SetTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
+	//// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
+	//dialer := &net.Dialer{
+	//	Timeout:       10 * time.Second,
+	//	KeepAlive:     30 * time.Second,
+	//	DualStack:     false, // 禁用双栈
+	//	FallbackDelay: -1,    // 禁用 Happy Eyeballs
+	//}
+	//
+	//client.SetTransport(&http.Transport{
+	//	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+	//		// 强制只使用 IPv4
+	//		host, port, err := net.SplitHostPort(addr)
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//		// 解析 A 记录（IPv4）
+	//		ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//		if len(ips) == 0 {
+	//			return nil, fmt.Errorf("no IPv4 address found for %s", host)
+	//		}
+	//		ipv4 := ips[0].String()
+	//		return dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, port))
+	//	},
+	//	TLSClientConfig: &tls.Config{
+	//		MinVersion: tls.VersionTLS12,
+	//		ServerName: "push2his.eastmoney.com",
+	//	},
+	//	DisableCompression:  true, // 禁用自动压缩，手动处理 gzip
+	//	MaxIdleConns:        100,
+	//	MaxIdleConnsPerHost: 10,
+	//	IdleConnTimeout:     90 * time.Second,
+	//	ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
+	//})
+	//
+	//client.SetTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
 
 	return &EastMoneyKLineApi{
 		client: client,

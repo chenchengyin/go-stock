@@ -1458,14 +1458,14 @@ func (a *App) GetStockEastMoneyKLinePage(stockCode, stockName string, klt string
 	}
 	api := data.NewEastMoneyKLineApi(data.GetSettingConfig())
 	end = strings.TrimSpace(end)
-	if klt == "10" {
-		fetchN := limit * 10
-		if fetchN > 5000 {
-			fetchN = 5000
-		}
-		raw := api.GetKLineDataBefore(stockCode, "1", "", fetchN, end)
-		return data.AggregateKLineEveryN(raw, 10)
-	}
+	//if klt == "10" {
+	//	fetchN := limit * 10
+	//	if fetchN > 5000 {
+	//		fetchN = 5000
+	//	}
+	//	raw := api.GetKLineDataBefore(stockCode, "1", "", fetchN, end)
+	//	return data.AggregateKLineEveryN(raw, 10)
+	//}
 	return api.GetKLineDataBefore(stockCode, klt, "", limit, end)
 }
 

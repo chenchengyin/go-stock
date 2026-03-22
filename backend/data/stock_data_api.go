@@ -7,7 +7,6 @@ package data
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/db"
@@ -15,8 +14,6 @@ import (
 	"go-stock/backend/models"
 	"io"
 	"io/ioutil"
-	"net"
-	"net/http"
 	url2 "net/url"
 	"reflect"
 	"strconv"
@@ -1829,45 +1826,53 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 	params.Set("secid", stockCode)
 	params.Set("_", fmt.Sprintf("%d", time.Now().UnixMilli()))
 	reqURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
-
-	// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
-	dialer := &net.Dialer{
-		Timeout:       10 * time.Second,
-		KeepAlive:     30 * time.Second,
-		DualStack:     false, // 禁用双栈
-		FallbackDelay: -1,    // 禁用 Happy Eyeballs
-	}
-	receiver.client.SetTransport(&http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			// 强制只使用 IPv4
-			host, port, err := net.SplitHostPort(addr)
-			if err != nil {
-				return nil, err
-			}
-			// 解析 A 记录（IPv4）
-			ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
-			if err != nil {
-				return nil, err
-			}
-			if len(ips) == 0 {
-				return nil, fmt.Errorf("no IPv4 address found for %s", host)
-			}
-			ipv4 := ips[0].String()
-			return dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, port))
-		},
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: "push2.eastmoney.com",
-		},
-		DisableCompression:  true, // 禁用自动压缩，手动处理 gzip
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-		ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
-	})
+	//
+	//// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
+	//dialer := &net.Dialer{
+	//	Timeout:       10 * time.Second,
+	//	KeepAlive:     30 * time.Second,
+	//	DualStack:     false, // 禁用双栈
+	//	FallbackDelay: -1,    // 禁用 Happy Eyeballs
+	//}
+	//receiver.client.SetTransport(&http.Transport{
+	//	DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+	//		// 强制只使用 IPv4
+	//		host, port, err := net.SplitHostPort(addr)
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//		// 解析 A 记录（IPv4）
+	//		ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//		if len(ips) == 0 {
+	//			return nil, fmt.Errorf("no IPv4 address found for %s", host)
+	//		}
+	//		ipv4 := ips[0].String()
+	//		return dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, port))
+	//	},
+	//	TLSClientConfig: &tls.Config{
+	//		MinVersion: tls.VersionTLS12,
+	//		ServerName: "push2.eastmoney.com",
+	//	},
+	//	DisableCompression:  true, // 禁用自动压缩，手动处理 gzip
+	//	MaxIdleConns:        100,
+	//	MaxIdleConnsPerHost: 10,
+	//	IdleConnTimeout:     90 * time.Second,
+	//	ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
+	//})
 
 	logger.SugaredLogger.Infof("url:%s", reqURL)
 	req := receiver.client.SetHeader("User-Agent", getRandomUA()).R()
+	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
+	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
+	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, reqURL)
+	if err == nil {
+		logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+		req.SetHeader("Cookie", cookieHeader)
+	}
+
 	resp, err := req.Get(reqURL)
 	if err != nil {
 		logger.SugaredLogger.Errorf("err:%s", err.Error())
@@ -1924,7 +1929,17 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 
 	var resData models.StockMoneyDataResp
 	url := "https://push2.eastmoney.com/api/qt/clist/get?cb=data&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13,f100,f265"
-	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
+
+	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
+	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
+	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, quoteEastMoneyPage)
+	if err == nil {
+		logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+		req.SetHeader("Cookie", cookieHeader)
+	}
+
+	resp, err := req.
 		SetHeader("Host", "push2.eastmoney.com").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
