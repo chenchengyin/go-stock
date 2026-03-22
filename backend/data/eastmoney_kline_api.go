@@ -29,11 +29,11 @@ func getRandomUA() string {
 
 func setEastMoneyKlineBrowserHeaders(r *resty.Request) {
 	r.SetHeader("User-Agent", getRandomUA())
-	r.SetHeader("Accept", "application/json, text/plain, */*")
+	//r.SetHeader("Accept", "application/json, text/plain, */*")
 	r.SetHeader("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
-	r.SetHeader("Referer", "https://quote.eastmoney.com/")
-	r.SetHeader("Origin", "https://quote.eastmoney.com")
-	r.SetHeader("Sec-Ch-Ua", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
+	//r.SetHeader("Referer", "https://quote.eastmoney.com/")
+	//r.SetHeader("Origin", "https://quote.eastmoney.com")
+	//r.SetHeader("Sec-Ch-Ua", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
 	r.SetHeader("Sec-Ch-Ua-Mobile", "?0")
 	r.SetHeader("Sec-Ch-Ua-Platform", `"Windows"`)
 	r.SetHeader("Sec-Fetch-Dest", "empty")
