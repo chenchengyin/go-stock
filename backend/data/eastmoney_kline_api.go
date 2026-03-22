@@ -1,56 +1,54 @@
 package data
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/logger"
+	"io"
+	"math/rand"
+	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/validator"
 	"github.com/go-resty/resty/v2"
+	uaFake "github.com/lib4u/fake-useragent"
 )
 
 // 模拟 Windows 上 Chrome 从 quote.eastmoney.com 请求 push2his 行情接口（与 DevTools Network 常见字段对齐）。
 // 不显式设置 Accept-Encoding：由 net/http 默认协商 gzip 并自动解压；若声明 br/zstd 而 Transport 不解压会导致乱码/失败。
-var eastMoneyKlineChromeUAs = []string{
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-}
-
-// getRandomUA 随机返回一个 User-Agent
+// getRandomUA 随机返回一个 User-Agent（使用 fake-useragent 库）
 func getRandomUA() string {
-	return eastMoneyKlineChromeUAs[time.Now().UnixNano()%int64(len(eastMoneyKlineChromeUAs))]
+	ua, _ := uaFake.New()
+	if ua != nil {
+		return ua.GetRandom()
+	}
+	// 如果库获取失败，返回备用 UA
+	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 }
 
-func setEastMoneyKlineBrowserHeaders(r *resty.Request) {
+// Enhanced headers with more realistic browser characteristics
+func setEastMoneyKlineBrowserHeaders(r *resty.Request, referer string) {
 	r.SetHeader("User-Agent", getRandomUA())
-	//r.SetHeader("Accept", "application/json, text/plain, */*")
-	r.SetHeader("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
-	//r.SetHeader("Referer", "https://quote.eastmoney.com/")
-	//r.SetHeader("Origin", "https://quote.eastmoney.com")
-	//r.SetHeader("Sec-Ch-Ua", `"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"`)
-	r.SetHeader("Sec-Ch-Ua-Mobile", "?0")
-	r.SetHeader("Sec-Ch-Ua-Platform", `"Windows"`)
-	r.SetHeader("Sec-Fetch-Dest", "empty")
-	r.SetHeader("Sec-Fetch-Mode", "cors")
-	r.SetHeader("Sec-Fetch-Site", "same-site")
-	r.SetHeader("Priority", "u=1, i")
-	r.SetHeader("Cache-Control", "no-cache")
-	r.SetHeader("Pragma", "no-cache")
+	r.SetHeader("Accept", "*/*")
+	r.SetHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	//r.SetHeader("Accept-Encoding", "gzip, deflate")
+	r.SetHeader("Connection", "keep-alive")
+	r.SetHeader("Referer", referer)
 }
 
 // fetchKLineJSONBytesByHTTP 每次调用均发起真实 GET，不缓存 K 线响应；cookieHeader 仅来自 chromedp 缓存或当次刷新。
-func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string, cookieHeader string) ([]byte, error) {
+// 由于 Transport 设置了 DisableCompression=true，需要手动处理 gzip 解压。
+func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string) ([]byte, error) {
 	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
-	setEastMoneyKlineBrowserHeaders(req)
-	if ch := strings.TrimSpace(cookieHeader); ch != "" {
-		req.SetHeader("Cookie", ch)
-	}
+	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
 	resp, err := req.Get(reqURL)
 	if err != nil {
 		return nil, err
@@ -62,7 +60,79 @@ func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string, cook
 		}
 		return nil, fmt.Errorf("HTTP %d: %q", resp.StatusCode(), string(b))
 	}
-	return resp.Body(), nil
+
+	// 读取响应体
+	rawBody := resp.Body()
+
+	// 检查 Content-Encoding 并处理 gzip 压缩
+	contentEncoding := resp.Header().Get("Content-Encoding")
+	if strings.ToLower(contentEncoding) == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(rawBody))
+		if err != nil {
+			return nil, fmt.Errorf("gzip.NewReader error: %w", err)
+		}
+		defer reader.Close()
+		decompressed, err := io.ReadAll(reader)
+		if err != nil {
+			return nil, fmt.Errorf("gzip decompress error: %w", err)
+		}
+		return decompressed, nil
+	}
+
+	return rawBody, nil
+}
+
+// Helper functions for error classification
+func isNetworkError(err error) bool {
+	return strings.Contains(err.Error(), "network") ||
+		strings.Contains(err.Error(), "connection") ||
+		strings.Contains(err.Error(), "timeout")
+}
+
+func isTimeoutError(err error) bool {
+	return strings.Contains(err.Error(), "timeout") ||
+		strings.Contains(err.Error(), "deadline")
+}
+
+func isBotDetected(resp *resty.Response) bool {
+	// Check for common bot detection indicators
+	body := string(resp.Body())
+
+	botIndicators := []string{
+		"bot", "robot", "crawler", "spider",
+		"验证", "验证码", "安全验证",
+		"access denied", "forbidden",
+		"请开启JavaScript", "enable javascript",
+	}
+
+	for _, indicator := range botIndicators {
+		if strings.Contains(strings.ToLower(body), strings.ToLower(indicator)) {
+			return true
+		}
+	}
+
+	// Check for CAPTCHA pages
+	if strings.Contains(body, "captcha") || strings.Contains(body, "recaptcha") {
+		return true
+	}
+
+	return false
+}
+
+func isValidResponse(body []byte) bool {
+	if len(body) == 0 {
+		return false
+	}
+
+	// Check if response contains valid JSON structure
+	var temp interface{}
+	if err := json.Unmarshal(body, &temp); err != nil {
+		// Not valid JSON, might be HTML error page
+		bodyStr := string(body)
+		return !(strings.Contains(bodyStr, "<html") || strings.Contains(bodyStr, "<!DOCTYPE"))
+	}
+
+	return true
 }
 
 // @Author spark
@@ -129,8 +199,49 @@ type CallAuctionData struct {
 
 // NewEastMoneyKLineApi 创建东方财富 K 线 API 实例
 func NewEastMoneyKLineApi(config *SettingConfig) *EastMoneyKLineApi {
+	client := resty.New()
+
+	// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
+	dialer := &net.Dialer{
+		Timeout:       10 * time.Second,
+		KeepAlive:     30 * time.Second,
+		DualStack:     false, // 禁用双栈
+		FallbackDelay: -1,    // 禁用 Happy Eyeballs
+	}
+
+	client.SetTransport(&http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 强制只使用 IPv4
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			// 解析 A 记录（IPv4）
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+			if err != nil {
+				return nil, err
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("no IPv4 address found for %s", host)
+			}
+			ipv4 := ips[0].String()
+			return dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, port))
+		},
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: "push2his.eastmoney.com",
+		},
+		DisableCompression:  true, // 禁用自动压缩，手动处理 gzip
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
+	})
+
+	client.SetTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
+
 	return &EastMoneyKLineApi{
-		client: resty.New(),
+		client: client,
 		config: config,
 	}
 }
@@ -170,24 +281,32 @@ func (receiver *EastMoneyKLineApi) GetKLineDataBefore(stockCode, kLineType, adju
 		fields = "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f116,f113,f114,f115"
 	}
 
-	// 与浏览器一致：fields1/fields2 保持逗号不编码；仅 wbp2u 中的 | 需编码为 %7C
-	// （url.Values.Encode 会把逗号编成 %2C，东财侧可能直接掐连接，表现为 EOF）
-	wbp2u := url.QueryEscape("|0|0|0|web")
-	reqURL := fmt.Sprintf(
-		"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=%s&klt=%s&fqt=%s&end=%s&lmt=%d&fields1=f1,f2,f3,f4,f5,f6&fields2=%s&wbp2u=%s&_=%d",
-		secid, kLineType, receiver.getAdjustType(adjustFlag), end, limit, fields, wbp2u, time.Now().UnixMilli(),
-	)
+	// 构建 URL
+	baseURL := "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+	params := url.Values{}
+	params.Set("secid", secid)
+	params.Set("klt", kLineType)
+	params.Set("fqt", adjustFlag)
+	params.Set("end", end)
+	params.Set("lmt", convertor.ToString(limit))
+	params.Set("fields1", "f1,f2,f3,f4,f5,f6")
+	params.Set("fields2", fields)
+	params.Set("wbp2u", "|0|0|0|web")
+	params.Set("_", fmt.Sprintf("%d", time.Now().UnixMilli()))
+
+	reqURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
+
+	fmt.Printf("请求 URL:\n%s\n\n", reqURL)
 
 	logger.SugaredLogger.Infof("GetKLineDataBefore url: %s", reqURL)
 
 	if receiver.config != nil && strings.TrimSpace(receiver.config.BrowserPath) == "" {
 		logger.SugaredLogger.Infof("东财 K 线未配置 BrowserPath，HTTP 请求不带 chromedp cookie")
 	}
-	cookieHeader := EastMoneyCookieHeaderForPush2his(receiver.config)
 
 	var body []byte
 	var fetchErr error
-	body, fetchErr = receiver.fetchKLineJSONBytesByHTTP(reqURL, cookieHeader)
+	body, fetchErr = receiver.fetchKLineJSONBytesByHTTP(reqURL)
 
 	if fetchErr != nil {
 		logger.SugaredLogger.Errorf("GetKLineData error: %v", fetchErr)
@@ -392,10 +511,16 @@ func (receiver *EastMoneyKLineApi) parseFloat(s string) string {
 func (receiver *EastMoneyKLineApi) GetBatchKLineData(stockCodes []string, kLineType string, days int) map[string]*[]KLineData {
 	result := make(map[string]*[]KLineData)
 
-	for _, stockCode := range stockCodes {
+	for i, stockCode := range stockCodes {
 		kLines := receiver.GetKLineData(stockCode, kLineType, "", days)
 		result[stockCode] = kLines
-		time.Sleep(100 * time.Millisecond) // 避免请求过快
+
+		// 使用更智能的延迟策略
+		if i < len(stockCodes)-1 { // 最后一个不需要延迟
+			// 随机延迟 200-800ms，模拟人类操作
+			delay := 200 + rand.Intn(600)
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+		}
 	}
 
 	return result
@@ -573,4 +698,9 @@ func (receiver *EastMoneyKLineApi) GetKLineCount(stockCode string, kLineType str
 	// 实际实现需要根据具体的 API 参数来调整
 	kLines := receiver.GetKLineData(stockCode, kLineType, "", 365) // 默认获取一年数据
 	return len(*kLines)
+}
+
+// init 函数添加随机数种子初始化
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }

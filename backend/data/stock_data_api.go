@@ -7,6 +7,7 @@ package data
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/db"
@@ -14,6 +15,8 @@ import (
 	"go-stock/backend/models"
 	"io"
 	"io/ioutil"
+	"net"
+	"net/http"
 	url2 "net/url"
 	"reflect"
 	"strconv"
@@ -198,6 +201,7 @@ type StockBasicResponse struct {
 func (receiver StockBasic) TableName() string {
 	return "tushare_stock_basic"
 }
+
 func NewStockDataApi() *StockDataApi {
 	return &StockDataApi{
 		client: resty.New(),
@@ -1813,14 +1817,58 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 		stockCode = strings.Split(stockCode, ".")[1] + "." + strings.Split(stockCode, ".")[0]
 	}
 
-	url := "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get?cb=data&lmt=0&klt=101&fields1=f1%2Cf2%2Cf3%2Cf7&fields2=f51%2Cf52%2Cf53%2Cf54%2Cf55%2Cf56%2Cf57%2Cf58%2Cf59%2Cf60%2Cf61%2Cf62%2Cf63%2Cf64%2Cf65&ut=b2884a393a59ad64002292a3e90d46a5&secid=" + stockCode + "&_=" + convertor.ToString(time.Now().Unix())
-	logger.SugaredLogger.Infof("url:%s", url)
-	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
-	setEastMoneyKlineBrowserHeaders(req)
-	if ch := EastMoneyCookieHeaderForPush2his(receiver.config); ch != "" {
-		req.SetHeader("Cookie", ch)
+	baseURL := "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
+
+	params := url2.Values{}
+	params.Set("cb", "data")
+	params.Set("lmt", "0")
+	params.Set("klt", "101")
+	params.Set("fields1", "f1,f2,f3,f7")
+	params.Set("fields2", "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63,f64,f65")
+	params.Set("ut", "b2884a393a59ad64002292a3e90d46a5")
+	params.Set("secid", stockCode)
+	params.Set("_", fmt.Sprintf("%d", time.Now().UnixMilli()))
+	reqURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
+
+	// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
+	dialer := &net.Dialer{
+		Timeout:       10 * time.Second,
+		KeepAlive:     30 * time.Second,
+		DualStack:     false, // 禁用双栈
+		FallbackDelay: -1,    // 禁用 Happy Eyeballs
 	}
-	resp, err := req.Get(url)
+	receiver.client.SetTransport(&http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 强制只使用 IPv4
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			// 解析 A 记录（IPv4）
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+			if err != nil {
+				return nil, err
+			}
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("no IPv4 address found for %s", host)
+			}
+			ipv4 := ips[0].String()
+			return dialer.DialContext(ctx, "tcp4", net.JoinHostPort(ipv4, port))
+		},
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: "push2.eastmoney.com",
+		},
+		DisableCompression:  true, // 禁用自动压缩，手动处理 gzip
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+		ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
+	})
+
+	logger.SugaredLogger.Infof("url:%s", reqURL)
+	req := receiver.client.SetHeader("User-Agent", getRandomUA()).R()
+	resp, err := req.Get(reqURL)
 	if err != nil {
 		logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
@@ -1873,6 +1921,7 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 
 // GetStockMoneyData 获取个股资金流数据
 func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
+
 	var resData models.StockMoneyDataResp
 	url := "https://push2.eastmoney.com/api/qt/clist/get?cb=data&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13,f100,f265"
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().

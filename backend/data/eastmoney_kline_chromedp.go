@@ -18,7 +18,7 @@ const eastMoneyCookieChromedpMinTimeout = 2 * time.Minute
 // EastMoneyCookieCacheTTL Cookie 缓存有效期；过期后下次 K 线请求才会再次 chromedp（K 线 HTTP 仍每次都发真实请求）
 const EastMoneyCookieCacheTTL = 12 * time.Minute
 
-const quoteEastMoneyPage = "https://www.eastmoney.com/"
+const quoteEastMoneyPage = "https://quote.eastmoney.com/"
 
 var (
 	eastMoneyCookieMu     sync.Mutex
@@ -161,9 +161,6 @@ func eastMoneyCookiesViaChromedpOnce(browserPath string, timeout time.Duration) 
 			var inner error
 			cookies, inner = network.GetCookies().WithURLs([]string{
 				quoteEastMoneyPage,
-				"https://quote.eastmoney.com/",
-				"https://push2his.eastmoney.com/",
-				"https://push2.eastmoney.com/",
 			}).Do(actx)
 			return inner
 		}),
