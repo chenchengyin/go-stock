@@ -43,8 +43,8 @@ const props = defineProps({
   stockName: { type: String, default: '' },
   darkTheme: { type: Boolean, default: false },
   chartHeight: { type: Number, default: 460 },
-  /** 定时拉取当前周期最新 K 线，毫秒；0 关闭 */
-  realtimeIntervalMs: { type: Number, default: 3000 },
+  /** 定时拉取当前周期最新 K 线，毫秒；0 关闭；默认 60 秒 */
+  realtimeIntervalMs: { type: Number, default: 1000*60 },
 })
 
 const chartContainerRef = ref(null)

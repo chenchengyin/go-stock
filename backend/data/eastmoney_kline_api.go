@@ -14,10 +14,21 @@ import (
 
 // 模拟 Windows 上 Chrome 从 quote.eastmoney.com 请求 push2his 行情接口（与 DevTools Network 常见字段对齐）。
 // 不显式设置 Accept-Encoding：由 net/http 默认协商 gzip 并自动解压；若声明 br/zstd 而 Transport 不解压会导致乱码/失败。
-const eastMoneyKlineChromeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+var eastMoneyKlineChromeUAs = []string{
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+}
+
+// getRandomUA 随机返回一个 User-Agent
+func getRandomUA() string {
+	return eastMoneyKlineChromeUAs[time.Now().UnixNano()%int64(len(eastMoneyKlineChromeUAs))]
+}
 
 func setEastMoneyKlineBrowserHeaders(r *resty.Request) {
-	r.SetHeader("User-Agent", eastMoneyKlineChromeUA)
+	r.SetHeader("User-Agent", getRandomUA())
 	r.SetHeader("Accept", "application/json, text/plain, */*")
 	r.SetHeader("Accept-Language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
 	r.SetHeader("Referer", "https://quote.eastmoney.com/")
