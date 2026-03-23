@@ -432,6 +432,7 @@ func (a *App) domReady(ctx context.Context) {
 		}
 		a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+60), func() {
 			data.NewsAnalyze("", true)
+			cacheCookies("https://push2his.eastmoney.com/api/qt/stock/kline/get")
 		})
 
 		//ticker := time.NewTicker(time.Second * time.Duration(interval))

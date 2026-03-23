@@ -305,6 +305,10 @@ const modalDataRef = reactive({
   stockCode: "",
   stockName: "",
   remarks: "",
+  /** 传给 K 线组件的多单价位（与 StockLightweightKlineChart v-model 同步） */
+  longEntryPrice: '',
+  longStopLossPrice: '',
+  longTakeProfitPrice: '',
 })
 
 const theme = computed(() => {
@@ -402,6 +406,16 @@ function getStockCode(stockCode) {
   return stockCode
 
 }
+
+/** 推荐价可能为区间 "a-b"，取左侧作为图上开仓/止损/止盈线参考价 */
+function recommendRangeToSinglePrice(p) {
+  if (p == null || String(p).trim() === '') return ''
+  const s = String(p).trim()
+  const i = s.indexOf('-')
+  if (i > 0) return s.slice(0, i).trim()
+  return s
+}
+
 function showDetail(row) {
   if(vipLevel.value===""|| Number(vipLevel.value) <=0){
     notify.warning({content: '未开通VIP或者已经过期'})
@@ -414,6 +428,9 @@ function showDetail(row) {
   modalDataRef.stockName = row.stockName
   modalDataRef.visible = true
   modalDataRef.remarks = row.remarks
+  modalDataRef.longEntryPrice = recommendRangeToSinglePrice(row.recommendBuyPrice)
+  modalDataRef.longStopLossPrice = recommendRangeToSinglePrice(row.recommendStopLossPrice)
+  modalDataRef.longTakeProfitPrice = recommendRangeToSinglePrice(row.recommendStopProfitPrice)
 }
 function rowProps(row) {
   return {
@@ -456,7 +473,16 @@ function deleteAiRecommendStocks(id) {
   <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 950px;">
     <n-gradient-text :size="16" type="warning">{{modalDataRef.remarks}}</n-gradient-text>
     <n-card size="small">
-      <StockLightweightKlineChart style="width: 1000px" :code="getStockCode(modalDataRef.stockCode)" :chart-height="350" :stock-name="modalDataRef.stockName" :dark-theme="editorDataRef.darkTheme"></StockLightweightKlineChart>
+      <StockLightweightKlineChart
+        style="width: 1000px"
+        :code="modalDataRef.stockCode"
+        :chart-height="350"
+        :stock-name="modalDataRef.stockName"
+        :dark-theme="editorDataRef.darkTheme"
+        v-model:long-entry-price="modalDataRef.longEntryPrice"
+        v-model:long-stop-loss-price="modalDataRef.longStopLossPrice"
+        v-model:long-take-profit-price="modalDataRef.longTakeProfitPrice"
+      />
     </n-card>
     <n-card size="small">
     <n-text type="info">{{modalDataRef.content}}</n-text>

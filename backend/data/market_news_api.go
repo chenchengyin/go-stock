@@ -445,6 +445,160 @@ func (m MarketNewsApi) GlobalStockIndexesToReadable(data map[string]any) string 
 	return sb.String()
 }
 
+// CacheGlobalStockIndexes 将全球指数数据缓存到数据库
+func (m MarketNewsApi) CacheGlobalStockIndexes(crawlTimeOut uint) error {
+	data := m.GlobalStockIndexes(crawlTimeOut)
+	if len(data) == 0 {
+		return fmt.Errorf("获取全球指数数据失败")
+	}
+
+	// 定义区域映射
+	regions := map[string]string{
+		"america": "美洲",
+		"asia":    "亚洲",
+		"europe":  "欧洲",
+		"common":  "重点关注",
+		"other":   "其他",
+	}
+
+	for regionKey, regionName := range regions {
+		raw, ok := data[regionKey]
+		if !ok || raw == nil {
+			continue
+		}
+		list, ok := raw.([]any)
+		if !ok || len(list) == 0 {
+			continue
+		}
+
+		for _, item := range list {
+			row, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			index := models.GlobalStockIndex{
+				Code:       convertor.ToString(row["code"]),
+				Name:       convertor.ToString(row["name"]),
+				Location:   convertor.ToString(row["location"]),
+				Qtcode:     convertor.ToString(row["qtcode"]),
+				State:      convertor.ToString(row["state"]),
+				Zdf:        convertor.ToString(row["zdf"]),
+				Zxj:        convertor.ToString(row["zxj"]),
+				Img:        convertor.ToString(row["img"]),
+				Region:     regionKey,
+				RegionName: regionName,
+			}
+
+			// 如果已存在则更新，不存在则创建
+			existing := models.GlobalStockIndex{}
+			query := db.Dao.Model(&models.GlobalStockIndex{}).Where("qtcode = ?", index.Qtcode)
+			if err := query.First(&existing).Error; err == nil {
+				// 记录已存在，更新
+				db.Dao.Model(&existing).Updates(map[string]any{
+					"name":     index.Name,
+					"location": index.Location,
+					"state":    index.State,
+					"zdf":      index.Zdf,
+					"zxj":      index.Zxj,
+					"img":      index.Img,
+					"region":   index.Region,
+				})
+			} else {
+				// 记录不存在，创建
+			}
+			db.Dao.Where(models.GlobalStockIndex{Qtcode: index.Qtcode}).FirstOrCreate(&index)
+		}
+	}
+
+	logger.SugaredLogger.Info("全球指数缓存完成")
+	return nil
+}
+
+// GetCachedGlobalStockIndexes 从数据库获取缓存的全球指数数据
+func (m MarketNewsApi) GetCachedGlobalStockIndexes(region string) *[]models.GlobalStockIndex {
+	indexes := &[]models.GlobalStockIndex{}
+	query := db.Dao.Model(&models.GlobalStockIndex{})
+	if region != "" && region != "all" {
+		query = query.Where("region = ?", region)
+	}
+	query.Order("region, zdf desc").Find(indexes)
+	return indexes
+}
+
+// GetCachedGlobalStockIndexesReadable 获取缓存的全球指数并转换为易读格式
+func (m MarketNewsApi) GetCachedGlobalStockIndexesReadable(region string) string {
+	data := m.GetCachedGlobalStockIndexes(region)
+	if data == nil || len(*data) == 0 {
+		return "暂无全球指数数据。"
+	}
+
+	type regionDef struct {
+		Key   string
+		Title string
+	}
+	regions := []regionDef{
+		{Key: "common", Title: "重点关注"},
+		{Key: "asia", Title: "亚洲市场"},
+		{Key: "america", Title: "美洲市场"},
+		{Key: "europe", Title: "欧洲市场"},
+		{Key: "other", Title: "其他市场"},
+	}
+
+	stateText := func(v string) string {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "open":
+			return "开盘"
+		case "close":
+			return "收盘"
+		default:
+			if v == "" {
+				return "-"
+			}
+			return v
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("# 全球主要指数概览\n")
+	sb.WriteString("> 数据来源：腾讯财经，已按区域整理。\n\n")
+
+	// 按区域分组
+	indexesByRegion := make(map[string][]models.GlobalStockIndex)
+	for _, idx := range *data {
+		indexesByRegion[idx.Region] = append(indexesByRegion[idx.Region], idx)
+	}
+
+	written := 0
+	for _, regionDef := range regions {
+		list, ok := indexesByRegion[regionDef.Key]
+		if !ok || len(list) == 0 {
+			continue
+		}
+		written++
+		sb.WriteString("## ")
+		sb.WriteString(regionDef.Title)
+		sb.WriteString("\n")
+		sb.WriteString("| 指数 | 地区 | 最新点位 | 涨跌幅(%) | 状态 |\n")
+		sb.WriteString("| --- | --- | ---: | ---: | --- |\n")
+
+		for _, idx := range list {
+			name := idx.Name
+			if name == "" {
+				name = idx.Code
+			}
+			sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s |\n",
+				name, idx.Location, idx.Zxj, idx.Zdf, stateText(idx.State)))
+		}
+		sb.WriteString("\n")
+	}
+
+	if written == 0 {
+		return "暂无可解析的全球指数数据。"
+	}
+	return sb.String()
+}
+
 func (m MarketNewsApi) GetIndustryRank(sort string, cnt int) map[string]any {
 
 	url := fmt.Sprintf("https://proxy.finance.qq.com/ifzqgtimg/appstock/app/mktHs/rank?l=%d&p=1&t=01/averatio&ordertype=&o=%s", cnt, sort)

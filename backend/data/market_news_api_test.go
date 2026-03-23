@@ -41,6 +41,9 @@ func TestGetSinaNews(t *testing.T) {
 func TestGlobalStockIndexes(t *testing.T) {
 	resp := NewMarketNewsApi().GlobalStockIndexes(30)
 
+	bs, _ := json.Marshal(resp)
+	logger.SugaredLogger.Debugf("JSON:\n%s", string(bs))
+
 	md := NewMarketNewsApi().GlobalStockIndexesToReadable(resp)
 
 	logger.SugaredLogger.Debugf("resp: \n%s", md)

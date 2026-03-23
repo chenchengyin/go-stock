@@ -8,7 +8,7 @@ import {
   LineStyle,
   TickMarkType,
 } from 'lightweight-charts'
-import { NButton, NFlex, NSpin, NText } from 'naive-ui'
+import { NButton, NFlex, NInput, NSpin, NText } from 'naive-ui'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 /** A 股配色：涨红跌绿 */
@@ -24,6 +24,8 @@ const HISTORY_PAGE_SIZE = 400
 const BARS_BEFORE_LOAD_MORE = 45
 /** 首次加载 / 切换周期后默认可见 K 线根数（过密时看不清） */
 const DEFAULT_VISIBLE_BARS = 180
+/** 逻辑坐标上右侧多留的「空档」，最新 K 不靠最右边（与左拖分页后的 range 平移兼容） */
+const DEFAULT_RIGHT_LOGICAL_GAP = 18
 
 const INTERVALS = [
   { klt: '1', label: '1分', limit: 1000 },
@@ -45,8 +47,19 @@ const props = defineProps({
   chartHeight: { type: Number, default: 460 },
   /** 定时拉取当前周期最新 K 线，毫秒；0 关闭；默认 60 秒 */
   realtimeIntervalMs: { type: Number, default: 1000*60 },
+  /** 多单开仓价；传入则与内部输入同步，未传入（undefined）时不向父组件 emit */
+  longEntryPrice: { type: [String, Number], default: undefined },
+  /** 多单止损价 */
+  longStopLossPrice: { type: [String, Number], default: undefined },
+  /** 多单止盈价 */
+  longTakeProfitPrice: { type: [String, Number], default: undefined },
 })
 
+const emit = defineEmits([
+  'update:longEntryPrice',
+  'update:longStopLossPrice',
+  'update:longTakeProfitPrice',
+])
 const chartContainerRef = ref(null)
 /** 十字线当前 K 对应的原始行（东财字段） */
 const hoverRawRow = ref(null)
@@ -59,6 +72,18 @@ const showOBV = ref(false)
 const showMACD = ref(false)
 const showKDJ = ref(false)
 const showRSI = ref(false)
+/** TradingView 风格「多单」：开仓 / 止损 / 止盈 价位线 */
+const showLongPosition = ref(false)
+const longEntryStr = ref('')
+const longStopStr = ref('')
+const longTakeProfitStr = ref('')
+/** 在 K 线主区点击，按顺序写入开仓 → 止损 → 止盈（再点回到开仓） */
+const longClickPickEnabled = ref(false)
+const longClickNextField = ref('entry')
+/** 点过开仓/止损/止盈输入框后，下一次主图点击写入对应价位（blur 延迟清除以兼容「先失焦后 click」） */
+const longFocusedPriceField = ref(null)
+/** 由 props 写入价位时抑制 emit，避免与 v-model 循环 */
+const suppressLongPriceEmit = ref(false)
 const loading = ref(false)
 const loadingHistory = ref(false)
 const errorText = ref('')
@@ -76,10 +101,30 @@ let historyVisiblePollTimer = null
 let logicalRangeHandler = null
 let visibleTimeRangeHandler = null
 let crosshairMoveHandler = null
+let chartClickHandler = null
 /** 上一次请求更早 K 线使用的 end，用于识别「重叠返回」避免误判无更多数据 */
 let lastOlderHistoryEndTried = ''
 /** >0 时表示由代码在改时间轴（fitContent / setData / setVisibleLogicalRange），不触发分页加载 */
 let programmaticRangeDepth = 0
+/** 多单标注：createPriceLine 返回的句柄，需在 dispose / 重绘前 remove */
+let longPositionPriceLines = []
+/** 各价位线句柄，用于命中与拖动时 applyOptions */
+let longLineByKind = { entry: null, stop: null, takeProfit: null }
+/** 正在拖动某条多单价位线时禁止 watch 里整表重建线条 */
+let longPositionDragActive = false
+let longDragKind = null
+/** 命中线后抑制一次「图上点击设价」，避免拖/点冲突 */
+let longSuppressChartClick = false
+let longPaneDragEl = null
+/** window 上拖动用监听器是否已挂（避免重复解绑 / 重复 up） */
+let longDragWindowListenersOn = false
+/** 拖动过程中最近一次指针 Y，用于松手后恢复「可拖」光标 */
+let longLastPointerClientY = null
+/** 垂直方向命中容差（px） */
+const LONG_PRICE_LINE_HIT_PX = 12
+/** 输入框 blur 后延迟清除「待图表取价」状态（ms），需大于 click 相对 blur 的间隔 */
+const LONG_FOCUS_BLUR_CLEAR_MS = 600
+let longFocusBlurTimer = null
 
 /** 指标线系列（与主图生命周期同步） */
 const ind = {
@@ -109,6 +154,8 @@ function removeSeriesSafe(api) {
   }
   return null
 }
+
+
 
 function extractOHLCV(rows) {
   const sorted = [...(rows || [])].sort((a, b) => sortKey(a.day) - sortKey(b.day))
@@ -796,6 +843,353 @@ const crosshairPanel = computed(() => {
   }
 })
 
+function clearLongPositionPriceLines() {
+  longLineByKind = { entry: null, stop: null, takeProfit: null }
+  if (!candleSeries) {
+    longPositionPriceLines = []
+    return
+  }
+  for (const pl of longPositionPriceLines) {
+    try {
+      candleSeries.removePriceLine(pl)
+    } catch {
+      /* ignore */
+    }
+  }
+  longPositionPriceLines = []
+}
+
+function syncLongPositionPriceLines() {
+  clearLongPositionPriceLines()
+  if (!showLongPosition.value || !candleSeries) return
+  const entry = parseNumStr(longEntryStr.value)
+  if (!Number.isFinite(entry)) return
+  const stop = parseNumStr(longStopStr.value)
+  const tp = parseNumStr(longTakeProfitStr.value)
+  const pushLine = (price, kind, partial) => {
+    const pl = candleSeries.createPriceLine({
+      price,
+      lineWidth: 2,
+      axisLabelVisible: true,
+      ...partial,
+    })
+    longPositionPriceLines.push(pl)
+    longLineByKind[kind] = pl
+  }
+  pushLine(entry, 'entry', {
+    color: '#3b82f6',
+    lineStyle: LineStyle.Solid,
+    title: '开仓',
+  })
+  if (Number.isFinite(stop)) {
+    pushLine(stop, 'stop', {
+      color: CLR_FALL,
+      lineStyle: LineStyle.Dashed,
+      title: '止损',
+    })
+  }
+  if (Number.isFinite(tp)) {
+    pushLine(tp, 'takeProfit', {
+      color: CLR_RISE,
+      lineStyle: LineStyle.Dashed,
+      title: '止盈',
+    })
+  }
+}
+
+function getLongDragPaneElement() {
+  if (!chart) return chartContainerRef.value
+  return chart.panes()[0]?.getHTMLElement() ?? chartContainerRef.value
+}
+
+function longPaneLocalYFromClient(clientY) {
+  const el = getLongDragPaneElement()
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  const y = clientY - r.top
+  return Number.isFinite(y) ? y : null
+}
+
+function refreshLongPriceLineCursorFromCrosshair(param) {
+  const paneEl = getLongDragPaneElement()
+  if (!paneEl) return
+  if (longPositionDragActive) {
+    paneEl.style.cursor = 'grabbing'
+    return
+  }
+  if (
+    !showLongPosition.value ||
+    !longLineByKind.entry ||
+    param.point === undefined ||
+    (param.paneIndex != null && param.paneIndex !== 0)
+  ) {
+    paneEl.style.cursor = ''
+    return
+  }
+  const kind = hitTestLongPriceLineKind(param.point.y)
+  paneEl.style.cursor = kind ? 'grab' : ''
+}
+
+function clearLongPriceLinePaneCursor() {
+  if (longPositionDragActive) return
+  const paneEl = getLongDragPaneElement()
+  if (paneEl) paneEl.style.cursor = ''
+}
+
+/** @returns {'entry'|'stop'|'takeProfit'|null} */
+function hitTestLongPriceLineKind(localY) {
+  if (!candleSeries || !showLongPosition.value || localY == null) return null
+  let best = null
+  let bestDist = LONG_PRICE_LINE_HIT_PX + 1
+  for (const kind of ['entry', 'stop', 'takeProfit']) {
+    const line = longLineByKind[kind]
+    if (!line) continue
+    const p = Number(line.options().price)
+    if (!Number.isFinite(p)) continue
+    const ly = candleSeries.priceToCoordinate(p)
+    if (ly == null) continue
+    const cy = Number(ly)
+    if (!Number.isFinite(cy)) continue
+    const d = Math.abs(cy - localY)
+    if (d <= LONG_PRICE_LINE_HIT_PX && d < bestDist) {
+      bestDist = d
+      best = kind
+    }
+  }
+  return best
+}
+
+function detachLongDragWindowListeners() {
+  if (!longDragWindowListenersOn) return
+  longDragWindowListenersOn = false
+  window.removeEventListener('pointermove', onLongDragWindowMove, true)
+  window.removeEventListener('pointerup', onLongDragWindowUp, true)
+  window.removeEventListener('pointercancel', onLongDragWindowUp, true)
+}
+
+function onLongDragWindowMove(e) {
+  if (!longPositionDragActive || !longDragKind || !candleSeries) return
+  longLastPointerClientY = e.clientY
+  const y = longPaneLocalYFromClient(e.clientY)
+  if (y == null) return
+  const raw = candleSeries.coordinateToPrice(y)
+  const price = raw == null ? NaN : Number(raw)
+  if (!Number.isFinite(price)) return
+  const s = price.toFixed(2)
+  const line = longLineByKind[longDragKind]
+  if (line) {
+    try {
+      line.applyOptions({ price })
+    } catch {
+      /* ignore */
+    }
+  }
+  if (longDragKind === 'entry') longEntryStr.value = s
+  else if (longDragKind === 'stop') longStopStr.value = s
+  else longTakeProfitStr.value = s
+}
+
+function onLongDragWindowUp() {
+  if (!longDragWindowListenersOn) return
+  const was = longPositionDragActive
+  detachLongDragWindowListeners()
+  longPositionDragActive = false
+  longDragKind = null
+  if (was) syncLongPositionPriceLines()
+  const paneEl = getLongDragPaneElement()
+  if (paneEl) {
+    if (
+      longLastPointerClientY != null &&
+      showLongPosition.value &&
+      longLineByKind.entry
+    ) {
+      const ly = longPaneLocalYFromClient(longLastPointerClientY)
+      const kind = ly != null ? hitTestLongPriceLineKind(ly) : null
+      paneEl.style.cursor = kind ? 'grab' : ''
+    } else {
+      paneEl.style.cursor = ''
+    }
+  }
+  longLastPointerClientY = null
+  setTimeout(() => {
+    longSuppressChartClick = false
+  }, 0)
+}
+
+function onLongPriceLinePointerDownCapture(e) {
+  if (!showLongPosition.value || !candleSeries) return
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  const y = longPaneLocalYFromClient(e.clientY)
+  if (y == null) return
+  const kind = hitTestLongPriceLineKind(y)
+  if (!kind) return
+  longLastPointerClientY = e.clientY
+  longSuppressChartClick = true
+  longPositionDragActive = true
+  longDragKind = kind
+  const paneElGrab = getLongDragPaneElement()
+  if (paneElGrab) paneElGrab.style.cursor = 'grabbing'
+  try {
+    e.preventDefault()
+  } catch {
+    /* ignore */
+  }
+  e.stopPropagation()
+  detachLongDragWindowListeners()
+  longDragWindowListenersOn = true
+  window.addEventListener('pointermove', onLongDragWindowMove, true)
+  window.addEventListener('pointerup', onLongDragWindowUp, true)
+  window.addEventListener('pointercancel', onLongDragWindowUp, true)
+}
+
+function attachLongPriceLineDragListeners() {
+  detachLongPriceLinePaneListener()
+  longPaneDragEl = getLongDragPaneElement()
+  if (longPaneDragEl) {
+    longPaneDragEl.addEventListener('pointerdown', onLongPriceLinePointerDownCapture, true)
+  }
+}
+
+function detachLongPriceLinePaneListener() {
+  if (longPaneDragEl) {
+    longPaneDragEl.removeEventListener('pointerdown', onLongPriceLinePointerDownCapture, true)
+    longPaneDragEl = null
+  }
+}
+
+const longPositionStats = computed(() => {
+  const entry = parseNumStr(longEntryStr.value)
+  const stop = parseNumStr(longStopStr.value)
+  const tp = parseNumStr(longTakeProfitStr.value)
+  if (!Number.isFinite(entry)) return null
+  const risk = Number.isFinite(stop) ? entry - stop : NaN
+  const reward = Number.isFinite(tp) ? tp - entry : NaN
+  const rr =
+    Number.isFinite(risk) && risk > 0 && Number.isFinite(reward)
+      ? reward / risk
+      : NaN
+  return {
+    riskPts: risk,
+    rewardPts: reward,
+    riskRr: rr,
+    riskPct: Number.isFinite(risk) && entry !== 0 ? (risk / entry) * 100 : NaN,
+    rewardPct: Number.isFinite(reward) && entry !== 0 ? (reward / entry) * 100 : NaN,
+  }
+})
+
+const longPositionHint = computed(() => {
+  if (!showLongPosition.value) return ''
+  if (!Number.isFinite(parseNumStr(longEntryStr.value))) {
+    return '输入开仓价后显示线；止损低于开仓、止盈高于开仓为典型多单'
+  }
+  const s = longPositionStats.value
+  if (!s) return ''
+  const parts = []
+  if (Number.isFinite(s.riskPts)) parts.push(`风险幅度 ${s.riskPts.toFixed(2)}`)
+  if (Number.isFinite(s.rewardPts)) parts.push(`目标幅度 ${s.rewardPts.toFixed(2)}`)
+  if (Number.isFinite(s.riskRr) && s.riskRr > 0) parts.push(`盈亏比 1 : ${s.riskRr.toFixed(2)}`)
+  parts.push('单击线条可拖动改价')
+  return parts.join(' · ')
+})
+
+function toggleLongPosition() {
+  showLongPosition.value = !showLongPosition.value
+  if (!showLongPosition.value) {
+    longClickPickEnabled.value = false
+    clearLongFocusedPriceField()
+    clearLongPriceLinePaneCursor()
+  }
+  syncLongPositionPriceLines()
+}
+
+function fillLongEntryFromLatestClose() {
+  const r = defaultLatestRawRow.value
+  if (!r) return
+  const c = parseNumStr(r.close)
+  if (!Number.isFinite(c)) return
+  longEntryStr.value = c.toFixed(2)
+  showLongPosition.value = true
+  syncLongPositionPriceLines()
+}
+
+const longClickNextLabel = computed(() => {
+  const m = { entry: '开仓价', stop: '止损价', takeProfit: '止盈价' }
+  return m[longClickNextField.value] || '开仓价'
+})
+
+const longFocusChartHint = computed(() => {
+  const k = longFocusedPriceField.value
+  if (!k) return ''
+  const m = { entry: '开仓', stop: '止损', takeProfit: '止盈' }
+  return `已选「${m[k] || ''}」：请在 K 线主图（非成交量）点击纵轴位置写入价格`
+})
+
+function cancelLongFocusBlurTimer() {
+  if (longFocusBlurTimer != null) {
+    clearTimeout(longFocusBlurTimer)
+    longFocusBlurTimer = null
+  }
+}
+
+function onLongPriceInputFocus(kind) {
+  cancelLongFocusBlurTimer()
+  longFocusedPriceField.value = kind
+}
+
+function onLongPriceInputBlur() {
+  cancelLongFocusBlurTimer()
+  longFocusBlurTimer = setTimeout(() => {
+    longFocusBlurTimer = null
+    longFocusedPriceField.value = null
+  }, LONG_FOCUS_BLUR_CLEAR_MS)
+}
+
+function clearLongFocusedPriceField() {
+  cancelLongFocusBlurTimer()
+  longFocusedPriceField.value = null
+}
+
+function applyLongPriceFromChartByField(kind, price) {
+  if (!Number.isFinite(price)) return
+  const s = price.toFixed(2)
+  showLongPosition.value = true
+  if (kind === 'entry') longEntryStr.value = s
+  else if (kind === 'stop') longStopStr.value = s
+  else if (kind === 'takeProfit') longTakeProfitStr.value = s
+  clearLongFocusedPriceField()
+  syncLongPositionPriceLines()
+}
+
+function toggleLongClickPick() {
+  longClickPickEnabled.value = !longClickPickEnabled.value
+  if (longClickPickEnabled.value) {
+    showLongPosition.value = true
+    longClickNextField.value = 'entry'
+  }
+  syncLongPositionPriceLines()
+}
+
+function resetLongClickSequence() {
+  longClickNextField.value = 'entry'
+}
+
+function applyLongClickPrice(price) {
+  if (!Number.isFinite(price)) return
+  const s = price.toFixed(2)
+  const step = longClickNextField.value
+  if (step === 'entry') {
+    longEntryStr.value = s
+    longClickNextField.value = 'stop'
+  } else if (step === 'stop') {
+    longStopStr.value = s
+    longClickNextField.value = 'takeProfit'
+  } else {
+    longTakeProfitStr.value = s
+    longClickNextField.value = 'entry'
+  }
+  syncLongPositionPriceLines()
+}
+
 function chartThemeOptions(isDark) {
   const minuteLike = !DAILY_LIKE_KLT.has(activeKlt.value)
   return {
@@ -928,6 +1322,7 @@ function applySeriesFromRaw() {
   candleSeries.setData(candles)
   volSeries.setData(volumes)
   syncIndicators()
+  syncLongPositionPriceLines()
 }
 
 function withProgrammaticTimeRange(fn) {
@@ -945,7 +1340,7 @@ function applyDefaultVisibleRange() {
   const n = mergedRawRows.length
   const vis = Math.min(DEFAULT_VISIBLE_BARS, n)
   const from = Math.max(0, n - vis)
-  const to = n - 1
+  const to = n - 1 + DEFAULT_RIGHT_LOGICAL_GAP
   chart.timeScale().setVisibleLogicalRange({ from, to })
 }
 
@@ -995,6 +1390,13 @@ function disposeChart() {
     loadOlderDebounceTimer = null
   }
   stopHistoryVisiblePoll()
+  detachLongDragWindowListeners()
+  detachLongPriceLinePaneListener()
+  cancelLongFocusBlurTimer()
+  longFocusedPriceField.value = null
+  longPositionDragActive = false
+  longDragKind = null
+  longSuppressChartClick = false
   if (chart && logicalRangeHandler) {
     chart.timeScale().unsubscribeVisibleLogicalRangeChange(logicalRangeHandler)
     logicalRangeHandler = null
@@ -1007,9 +1409,20 @@ function disposeChart() {
     chart.unsubscribeCrosshairMove(crosshairMoveHandler)
     crosshairMoveHandler = null
   }
+  if (chart && chartClickHandler) {
+    chart.unsubscribeClick(chartClickHandler)
+    chartClickHandler = null
+  }
   hoverRawRow.value = null
   defaultLatestRawRow.value = null
   if (chart) {
+    try {
+      const pe = chart.panes()[0]?.getHTMLElement()
+      if (pe?.style) pe.style.cursor = ''
+    } catch {
+      /* ignore */
+    }
+    clearLongPositionPriceLines()
     chart.remove()
     chart = null
     candleSeries = null
@@ -1197,8 +1610,10 @@ function ensureChart() {
   crosshairMoveHandler = (param) => {
     if (param.point === undefined) {
       hoverRawRow.value = null
+      clearLongPriceLinePaneCursor()
       return
     }
+    refreshLongPriceLineCursorFromCrosshair(param)
     if (param.time === undefined) {
       hoverRawRow.value = null
       return
@@ -1211,6 +1626,26 @@ function ensureChart() {
     hoverRawRow.value = findRawRowByChartTime(param.time)
   }
   chart.subscribeCrosshairMove(crosshairMoveHandler)
+  chartClickHandler = (param) => {
+    if (longSuppressChartClick) return
+    if (!candleSeries || !param.point) return
+    if (param.paneIndex != null && param.paneIndex !== 0) return
+    if (param.hoveredSeries && param.hoveredSeries !== candleSeries) return
+    const y = param.point.y
+    const raw = candleSeries.coordinateToPrice(y)
+    const price = raw == null ? NaN : Number(raw)
+    if (!Number.isFinite(price)) return
+    const focusKind = longFocusedPriceField.value
+    if (focusKind === 'entry' || focusKind === 'stop' || focusKind === 'takeProfit') {
+      applyLongPriceFromChartByField(focusKind, price)
+      return
+    }
+    if (!longClickPickEnabled.value || !showLongPosition.value) return
+    applyLongClickPrice(price)
+  }
+  chart.subscribeClick(chartClickHandler)
+  syncLongPositionPriceLines()
+  nextTick(() => attachLongPriceLineDragListeners())
 }
 
 async function loadData() {
@@ -1222,6 +1657,7 @@ async function loadData() {
     lastOlderHistoryEndTried = ''
     candleSeries?.setData([])
     volSeries?.setData([])
+    syncLongPositionPriceLines()
     return
   }
   loading.value = true
@@ -1249,6 +1685,7 @@ async function loadData() {
       candleSeries?.setData([])
       volSeries?.setData([])
       syncIndicators()
+      syncLongPositionPriceLines()
       return
     }
     withProgrammaticTimeRange(() => {
@@ -1290,6 +1727,71 @@ function toggleRSI() {
   showRSI.value = !showRSI.value
   syncIndicators()
 }
+
+function pricePropToInputStr(v) {
+  if (v == null) return ''
+  return String(v).trim()
+}
+
+watch(
+  () => [props.longEntryPrice, props.longStopLossPrice, props.longTakeProfitPrice],
+  ([e, s, t]) => {
+    let needReleaseSuppress = false
+    if (e !== undefined) {
+      const se = pricePropToInputStr(e)
+      if (se !== longEntryStr.value) {
+        suppressLongPriceEmit.value = true
+        needReleaseSuppress = true
+        longEntryStr.value = se
+      }
+    }
+    if (s !== undefined) {
+      const ss = pricePropToInputStr(s)
+      if (ss !== longStopStr.value) {
+        suppressLongPriceEmit.value = true
+        needReleaseSuppress = true
+        longStopStr.value = ss
+      }
+    }
+    if (t !== undefined) {
+      const st = pricePropToInputStr(t)
+      if (st !== longTakeProfitStr.value) {
+        suppressLongPriceEmit.value = true
+        needReleaseSuppress = true
+        longTakeProfitStr.value = st
+      }
+    }
+    if (needReleaseSuppress) {
+      nextTick(() => {
+        suppressLongPriceEmit.value = false
+      })
+    }
+    if (
+      parseNumStr(longEntryStr.value) ||
+      parseNumStr(longStopStr.value) ||
+      parseNumStr(longTakeProfitStr.value)
+    ) {
+      showLongPosition.value = true
+    }
+  },
+  { immediate: true },
+)
+
+watch(longEntryStr, (v) => {
+  if (suppressLongPriceEmit.value) return
+  if (props.longEntryPrice === undefined) return
+  emit('update:longEntryPrice', v)
+})
+watch(longStopStr, (v) => {
+  if (suppressLongPriceEmit.value) return
+  if (props.longStopLossPrice === undefined) return
+  emit('update:longStopLossPrice', v)
+})
+watch(longTakeProfitStr, (v) => {
+  if (suppressLongPriceEmit.value) return
+  if (props.longTakeProfitPrice === undefined) return
+  emit('update:longTakeProfitPrice', v)
+})
 
 onMounted(() => {
   nextTick(() => {
@@ -1336,6 +1838,14 @@ watch(
 watch(
   () => props.realtimeIntervalMs,
   () => setupPoll(),
+)
+
+watch(
+  [showLongPosition, longEntryStr, longStopStr, longTakeProfitStr],
+  () => {
+    if (longPositionDragActive) return
+    syncLongPositionPriceLines()
+  },
 )
 
 </script>
@@ -1410,10 +1920,84 @@ watch(
                 RSI(14)
               </NButton>
             </NFlex>
+            <NFlex :size="6" wrap style="row-gap: 6px; align-items: center">
+              <NText depth="3" style="font-size: 12px; margin-right: 4px">多单</NText>
+              <NButton
+                size="tiny"
+                :type="showLongPosition ? 'primary' : 'default'"
+                :secondary="!showLongPosition"
+                @click="toggleLongPosition"
+              >
+                价位线
+              </NButton>
+              <NInput
+                v-model:value="longEntryStr"
+                size="tiny"
+                placeholder="开仓"
+                style="width: 88px"
+                clearable
+                @focus="onLongPriceInputFocus('entry')"
+                @blur="onLongPriceInputBlur"
+              />
+              <NInput
+                v-model:value="longStopStr"
+                size="tiny"
+                placeholder="止损"
+                style="width: 88px"
+                clearable
+                @focus="onLongPriceInputFocus('stop')"
+                @blur="onLongPriceInputBlur"
+              />
+              <NInput
+                v-model:value="longTakeProfitStr"
+                size="tiny"
+                placeholder="止盈"
+                style="width: 88px"
+                clearable
+                @focus="onLongPriceInputFocus('takeProfit')"
+                @blur="onLongPriceInputBlur"
+              />
+              <NButton size="tiny" secondary @click="fillLongEntryFromLatestClose">
+                最新收盘
+              </NButton>
+              <NButton
+                size="tiny"
+                :type="longClickPickEnabled ? 'primary' : 'default'"
+                :secondary="!longClickPickEnabled"
+                @click="toggleLongClickPick"
+              >
+                图上点击设价
+              </NButton>
+              <NButton
+                v-if="longClickPickEnabled"
+                size="tiny"
+                quaternary
+                @click="resetLongClickSequence"
+              >
+                重置点击顺序
+              </NButton>
+              <NText
+                v-if="longFocusChartHint"
+                depth="3"
+                class="lw-kline-longpos-focus-hint"
+              >
+                {{ longFocusChartHint }}
+              </NText>
+              <NText
+                v-if="longClickPickEnabled && showLongPosition"
+                depth="3"
+                class="lw-kline-longpos-click-hint"
+              >
+                在 K 线区（非成交量柱）点击纵轴位置：下一项 · {{ longClickNextLabel }} · 已显示的线可按住上下拖动
+              </NText>
+              <NText v-if="longPositionHint" depth="3" class="lw-kline-longpos-hint">
+                {{ longPositionHint }}
+              </NText>
+            </NFlex>
             <NFlex align="center" :size="8" class="lw-kline-hint-row">
               <NText depth="3" class="lw-kline-hint-text">
                 {{ stockName || code }} ·
-                {{
+                {{ 
                   realtimeIntervalMs > 0
                     ? `每 ${Math.round(realtimeIntervalMs / 1000)} 秒刷新`
                     : '切换周期后加载'
@@ -1534,6 +2118,35 @@ watch(
   flex: 1 1 auto;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.lw-kline-longpos-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  min-width: 0;
+  flex: 1 1 200px;
+  overflow-wrap: anywhere;
+}
+.lw-kline-longpos-click-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  min-width: 0;
+  flex: 1 1 220px;
+  color: #0ea5e9;
+  overflow-wrap: anywhere;
+}
+.lw-kline--dark .lw-kline-longpos-click-hint {
+  color: #38bdf8;
+}
+.lw-kline-longpos-focus-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  min-width: 0;
+  flex: 1 1 220px;
+  color: #d97706;
+  overflow-wrap: anywhere;
+}
+.lw-kline--dark .lw-kline-longpos-focus-hint {
+  color: #fbbf24;
 }
 /* 上下布局：避免右侧信息栏把弹窗顶高；宽度跟随弹窗不外扩 */
 .lw-kline-toolbar {

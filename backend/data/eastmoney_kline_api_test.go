@@ -126,7 +126,7 @@ func TestEastMoneyKLineApi_GetMinuteKLine(t *testing.T) {
 
 	// 测试获取 5 分钟 K 线数据
 	stockCode := "000001.SZ" // 平安银行
-	kLines := api.GetMinuteKLine(stockCode, KLineType5Min, 100)
+	kLines := api.GetMinuteKLine(stockCode, KLineType1Min, 10)
 
 	logger.SugaredLogger.Infof("获取到 %d 条 5 分钟 K 线数据", len(*kLines))
 

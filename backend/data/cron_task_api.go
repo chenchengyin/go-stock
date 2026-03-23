@@ -126,6 +126,7 @@ func (a *CronTaskApi) GetTaskTypes() []lo.Tuple2[string, string] {
 	return []lo.Tuple2[string, string]{
 		{A: "stock_analysis", B: "股票分析"},
 		{A: "market_analysis", B: "市场分析"},
+		{A: "global_stock_index_cache", B: "全球指数缓存"},
 		//{A: "fund_analysis", B: "基金分析"},
 		//{A: "stock_monitor", B: "股票监控"},
 		//{A: "news_fetch", B: "新闻抓取"},
@@ -191,6 +192,8 @@ func (a *CronTaskApi) ExecuteTask(ctx context.Context, task *models.CronTask) er
 		return a.executeStockAnalysis(ctx, task)
 	case "market_analysis":
 		return a.executeMarketAnalysis(ctx, task)
+	case "global_stock_index_cache":
+		return a.executeGlobalStockIndexCache(ctx, task)
 	case "fund_analysis":
 		return a.executeFundAnalysis(ctx, task)
 	case "news_fetch":
@@ -352,4 +355,23 @@ func (a *CronTaskApi) executeMarketAnalysis(ctx context.Context, task *models.Cr
 	logger.SugaredLogger.Infof("content:%s", content.String())
 	NewDeepSeekOpenAi(ctx, params.AiConfigId).SaveAIResponseResult("市场分析", "市场分析", content.String(), "", prompt)
 	return nil
+}
+
+// executeGlobalStockIndexCache 执行全球指数缓存任务
+func (a *CronTaskApi) executeGlobalStockIndexCache(ctx context.Context, task *models.CronTask) error {
+	logger.SugaredLogger.Infof("执行全球指数缓存任务：%s", task.Name)
+	var params struct {
+		CrawlTimeOut uint `json:"crawlTimeOut"`
+	}
+	if task.Params != "" {
+		err := json.Unmarshal([]byte(task.Params), &params)
+		if err != nil {
+			logger.SugaredLogger.Errorf("解析任务参数失败：%v", err)
+			return err
+		}
+	}
+	if params.CrawlTimeOut == 0 {
+		params.CrawlTimeOut = 30
+	}
+	return NewMarketNewsApi().CacheGlobalStockIndexes(params.CrawlTimeOut)
 }

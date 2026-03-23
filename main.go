@@ -13,6 +13,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/slice"
@@ -81,6 +82,11 @@ func main() {
 	log.SugaredLogger.Info("starting...")
 	log.SugaredLogger.Infof("version: %s  commit: %s", Version, VersionCommit)
 	//log.SugaredLogger.Infof("build key: %s", BuildKey)
+
+	// 程序启动时预缓存东财 Cookie
+	go func() {
+		cacheCookies("https://push2his.eastmoney.com/api/qt/stock/kline/get")
+	}()
 
 	// Create an instance of the app structure
 	app := NewApp()
@@ -226,6 +232,16 @@ func main() {
 
 }
 
+func cacheCookies(url string) {
+	log.SugaredLogger.Info("预缓存东财 Cookie...")
+	_, err := data.FetchEastMoneyCookiesViaChromedp("", 3*time.Minute, url)
+	if err != nil {
+		log.SugaredLogger.Warnf("预缓存东财 Cookie 失败：%v", err)
+	} else {
+		log.SugaredLogger.Info("东财 Cookie 预缓存完成")
+	}
+}
+
 func updateMultipleModel() {
 	oldSettings := &models.OldSettings{}
 	db.Dao.Model(oldSettings).First(oldSettings)
@@ -272,8 +288,37 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.AllStockInfo{})
 	db.Dao.AutoMigrate(&models.CronTask{})
 	db.Dao.AutoMigrate(&models.AiAssistantSession{})
+	db.Dao.AutoMigrate(&models.GlobalStockIndex{})
 
 	//updateMultipleModel()
+
+	// 初始化 global_stock_index_cache 定时任务
+	initGlobalStockIndexCacheTask()
+}
+
+// initGlobalStockIndexCacheTask 检查并创建 global_stock_index_cache 定时任务
+func initGlobalStockIndexCacheTask() {
+	var count int64
+	db.Dao.Model(&models.CronTask{}).Where("task_type = ?", "global_stock_index_cache").Count(&count)
+	if count == 0 {
+		task := &models.CronTask{
+			Name:        "全球指数缓存",
+			CronExpr:    "0 0/1 * * * *", // 每分钟执行一次
+			TaskType:    "global_stock_index_cache",
+			Target:      "",
+			Params:      `{"crawlTimeOut": 30}`,
+			Enable:      true,
+			Status:      "active",
+			Description: "自动缓存全球股票指数数据",
+		}
+		err := db.Dao.Create(task).Error
+		if err != nil {
+			log.SugaredLogger.Errorf("创建 global_stock_index_cache 定时任务失败：%v", err)
+		} else {
+			log.SugaredLogger.Info("创建 global_stock_index_cache 定时任务成功")
+		}
+	}
+
 }
 
 func initStockDataUS(ctx context.Context) {
