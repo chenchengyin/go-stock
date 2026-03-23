@@ -106,8 +106,11 @@ dist
 .DS_Store
 
 .idea/
-/data/*.db
-/build/*.exe
+/data/*.db*
+ai-assistant-web/data/*.db*
+*.exe
 /build/bin/*
 frontend/package.json.md5
 /build/us.json
+/build-dev.bat
+/build-prod.bat
