@@ -872,6 +872,14 @@ func IsUSTradingTime(date time.Time) bool {
 	return false
 }
 func MonitorFundPrices(a *App) {
+	// 检查 A 股是否开市（基金交易时间与 A 股一致）
+	if !isTradingTime(time.Now()) {
+		logger.SugaredLogger.Debugf("当前 A 股未开市，跳过基金价格监控")
+		return
+	}
+
+	logger.SugaredLogger.Debugf("A 股市场已开市，开始基金价格监控")
+
 	dest := &[]data.FollowedFund{}
 	db.Dao.Model(&data.FollowedFund{}).Find(dest)
 	for _, follow := range *dest {

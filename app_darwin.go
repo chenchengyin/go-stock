@@ -104,6 +104,19 @@ func OnSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
 }
 
 func MonitorStockPrices(a *App) {
+	// 检查是否至少有一个市场开市
+	isAStockOpen := isTradingTime(time.Now())
+	isHKStockOpen := IsHKTradingTime(time.Now())
+	isUSStockOpen := IsUSTradingTime(time.Now())
+
+	// 如果所有市场都不在交易时间，则提前返回
+	if !isAStockOpen && !isHKStockOpen && !isUSStockOpen {
+		logger.SugaredLogger.Debugf("当前所有市场均未开市，跳过价格监控")
+		return
+	}
+
+	logger.SugaredLogger.Debugf("市场状态 - A股: %v, 港股: %v, 美股: %v", isAStockOpen, isHKStockOpen, isUSStockOpen)
+
 	dest := &[]data.FollowedStock{}
 	db.Dao.Model(&data.FollowedStock{}).Find(dest)
 	total := float64(0)
