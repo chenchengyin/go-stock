@@ -926,10 +926,8 @@ func MonitorAiRecommendStockPrices(a *App) {
 
 	// 获取所有 AI 推荐股票（只获取开启预警的）
 	var aiRecommendStocks []models.AiRecommendStocks
-	// 注意：enable_alert 字段需要数据库迁移后才生效，暂时注释掉
-	// enableAlert := true
-	// db.Dao.Model(&models.AiRecommendStocks{}).Where("enable_alert = ?", enableAlert).Find(&aiRecommendStocks)
-	db.Dao.Model(&models.AiRecommendStocks{}).Find(&aiRecommendStocks)
+	db.Dao.Model(&models.AiRecommendStocks{}).Where("enable_alert = ?", true).Find(&aiRecommendStocks)
+	//db.Dao.Model(&models.AiRecommendStocks{}).Find(&aiRecommendStocks)
 
 	if len(aiRecommendStocks) == 0 {
 		logger.SugaredLogger.Debugf("没有 AI 推荐股票，跳过价格监控")
