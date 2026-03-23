@@ -5,9 +5,10 @@ import {
   GetConfig,
   GetSponsorInfo,
   DeleteAiRecommendStocks,
+  UpdateAiRecommendStocksAlert,
   ShareAnalysis
 } from "../../wailsjs/go/main/App";
-import {NAvatar, NButton, NEllipsis, NTag, NText, useMessage, useNotification} from "naive-ui";
+import {NAvatar, NButton, NEllipsis, NSwitch, NTag, NText, useMessage, useNotification} from "naive-ui";
 import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
 import sparkLine from "./stockSparkLine.vue"
 import {format} from "date-fns";
@@ -180,7 +181,7 @@ const columnsRef = ref([
     }
   },
   {
-    title: 'ai建议买入价',
+    title: '开仓价',
     key: 'recommendBuyPrice',
     render(row, index) {
       if(vipLevel.value===""|| Number(vipLevel.value) <=0){
@@ -202,7 +203,7 @@ const columnsRef = ref([
     }
   },
   {
-    title: 'ai建议止盈价',
+    title: '止盈价',
     key: 'recommendStopProfitPrice',
     render(row, index) {
       if(vipLevel.value===""|| Number(vipLevel.value) <=0){
@@ -222,7 +223,7 @@ const columnsRef = ref([
     }
   },
   {
-    title: 'ai建议止损价',
+    title: '止损价',
     key: 'recommendStopLossPrice',
     render(row, index) {
       if(vipLevel.value===""|| Number(vipLevel.value) <=0){
@@ -265,6 +266,17 @@ const columnsRef = ref([
     }
   },
   {
+    title: '预警',
+    key: 'enableAlert',
+    width: 80,
+    render(row, index) {
+      return h(NSwitch, {
+        value: row.enableAlert,
+        onUpdateValue: (newValue) => toggleAlert(row, newValue)
+      })
+    }
+  },
+  {
     title: '操作',
     render(row, index) {
       return [h(
@@ -288,6 +300,7 @@ const paginationReactive = reactive({
   pageSize: 12,
   itemCount: 0,
   keyword: "",
+  enableAlert: null, // null 表示全部，true 表示已开启，false 表示未开启
   range: [
     new Date(new Date().getTime() - 3 * 24 * 60 * 60 * 1000), // 前3天
     new Date() // 当天
@@ -296,6 +309,12 @@ const paginationReactive = reactive({
     return `${itemCount} 条记录`
   }
 })
+
+const enableAlertOptions = [
+  { label: '全部', value: null },
+  { label: '已开启预警', value: true },
+  { label: '未开启预警', value: false }
+]
 
 const modalDataRef = reactive({
   visible: false,
@@ -322,7 +341,8 @@ function query({
                  order = 'desc',
                  keyword = "",
                  startDate = "",
-                 endDate = ""
+                 endDate = "",
+                 enableAlert = null
                }) {
   return new Promise((resolve) => {
 
@@ -334,7 +354,8 @@ function query({
       "stockCode":keyword,
       "bkName":keyword,
       "startDate": startDate,
-      "endDate": endDate
+      "endDate": endDate,
+      "enableAlert": enableAlert
     }).then((res) => {
       const pagedData =res.list
       const total = res.total
@@ -357,7 +378,8 @@ function handlePageChange(currentPage) {
       order: "desc",
       keyword: paginationReactive.keyword,
       startDate: formatDate(paginationReactive.range[0]), // Format date to string
-      endDate: formatDate(paginationReactive.range[1]) // Format date to string
+      endDate: formatDate(paginationReactive.range[1]), // Format date to string
+      enableAlert: paginationReactive.enableAlert
     }).then((data) => {
       dataRef.value = data.data
       paginationReactive.page = currentPage
@@ -376,7 +398,8 @@ function handleSearch() {
       order: "desc",
       keyword: paginationReactive.keyword,
       startDate: formatDate(paginationReactive.range[0]),
-      endDate: formatDate(paginationReactive.range[1])
+      endDate: formatDate(paginationReactive.range[1]),
+      enableAlert: paginationReactive.enableAlert
     }).then((data) => {
       dataRef.value = data.data
       paginationReactive.page = data.page
@@ -447,11 +470,20 @@ function deleteAiRecommendStocks(id) {
   })
 }
 
+function toggleAlert(row, newEnableAlert) {
+  UpdateAiRecommendStocksAlert(row.ID, newEnableAlert).then((res) => {
+    notify.info({content: res, duration: 2000})
+    // 更新本地数据
+    row.enableAlert = newEnableAlert
+  })
+}
+
 </script>
 
 <template>
   <n-input-group>
-    <n-date-picker  v-model:value="paginationReactive.range" type="daterange"   style="width: 50%"/>
+    <n-date-picker  v-model:value="paginationReactive.range" type="daterange"   style="width: 40%"/>
+    <n-select v-model:value="paginationReactive.enableAlert" :options="enableAlertOptions" placeholder="预警状态" style="width: 15%" clearable />
     <n-input clearable placeholder="输入关键词搜索" v-model:value="paginationReactive.keyword"/>
     <n-button type="primary" ghost @click="handleSearch"  @input="handleSearch">
       搜索

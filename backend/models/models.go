@@ -992,6 +992,7 @@ type AiRecommendStocks struct {
 	RecommendStopLossPrice      string     `json:"recommendStopLossPrice" md:"ai建议止损价"`
 	RiskRemarks                 string     `json:"riskRemarks" md:"风险提示"`
 	Remarks                     string     `json:"remarks" md:"备注"`
+	EnableAlert                 bool       `json:"enableAlert" gorm:"default:false" md:"开启预警"`
 }
 
 type AiRecommendStocksMdExport struct {
@@ -1050,15 +1051,16 @@ func (receiver AiRecommendStocks) ToMdExportStruct() AiRecommendStocksMdExport {
 }
 
 type AiRecommendStocksQuery struct {
-	Page      int    `form:"page" json:"page"`           // 页码
-	PageSize  int    `form:"pageSize" json:"pageSize"`   // 每页大小
-	ModelName string `form:"modelName" json:"modelName"` // 模型名称筛选
-	StockCode string `form:"stockCode" json:"stockCode"` // 股票代码筛选
-	StockName string `form:"stockName" json:"stockName"` // 股票名称筛选
-	BkCode    string `form:"bkCode" json:"bkCode"`       // 板块代码筛选
-	BkName    string `form:"bkName" json:"bkName"`       // 板块名称筛选
-	StartDate string `form:"startDate" json:"startDate"` // 开始日期
-	EndDate   string `form:"endDate" json:"endDate"`     // 结束日期
+	Page        int    `form:"page" json:"page"`               // 页码
+	PageSize    int    `form:"pageSize" json:"pageSize"`       // 每页大小
+	ModelName   string `form:"modelName" json:"modelName"`     // 模型名称筛选
+	StockCode   string `form:"stockCode" json:"stockCode"`     // 股票代码筛选
+	StockName   string `form:"stockName" json:"stockName"`     // 股票名称筛选
+	BkCode      string `form:"bkCode" json:"bkCode"`           // 板块代码筛选
+	BkName      string `form:"bkName" json:"bkName"`           // 板块名称筛选
+	StartDate   string `form:"startDate" json:"startDate"`     // 开始日期
+	EndDate     string `form:"endDate" json:"endDate"`         // 结束日期
+	EnableAlert *bool  `form:"enableAlert" json:"enableAlert"` // 预警状态筛选
 }
 
 type AiRecommendStocksPageResp struct {

@@ -35,23 +35,24 @@ func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiReco
 
 	q := db.Dao.Model(&models.AiRecommendStocks{})
 
-	// 构建查询条件
-	if query.StockCode != "" {
-		q.Or("stock_code LIKE ?", "%"+query.StockCode+"%")
+	// 构建关键词搜索条件（股票代码、股票名称、板块名称使用 OR 关系）
+	keyword := query.StockCode
+	if keyword == "" {
+		keyword = query.StockName
 	}
-	if query.StockName != "" {
-		q.Or("stock_name LIKE ?", "%"+query.StockName+"%")
+	if keyword == "" {
+		keyword = query.BkName
 	}
-	if query.BkCode != "" {
-		q.Or("bk_code LIKE ?", "%"+query.BkCode+"%")
-	}
-	if query.BkName != "" {
-		q.Or("bk_name LIKE ?", "%"+query.BkName+"%")
-	}
-	if query.ModelName != "" {
-		q.Or("model_name LIKE ?", "%"+query.ModelName+"%")
+	if keyword == "" {
+		keyword = query.ModelName
 	}
 
+	if keyword != "" {
+		q = q.Where("(stock_code LIKE ? OR stock_name LIKE ? OR bk_name LIKE ? OR model_name LIKE ?)",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// 日期范围查询
 	if query.StartDate != "" && query.EndDate != "" {
 		query.StartDate = strutil.ReplaceWithMap(query.StartDate, map[string]string{
 			"T": " ",
@@ -71,19 +72,22 @@ func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiReco
 			endDate, _ = time.Parse("2006-01-02", query.EndDate)
 		}
 
-		q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(endDate))
-	}
-	if query.StartDate == "" && query.EndDate == "" {
-		q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(time.Now()), datetime.EndOfDay(time.Now()))
-	}
-
-	if query.StartDate != "" && query.EndDate == "" {
+		q = q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(endDate))
+	} else if query.StartDate == "" && query.EndDate == "" && keyword == "" {
+		// 只有在没有关键词时才默认查询今天的数据
+		q = q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(time.Now()), datetime.EndOfDay(time.Now()))
+	} else if query.StartDate != "" && query.EndDate == "" {
 		query.StartDate = strutil.ReplaceWithMap(query.StartDate, map[string]string{
 			"T": " ",
 			"Z": "",
 		})
 		startDate, _ := time.Parse("2006-01-02", query.StartDate)
-		q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(startDate))
+		q = q.Where("data_time BETWEEN ? AND ?", datetime.BeginOfDay(startDate), datetime.EndOfDay(startDate))
+	}
+
+	// 预警状态筛选
+	if query.EnableAlert != nil {
+		q = q.Where("enable_alert = ?", *query.EnableAlert)
 	}
 
 	// 计算总数
@@ -154,6 +158,12 @@ func (s *AiRecommendStocksService) UpdateAiRecommendStocks(id uint, recommend *m
 func (s *AiRecommendStocksService) DeleteAiRecommendStocks(id uint) error {
 	// 使用软删除
 	result := db.Dao.Where("id = ?", id).Delete(&models.AiRecommendStocks{})
+	return result.Error
+}
+
+// UpdateAiRecommendStocksAlert 更新AI推荐股票的预警状态
+func (s *AiRecommendStocksService) UpdateAiRecommendStocksAlert(id uint, enableAlert bool) error {
+	result := db.Dao.Model(&models.AiRecommendStocks{}).Where("id = ?", id).Update("enable_alert", enableAlert)
 	return result.Error
 }
 

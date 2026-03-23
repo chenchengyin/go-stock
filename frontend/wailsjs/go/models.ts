@@ -923,6 +923,7 @@ export namespace models {
 	    recommendStopLossPrice: string;
 	    riskRemarks: string;
 	    remarks: string;
+	    enableAlert: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AiRecommendStocks(source);
@@ -956,6 +957,7 @@ export namespace models {
 	        this.recommendStopLossPrice = source["recommendStopLossPrice"];
 	        this.riskRemarks = source["riskRemarks"];
 	        this.remarks = source["remarks"];
+	        this.enableAlert = source["enableAlert"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1024,6 +1026,7 @@ export namespace models {
 	    bkName: string;
 	    startDate: string;
 	    endDate: string;
+	    enableAlert?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AiRecommendStocksQuery(source);
@@ -1040,6 +1043,7 @@ export namespace models {
 	        this.bkName = source["bkName"];
 	        this.startDate = source["startDate"];
 	        this.endDate = source["endDate"];
+	        this.enableAlert = source["enableAlert"];
 	    }
 	}
 	export class AllStockInfo {

@@ -128,6 +128,14 @@ func (a *App) DeleteAiRecommendStocks(id uint) string {
 	return "删除成功"
 }
 
+func (a *App) UpdateAiRecommendStocksAlert(id uint, enableAlert bool) string {
+	err := data.NewAiRecommendStocksService().UpdateAiRecommendStocksAlert(id, enableAlert)
+	if err != nil {
+		return "更新预警状态失败"
+	}
+	return "更新预警状态成功"
+}
+
 func (a *App) GetPromptTemplateList(query models.PromptTemplateQuery) *models.PromptTemplatePageData {
 	page, err := data.NewPromptTemplateApi().GetPromptTemplateList(&query)
 	if err != nil {

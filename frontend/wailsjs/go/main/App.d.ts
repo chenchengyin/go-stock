@@ -217,6 +217,8 @@ export function UnFollow(arg1:string):Promise<string>;
 
 export function UnFollowFund(arg1:string):Promise<string>;
 
+export function UpdateAiRecommendStocksAlert(arg1:number,arg2:boolean):Promise<string>;
+
 export function UpdateConfig(arg1:data.SettingConfig):Promise<string>;
 
 export function UpdateCronTask(arg1:models.CronTask):Promise<string>;
