@@ -33,7 +33,7 @@ func (a *App) startup(ctx context.Context) {
 	runtime.EventsOn(ctx, "frontendError", func(optionalData ...interface{}) {
 		logger.SugaredLogger.Errorf("Frontend error: %v\n", optionalData)
 	})
-	logger.SugaredLogger.Infof("Version:%s", Version)
+	//logger.SugaredLogger.Infof("Version:%s", Version)
 	// Perform your setup here
 	a.ctx = ctx
 
@@ -47,7 +47,7 @@ func (a *App) startup(ctx context.Context) {
 	//	onExit(a)
 	//})
 	runtime.EventsOn(ctx, "updateSettings", func(optionalData ...interface{}) {
-		logger.SugaredLogger.Infof("updateSettings : %v\n", optionalData)
+		//logger.SugaredLogger.Infof("updateSettings : %v\n", optionalData)
 		config := data.GetSettingConfig()
 		//setMap := optionalData[0].(map[string]interface{})
 		//
@@ -64,7 +64,7 @@ func (a *App) startup(ctx context.Context) {
 		//	return
 		//}
 
-		logger.SugaredLogger.Infof("updateSettings config:%+v", config)
+		//logger.SugaredLogger.Infof("updateSettings config:%+v", config)
 		if config.DarkTheme {
 			runtime.WindowSetBackgroundColour(ctx, 27, 38, 54, 1)
 			runtime.WindowSetDarkTheme(ctx)
@@ -81,7 +81,7 @@ func (a *App) startup(ctx context.Context) {
 		onExit(a)
 	})
 
-	logger.SugaredLogger.Infof(" application startup Version:%s", Version)
+	//logger.SugaredLogger.Infof(" application startup Version:%s", Version)
 }
 
 func OnSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
@@ -108,11 +108,11 @@ func MonitorStockPrices(a *App) {
 
 	// 如果所有市场都不在交易时间，则提前返回
 	if !isAStockOpen && !isHKStockOpen && !isUSStockOpen {
-		logger.SugaredLogger.Debugf("当前所有市场均未开市，跳过价格监控")
+		//logger.SugaredLogger.Debugf("当前所有市场均未开市，跳过价格监控")
 		return
 	}
 
-	logger.SugaredLogger.Debugf("市场状态 - A股: %v, 港股: %v, 美股: %v", isAStockOpen, isHKStockOpen, isUSStockOpen)
+	//logger.SugaredLogger.Debugf("市场状态 - A股: %v, 港股: %v, 美股: %v", isAStockOpen, isHKStockOpen, isUSStockOpen)
 
 	dest := &[]data.FollowedStock{}
 	db.Dao.Model(&data.FollowedStock{}).Find(dest)
@@ -160,7 +160,7 @@ func MonitorStockPrices(a *App) {
 func onReady(a *App) {
 
 	// 初始化操作
-	logger.SugaredLogger.Infof("systray onReady")
+	//logger.SugaredLogger.Infof("systray onReady")
 	systray.SetIcon(icon2)
 	systray.SetTitle("go-stock")
 	systray.SetTooltip("go-stock 股票行情实时获取")
@@ -204,13 +204,13 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	// 记录当前窗口大小，供下次启动时还原
 	if a.ctx != nil {
 		w, h := runtime.WindowGetSize(ctx)
-		logger.SugaredLogger.Infof(" window size: %dx%d", w, h)
+		//logger.SugaredLogger.Infof(" window size: %dx%d", w, h)
 		if w > 0 && h > 0 {
 			cfg := data.GetSettingConfig()
 			cfg.WindowWidth = w
 			cfg.WindowHeight = h
 			data.UpdateConfig(cfg)
-			logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
+			//logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
 		}
 	}
 

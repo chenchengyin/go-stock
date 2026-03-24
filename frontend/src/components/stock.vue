@@ -31,6 +31,7 @@ import {
   SetCostPriceAndVolume,
   SetStockAICron,
   SetStockSort,
+  SetTradingPrice,
   ShareAnalysis,
   UnFollow,
   UpdateGroupSort
@@ -113,6 +114,12 @@ const modalShow5 = ref(false)
 const modalShow6 = ref(false)
 const lwKlineCode = ref('')
 const lwKlineName = ref('')
+const currentStockTradingPrice = ref({
+  stockCode: '',
+  entryPrice: 0,
+  takeProfitPrice: 0,
+  stopLossPrice: 0,
+})
 /** 用于功能权限：仅在赞助有效期内为解密等级，否则为 0（与 EffectiveSponsorVipLevel 一致） */
 const vipLevel = ref(0)
 const klineAutoCloseTimer = ref(null)
@@ -128,6 +135,9 @@ const formModel = ref({
   alarmPrice: 0,
   sort: 999,
   cron: "",
+  entryPrice: 0,
+  takeProfitPrice: 0,
+  stopLossPrice: 0,
 })
 
 const promptTemplates = ref([])
@@ -786,6 +796,8 @@ async function updateData(result) {
     if (result.costPrice > 0 && result["当前价格"] >= result.costPrice) {
       SendMessage(result, 3)
     }
+
+    checkPriceLineAlerts(result)
   }
 
   // result.key=result.sort
@@ -871,6 +883,64 @@ function search(code, name) {
   }, 500)
 }
 
+function handleLongEntryPriceUpdate(newPrice) {
+  console.log('[DEBUG handleLongEntryPriceUpdate] called, newPrice:', newPrice, 'type:', typeof newPrice)
+  currentStockTradingPrice.value.entryPrice = newPrice
+  console.log('[DEBUG handleLongEntryPriceUpdate] after assignment, entryPrice:', currentStockTradingPrice.value.entryPrice)
+  saveTradingPriceToBackend()
+}
+
+function handleLongStopLossPriceUpdate(newPrice) {
+  console.log('[DEBUG handleLongStopLossPriceUpdate] called, newPrice:', newPrice, 'type:', typeof newPrice)
+  currentStockTradingPrice.value.stopLossPrice = newPrice
+  saveTradingPriceToBackend()
+}
+
+function handleLongTakeProfitPriceUpdate(newPrice) {
+  console.log('[DEBUG handleLongTakeProfitPriceUpdate] called, newPrice:', newPrice, 'type:', typeof newPrice)
+  currentStockTradingPrice.value.takeProfitPrice = newPrice
+  saveTradingPriceToBackend()
+}
+
+function saveTradingPriceToBackend() {
+  console.log('[DEBUG saveTradingPriceToBackend] called, stockCode:', currentStockTradingPrice.value.stockCode)
+  if (!currentStockTradingPrice.value.stockCode) {
+    console.log('[DEBUG saveTradingPriceToBackend] early return - no stockCode')
+    return
+  }
+  const emCode = currentStockTradingPrice.value.stockCode
+  const code = fromEastMoneyCode(emCode)
+  if (!code) {
+    console.warn('[saveTradingPriceToBackend] 无法转换股票代码:', emCode)
+    return
+  }
+  const entryPrice = Number(currentStockTradingPrice.value.entryPrice) || 0
+  const takeProfitPrice = Number(currentStockTradingPrice.value.takeProfitPrice) || 0
+  const stopLossPrice = Number(currentStockTradingPrice.value.stopLossPrice) || 0
+  console.log('[DEBUG saveTradingPriceToBackend] calling SetTradingPrice with:', code, entryPrice, takeProfitPrice, stopLossPrice)
+  SetTradingPrice(
+    code,
+    entryPrice,
+    takeProfitPrice,
+    stopLossPrice
+  ).then(result => {
+    console.log('[DEBUG saveTradingPriceToBackend] SetTradingPrice result:', result)
+    if (result === '设置成功') {
+      const emCode = currentStockTradingPrice.value.stockCode
+      const internalCode = code
+      const followItem = followList.value.find(item => item.StockCode === internalCode || item.StockCode === emCode)
+      if (followItem) {
+        followItem.EntryPrice = entryPrice
+        followItem.TakeProfitPrice = takeProfitPrice
+        followItem.StopLossPrice = stopLossPrice
+        console.log('[DEBUG saveTradingPriceToBackend] updated followList item')
+      }
+    }
+  }).catch(err => {
+    console.error('[DEBUG saveTradingPriceToBackend] SetTradingPrice error:', err)
+  })
+}
+
 function setStock(code, name) {
   let res = followList.value.filter(item => item.StockCode === code)
   ////console.log("res:",res)
@@ -882,6 +952,9 @@ function setStock(code, name) {
   formModel.value.alarmPrice = res[0].AlarmPrice
   formModel.value.sort = res[0].Sort
   formModel.value.cron = res[0].Cron
+  formModel.value.entryPrice = res[0].EntryPrice || 0
+  formModel.value.takeProfitPrice = res[0].TakeProfitPrice || 0
+  formModel.value.stopLossPrice = res[0].StopLossPrice || 0
   modalShow.value = true
 }
 
@@ -1510,6 +1583,17 @@ function toEastMoneyCode(code) {
   return c.toUpperCase()
 }
 
+/** 东方财富格式转回应用内部代码格式（如 000001.SZ → sh000001） */
+function fromEastMoneyCode(emCode) {
+  if (!emCode) return ''
+  const c = String(emCode).trim().toUpperCase()
+  if (c.endsWith('.SH')) return 'sh' + c.slice(0, -3)
+  if (c.endsWith('.SZ')) return 'sz' + c.slice(0, -3)
+  if (c.endsWith('.BJ')) return 'bj' + c.slice(0, -3)
+  if (c.endsWith('.HK')) return 'hk' + c.slice(0, -3).toLowerCase()
+  return c.toLowerCase()
+}
+
 async function refreshEffectiveVip() {
   try {
     const r = await GetEffectiveSponsorVip()
@@ -1529,6 +1613,31 @@ async function showLightweightKline(code, name) {
   }
   lwKlineCode.value = em
   lwKlineName.value = name || ''
+
+  // 从自选列表中获取交易价格
+  // lwKlineCode 格式为 000001.SZ，followList 中的 StockCode 格式为 sh000001
+  // 需要进行格式转换来匹配
+  let followListCode = code
+  if (code.startsWith('sh') || code.startsWith('sz') || code.startsWith('bj') || code.startsWith('hk')) {
+    // 如果是 sh000001 格式，转换为东方财富格式
+    const market = code.slice(0, 2).toUpperCase()
+    const stockNum = code.slice(2)
+    followListCode = stockNum + '.' + market
+  }
+
+  const stockInfo = followList.value.find(item => item.StockCode === code || item.StockCode === followListCode)
+  if (stockInfo) {
+    currentStockTradingPrice.value.stockCode = lwKlineCode.value  // 使用东方财富格式
+    currentStockTradingPrice.value.entryPrice = stockInfo.EntryPrice || 0
+    currentStockTradingPrice.value.takeProfitPrice = stockInfo.TakeProfitPrice || 0
+    currentStockTradingPrice.value.stopLossPrice = stockInfo.StopLossPrice || 0
+  } else {
+    currentStockTradingPrice.value.stockCode = lwKlineCode.value
+    currentStockTradingPrice.value.entryPrice = 0
+    currentStockTradingPrice.value.takeProfitPrice = 0
+    currentStockTradingPrice.value.stopLossPrice = 0
+  }
+
   await refreshEffectiveVip()
   // 检查 VIP 权限：有效期内 VIP2 及以上（与 AI 助手 Web 端校验一致）
   if (vipLevel.value < 2) {
@@ -1579,6 +1688,14 @@ function updateCostPriceAndVolumeNew(code, price, volume, alarm, formModel) {
       //message.success(result)
     })
   }
+  
+  // 保存交易价格（开仓价、止盈价、止损价）
+  if (formModel.entryPrice || formModel.takeProfitPrice || formModel.stopLossPrice) {
+    SetTradingPrice(code, formModel.entryPrice || 0, formModel.takeProfitPrice || 0, formModel.stopLossPrice || 0).then(result => {
+      //message.success(result)
+    })
+  }
+  
   SetCostPriceAndVolume(code, price, volume).then(result => {
     modalShow.value = false
     message.success(result)
@@ -1635,6 +1752,79 @@ function SendMessage(result, type) {
       ' }'
   // SendDingDingMessage(msg,result["股票代码"])
   SendDingDingMessageByType(msg, result["股票代码"], type)
+}
+
+const priceLineAlertCache = new Map()
+
+function checkPriceLineAlerts(result) {
+  const code = result["股票代码"]
+  const price = result["当前价格"]
+  if (!price || price <= 0) return
+
+  const followedStock = followList.value.find(s => {
+    const sCode = s.StockCode || ''
+    return sCode === code || sCode === 'sh' + code || sCode === 'sz' + code ||
+           sCode === code.replace('sh', '').replace('sz', '') ||
+           (sCode.length > 2 && code.length > 2 && sCode.includes(code.slice(2)))
+  })
+
+  if (!followedStock) return
+
+  const alerts = []
+  let triggeredType = 0
+  if (followedStock.EntryPrice > 0) {
+    const diff = ((price - followedStock.EntryPrice) / followedStock.EntryPrice * 100).toFixed(2)
+    alerts.push(`开仓价: ${followedStock.EntryPrice} (${diff >= 0 ? '+' : ''}${diff}%)`)
+  }
+  if (followedStock.TakeProfitPrice > 0) {
+    if (price >= followedStock.TakeProfitPrice) {
+      alerts.push(`止盈价: ${followedStock.TakeProfitPrice} ⚠️ 已触及`)
+      triggeredType = 4
+    } else {
+      const diff = ((followedStock.TakeProfitPrice - price) / followedStock.TakeProfitPrice * 100).toFixed(2)
+      alerts.push(`止盈价: ${followedStock.TakeProfitPrice} (距离 ${diff}%)`)
+    }
+  }
+  if (followedStock.StopLossPrice > 0) {
+    if (price <= followedStock.StopLossPrice) {
+      alerts.push(`止损价: ${followedStock.StopLossPrice} ⚠️ 已触及`)
+      triggeredType = 5
+    } else {
+      const diff = ((price - followedStock.StopLossPrice) / followedStock.StopLossPrice * 100).toFixed(2)
+      alerts.push(`止损价: ${followedStock.StopLossPrice} (+${diff}%)`)
+    }
+  }
+
+  if (alerts.length === 0) return
+
+  const cacheKey = `${code}_${price}`
+  if (priceLineAlertCache.get(cacheKey)) return
+
+  const notifyKey = `${code}_notify`
+  const lastNotify = priceLineAlertCache.get(notifyKey) || 0
+  const now = Date.now()
+  if (now - lastNotify < 60000) return
+
+  priceLineAlertCache.set(cacheKey, true)
+  priceLineAlertCache.set(notifyKey, now)
+
+  const stockName = followedStock.Name || followedStock.StockName || result["股票名称"] || code
+  const stockCodeDisplay = code.length > 6 ? code : code.toUpperCase()
+
+  notify.info({
+    avatar: () => h(NAvatar, { size: 'small', round: false, src: icon.value }),
+    title: `📈 ${stockName} (${stockCodeDisplay})`,
+    duration: 5000,
+    meta: `当前价: ${price}`,
+    content: () => h('div', { style: { 'text-align': 'left', 'font-size': '13px' } },
+      alerts.map(a => h('div', { style: { 'margin-bottom': '4px' } }, a))
+    ),
+  })
+
+  if (triggeredType > 0) {
+    const msg = `### 📈 价位线预警\n\n### ${stockName} (${stockCodeDisplay})\n\n- 当前价格: ${price}\n- 预警类型: ${triggeredType === 4 ? '止盈触及' : '止损触及'}\n- 开仓价: ${followedStock.EntryPrice || '-'}\n- 止盈价: ${followedStock.TakeProfitPrice || '-'}\n- 止损价: ${followedStock.StopLossPrice || '-'}`;
+    SendDingDingMessageByType(msg, code, triggeredType)
+  }
 }
 
 function aiReCheckStock(stock, stockCode) {
@@ -2367,6 +2557,27 @@ watch(modalShow6, (newVal) => {
       <n-form-item label="AI cron" path="cron">
         <n-input v-model:value="formModel.cron" placeholder="请输入cron表达式"/>
       </n-form-item>
+      <n-form-item label="开仓价" path="entryPrice">
+        <n-input-number v-model:value="formModel.entryPrice" min="0" step="0.01" placeholder="请输入开仓价">
+          <template #suffix>
+            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+          </template>
+        </n-input-number>
+      </n-form-item>
+      <n-form-item label="止盈价" path="takeProfitPrice">
+        <n-input-number v-model:value="formModel.takeProfitPrice" min="0" step="0.01" placeholder="请输入止盈价">
+          <template #suffix>
+            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+          </template>
+        </n-input-number>
+      </n-form-item>
+      <n-form-item label="止损价" path="stopLossPrice">
+        <n-input-number v-model:value="formModel.stopLossPrice" min="0" step="0.01" placeholder="请输入止损价">
+          <template #suffix>
+            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+          </template>
+        </n-input-number>
+      </n-form-item>
     </n-form>
     <template #footer>
       <n-button type="primary"
@@ -2512,6 +2723,12 @@ watch(modalShow6, (newVal) => {
       :stock-name="lwKlineName"
       :dark-theme="data.darkTheme"
       :chart-height="500"
+      :long-entry-price="currentStockTradingPrice.entryPrice"
+      :long-stop-loss-price="currentStockTradingPrice.stopLossPrice"
+      :long-take-profit-price="currentStockTradingPrice.takeProfitPrice"
+      @update:longEntryPrice="handleLongEntryPriceUpdate"
+      @update:longStopLossPrice="handleLongStopLossPriceUpdate"
+      @update:longTakeProfitPrice="handleLongTakeProfitPriceUpdate"
     />
   </n-modal>
 </template>

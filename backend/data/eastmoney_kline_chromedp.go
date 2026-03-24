@@ -171,7 +171,7 @@ func fetchEastMoneyCookiesViaChromedp(browserPath string, timeout time.Duration,
 	}
 	eastMoneyCookieCache.mu.Unlock()
 
-	logger.SugaredLogger.Debugf("东财 Cookie 已缓存（URL: %s），至 %s 失效", urlCacheKey, now.Add(EastMoneyCookieCacheTTL).Format(time.RFC3339))
+	//logger.SugaredLogger.Debugf("东财 Cookie 已缓存（URL: %s），至 %s 失效", urlCacheKey, now.Add(EastMoneyCookieCacheTTL).Format(time.RFC3339))
 
 	return h, nil
 }

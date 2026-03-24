@@ -48,6 +48,7 @@ type App struct {
 	summaryCancel      context.CancelFunc
 	stockAlertMu       sync.Mutex
 	stockAlertLastSent map[string]time.Time
+	priceAtAlertReset  map[string]float64
 }
 
 // NewApp creates a new App application struct
@@ -64,6 +65,7 @@ func NewApp() *App {
 		cronEntrys:         make(map[string]cron.EntryID),
 		AiTools:            tools,
 		stockAlertLastSent: make(map[string]time.Time),
+		priceAtAlertReset:  make(map[string]float64),
 	}
 }
 
@@ -151,7 +153,7 @@ func (a *App) CheckUpdate(flag int) {
 		logger.SugaredLogger.Errorf("get github release version error:%s", err.Error())
 		return
 	}
-	logger.SugaredLogger.Infof("releaseVersion:%+v", releaseVersion.TagName)
+	//logger.SugaredLogger.Infof("releaseVersion:%+v", releaseVersion.TagName)
 
 	if _, vipLevel, ok := a.isVip(sponsorCode, "", releaseVersion); ok {
 		level, _ := convertor.ToInt(vipLevel)
@@ -319,7 +321,7 @@ func (a *App) syncNews() {
 	defer PanicHandler()
 	client := resty.New()
 	url := fmt.Sprintf("http://go-stock.sparkmemory.top:16666/FinancialNews/json?since=%d", time.Now().Add(-24*time.Hour).Unix())
-	logger.SugaredLogger.Infof("syncNews:%s", url)
+	//logger.SugaredLogger.Infof("syncNews:%s", url)
 	resp, err := client.R().SetDoNotParseResponse(true).Get(url)
 	body := resp.RawBody()
 	defer body.Close()
@@ -328,8 +330,8 @@ func (a *App) syncNews() {
 	}
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
-		line := scanner.Text()
-		logger.SugaredLogger.Infof("Received data: %s", line)
+		//line := scanner.Text()
+		//logger.SugaredLogger.Infof("Received data: %s", line)
 		news := &models.NtfyNews{}
 		err := json.Unmarshal(scanner.Bytes(), news)
 		if err != nil {
@@ -605,7 +607,7 @@ func (a *App) domReady(ctx context.Context) {
 		}
 		a.cronEntrys[follow.StockCode] = entryID
 	}
-	logger.SugaredLogger.Infof("domReady-cronEntrys:%+v", a.cronEntrys)
+	//logger.SugaredLogger.Infof("domReady-cronEntrys:%+v", a.cronEntrys)
 
 }
 
@@ -911,35 +913,26 @@ func MonitorFundPrices(a *App) {
 
 // MonitorAiRecommendStockPrices 监控 AI 推荐股票的价格，当股价达到预警线时发送通知
 func MonitorAiRecommendStockPrices(a *App) {
-	// 检查是否至少有一个市场开市
 	isAStockOpen := isTradingTime(time.Now())
 	isHKStockOpen := IsHKTradingTime(time.Now())
 	isUSStockOpen := IsUSTradingTime(time.Now())
 
-	// 如果所有市场都不在交易时间，则提前返回
 	if !isAStockOpen && !isHKStockOpen && !isUSStockOpen {
 		logger.SugaredLogger.Debugf("当前所有市场均未开市，跳过 AI 推荐股票价格监控")
 		return
 	}
 
-	logger.SugaredLogger.Debugf("开始 AI 推荐股票价格监控")
-
-	// 获取所有 AI 推荐股票（只获取开启预警的）
 	var aiRecommendStocks []models.AiRecommendStocks
 	db.Dao.Model(&models.AiRecommendStocks{}).Where("enable_alert = ?", true).Find(&aiRecommendStocks)
-	//db.Dao.Model(&models.AiRecommendStocks{}).Find(&aiRecommendStocks)
 
 	if len(aiRecommendStocks) == 0 {
-		logger.SugaredLogger.Debugf("没有 AI 推荐股票，跳过价格监控")
 		return
 	}
 
-	// 收集所有股票代码
 	stockCodes := make([]string, 0)
 	stockCodeMap := make(map[string]*models.AiRecommendStocks)
 	for i := range aiRecommendStocks {
 		stock := &aiRecommendStocks[i]
-		// 只处理有预警设置的股票
 		stopLossPrice, _ := convertor.ToFloat(stock.RecommendStopLossPrice)
 		if stock.RecommendBuyPriceMin <= 0 && stock.RecommendStopProfitPriceMin <= 0 && stopLossPrice <= 0 {
 			continue
@@ -953,14 +946,12 @@ func MonitorAiRecommendStockPrices(a *App) {
 		return
 	}
 
-	// 获取实时股价数据
 	stockData, err := data.NewStockDataApi().GetStockCodeRealTimeData(stockCodes...)
 	if err != nil || stockData == nil || len(*stockData) == 0 {
 		logger.SugaredLogger.Errorf("获取 AI 推荐股票实时数据失败: %v", err)
 		return
 	}
 
-	// 遍历检查是否触发预警
 	for _, stockInfo := range *stockData {
 		aiStock, ok := stockCodeMap[tools.GetStockCode(stockInfo.Code)]
 		if !ok {
@@ -972,55 +963,102 @@ func MonitorAiRecommendStockPrices(a *App) {
 			continue
 		}
 
-		// 检查是否触发买入预警（股价 <= 建议买入价最低价）
+		baseAlertKey := fmt.Sprintf("%s:%s", aiStock.StockCode, aiStock.DataTime.Format("20060102"))
+
+		buyAlertKey := baseAlertKey + ":BUY"
 		if aiStock.RecommendBuyPriceMin > 0 && currentPrice <= aiStock.RecommendBuyPriceMin {
-			title := fmt.Sprintf("【买入预警】%s", aiStock.StockName)
-			content := fmt.Sprintf("> **股票名称**: %s\n>**股票代码**: %s\n>**当前价格**: %.2f\n>**建议买入价**: %.2f - %.2f\n>**推荐时间**: %s",
-				aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendBuyPriceMin, aiStock.RecommendBuyPriceMax,
-				aiStock.DataTime.Format("2006-01-02 15:04:05"))
-			alertKey := fmt.Sprintf("%s:BUY:%s", aiStock.StockCode, aiStock.DataTime.Format("20060102"))
-			if a.canSendAlert(alertKey, 5*time.Minute) {
-				logger.SugaredLogger.Infof("触发 AI 推荐股票买入预警: %s, %s, 当前价格: %.2f, 建议买入价下限: %.2f",
-					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendBuyPriceMin)
-				go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
-				go data.NewDingDingAPI().SendToDingDing(title, content)
-				a.updateAlertSentTime(alertKey)
+			priceSinceLastBuyAlert := a.getPriceAtAlertReset(buyAlertKey)
+			if priceSinceLastBuyAlert == 0 || priceSinceLastBuyAlert > aiStock.RecommendBuyPriceMin {
+				title := fmt.Sprintf("【买入预警】%s", aiStock.StockName)
+				content := fmt.Sprintf("## %s\n\n- **股票代码**: %s\n- **当前价格**: %.2f\n- **建议买入价**: %.2f - %.2f\n- **推荐时间**: %s",
+					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendBuyPriceMin, aiStock.RecommendBuyPriceMax,
+					aiStock.DataTime.Format("2006-01-02 15:04:05"))
+				plainContent := fmt.Sprintf("%s(%s)\n当前价格: %.2f\n建议买入价: %.2f-%.2f",
+					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendBuyPriceMin, aiStock.RecommendBuyPriceMax)
+				if a.canSendAlert(buyAlertKey, 5*time.Minute) {
+					go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
+					go data.NewDingDingAPI().SendToDingDing(title, content)
+					go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
+						"time":    title,
+						"isRed":   true,
+						"source":  "go-stock",
+						"content": plainContent,
+					})
+					a.updateAlertSentTime(buyAlertKey)
+					a.updatePriceAtAlertReset(buyAlertKey, currentPrice)
+				}
+			} else {
+				a.updatePriceAtAlertReset(buyAlertKey, currentPrice)
+			}
+		} else {
+			priceSinceLastBuyAlert := a.getPriceAtAlertReset(buyAlertKey)
+			if currentPrice > aiStock.RecommendBuyPriceMin && (priceSinceLastBuyAlert == 0 || currentPrice > priceSinceLastBuyAlert) {
+				a.updatePriceAtAlertReset(buyAlertKey, currentPrice)
 			}
 		}
 
-		// 检查是否触发止盈预警（股价 >= 建议止盈最低价）
+		profitAlertKey := baseAlertKey + ":PROFIT"
 		if aiStock.RecommendStopProfitPriceMin > 0 && currentPrice >= aiStock.RecommendStopProfitPriceMin {
-			title := fmt.Sprintf("【止盈预警】%s", aiStock.StockName)
-			content := fmt.Sprintf("> **股票名称**: %s\n>**股票代码**: %s\n>**当前价格**: %.2f\n>**建议止盈价**: %.2f - %.2f\n>**推荐时间**: %s",
-				aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendStopProfitPriceMin, aiStock.RecommendStopProfitPriceMax,
-				aiStock.DataTime.Format("2006-01-02 15:04:05"))
-			alertKey := fmt.Sprintf("%s:PROFIT:%s", aiStock.StockCode, aiStock.DataTime.Format("20060102"))
-			if a.canSendAlert(alertKey, 5*time.Minute) {
-				logger.SugaredLogger.Infof("触发 AI 推荐股票止盈预警: %s, 当前价格: %.2f, 建议止盈价下限: %.2f",
-					aiStock.StockCode, currentPrice, aiStock.RecommendStopProfitPriceMin)
-				go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
-				go data.NewDingDingAPI().SendToDingDing(title, content)
-				a.updateAlertSentTime(alertKey)
+			priceSinceLastProfitAlert := a.getPriceAtAlertReset(profitAlertKey)
+			if priceSinceLastProfitAlert == 0 || priceSinceLastProfitAlert < aiStock.RecommendStopProfitPriceMin {
+				title := fmt.Sprintf("【止盈预警】%s", aiStock.StockName)
+				content := fmt.Sprintf("## %s\n\n- **股票代码**: %s\n- **当前价格**: %.2f\n- **建议止盈价**: %.2f - %.2f\n- **推荐时间**: %s",
+					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendStopProfitPriceMin, aiStock.RecommendStopProfitPriceMax,
+					aiStock.DataTime.Format("2006-01-02 15:04:05"))
+				plainContent := fmt.Sprintf("%s(%s)\n当前价格: %.2f\n建议止盈价: %.2f-%.2f",
+					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendStopProfitPriceMin, aiStock.RecommendStopProfitPriceMax)
+				if a.canSendAlert(profitAlertKey, 5*time.Minute) {
+					go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
+					go data.NewDingDingAPI().SendToDingDing(title, content)
+					go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
+						"time":    title,
+						"isRed":   true,
+						"source":  "go-stock",
+						"content": plainContent,
+					})
+					a.updateAlertSentTime(profitAlertKey)
+					a.updatePriceAtAlertReset(profitAlertKey, currentPrice)
+				}
+			} else {
+				a.updatePriceAtAlertReset(profitAlertKey, currentPrice)
+			}
+		} else {
+			priceSinceLastProfitAlert := a.getPriceAtAlertReset(profitAlertKey)
+			if currentPrice < aiStock.RecommendStopProfitPriceMin && (priceSinceLastProfitAlert == 0 || currentPrice < priceSinceLastProfitAlert) {
+				a.updatePriceAtAlertReset(profitAlertKey, currentPrice)
 			}
 		}
 
-		// 检查是否触发止损预警（股价 <= 建议止损价）
-		stopLossPrice, err := convertor.ToFloat(aiStock.RecommendStopLossPrice)
-		if err != nil {
-			stopLossPrice = 0
-		}
+		stopLossAlertKey := baseAlertKey + ":LOSS"
+		stopLossPrice, _ := convertor.ToFloat(aiStock.RecommendStopLossPrice)
 		if stopLossPrice > 0 && currentPrice <= stopLossPrice {
-			title := fmt.Sprintf("【止损预警】%s", aiStock.StockName)
-			content := fmt.Sprintf("> **股票名称**: %s\n>**股票代码**: %s\n>**当前价格**: %.2f\n>**建议止损价**: %s\n>**推荐时间**: %s",
-				aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendStopLossPrice,
-				aiStock.DataTime.Format("2006-01-02 15:04:05"))
-			alertKey := fmt.Sprintf("%s:LOSS:%s", aiStock.StockCode, aiStock.DataTime.Format("20060102"))
-			if a.canSendAlert(alertKey, 5*time.Minute) {
-				logger.SugaredLogger.Infof("触发 AI 推荐股票止损预警: %s, 当前价格: %.2f, 建议止损价: %sf",
-					aiStock.StockCode, currentPrice, aiStock.RecommendStopLossPrice)
-				go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
-				go data.NewDingDingAPI().SendToDingDing(title, content)
-				a.updateAlertSentTime(alertKey)
+			priceSinceLastLossAlert := a.getPriceAtAlertReset(stopLossAlertKey)
+			if priceSinceLastLossAlert == 0 || priceSinceLastLossAlert > stopLossPrice {
+				title := fmt.Sprintf("【止损预警】%s", aiStock.StockName)
+				content := fmt.Sprintf("## %s\n\n- **股票代码**: %s\n- **当前价格**: %.2f\n- **建议止损价**: %s\n- **推荐时间**: %s",
+					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendStopLossPrice,
+					aiStock.DataTime.Format("2006-01-02 15:04:05"))
+				plainContent := fmt.Sprintf("%s(%s)\n当前价格: %.2f\n建议止损价: %s",
+					aiStock.StockName, aiStock.StockCode, currentPrice, aiStock.RecommendStopLossPrice)
+				if a.canSendAlert(stopLossAlertKey, 5*time.Minute) {
+					go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
+					go data.NewDingDingAPI().SendToDingDing(title, content)
+					go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
+						"time":    title,
+						"isRed":   true,
+						"source":  "go-stock",
+						"content": plainContent,
+					})
+					a.updateAlertSentTime(stopLossAlertKey)
+					a.updatePriceAtAlertReset(stopLossAlertKey, currentPrice)
+				}
+			} else {
+				a.updatePriceAtAlertReset(stopLossAlertKey, currentPrice)
+			}
+		} else {
+			priceSinceLastLossAlert := a.getPriceAtAlertReset(stopLossAlertKey)
+			if currentPrice > stopLossPrice && (priceSinceLastLossAlert == 0 || currentPrice > priceSinceLastLossAlert) {
+				a.updatePriceAtAlertReset(stopLossAlertKey, currentPrice)
 			}
 		}
 	}
@@ -1047,6 +1085,20 @@ func (a *App) updateAlertSentTime(alertKey string) {
 	a.stockAlertMu.Lock()
 	defer a.stockAlertMu.Unlock()
 	a.stockAlertLastSent[alertKey] = time.Now()
+}
+
+// getPriceAtAlertReset 获取预警重置后的价格（用于判断是否需要重新触发预警）
+func (a *App) getPriceAtAlertReset(alertKey string) float64 {
+	a.stockAlertMu.Lock()
+	defer a.stockAlertMu.Unlock()
+	return a.priceAtAlertReset[alertKey]
+}
+
+// updatePriceAtAlertReset 更新预警重置后的价格
+func (a *App) updatePriceAtAlertReset(alertKey string, price float64) {
+	a.stockAlertMu.Lock()
+	defer a.stockAlertMu.Unlock()
+	a.priceAtAlertReset[alertKey] = price
 }
 
 func GetStockInfos(follows ...data.FollowedStock) *[]data.StockInfo {
@@ -1176,10 +1228,10 @@ func (a *App) shutdown(ctx context.Context) {
 			cfg.WindowWidth = w
 			cfg.WindowHeight = h
 			data.UpdateConfig(cfg)
-			logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
+			//logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
 		}
 	}
-	logger.SugaredLogger.Infof("application shutdown Version:%s", Version)
+	//logger.SugaredLogger.Infof("application shutdown Version:%s", Version)
 }
 
 // Greet returns a greeting for the given name
@@ -1214,6 +1266,10 @@ func (a *App) SetCostPriceAndVolume(stockCode string, price float64, volume int6
 	return data.NewStockDataApi().SetCostPriceAndVolume(price, volume, stockCode)
 }
 
+func (a *App) SetTradingPrice(stockCode string, entryPrice, takeProfitPrice, stopLossPrice float64) string {
+	return data.NewStockDataApi().SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, stockCode)
+}
+
 func (a *App) SetAlarmChangePercent(val, alarmPrice float64, stockCode string) string {
 	return data.NewStockDataApi().SetAlarmChangePercent(val, alarmPrice, stockCode)
 }
@@ -1222,7 +1278,7 @@ func (a *App) SetStockSort(sort int64, stockCode string) {
 }
 func (a *App) SendDingDingMessage(message string, stockCode string) string {
 	ttl, _ := a.cache.TTL([]byte(stockCode))
-	logger.SugaredLogger.Infof("stockCode %s ttl:%d", stockCode, ttl)
+	//logger.SugaredLogger.Infof("stockCode %s ttl:%d", stockCode, ttl)
 	if ttl > 0 {
 		return ""
 	}
@@ -1248,7 +1304,6 @@ func (a *App) SendDingDingMessageByType(message string, stockCode string, msgTyp
 	}
 
 	ttl, _ := a.cache.TTL([]byte(stockCode))
-	//logger.SugaredLogger.Infof("stockCode %s ttl:%d", stockCode, ttl)
 	if ttl > 0 {
 		return ""
 	}
@@ -1260,6 +1315,14 @@ func (a *App) SendDingDingMessageByType(message string, stockCode string, msgTyp
 	stockInfo := &data.StockInfo{}
 	db.Dao.Model(stockInfo).Where("code = ?", stockCode).First(stockInfo)
 	go data.NewAlertWindowsApi("go-stock消息通知", getMsgTypeName(msgType), GenNotificationMsg(stockInfo), "").SendNotification()
+
+	go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
+		"time":    "📈 " + getMsgTypeName(msgType),
+		"isRed":   true,
+		"source":  "go-stock",
+		"content": GenNotificationMsg(stockInfo),
+	})
+
 	return data.NewDingDingAPI().SendDingDingMessage(message)
 }
 
@@ -1351,7 +1414,7 @@ func GenNotificationMsg(stockInfo *data.StockInfo) string {
 	return "[" + stockInfo.Name + "] " + stockInfo.Price + " " + convertor.ToString(RF) + "% " + stockInfo.Date + " " + stockInfo.Time
 }
 
-// msgType : 1 涨跌报警(5分钟);2 股价报警(30分钟) 3 成本价报警(30分钟)
+// msgType : 1 涨跌报警(5分钟);2 股价报警(30分钟) 3 成本价报警(30分钟) 4 止盈报警(5分钟) 5 止损报警(5分钟)
 func getMsgTypeTTL(msgType int) int {
 	switch msgType {
 	case 1:
@@ -1360,6 +1423,10 @@ func getMsgTypeTTL(msgType int) int {
 		return 60 * 30
 	case 3:
 		return 60 * 30
+	case 4:
+		return 60 * 5
+	case 5:
+		return 60 * 5
 	default:
 		return 60 * 5
 	}
@@ -1373,6 +1440,10 @@ func getMsgTypeName(msgType int) string {
 		return "股价报警"
 	case 3:
 		return "成本价报警"
+	case 4:
+		return "止盈报警"
+	case 5:
+		return "止损报警"
 	default:
 		return "未知类型"
 	}
@@ -1380,14 +1451,14 @@ func getMsgTypeName(msgType int) string {
 
 func onExit(a *App) {
 	// 清理操作
-	logger.SugaredLogger.Infof("systray onExit")
+	//logger.SugaredLogger.Infof("systray onExit")
 	//systray.Quit()
 	//runtime.Quit(a.ctx)
 }
 
 func (a *App) UpdateConfig(settingConfig *data.SettingConfig) string {
-	s1, _ := json.Marshal(settingConfig)
-	logger.SugaredLogger.Infof("UpdateConfig:%s", s1)
+	//s1, _ := json.Marshal(settingConfig)
+	//logger.SugaredLogger.Infof("UpdateConfig:%s", s1)
 	if settingConfig.RefreshInterval > 0 {
 		if entryID, exists := a.cronEntrys["MonitorStockPrices"]; exists {
 			a.cron.Remove(entryID)
@@ -1430,7 +1501,7 @@ func (a *App) ShareAnalysis(stockCode, stockName string) string {
 	res := data.NewDeepSeekOpenAi(a.ctx, 0).GetAIResponseResult(stockCode)
 	if res != nil && len(res.Content) > 100 {
 		analysisTime := res.CreatedAt.Format("2006/01/02")
-		logger.SugaredLogger.Infof("%s analysisTime:%s", res.CreatedAt, analysisTime)
+		//logger.SugaredLogger.Infof("%s analysisTime:%s", res.CreatedAt, analysisTime)
 		response, err := resty.New().SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
 			"text":         res.Content,
 			"stockCode":    stockCode,
@@ -1890,7 +1961,7 @@ func (a *App) InitCronTasks() {
 			continue
 		}
 		a.cronEntrys[convertor.ToString(taskCopy.ID)+"_"+taskCopy.Name] = entryID
-		logger.SugaredLogger.Infof("自动创建定时任务成功：%s (ID:%d) entryID:%v", taskCopy.Name, taskCopy.ID, entryID)
+		//logger.SugaredLogger.Infof("自动创建定时任务成功：%s (ID:%d) entryID:%v", taskCopy.Name, taskCopy.ID, entryID)
 	}
 }
 

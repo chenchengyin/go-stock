@@ -141,7 +141,7 @@ func InitAnalyzeSentiment() {
 		if err != nil {
 			logger.SugaredLogger.Errorf("添加%s失败:%s", tag.Name, err.Error())
 		} else {
-			logger.SugaredLogger.Infof("添加tags词典[%s]成功", tag.Name)
+			//logger.SugaredLogger.Infof("添加tags词典[%s]成功", tag.Name)
 		}
 	}
 	logger.SugaredLogger.Info("加载tags词典成功")
@@ -186,7 +186,7 @@ func InitAnalyzeSentiment() {
 			default:
 				logger.SugaredLogger.Errorf("用户词典格式错误:%s", line)
 			}
-			logger.SugaredLogger.Infof("添加用户词典[%s]成功", line)
+			//logger.SugaredLogger.Infof("添加用户词典[%s]成功", line)
 		}
 		if err != nil {
 			logger.SugaredLogger.Error(err.Error())
@@ -203,9 +203,9 @@ func InitAnalyzeSentiment() {
 func getWordWeight(word string) float64 {
 	// 从分词器获取词汇权重
 
-	freq, pos, ok := seg.Dictionary().Find([]byte(word))
+	freq, _, ok := seg.Dictionary().Find([]byte(word))
 	if ok {
-		logger.SugaredLogger.Infof("获取%s的权重:%f,pos:%s,ok:%v", word, freq, pos, ok)
+		//logger.SugaredLogger.Infof("获取%s的权重:%f,pos:%s,ok:%v", word, freq, pos, ok)
 		return freq
 	}
 	return 0
@@ -223,7 +223,7 @@ func SortByWeightAndFrequency(frequencies map[string]models.WordFreqWithWeight) 
 	sort.Slice(freqSlice, func(i, j int) bool {
 		return freqSlice[i].Weight*float64(freqSlice[i].Frequency) > freqSlice[j].Weight*float64(freqSlice[j].Frequency)
 	})
-	logger.SugaredLogger.Infof("排序后的结果:%v", freqSlice)
+	//logger.SugaredLogger.Infof("排序后的结果:%v", freqSlice)
 
 	return freqSlice
 }

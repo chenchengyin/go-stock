@@ -76,7 +76,7 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 			}
 			telegraphs = append(telegraphs, telegraph)
 			db.Dao.Model(&models.Telegraph{}).Create(&telegraph)
-			logger.SugaredLogger.Debugf("telegraph: %+v", &telegraph)
+			//logger.SugaredLogger.Debugf("telegraph: %+v", &telegraph)
 			if news["subjects"] == nil {
 				continue
 			}
@@ -311,7 +311,7 @@ func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 			if _, ok := lo.Find(telegraph.SubjectTags, func(item string) bool { return item == "焦点" }); ok {
 				telegraph.IsRed = true
 			}
-			logger.SugaredLogger.Infof("telegraph.SubjectTags:%v %s", telegraph.SubjectTags, telegraph.Content)
+			//logger.SugaredLogger.Infof("telegraph.SubjectTags:%v %s", telegraph.SubjectTags, telegraph.Content)
 
 			if telegraph.Content != "" {
 				telegraph.SentimentResult = AnalyzeSentiment(telegraph.Content).Description
@@ -937,7 +937,7 @@ func (m MarketNewsApi) TradingViewNews() *[]models.Telegraph {
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("TradingViewNews err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("TradingViewNews err:%s", err.Error())
 		return news
 	}
 	respMap := map[string]any{}

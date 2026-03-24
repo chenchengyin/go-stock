@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"go-stock/backend/logger"
 	"time"
 
@@ -15,6 +16,7 @@ func init() {
 	registerToolHandler("GetStockFinancialInfo", handleGetStockFinancialInfo)
 	registerToolHandler("GetStockHolderNum", handleGetStockHolderNum)
 	registerToolHandler("GetStockHistoryMoneyData", handleGetStockHistoryMoneyData)
+	registerToolHandler("SetTradingPrice", handleSetTradingPrice)
 }
 
 // handleGetIndustryValuation 处理 GetIndustryValuation 工具调用
@@ -41,6 +43,45 @@ func handleGetIndustryValuation(o *OpenAi, funcArguments string, ctx *ToolContex
 		ctx.FuncName,
 		funcArguments,
 		md,
+	)
+
+	return nil
+}
+
+func handleSetTradingPrice(o *OpenAi, funcArguments string, ctx *ToolContext) error {
+	ctx.Ch <- map[string]any{
+		"code":     1,
+		"question": ctx.Question,
+		"chatId":   ctx.StreamResponseID,
+		"model":    ctx.Model,
+		"content":  "\r\n```\r\n开始调用工具：SetTradingPrice，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":     time.Now().Format(time.DateTime),
+	}
+
+	stockCode := gjson.Get(funcArguments, "stockCode").String()
+	entryPrice := gjson.Get(funcArguments, "entryPrice").Float()
+	takeProfitPrice := gjson.Get(funcArguments, "takeProfitPrice").Float()
+	stopLossPrice := gjson.Get(funcArguments, "stopLossPrice").Float()
+
+	result := NewStockDataApi().SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, stockCode)
+
+	var content string
+	if result == "设置成功" {
+		content = fmt.Sprintf("✅ 价位线设置成功！\n\n📈 %s\n💰 开仓价：%.2f\n🎯 止盈价：%.2f\n🛑 止损价：%.2f", stockCode, entryPrice, takeProfitPrice, stopLossPrice)
+	} else {
+		content = fmt.Sprintf("❌ 价位线设置失败：%s", result)
+	}
+
+	logger.SugaredLogger.Infof("%s", content)
+
+	appendToolMessages(
+		ctx.Messages,
+		ctx.CurrentAIContent.String(),
+		ctx.ReasoningContentText.String(),
+		ctx.CurrentCallID,
+		ctx.FuncName,
+		funcArguments,
+		content,
 	)
 
 	return nil

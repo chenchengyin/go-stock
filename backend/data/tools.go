@@ -844,5 +844,37 @@ func Tools(tools []Tool) []Tool {
 		},
 	})
 
+	tools = append(tools, Tool{
+		Type: "function",
+		Function: ToolFunction{
+			Name: "SetTradingPrice",
+			Description: "设置股票的预警价位线（开仓价、止盈价、止损价），用于设置股票的买入价格和风险控制参数。设置后会同步到行情界面显示。" +
+				"开仓价：买入的目标价格；止盈价：预期卖出获利价格；止损价：亏损到该价格时必须卖出止损。" +
+				"注意：所有价格参数必须为正数，0 表示不设置该价格。",
+			Parameters: &FunctionParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"stockCode": map[string]any{
+						"type":        "string",
+						"description": "股票代码，如 000001.SZ、600000.SH（沪市）、00700.HK（港股）。注意：上海以.SH结尾，深圳以.SZ结尾，港股以.HK结尾，北交所以.BJ结尾。",
+					},
+					"entryPrice": map[string]any{
+						"type":        "number",
+						"description": "开仓价/买入价（目标买入价格），0 表示不设置",
+					},
+					"takeProfitPrice": map[string]any{
+						"type":        "number",
+						"description": "止盈价（预期卖出价格），0 表示不设置",
+					},
+					"stopLossPrice": map[string]any{
+						"type":        "number",
+						"description": "止损价（亏损止损价格），0 表示不设置",
+					},
+				},
+				Required: []string{"stockCode", "entryPrice", "takeProfitPrice", "stopLossPrice"},
+			},
+		},
+	})
+
 	return tools
 }

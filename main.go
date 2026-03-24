@@ -272,6 +272,7 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.StockInfoHK{})
 	db.Dao.AutoMigrate(&models.StockInfoUS{})
 	db.Dao.AutoMigrate(&data.FollowedFund{})
+	db.Dao.AutoMigrate(&data.FollowedStock{})
 	db.Dao.AutoMigrate(&data.FundBasic{})
 	db.Dao.AutoMigrate(&models.PromptTemplate{})
 	db.Dao.AutoMigrate(&data.Group{})

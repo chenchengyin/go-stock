@@ -860,12 +860,21 @@ function clearLongPositionPriceLines() {
 }
 
 function syncLongPositionPriceLines() {
+  console.log('[DEBUG syncLongPositionPriceLines] called, showLongPosition:', showLongPosition.value, 'candleSeries:', !!candleSeries)
   clearLongPositionPriceLines()
-  if (!showLongPosition.value || !candleSeries) return
+  if (!showLongPosition.value || !candleSeries) {
+    console.log('[DEBUG syncLongPositionPriceLines] early return, showLongPosition:', showLongPosition.value, 'candleSeries:', !!candleSeries)
+    return
+  }
   const entry = parseNumStr(longEntryStr.value)
-  if (!Number.isFinite(entry)) return
+  console.log('[DEBUG syncLongPositionPriceLines] entry:', entry, 'isFinite:', Number.isFinite(entry))
+  if (!Number.isFinite(entry)) {
+    console.log('[DEBUG syncLongPositionPriceLines] entry not finite, returning')
+    return
+  }
   const stop = parseNumStr(longStopStr.value)
   const tp = parseNumStr(longTakeProfitStr.value)
+  console.log('[DEBUG syncLongPositionPriceLines] creating lines, entry:', entry, 'stop:', stop, 'tp:', tp)
   const pushLine = (price, kind, partial) => {
     const pl = candleSeries.createPriceLine({
       price,
@@ -895,6 +904,7 @@ function syncLongPositionPriceLines() {
       title: '止盈',
     })
   }
+  console.log('[DEBUG syncLongPositionPriceLines] done, created', longPositionPriceLines.length, 'lines')
 }
 
 function getLongDragPaneElement() {
@@ -1736,9 +1746,11 @@ function pricePropToInputStr(v) {
 watch(
   () => [props.longEntryPrice, props.longStopLossPrice, props.longTakeProfitPrice],
   ([e, s, t]) => {
+    console.log('[DEBUG props watch] triggered, e:', e, 's:', s, 't:', t, 'candleSeries:', !!candleSeries)
     let needReleaseSuppress = false
     if (e !== undefined) {
       const se = pricePropToInputStr(e)
+      console.log('[DEBUG props watch] entry: propVal=', e, 'converted=', se, 'current longEntryStr=', longEntryStr.value)
       if (se !== longEntryStr.value) {
         suppressLongPriceEmit.value = true
         needReleaseSuppress = true
@@ -1766,37 +1778,44 @@ watch(
         suppressLongPriceEmit.value = false
       })
     }
-    if (
-      parseNumStr(longEntryStr.value) ||
-      parseNumStr(longStopStr.value) ||
-      parseNumStr(longTakeProfitStr.value)
-    ) {
+    const hasPrice = Number.isFinite(parseNumStr(longEntryStr.value)) || Number.isFinite(parseNumStr(longStopStr.value)) || Number.isFinite(parseNumStr(longTakeProfitStr.value))
+    console.log('[DEBUG props watch] hasPrice:', hasPrice, 'showLongPosition:', showLongPosition.value)
+    if (hasPrice) {
       showLongPosition.value = true
+      nextTick(() => {
+        console.log('[DEBUG props watch] nextTick: calling syncLongPositionPriceLines, candleSeries:', !!candleSeries)
+        syncLongPositionPriceLines()
+      })
     }
   },
   { immediate: true },
 )
 
 watch(longEntryStr, (v) => {
+  console.log('[DEBUG longEntryStr watch] v:', v, 'suppress:', suppressLongPriceEmit.value, 'props.longEntryPrice:', props.longEntryPrice)
   if (suppressLongPriceEmit.value) return
-  if (props.longEntryPrice === undefined) return
   emit('update:longEntryPrice', v)
 })
 watch(longStopStr, (v) => {
+  console.log('[DEBUG longStopStr watch] v:', v, 'suppress:', suppressLongPriceEmit.value, 'props.longStopLossPrice:', props.longStopLossPrice)
   if (suppressLongPriceEmit.value) return
-  if (props.longStopLossPrice === undefined) return
   emit('update:longStopLossPrice', v)
 })
 watch(longTakeProfitStr, (v) => {
+  console.log('[DEBUG longTakeProfitStr watch] v:', v, 'suppress:', suppressLongPriceEmit.value, 'props.longTakeProfitPrice:', props.longTakeProfitPrice)
   if (suppressLongPriceEmit.value) return
-  if (props.longTakeProfitPrice === undefined) return
   emit('update:longTakeProfitPrice', v)
 })
 
 onMounted(() => {
+  console.log('[DEBUG onMounted] starting')
   nextTick(() => {
+    console.log('[DEBUG onMounted] nextTick callback')
+    console.log('[DEBUG onMounted] current longEntryStr:', longEntryStr.value, 'showLongPosition:', showLongPosition.value)
     ensureChart()
+    console.log('[DEBUG onMounted] after ensureChart, candleSeries:', !!candleSeries)
     loadData()
+    console.log('[DEBUG onMounted] after loadData call')
     setupPoll()
   })
 })
@@ -1843,10 +1862,18 @@ watch(
 watch(
   [showLongPosition, longEntryStr, longStopStr, longTakeProfitStr],
   () => {
+    console.log('[DEBUG priceLines watch] triggered, showLongPosition:', showLongPosition.value, 'longEntryStr:', longEntryStr.value)
     if (longPositionDragActive) return
     syncLongPositionPriceLines()
   },
 )
+
+watch(showLongPosition, (newVal) => {
+  console.log('[DEBUG showLongPosition watch] changed to:', newVal)
+  if (newVal && candleSeries) {
+    nextTick(() => syncLongPositionPriceLines())
+  }
+})
 
 </script>
 
@@ -1966,7 +1993,7 @@ watch(
                 :secondary="!longClickPickEnabled"
                 @click="toggleLongClickPick"
               >
-                图上点击设价
+                设置价位线
               </NButton>
               <NButton
                 v-if="longClickPickEnabled"

@@ -25,7 +25,7 @@ func getRandomUA() string {
 	ua, _ := uaFake.New()
 	if ua != nil {
 		randomUA := ua.Filter().Platform("desktop").Get()
-		logger.SugaredLogger.Infof("User-Agent: %s", randomUA)
+		//logger.SugaredLogger.Infof("User-Agent: %s", randomUA)
 		return randomUA
 	}
 	// 如果库获取失败，返回备用 UA
@@ -52,7 +52,7 @@ func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string) ([]b
 		logger.SugaredLogger.Errorf("FetchEastMoneyCookiesViaChromedp error: %v", err)
 	}
 	if err == nil {
-		logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+		//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
 		req.SetHeader("Cookie", cookieHeader)
 	}
 
@@ -304,9 +304,7 @@ func (receiver *EastMoneyKLineApi) GetKLineDataBefore(stockCode, kLineType, adju
 
 	reqURL := fmt.Sprintf("%s?%s", baseURL, params.Encode())
 
-	fmt.Printf("请求 URL:\n%s\n\n", reqURL)
-
-	logger.SugaredLogger.Infof("GetKLineDataBefore url: %s", reqURL)
+	//logger.SugaredLogger.Infof("GetKLineDataBefore url: %s", reqURL)
 
 	if receiver.config != nil && strings.TrimSpace(receiver.config.BrowserPath) == "" {
 		logger.SugaredLogger.Infof("东财 K 线未配置 BrowserPath，HTTP 请求不带 chromedp cookie")
@@ -348,7 +346,7 @@ func (receiver *EastMoneyKLineApi) GetKLineDataBefore(stockCode, kLineType, adju
 		}
 	}
 
-	logger.SugaredLogger.Infof("GetKLineData success, count: %d", len(*kLines))
+	//logger.SugaredLogger.Infof("GetKLineData success, count: %d", len(*kLines))
 	return kLines
 }
 
@@ -474,7 +472,7 @@ func (receiver *EastMoneyKLineApi) getAdjustType(adjustFlag string) string {
 // parseKLine 解析单条 K 线数据
 // K 线数据格式：日期，开盘价，收盘价，最高价，最低价，成交量，成交额，振幅，涨跌幅，涨跌额，换手率，市盈率 TTM
 func (receiver *EastMoneyKLineApi) parseKLine(klineStr, adjustFlag string) *KLineData {
-	logger.SugaredLogger.Debugf("parseKLine: %s", klineStr)
+	//logger.SugaredLogger.Debugf("parseKLine: %s", klineStr)
 	parts := strings.Split(klineStr, ",")
 	if len(parts) < 11 {
 		logger.SugaredLogger.Warnf("invalid kline format: %s", klineStr)

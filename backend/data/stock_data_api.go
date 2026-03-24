@@ -319,7 +319,7 @@ func (receiver StockDataApi) GetStockCodeRealTimeData(StockCodes ...string) (*[]
 			SetHeader("Referer", "https://gu.qq.com/").
 			SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 			Get(url)
-		logger.SugaredLogger.Infof("GetStockCodeRealTimeData %s", url)
+		//logger.SugaredLogger.Infof("GetStockCodeRealTimeData %s", url)
 		if err != nil {
 			logger.SugaredLogger.Error(err.Error())
 			return &[]StockInfo{}, err
@@ -563,8 +563,33 @@ func (receiver StockDataApi) SetStockAICron(cron string, stockCode string) {
 	db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", strings.ToLower(stockCode)).Update("cron", cron)
 
 }
+func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice float64, stockCode string) string {
+	stockCode = strings.ToUpper(stockCode)
+	if strings.HasSuffix(stockCode, ".SZ") {
+		stockCode = "sh" + strings.TrimSuffix(stockCode, ".SZ")
+	} else if strings.HasSuffix(stockCode, ".SH") {
+		stockCode = "sh" + strings.TrimSuffix(stockCode, ".SH")
+	} else if strings.HasSuffix(stockCode, ".HK") {
+		stockCode = "hk" + strings.TrimSuffix(stockCode, ".HK")
+	} else if strings.HasSuffix(stockCode, ".BJ") {
+		stockCode = "bj" + strings.TrimSuffix(stockCode, ".BJ")
+	} else if strings.HasPrefix(stockCode, "GB_") {
+		stockCode = strings.Replace(stockCode, "GB_", "us", 1)
+	}
+
+	err := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", strings.ToLower(stockCode)).Updates(&map[string]any{
+		"entry_price":       entryPrice,
+		"take_profit_price": takeProfitPrice,
+		"stop_loss_price":   stopLossPrice,
+	}).Error
+	if err != nil {
+		logger.SugaredLogger.Error(err.Error())
+		return "设置失败"
+	}
+	return "设置成功"
+}
 func (receiver StockDataApi) GetFollowList(groupId int) *[]FollowedStock {
-	logger.SugaredLogger.Infof("GetFollowList %d", groupId)
+	//logger.SugaredLogger.Infof("GetFollowList %d", groupId)
 
 	var result *[]FollowedStock
 	if groupId == 0 {
@@ -2186,9 +2211,9 @@ func (receiver StockDataApi) GetAllStocks(page int, pageSize int, name string, t
 	if len(indicatorConditions) > 0 {
 		indicators = strings.Join(indicatorConditions, "")
 	}
-	logger.SugaredLogger.Infof("indicators:%s", indicators)
+	//logger.SugaredLogger.Infof("indicators:%s", indicators)
 
-	logger.SugaredLogger.Infof("GetAllStocks page:%d,pageSize:%d,name:%s", page, pageSize, name)
+	//logger.SugaredLogger.Infof("GetAllStocks page:%d,pageSize:%d,name:%s", page, pageSize, name)
 	search := ""
 	if name != "" {
 		search = fmt.Sprintf("(SECURITY_NAME_ABBR in (\"%s\"))", name)
