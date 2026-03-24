@@ -75,7 +75,7 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 			}
 			telegraphs = append(telegraphs, telegraph)
 			db.Dao.Model(&models.Telegraph{}).Create(&telegraph)
-			//logger.SugaredLogger.Debugf("telegraph: %+v", &telegraph)
+			////logger.SugaredLogger.Debugf("telegraph: %+v", &telegraph)
 			if news["subjects"] == nil {
 				continue
 			}
@@ -95,7 +95,7 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 
 		}
 		//db.Dao.Model(&models.Telegraph{}).Create(&telegraphs)
-		//logger.SugaredLogger.Debugf("telegraphs: %+v", &telegraphs)
+		////logger.SugaredLogger.Debugf("telegraphs: %+v", &telegraphs)
 	}
 
 	return &telegraphs
@@ -1137,7 +1137,7 @@ func (m MarketNewsApi) GetGDP() *models.GDPResp {
 		return res
 	}
 	body := resp.Body()
-	logger.SugaredLogger.Debugf("GDP:%s", body)
+	////logger.SugaredLogger.Debugf("GDP:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 
@@ -1172,7 +1172,7 @@ func (m MarketNewsApi) GetCPI() *models.CPIResp {
 		return res
 	}
 	body := resp.Body()
-	logger.SugaredLogger.Debugf("GetCPI:%s", body)
+	////logger.SugaredLogger.Debugf("GetCPI:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 
@@ -1265,7 +1265,7 @@ func (m MarketNewsApi) GetIndustryReportInfo(infoCode string) string {
 		return ""
 	}
 	body := resp.Body()
-	//logger.SugaredLogger.Debugf("GetIndustryReportInfo:%s", body)
+	////logger.SugaredLogger.Debugf("GetIndustryReportInfo:%s", body)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(body)))
 	title, _ := doc.Find("div.c-title").Html()
 	content, _ := doc.Find("div.ctx-content").Html()
@@ -1302,7 +1302,7 @@ func (receiver MarketNewsApi) GetSecuritiesCompanyOpinion(startDate string, endD
 	json.Unmarshal(marshal, &res)
 
 	for _, d := range (&res).Data {
-		logger.SugaredLogger.Debugf("PublishDate: %s,OrgSName: %s,Title: %s,EncodeUrl: %s", d.PublishDate, d.OrgSName, d.Title, d.EncodeUrl)
+		//logger.SugaredLogger.Debugf("PublishDate: %s,OrgSName: %s,Title: %s,EncodeUrl: %s", d.PublishDate, d.OrgSName, d.Title, d.EncodeUrl)
 		markdown := receiver.GetSecuritiesCompanyOpinionContent(d.OrgSName, d.EncodeUrl)
 		d.OpinionData = markdown
 	}
@@ -1358,7 +1358,7 @@ func (m MarketNewsApi) InteractiveAnswer(page int, pageSize int, keyWord string)
 	url := fmt.Sprintf("https://irm.cninfo.com.cn/newircs/index/search?_t=%d", time.Now().Unix())
 	answers := &models.InteractiveAnswer{}
 	//logger.SugaredLogger.Infof("请求url:%s", url)
-	resp, err := client.SetTimeout(time.Duration(5)*time.Second).R().
+	_, err := client.SetTimeout(time.Duration(5)*time.Second).R().
 		SetHeader("Host", "irm.cninfo.com.cn").
 		SetHeader("Origin", "https://irm.cninfo.com.cn").
 		SetHeader("Referer", "https://irm.cninfo.com.cn/views/interactiveAnswer").
@@ -1376,7 +1376,7 @@ func (m MarketNewsApi) InteractiveAnswer(page int, pageSize int, keyWord string)
 	if err != nil {
 		logger.SugaredLogger.Errorf("InteractiveAnswer-err:%+v", err)
 	}
-	logger.SugaredLogger.Debugf("InteractiveAnswer-resp:%s", resp.Body())
+	//logger.SugaredLogger.Debugf("InteractiveAnswer-resp:%s", resp.Body())
 	return answers
 
 }
