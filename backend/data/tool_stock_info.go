@@ -2,7 +2,6 @@ package data
 
 import (
 	"fmt"
-	"go-stock/backend/logger"
 	"time"
 
 	"go-stock/backend/util"
@@ -33,7 +32,7 @@ func handleGetIndustryValuation(o *OpenAi, funcArguments string, ctx *ToolContex
 	bkName := gjson.Get(funcArguments, "bkName").String()
 	res := NewStockDataApi().GetIndustryValuation(bkName)
 	md := util.MarkdownTableWithTitle(bkName+"行业估值", res.Result.Data)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -72,7 +71,7 @@ func handleSetTradingPrice(o *OpenAi, funcArguments string, ctx *ToolContext) er
 		content = fmt.Sprintf("❌ 价位线设置失败：%s", result)
 	}
 
-	logger.SugaredLogger.Infof("%s", content)
+	//logger.SugaredLogger.Infof("%s", content)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -101,7 +100,7 @@ func handleGetStockConceptInfo(o *OpenAi, funcArguments string, ctx *ToolContext
 	code := gjson.Get(funcArguments, "code").String()
 	res := NewStockDataApi().GetStockConceptInfo(code)
 	md := util.MarkdownTableWithTitle(code+" 股票所属概念详细信息", res.Result.Data)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -130,7 +129,7 @@ func handleGetStockFinancialInfo(o *OpenAi, funcArguments string, ctx *ToolConte
 	stockCode := gjson.Get(funcArguments, "stockCode").String()
 	res := NewStockDataApi().GetStockFinancialInfo(stockCode)
 	md := util.MarkdownTableWithTitle("股票"+stockCode+"财务报表信息", res.Result.Data)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -159,7 +158,7 @@ func handleGetStockHolderNum(o *OpenAi, funcArguments string, ctx *ToolContext) 
 	stockCode := gjson.Get(funcArguments, "stockCode").String()
 	res := NewStockDataApi().GetStockHolderNum(stockCode)
 	md := util.MarkdownTableWithTitle("股票"+stockCode+"股东人数信息", res.Result.Data)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -188,7 +187,7 @@ func handleGetStockHistoryMoneyData(o *OpenAi, funcArguments string, ctx *ToolCo
 	stockCode := gjson.Get(funcArguments, "stockCode").String()
 	res := NewStockDataApi().GetStockHistoryMoneyData(stockCode)
 	md := util.MarkdownTableWithTitle("股票"+stockCode+"历史资金流向数据", res)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,

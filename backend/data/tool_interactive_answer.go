@@ -1,7 +1,6 @@
 package data
 
 import (
-	"go-stock/backend/logger"
 	"go-stock/backend/util"
 	"time"
 
@@ -39,7 +38,7 @@ func handleInteractiveAnswer(o *OpenAi, funcArguments string, ctx *ToolContext) 
 
 	datas := NewMarketNewsApi().InteractiveAnswer(int(pageNo), int(pageSizeNum), keyWord)
 	content := util.MarkdownTableWithTitle("投资互动数据", datas.Results)
-	logger.SugaredLogger.Infof("InteractiveAnswer=\n%s", content)
+	//logger.SugaredLogger.Infof("InteractiveAnswer=\n%s", content)
 
 	appendToolMessages(
 		ctx.Messages,

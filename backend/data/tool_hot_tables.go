@@ -1,7 +1,6 @@
 package data
 
 import (
-	"go-stock/backend/logger"
 	"time"
 
 	"go-stock/backend/util"
@@ -28,7 +27,7 @@ func handleHotStrategyTable(o *OpenAi, funcArguments string, ctx *ToolContext) e
 	}
 
 	table := NewSearchStockApi("").HotStrategyTable()
-	logger.SugaredLogger.Infof("%s", table)
+	//logger.SugaredLogger.Infof("%s", table)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -63,7 +62,7 @@ func handleHotStockTable(o *OpenAi, funcArguments string, ctx *ToolContext) erro
 
 	res := NewMarketNewsApi().XUEQIUHotStock(int(pageSizeNum), "10")
 	md := util.MarkdownTableWithTitle("当前热门股票排名", res)
-	logger.SugaredLogger.Infof("pageSize:%s HotStockTable:\n %s", pageSize, md)
+	//logger.SugaredLogger.Infof("pageSize:%s HotStockTable:\n %s", pageSize, md)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -91,7 +90,7 @@ func handleGetStockMoneyData(o *OpenAi, funcArguments string, ctx *ToolContext) 
 
 	res := NewStockDataApi().GetStockMoneyData()
 	md := util.MarkdownTableWithTitle("今日个股资金流向Top50", res.Data.Diff)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,

@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"go-stock/backend/logger"
 	"go-stock/backend/util"
 
 	"github.com/duke-git/lancet/v2/convertor"
@@ -81,7 +80,7 @@ func handleStockNotice(o *OpenAi, funcArguments string, ctx *ToolContext) error 
 		}
 	}
 	md := util.MarkdownTableWithTitle("上市公司公告", rows)
-	logger.SugaredLogger.Infof("StockNotice stock_list:%s count:%d", stockList, len(rows))
+	//logger.SugaredLogger.Infof("StockNotice stock_list:%s count:%d", stockList, len(rows))
 
 	appendToolMessages(
 		ctx.Messages,

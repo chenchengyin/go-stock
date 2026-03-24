@@ -2,7 +2,6 @@ package data
 
 import (
 	"encoding/json"
-	"go-stock/backend/logger"
 	"time"
 
 	"github.com/duke-git/lancet/v2/convertor"
@@ -55,7 +54,7 @@ func handleGetStockKLine(o *OpenAi, funcArguments string, ctx *ToolContext) erro
 		}
 		jsonData, _ := json.Marshal(Kmap)
 		markdownTable, _ := JSONToMarkdownTable(jsonData)
-		logger.SugaredLogger.Infof("getKLineData=\n%s", markdownTable)
+		//logger.SugaredLogger.Infof("getKLineData=\n%s", markdownTable)
 
 		res := "\r\n ### " + stockCode + convertor.ToString(toIntDay) + "日K线数据：\r\n" + markdownTable + "\r\n"
 		appendToolMessages(
@@ -67,7 +66,7 @@ func handleGetStockKLine(o *OpenAi, funcArguments string, ctx *ToolContext) erro
 			funcArguments,
 			res,
 		)
-		logger.SugaredLogger.Infof("GetStockKLine:stockCode:%s days:%s --> \n%s", stockCode, days, res)
+		//logger.SugaredLogger.Infof("GetStockKLine:stockCode:%s days:%s --> \n%s", stockCode, days, res)
 		return nil
 	}
 

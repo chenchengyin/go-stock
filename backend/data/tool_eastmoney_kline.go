@@ -2,7 +2,6 @@ package data
 
 import (
 	"encoding/json"
-	"go-stock/backend/logger"
 	"strconv"
 	"strings"
 	"time"
@@ -118,7 +117,7 @@ func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) 
 		typeLabel = kType
 	}
 	res := "\r\n### " + stockCode + " " + typeLabel + " K线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
-	logger.SugaredLogger.Infof("GetEastMoneyKLine: %s %s -> %d 条", stockCode, kType, len(*list))
+	//logger.SugaredLogger.Infof("GetEastMoneyKLine: %s %s -> %d 条", stockCode, kType, len(*list))
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
 		ctx.CurrentCallID, ctx.FuncName, funcArguments, res)
 	return nil
@@ -247,7 +246,7 @@ func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolCon
 		typeLabel = kType
 	}
 	res := "\r\n### 东方财富 " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
-	logger.SugaredLogger.Infof("GetEastMoneyKLineWithMA: %s %s limit=%d maPeriods=%v -> %d 条", stockCode, kType, limit, maPeriods, len(*list))
+	//logger.SugaredLogger.Infof("GetEastMoneyKLineWithMA: %s %s limit=%d maPeriods=%v -> %d 条", stockCode, kType, limit, maPeriods, len(*list))
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
 		ctx.CurrentCallID, ctx.FuncName, funcArguments, res)
 	return nil

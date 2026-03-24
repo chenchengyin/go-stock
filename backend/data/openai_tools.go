@@ -368,7 +368,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		logger.SugaredLogger.Infof("Received data: %s", line)
+		//logger.SugaredLogger.Infof("Received data: %s", line)
 		if strings.HasPrefix(line, "data:") {
 			data := strutil.Trim(strings.TrimPrefix(line, "data:"))
 			if data == "[DONE]" {

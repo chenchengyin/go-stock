@@ -1,7 +1,6 @@
 package data
 
 import (
-	"go-stock/backend/logger"
 	"time"
 
 	"github.com/duke-git/lancet/v2/random"
@@ -28,7 +27,7 @@ func handleSearchBk(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 
 	res := NewSearchStockApi(words).SearchBk(random.RandInt(50, 120))
 	content := thsResultToMarkdown(res, "工具筛选出的相关板块/概念数据")
-	logger.SugaredLogger.Infof("SearchBk:words:%s  --> \n%s", words, content)
+	//logger.SugaredLogger.Infof("SearchBk:words:%s  --> \n%s", words, content)
 
 	appendToolMessages(
 		ctx.Messages,

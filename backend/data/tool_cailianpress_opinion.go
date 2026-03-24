@@ -7,7 +7,6 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"go-stock/backend/logger"
 	"go-stock/backend/util"
 )
 
@@ -31,7 +30,7 @@ func handleCailianpressWeb(o *OpenAi, funcArguments string, ctx *ToolContext) er
 	searchWords := gjson.Get(funcArguments, "searchWords").String()
 	res := NewMarketNewsApi().CailianpressWeb(searchWords)
 	md := util.MarkdownTableWithTitle("["+searchWords+"]-新闻资讯", res)
-	logger.SugaredLogger.Infof("%s", md)
+	//logger.SugaredLogger.Infof("%s", md)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -64,7 +63,7 @@ func handleGetSecuritiesCompanyOpinion(o *OpenAi, funcArguments string, ctx *Too
 	for _, d := range res.Data {
 		md.WriteString(d.OpinionData + "\r\n")
 	}
-	logger.SugaredLogger.Infof("%s", md.String())
+	//logger.SugaredLogger.Infof("%s", md.String())
 
 	appendToolMessages(
 		ctx.Messages,
@@ -114,7 +113,7 @@ func handleGetNewsListData(o *OpenAi, funcArguments string, ctx *ToolContext) er
 	for _, d := range *list {
 		md.WriteString(d.DataTime.Format(time.DateTime) + " " + d.Content + "\r\n")
 	}
-	logger.SugaredLogger.Infof("%s", md.String())
+	//logger.SugaredLogger.Infof("%s", md.String())
 
 	appendToolMessages(
 		ctx.Messages,

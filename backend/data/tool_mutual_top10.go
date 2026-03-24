@@ -1,11 +1,9 @@
 package data
 
 import (
-	"go-stock/backend/logger"
 	"go-stock/backend/util"
 	"time"
 
-	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/tidwall/gjson"
 )
 
@@ -56,7 +54,7 @@ func handleGetMutualTop10Deal(o *OpenAi, funcArguments string, ctx *ToolContext)
 
 	res := NewStockDataApi().GetMutualTop10Deal(mutualType, tradeDate, int(page), int(pageSize))
 	if res == nil || !res.Success || res.Code != 0 {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal api error, code:%d, msg:%s", res.Code, res.Message)
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal api error, code:%d, msg:%s", res.Code, res.Message)
 		appendToolMessages(
 			ctx.Messages,
 			ctx.CurrentAIContent.String(),
@@ -71,11 +69,11 @@ func handleGetMutualTop10Deal(o *OpenAi, funcArguments string, ctx *ToolContext)
 
 	title := mutualTypeName(mutualType) + " " + tradeDate
 	md := util.MarkdownTableWithTitle(title, res.Result.Data)
-	logger.SugaredLogger.Infof("GetMutualTop10Deal page:%s pageSize:%s\n%s",
-		convertor.ToString(page),
-		convertor.ToString(pageSize),
-		md,
-	)
+	//logger.SugaredLogger.Infof("GetMutualTop10Deal page:%s pageSize:%s\n%s",
+	//	convertor.ToString(page),
+	//	convertor.ToString(pageSize),
+	//	md,
+	//)
 
 	appendToolMessages(
 		ctx.Messages,

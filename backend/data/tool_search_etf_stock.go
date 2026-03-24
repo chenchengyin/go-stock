@@ -2,7 +2,6 @@ package data
 
 import (
 	"encoding/json"
-	"go-stock/backend/logger"
 	"time"
 
 	"go-stock/backend/models"
@@ -35,7 +34,7 @@ func handleSearchETF(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 
 	res := NewSearchStockApi(words).SearchETF(random.RandInt(50, 120))
 	content := thsResultToMarkdown(res, "工具筛选出的相关ETF数据")
-	logger.SugaredLogger.Infof("SearchETF:words:%s  --> \n%s", words, content)
+	//logger.SugaredLogger.Infof("SearchETF:words:%s  --> \n%s", words, content)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -64,7 +63,7 @@ func handleSearchStockByIndicators(o *OpenAi, funcArguments string, ctx *ToolCon
 
 	res := NewSearchStockApi(words).SearchStock(random.RandInt(50, 120))
 	content := thsResultToMarkdown(res, "工具筛选出的相关股票数据")
-	logger.SugaredLogger.Infof("SearchStockByIndicators:words:%s  --> \n%s", words, content)
+	//logger.SugaredLogger.Infof("SearchStockByIndicators:words:%s  --> \n%s", words, content)
 
 	appendToolMessages(
 		ctx.Messages,
@@ -148,7 +147,7 @@ func handleCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolCon
 
 	recommend := models.AiRecommendStocks{}
 	if err := json.Unmarshal([]byte(funcArguments), &recommend); err != nil {
-		logger.SugaredLogger.Infof("CreateAiRecommendStocks error : %s", err.Error())
+		//logger.SugaredLogger.Infof("CreateAiRecommendStocks error : %s", err.Error())
 		return err
 	}
 
@@ -163,7 +162,7 @@ func handleCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolCon
 		funcArguments,
 		func() string {
 			if svcErr != nil {
-				logger.SugaredLogger.Infof("CreateAiRecommendStocks error : %s", svcErr.Error())
+				//logger.SugaredLogger.Infof("CreateAiRecommendStocks error : %s", svcErr.Error())
 				ctx.Ch <- map[string]any{
 					"code":     0,
 					"question": ctx.Question,
@@ -192,7 +191,7 @@ func handleBatchCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *To
 	stocks := gjson.Get(funcArguments, "stocks").String()
 	var recommends []*models.AiRecommendStocks
 	if err := json.Unmarshal([]byte(stocks), &recommends); err != nil {
-		logger.SugaredLogger.Infof("BatchCreateAiRecommendStocks error : %s", err.Error())
+		//logger.SugaredLogger.Infof("BatchCreateAiRecommendStocks error : %s", err.Error())
 		return err
 	}
 
@@ -207,7 +206,7 @@ func handleBatchCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *To
 		funcArguments,
 		func() string {
 			if svcErr != nil {
-				logger.SugaredLogger.Infof("BatchCreateAiRecommendStocks error : %s", svcErr.Error())
+				//logger.SugaredLogger.Infof("BatchCreateAiRecommendStocks error : %s", svcErr.Error())
 				ctx.Ch <- map[string]any{
 					"code":     0,
 					"question": ctx.Question,

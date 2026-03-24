@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"go-stock/backend/logger"
 	"go-stock/backend/util"
 
 	"github.com/tidwall/gjson"
@@ -54,7 +53,7 @@ func handleGetStockRZRQInfo(o *OpenAi, funcArguments string, ctx *ToolContext) e
 	}
 
 	md := util.MarkdownTableWithTitle(stockCode+" 融资融券信息", res.Result.Data)
-	logger.SugaredLogger.Infof("GetStockRZRQInfo stockCode:%s count:%d", stockCode, len(res.Result.Data))
+	//logger.SugaredLogger.Infof("GetStockRZRQInfo stockCode:%s count:%d", stockCode, len(res.Result.Data))
 
 	appendToolMessages(
 		ctx.Messages,

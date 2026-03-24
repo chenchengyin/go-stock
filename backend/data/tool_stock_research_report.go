@@ -1,7 +1,6 @@
 package data
 
 import (
-	"go-stock/backend/logger"
 	"strings"
 	"time"
 
@@ -28,12 +27,12 @@ func handleGetStockResearchReport(o *OpenAi, funcArguments string, ctx *ToolCont
 	res := NewMarketNewsApi().StockResearchReport(stockCode, 30)
 	md := strings.Builder{}
 	for _, a := range res {
-		logger.SugaredLogger.Debugf("value: %+v", a)
+		//logger.SugaredLogger.Debugf("value: %+v", a)
 		d := a.(map[string]any)
-		logger.SugaredLogger.Debugf("value: %s  infoCode:%s", d["title"], d["infoCode"])
+		//logger.SugaredLogger.Debugf("value: %s  infoCode:%s", d["title"], d["infoCode"])
 		md.WriteString(NewMarketNewsApi().GetIndustryReportInfo(d["infoCode"].(string)))
 	}
-	logger.SugaredLogger.Infof("stockCode:%s StockResearchReport:\n %s", stockCode, md.String())
+	//logger.SugaredLogger.Infof("stockCode:%s StockResearchReport:\n %s", stockCode, md.String())
 
 	appendToolMessages(
 		ctx.Messages,

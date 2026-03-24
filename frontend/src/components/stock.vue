@@ -785,17 +785,17 @@ async function updateData(result) {
     result.profitType = "success"
   }
   if (result["当前价格"]) {
-    if (result.alarmChangePercent > 0 && Math.abs(result.changePercent) >= result.alarmChangePercent) {
-      SendMessage(result, 1)
-    }
+    // if (result.alarmChangePercent > 0 && Math.abs(result.changePercent) >= result.alarmChangePercent) {
+    //   SendMessage(result, 1)
+    // }
 
-    if (result.alarmPrice > 0 && result["当前价格"] >= result.alarmPrice) {
-      SendMessage(result, 2)
-    }
+    // if (result.alarmPrice > 0 && result["当前价格"] >= result.alarmPrice) {
+    //   SendMessage(result, 2)
+    // }
 
-    if (result.costPrice > 0 && result["当前价格"] >= result.costPrice) {
-      SendMessage(result, 3)
-    }
+    // if (result.costPrice > 0 && result["当前价格"] >= result.costPrice) {
+    //   SendMessage(result, 3)
+    // }
 
     checkPriceLineAlerts(result)
   }
