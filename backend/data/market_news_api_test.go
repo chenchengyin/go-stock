@@ -75,9 +75,6 @@ func TestGetStockMoneyTrendByDay(t *testing.T) {
 		logger.SugaredLogger.Debugf("key: %+v, value: %+v", i, re)
 	}
 }
-func TestTopStocksRankingList(t *testing.T) {
-	NewMarketNewsApi().TopStocksRankingList("2025-05-19")
-}
 
 func TestLongTiger(t *testing.T) {
 	db.Init("../../data/stock.db")
@@ -139,7 +136,7 @@ func TestStockNotice(t *testing.T) {
 
 	}
 	md := util.MarkdownTableWithTitle("上市公司公告", rows)
-	//logger.SugaredLogger.Infof(md)
+	logger.SugaredLogger.Infof(md)
 }
 
 func TestEMDictCode(t *testing.T) {

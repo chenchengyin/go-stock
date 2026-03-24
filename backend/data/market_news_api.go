@@ -1,7 +1,6 @@
 package data
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/db"
@@ -224,7 +223,7 @@ func (m MarketNewsApi) GetTelegraphList(source string) *[]*models.Telegraph {
 			return item.Name
 		})
 		item.SubjectTags = tagNames
-		logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
+		//logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
 	}
 	return news
 }
@@ -247,7 +246,7 @@ func (m MarketNewsApi) GetTelegraphListWithPaging(source string, page, pageSize 
 			return item.Name
 		})
 		item.SubjectTags = tagNames
-		logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
+		//logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
 	}
 	return news
 }
@@ -668,33 +667,10 @@ func (m MarketNewsApi) GetStockMoneyTrendByDay(stockCode string, days int) []map
 
 }
 
-func (m MarketNewsApi) TopStocksRankingList(date string) {
-	url := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/q/go.php/vInvestConsult/kind/lhb/index.phtml?tradedate=%s", date)
-	response, _ := resty.New().SetTimeout(time.Duration(5)*time.Second).R().
-		SetHeader("Host", "vip.stock.finance.sina.com.cn").
-		SetHeader("Referer", "https://finance.sina.com.cn").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").Get(url)
-
-	html, _ := convertor.GbkToUtf8(response.Body())
-	//logger.SugaredLogger.Infof("html:%s", html)
-	document, err := goquery.NewDocumentFromReader(bytes.NewReader(html))
-	if err != nil {
-		return
-	}
-	document.Find("table.list_table").Each(func(i int, s *goquery.Selection) {
-		title := strutil.Trim(s.Find("tr:first-child").First().Text())
-		logger.SugaredLogger.Infof("title:%s", title)
-		s.Find("tr:not(:first-child)").Each(func(i int, s *goquery.Selection) {
-			logger.SugaredLogger.Infof("s:%s", strutil.RemoveNonPrintable(s.Text()))
-		})
-	})
-
-}
-
 func (m MarketNewsApi) LongTiger(date string) *[]models.LongTigerRankData {
 	ranks := &[]models.LongTigerRankData{}
 	url := "https://datacenter-web.eastmoney.com/api/data/v1/get"
-	logger.SugaredLogger.Infof("url:%s", url)
+	//logger.SugaredLogger.Infof("url:%s", url)
 	params := make(map[string]string)
 	params["callback"] = "callback"
 	params["sortColumns"] = "TURNOVERRATE,TRADE_DATE,SECURITY_CODE"
@@ -716,7 +692,7 @@ func (m MarketNewsApi) LongTiger(date string) *[]models.LongTigerRankData {
 		return ranks
 	}
 	js := string(resp.Body())
-	logger.SugaredLogger.Infof("resp:%s", js)
+	//logger.SugaredLogger.Infof("resp:%s", js)
 
 	js = strutil.ReplaceWithMap(js, map[string]string{
 		"callback(": "var data=",
@@ -727,9 +703,9 @@ func (m MarketNewsApi) LongTiger(date string) *[]models.LongTigerRankData {
 	_, err = vm.Run(js)
 	_, err = vm.Run("var data = JSON.stringify(data);")
 	value, err := vm.Get("data")
-	logger.SugaredLogger.Infof("resp-json:%s", value.String())
+	//logger.SugaredLogger.Infof("resp-json:%s", value.String())
 	data := gjson.Get(value.String(), "result.data")
-	logger.SugaredLogger.Infof("resp:%v", data)
+	//logger.SugaredLogger.Infof("resp:%v", data)
 	err = json.Unmarshal([]byte(data.String()), ranks)
 	if err != nil {
 		logger.SugaredLogger.Error(err)
@@ -755,7 +731,7 @@ func (m MarketNewsApi) IndustryResearchReport(industryCode string, days int) []a
 		beginDate = time.Now().Add(-time.Duration(days) * 365 * time.Hour).Format("2006-01-02")
 	}
 
-	logger.SugaredLogger.Infof("IndustryResearchReport-name:%s", industryCode)
+	//logger.SugaredLogger.Infof("IndustryResearchReport-name:%s", industryCode)
 	params := map[string]string{
 		"industry":     "*",
 		"industryCode": industryCode,
@@ -771,7 +747,7 @@ func (m MarketNewsApi) IndustryResearchReport(industryCode string, days int) []a
 
 	url := "https://reportapi.eastmoney.com/report/list"
 
-	logger.SugaredLogger.Infof("beginDate:%s endDate:%s", beginDate, endDate)
+	//logger.SugaredLogger.Infof("beginDate:%s endDate:%s", beginDate, endDate)
 	resp, err := resty.New().SetTimeout(time.Duration(15)*time.Second).R().
 		SetHeader("Host", "reportapi.eastmoney.com").
 		SetHeader("Origin", "https://data.eastmoney.com").
@@ -805,7 +781,7 @@ func (m MarketNewsApi) StockResearchReport(stockCode string, days int) []any {
 		beginDate = time.Now().Add(-time.Duration(days) * 365 * time.Hour).Format("2006-01-02")
 	}
 
-	logger.SugaredLogger.Infof("StockResearchReport-stockCode:%s", stockCode)
+	//logger.SugaredLogger.Infof("StockResearchReport-stockCode:%s", stockCode)
 
 	type Req struct {
 		BeginTime    string      `json:"beginTime"`
@@ -825,7 +801,7 @@ func (m MarketNewsApi) StockResearchReport(stockCode string, days int) []any {
 
 	url := "https://reportapi.eastmoney.com/report/list2"
 
-	logger.SugaredLogger.Infof("beginDate:%s endDate:%s", beginDate, endDate)
+	//logger.SugaredLogger.Infof("beginDate:%s endDate:%s", beginDate, endDate)
 	resp, err := resty.New().SetTimeout(time.Duration(15)*time.Second).R().
 		SetHeader("Host", "reportapi.eastmoney.com").
 		SetHeader("Origin", "https://data.eastmoney.com").
@@ -1015,7 +991,7 @@ func (m MarketNewsApi) TradingViewNewsDetail(id string) *models.TVNewsDetail {
 		logger.SugaredLogger.Errorf("TradingViewNewsDetail err:%s", err.Error())
 		return newsDetail
 	}
-	logger.SugaredLogger.Infof("resp:%+v", newsDetail)
+	//logger.SugaredLogger.Infof("resp:%+v", newsDetail)
 	return newsDetail
 }
 
@@ -1171,13 +1147,13 @@ func (m MarketNewsApi) GetGDP() *models.GDPResp {
 		return res
 	}
 	data, _ := val.Object().Value().Export()
-	logger.SugaredLogger.Infof("GDP:%v", data)
+	//logger.SugaredLogger.Infof("GDP:%v", data)
 	marshal, err := json.Marshal(data)
 	if err != nil {
 		return res
 	}
 	json.Unmarshal(marshal, &res)
-	logger.SugaredLogger.Infof("GDP:%+v", res)
+	//logger.SugaredLogger.Infof("GDP:%+v", res)
 	return res
 }
 
@@ -1206,13 +1182,13 @@ func (m MarketNewsApi) GetCPI() *models.CPIResp {
 		return res
 	}
 	data, _ := val.Object().Value().Export()
-	logger.SugaredLogger.Infof("GetCPI:%v", data)
+	//logger.SugaredLogger.Infof("GetCPI:%v", data)
 	marshal, err := json.Marshal(data)
 	if err != nil {
 		return res
 	}
 	json.Unmarshal(marshal, &res)
-	logger.SugaredLogger.Infof("GetCPI:%+v", res)
+	//logger.SugaredLogger.Infof("GetCPI:%+v", res)
 	return res
 }
 
@@ -1298,7 +1274,7 @@ func (m MarketNewsApi) GetIndustryReportInfo(infoCode string) string {
 	if err != nil {
 		return ""
 	}
-	logger.SugaredLogger.Infof("GetIndustryReportInfo markdown:\n%s", markdown)
+	//logger.SugaredLogger.Infof("GetIndustryReportInfo markdown:\n%s", markdown)
 	return markdown
 }
 
@@ -1369,7 +1345,7 @@ func (m MarketNewsApi) ReutersNew() *models.ReutersNews {
 		logger.SugaredLogger.Errorf("ReutersNew err:%s", err.Error())
 		return news
 	}
-	logger.SugaredLogger.Infof("Articles:%+v", news.Result.Articles)
+	//logger.SugaredLogger.Infof("Articles:%+v", news.Result.Articles)
 	return news
 }
 
@@ -1381,7 +1357,7 @@ func (m MarketNewsApi) InteractiveAnswer(page int, pageSize int, keyWord string)
 	}
 	url := fmt.Sprintf("https://irm.cninfo.com.cn/newircs/index/search?_t=%d", time.Now().Unix())
 	answers := &models.InteractiveAnswer{}
-	logger.SugaredLogger.Infof("请求url:%s", url)
+	//logger.SugaredLogger.Infof("请求url:%s", url)
 	resp, err := client.SetTimeout(time.Duration(5)*time.Second).R().
 		SetHeader("Host", "irm.cninfo.com.cn").
 		SetHeader("Origin", "https://irm.cninfo.com.cn").
