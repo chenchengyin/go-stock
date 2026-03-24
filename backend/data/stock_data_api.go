@@ -577,7 +577,7 @@ func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLo
 		stockCode = strings.Replace(stockCode, "GB_", "us", 1)
 	}
 	lowerStockCode := strings.ToLower(stockCode)
-	//logger.SugaredLogger.Infof("SetTradingPrice converting stockCode to: %s (lower: %s)", stockCode, lowerStockCode)
+	logger.SugaredLogger.Infof("SetTradingPrice converting stockCode to: %s (lower: %s)", stockCode, lowerStockCode)
 
 	var stock FollowedStock
 	if err := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", lowerStockCode).First(&stock).Error; err != nil {

@@ -118,7 +118,7 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 				md.WriteString("\n### 事件/会议日期：" + date.String())
 				list := gjson.Get(string(bytes), "items")
 				list.ForEach(func(key, value gjson.Result) bool {
-					logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
+					//logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
 					md.WriteString("\n- " + gjson.Get(value.String(), "title").String())
 					return true
 				})
@@ -208,7 +208,7 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 				md.WriteString("\n### 事件/会议日期：" + date.String())
 				list := gjson.Get(string(bytes), "items")
 				list.ForEach(func(key, value gjson.Result) bool {
-					logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
+					//logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
 					md.WriteString("\n- " + gjson.Get(value.String(), "title").String())
 					return true
 				})
@@ -427,7 +427,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 				md.WriteString("\n### 事件/会议日期：" + date.String())
 				list := gjson.Get(string(bytes), "items")
 				list.ForEach(func(key, value gjson.Result) bool {
-					logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
+					//logger.SugaredLogger.Debugf("key: %+v,value: %+v", key.String(), gjson.Get(value.String(), "title"))
 					md.WriteString("\n- " + gjson.Get(value.String(), "title").String())
 					return true
 				})
@@ -485,7 +485,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			defer wg.Done()
 			messages := SearchStockPriceInfo(stock, stockCode, o.CrawlTimeOut)
 			if messages == nil || len(*messages) == 0 {
-				logger.SugaredLogger.Error("获取股票价格失败")
+				//logger.SugaredLogger.Error("获取股票价格失败")
 				ch <- map[string]any{
 					"code":         1,
 					"question":     question,
@@ -520,7 +520,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			}
 			messages := GetFinancialReportsByXUEQIU(stockCode, o.CrawlTimeOut)
 			if messages == nil || len(*messages) == 0 {
-				logger.SugaredLogger.Error("获取股票财报失败")
+				//logger.SugaredLogger.Error("获取股票财报失败")
 				ch <- map[string]any{
 					"code":         1,
 					"question":     question,
@@ -545,7 +545,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			defer wg.Done()
 			messages := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(200, 1000))
 			if messages == nil || len(*messages) == 0 {
-				logger.SugaredLogger.Error("获取市场资讯失败")
+				//logger.SugaredLogger.Error("获取市场资讯失败")
 				return
 			}
 			var messageText strings.Builder
@@ -567,7 +567,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 			defer wg.Done()
 			messages := SearchStockInfo(stock, "telegram", o.CrawlTimeOut)
 			if messages == nil || len(*messages) == 0 {
-				logger.SugaredLogger.Error("获取股票电报资讯失败")
+				//logger.SugaredLogger.Error("获取股票电报资讯失败")
 				return
 			}
 			var newsText strings.Builder

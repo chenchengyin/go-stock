@@ -212,7 +212,7 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
 		line := scanner.Text()
-		logger.SugaredLogger.Infof("Received data: %s", line)
+		//("Received data: %s", line)
 		if strings.HasPrefix(line, "data:") {
 			data := strutil.Trim(strings.TrimPrefix(line, "data:"))
 			if data == "[DONE]" {
@@ -306,8 +306,8 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 }
 
 func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, tools []Tool, thinkingMode bool) {
-	bytes, _ := json.Marshal(messages)
-	logger.SugaredLogger.Debugf("Stream request: \n%s\n", string(bytes))
+	//bytes, _ := json.Marshal(messages)
+	//logger.SugaredLogger.Debugf("Stream request: \n%s\n", string(bytes))
 
 	client := resty.New()
 	client.SetBaseURL(strutil.Trim(o.BaseUrl))
@@ -452,7 +452,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 					}
 
 					if choice.FinishReason == "tool_calls" {
-						logger.SugaredLogger.Infof("functions: %+v", functions)
+						//logger.SugaredLogger.Infof("functions: %+v", functions)
 						for funcName, funcArguments := range functions {
 							// 优先使用注册的 ToolHandler 处理
 							if handler, ok := toolHandlers[funcName]; ok {
