@@ -418,7 +418,7 @@ func (receiver StockDataApi) Follow(stockCode string) string {
 	}
 	count := int64(0)
 	db.Dao.Model(&FollowedStock{}).Where("is_del = ?", 0).Count(&count)
-	logger.SugaredLogger.Errorf("Follow-count %v", count)
+	//logger.SugaredLogger.Errorf("Follow-count %v", count)
 	if count >= 63 {
 		return "最多只能关注63只股票"
 	}
@@ -615,7 +615,7 @@ func (receiver StockDataApi) GetFollowList(groupId int) *[]FollowedStock {
 			return []string{info.StockCode}
 		})
 		db.Dao.Model(&FollowedStock{}).Where("stock_code in ?", codes).Order("sort asc,time desc").Find(&result)
-		logger.SugaredLogger.Infof("GetFollowList %+v", result)
+		//logger.SugaredLogger.Infof("GetFollowList %+v", result)
 	}
 	return result
 }
@@ -1198,7 +1198,7 @@ func getUSStockPriceInfo(stockCode string, crawlTimeOut int64) *[]string {
 		messages = append(messages, text)
 	})
 
-	logger.SugaredLogger.Infof("messages: %s", messages)
+	//logger.SugaredLogger.Infof("messages: %s", messages)
 	return &messages
 }
 
@@ -1216,7 +1216,7 @@ func getHKStockPriceInfo(stockCode string, crawlTimeOut int64) *[]string {
 	crawlerAPI = crawlerAPI.NewCrawler(ctx, crawlerBaseInfo)
 
 	url := fmt.Sprintf("https://stock.finance.sina.com.cn/hkstock/quotes/%s.html", strings.ReplaceAll(stockCode, "hk", ""))
-	logger.SugaredLogger.Infof("CrawlHKStockPriceInfo url:%s", url)
+	//logger.SugaredLogger.Infof("CrawlHKStockPriceInfo url:%s", url)
 	htmlContent, ok := crawlerAPI.GetHtml(url, "div.deta_hqContainer >.deta03>ul ", false)
 	if !ok {
 		return &[]string{}
@@ -1253,7 +1253,7 @@ func getHKStockPriceInfo(stockCode string, crawlTimeOut int64) *[]string {
 		messages = append(messages, text)
 	})
 
-	logger.SugaredLogger.Infof("messages: %s", messages)
+	//logger.SugaredLogger.Infof("messages: %s", messages)
 	return &messages
 }
 
@@ -1408,7 +1408,7 @@ func (receiver StockDataApi) GetStockMinutePriceData(stockCode string) (*[]Minut
 	if strutil.HasPrefixAny(stockCode, []string{"us", "US"}) {
 		url = fmt.Sprintf("https://web.ifzq.gtimg.cn/appstock/app/UsMinute/query?code=%s", stockCode)
 	}
-	logger.SugaredLogger.Infof("GetStockMinutePriceData url:%s", url)
+	//logger.SugaredLogger.Infof("GetStockMinutePriceData url:%s", url)
 	res := make(map[string]interface{})
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "web.ifzq.gtimg.cn").
@@ -1419,7 +1419,7 @@ func (receiver StockDataApi) GetStockMinutePriceData(stockCode string) (*[]Minut
 	minuteDatas := &[]MinuteData{}
 
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return minuteDatas, date
 	}
 	//logger.SugaredLogger.Infof("resp:%s", resp.Body())
@@ -1475,7 +1475,7 @@ func (receiver StockDataApi) GetKLineData(stockCode string, kLineType string, da
 }
 func (receiver StockDataApi) GetHK_KLineData(stockCode string, kLineType string, days int64) *[]KLineData {
 
-	logger.SugaredLogger.Infof("GetHK_KLineData stockCode:%s,kLineType:%s,days:%d", stockCode, kLineType, days)
+	//logger.SugaredLogger.Infof("GetHK_KLineData stockCode:%s,kLineType:%s,days:%d", stockCode, kLineType, days)
 	if strutil.HasPrefixAny(stockCode, []string{"gb_", "GB_"}) {
 		stockCode = strings.Replace(stockCode, "gb_", "us", 1) + ".OQ"
 	}
@@ -1489,7 +1489,7 @@ func (receiver StockDataApi) GetHK_KLineData(stockCode string, kLineType string,
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return K
 	}
 	//logger.SugaredLogger.Infof("resp:%s", resp.Body())
@@ -1526,17 +1526,6 @@ func (receiver StockDataApi) GetHK_KLineData(stockCode string, kLineType string,
 	}
 	return K
 }
-func (receiver StockDataApi) GetSinaHKStockInfo() {
-
-	pageSize := 500
-	for i := 1; i <= 3060/pageSize; i++ {
-		infos := getSinaStockInfo(receiver, i, pageSize)
-		for i, info := range *infos {
-			logger.SugaredLogger.Infof("infos:%d,%s:%s", i, info.Symbol, info.Name)
-		}
-	}
-
-}
 
 func getSinaStockInfo(receiver StockDataApi, page, pageSize int) *[]models.SinaStockInfo {
 	infos := &[]models.SinaStockInfo{}
@@ -1548,7 +1537,7 @@ func getSinaStockInfo(receiver StockDataApi, page, pageSize int) *[]models.SinaS
 		Get(fmt.Sprintf(url, page, pageSize))
 
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	return infos
 }
@@ -1566,40 +1555,40 @@ func (receiver StockDataApi) getDCStockInfo(market string, page, pageSize int) {
 
 	url := "https://push2.eastmoney.com/api/qt/clist/get?np=1&fltt=1&invt=2&cb=data&fs=%s&fields=f12,f13,f14,f1,f2,f4,f3,f152,f5,f6,f7,f15,f18,f16,f17,f10,f8,f9,f23,f100,f265&fid=f3&pn=%d&pz=%d&po=1&dect=1&wbp2u=|0|0|0|web&_=%d"
 	sprintfUrl := fmt.Sprintf(url, fs, page, pageSize, time.Now().UnixMilli())
-	logger.SugaredLogger.Infof("page:%d  url:%s", page, sprintfUrl)
+	//logger.SugaredLogger.Infof("page:%d  url:%s", page, sprintfUrl)
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "push2.eastmoney.com").
 		SetHeader("Referer", "https://quote.eastmoney.com/center/gridlist.html").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0").
 		Get(sprintfUrl)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return
 	}
 	body := string(resp.Body())
-	logger.SugaredLogger.Infof("resp:%s", body)
+	//logger.SugaredLogger.Infof("resp:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 	val, err := vm.Run(body)
 	if err != nil {
-		logger.SugaredLogger.Errorf("vm.Run error:%v", err.Error())
+		//logger.SugaredLogger.Errorf("vm.Run error:%v", err.Error())
 	}
 	value, _ := val.Object().Value().Export()
 	marshal, err := json.Marshal(value)
 	data := make(map[string]any)
 	err = json.Unmarshal(marshal, &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("json.Unmarshal error:%v", err.Error())
+		//logger.SugaredLogger.Errorf("json.Unmarshal error:%v", err.Error())
 	}
-	logger.SugaredLogger.Infof("resp:%s", data)
+	//logger.SugaredLogger.Infof("resp:%s", data)
 	if data["data"] != nil {
 		datas := data["data"].(map[string]any)
-		total := datas["total"].(float64)
+		_ = datas["total"].(float64)
 		diff := datas["diff"].([]any)
-		logger.SugaredLogger.Infof("total:%d", int(total))
-		for k, item := range diff {
+		//logger.SugaredLogger.Infof("total:%d", int(total))
+		for _, item := range diff {
 			stock := item.(map[string]any)
-			logger.SugaredLogger.Infof("k:%d,%s:%s:%s %s:%s", k, stock["f14"], stock["f12"], DCToTsCode(stock["f12"].(string)), stock["f100"], stock["f265"])
+			//logger.SugaredLogger.Infof("k:%d,%s:%s:%s %s:%s", k, stock["f14"], stock["f12"], DCToTsCode(stock["f12"].(string)), stock["f100"], stock["f265"])
 
 			if market == "" {
 				stockInfo := &StockBasic{
@@ -1610,7 +1599,7 @@ func (receiver StockDataApi) getDCStockInfo(market string, page, pageSize int) {
 					BKCode: stock["f265"].(string),
 				}
 				db.Dao.Model(&StockBasic{}).Where("symbol = ?", stockInfo.Symbol).First(stockInfo)
-				logger.SugaredLogger.Infof("stockInfo:%+v", stockInfo)
+				//logger.SugaredLogger.Infof("stockInfo:%+v", stockInfo)
 				if stockInfo.ID == 0 {
 					db.Dao.Model(&StockBasic{}).Create(stockInfo)
 				} else {
@@ -1633,7 +1622,7 @@ func (receiver StockDataApi) getDCStockInfo(market string, page, pageSize int) {
 					BKCode: stock["f265"].(string),
 				}
 				db.Dao.Model(&models.StockInfoHK{}).Where("code = ?", stockInfo.Code).First(stockInfo)
-				logger.SugaredLogger.Infof("stockInfo:%+v", stockInfo)
+				//logger.SugaredLogger.Infof("stockInfo:%+v", stockInfo)
 				if stockInfo.ID == 0 {
 					db.Dao.Model(&models.StockInfoHK{}).Create(stockInfo)
 				} else {
@@ -1655,7 +1644,7 @@ func (receiver StockDataApi) getDCStockInfo(market string, page, pageSize int) {
 					BKCode: stock["f265"].(string),
 				}
 				db.Dao.Model(&models.StockInfoUS{}).Where("code = ?", stockInfo.Code).First(stockInfo)
-				logger.SugaredLogger.Infof("stockInfo:%+v", stockInfo)
+				//logger.SugaredLogger.Infof("stockInfo:%+v", stockInfo)
 				if stockInfo.ID == 0 {
 					db.Dao.Model(&models.StockInfoUS{}).Create(stockInfo)
 				} else {
@@ -1700,7 +1689,7 @@ func (receiver StockDataApi) GetHKStockInfo(pageSize int) {
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(fmt.Sprintf(url, pageSize))
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return
 	}
 	js := "var " + string(resp.Body())
@@ -1714,25 +1703,25 @@ func (receiver StockDataApi) GetHKStockInfo(pageSize int) {
 	data := make(map[string]any)
 	err = json.Unmarshal([]byte(value.String()), &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("json.Unmarshal error:%v", err.Error())
+		//logger.SugaredLogger.Errorf("json.Unmarshal error:%v", err.Error())
 	}
-	logger.SugaredLogger.Infof("resp:%s", data)
+	//logger.SugaredLogger.Infof("resp:%s", data)
 	if data["code"] != nil && data["code"].(float64) == 0 {
 		d := data["data"].(map[string]any)
 		saveHKStockInfo(d)
 
 		page_count := int64(d["page_count"].(float64))
-		logger.SugaredLogger.Infof("page_count:%d", page_count)
+		//logger.SugaredLogger.Infof("page_count:%d", page_count)
 		page := int64(1)
 		for page > page_count {
 			urlx := fmt.Sprintf("https://stock.gtimg.cn/data/hk_rank.php?board=main_all&metric=price&pageSize=%d&reqPage=%d&order=desc&var_name=list_data", pageSize, page)
-			logger.SugaredLogger.Infof("url:%s", urlx)
+			//logger.SugaredLogger.Infof("url:%s", urlx)
 			resp, err = receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 				SetHeader("Host", "stock.gtimg.cn").
 				SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 				Get(urlx)
 			if err != nil {
-				logger.SugaredLogger.Errorf("err:%s", err.Error())
+				//logger.SugaredLogger.Errorf("err:%s", err.Error())
 				break
 			}
 			js = "var " + string(resp.Body())
@@ -1745,9 +1734,9 @@ func (receiver StockDataApi) GetHKStockInfo(pageSize int) {
 			data = make(map[string]any)
 			err = json.Unmarshal([]byte(value.String()), &data)
 			if err != nil {
-				logger.SugaredLogger.Errorf("json.Unmarshal error:%v", err.Error())
+				//logger.SugaredLogger.Errorf("json.Unmarshal error:%v", err.Error())
 			}
-			logger.SugaredLogger.Infof("resp:%s", data)
+			//logger.SugaredLogger.Infof("resp:%s", data)
 			if data != nil && data["code"] != nil && data["code"].(float64) == 0 {
 				if data["data"] != nil {
 					d = data["data"].(map[string]any)
@@ -1769,10 +1758,10 @@ func saveHKStockInfo(d map[string]any) {
 			Code: strutil.PadStart(splits[0], 5, "0") + ".HK",
 			Name: splits[1],
 		}
-		logger.SugaredLogger.Infof("vv:%s", vv)
+		//logger.SugaredLogger.Infof("vv:%s", vv)
 		db.Dao.Model(stock).Where("code = ?", stock.Code).First(stock)
 		if stock.ID == 0 {
-			logger.SugaredLogger.Infof("stock:%+v", stock)
+			//logger.SugaredLogger.Infof("stock:%+v", stock)
 			db.Dao.Model(&models.StockInfoHK{}).Create(stock)
 		}
 	}
@@ -1781,7 +1770,7 @@ func saveHKStockInfo(d map[string]any) {
 func (receiver StockDataApi) GetCommonKLineData(stockCode string, kLineType string, days int64) *[]KLineData {
 
 	url := fmt.Sprintf("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=%s,%s,,,%d,qfq", stockCode, kLineType, days)
-	logger.SugaredLogger.Infof("url:%s", url)
+	//logger.SugaredLogger.Infof("url:%s", url)
 	K := &[]KLineData{}
 	res := make(map[string]interface{})
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
@@ -1789,10 +1778,10 @@ func (receiver StockDataApi) GetCommonKLineData(stockCode string, kLineType stri
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return K
 	}
-	logger.SugaredLogger.Infof("resp:%s", resp.Body())
+	//logger.SugaredLogger.Infof("resp:%s", resp.Body())
 	json.Unmarshal(resp.Body(), &res)
 	code, _ := convertor.ToInt(res["code"])
 	if code != 0 {
@@ -1903,31 +1892,31 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 	//	ForceAttemptHTTP2:   false, // 强制使用 HTTP/1.1
 	//})
 
-	logger.SugaredLogger.Infof("url:%s", reqURL)
+	//logger.SugaredLogger.Infof("url:%s", reqURL)
 	req := receiver.client.SetHeader("User-Agent", getRandomUA()).R()
 	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
 	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
 	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, reqURL)
 	if err == nil {
-		logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+		//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
 		req.SetHeader("Cookie", cookieHeader)
 	}
 
 	resp, err := req.Get(reqURL)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	body := string(resp.Body())
-	logger.SugaredLogger.Infof("resp:%s", body)
+	//logger.SugaredLogger.Infof("resp:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 	val, err := vm.Run(body)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	value, err := val.Export()
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	marshal, err := json.Marshal(value)
 	if err != nil {
@@ -1975,7 +1964,7 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
 	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, quoteEastMoneyPage)
 	if err == nil {
-		logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+		//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
 		req.SetHeader("Cookie", cookieHeader)
 	}
 
@@ -1984,28 +1973,28 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	body := string(resp.Body())
-	logger.SugaredLogger.Infof("resp:%s", body)
+	//logger.SugaredLogger.Infof("resp:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 	val, err := vm.Run(body)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	value, err := val.Export()
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	marshal, err := json.Marshal(value)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return models.StockMoneyDataResp{}
 	}
 	err = json.Unmarshal(marshal, &resData)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return models.StockMoneyDataResp{}
 	}
 	return resData
@@ -2033,41 +2022,41 @@ func (receiver StockDataApi) GetMutualTop10Deal(mutualType, tradeDate string, pa
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal err:%s", err.Error())
 		return &models.MutualTop10DealResp{}
 	}
 
 	body := string(resp.Body())
-	logger.SugaredLogger.Infof("GetMutualTop10Deal resp:%s", body)
+	//logger.SugaredLogger.Infof("GetMutualTop10Deal resp:%s", body)
 
 	vm := otto.New()
 	// 将 JSONP 回调 data(...) 转成普通对象
 	_, err = vm.Run("function data(res){return res};")
 	if err != nil {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal vm func error:%s", err.Error())
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal vm func error:%s", err.Error())
 		return &models.MutualTop10DealResp{}
 	}
 	val, err := vm.Run(body)
 	if err != nil {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal vm run error:%s", err.Error())
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal vm run error:%s", err.Error())
 		return &models.MutualTop10DealResp{}
 	}
 	value, err := val.Export()
 	if err != nil {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal export error:%s", err.Error())
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal export error:%s", err.Error())
 		return &models.MutualTop10DealResp{}
 	}
 
 	marshal, err := json.Marshal(value)
 	if err != nil {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal marshal error:%s", err.Error())
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal marshal error:%s", err.Error())
 		return &models.MutualTop10DealResp{}
 	}
 
 	var resData models.MutualTop10DealResp
 	err = json.Unmarshal(marshal, &resData)
 	if err != nil {
-		logger.SugaredLogger.Errorf("GetMutualTop10Deal unmarshal error:%s", err.Error())
+		//logger.SugaredLogger.Errorf("GetMutualTop10Deal unmarshal error:%s", err.Error())
 		return &models.MutualTop10DealResp{}
 	}
 	return &resData
@@ -2080,7 +2069,7 @@ func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockC
 		stockCode = ConvertStockCodeToTushareCode(stockCode)
 	}
 	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CNEW_BOARD_CODE%2CBOARD_NAME%2CSELECTED_BOARD_REASON%2CIS_PRECISE%2CBOARD_RANK%2CBOARD_YIELD%2CDERIVE_BOARD_CODE&quoteColumns=f3~05~NEW_BOARD_CODE~BOARD_YIELD&filter=(SECUCODE%3D%22" + stockCode + "%22)(IS_PRECISE%3D%221%22)&pageNumber=1&pageSize=&sortTypes=1&sortColumns=BOARD_RANK&source=HSF10&client=PC&v=" + convertor.ToString(time.Now().Unix())
-	logger.SugaredLogger.Infof("url:%s", url2.QueryEscape(url))
+	//logger.SugaredLogger.Infof("url:%s", url2.QueryEscape(url))
 	var data models.StockConceptInfoResp
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "datacenter.eastmoney.com").
@@ -2089,11 +2078,11 @@ func (receiver StockDataApi) GetStockConceptInfo(stockCode string) models.StockC
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	err = json.Unmarshal(resp.Body(), &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return models.StockConceptInfoResp{}
 	}
 	return data
@@ -2106,7 +2095,7 @@ func (receiver StockDataApi) GetStockFinancialInfo(stockCode string) *models.Sto
 	}
 
 	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_FINANCE_DUPONT&columns=SECUCODE%2CSECURITY_CODE%2CSECURITY_NAME_ABBR%2CORG_CODE%2CORG_TYPE%2CREPORT_DATE%2CREPORT_TYPE%2CREPORT_DATE_NAME%2CSECURITY_TYPE_CODE%2CNOTICE_DATE%2CUPDATE_DATE%2CCURRENCY%2CNETPROFIT%2CTOTAL_OPERATE_INCOME%2CTOTAL_ASSETS%2CTOTAL_LIABILITIES%2CTOTAL_CURRENT_ASSETS%2CTOTAL_NONCURRENT_ASSETS%2CPARENT_NETPROFIT%2CSALE_NPR%2CTOTAL_ASSETS_TR%2CJROA%2CPARENT_NETPROFIT_RATIO%2CEQUITY_MULTIPLIER%2CROE%2CDEBT_ASSET_RATIO%2CTOTAL_INCOME%2CTOTAL_COST%2CTOTAL_EXPENSE%2CMONETARYFUNDS%2CTRADE_FINASSET%2CNOTE_RECE%2CACCOUNTS_RECE%2CFINANCE_RECE%2COTHER_RECE%2CINVENTORY%2CCREDITOR_INVEST%2CLONG_EQUITY_INVEST%2CINVEST_REALESTATE%2CFIXED_ASSET%2CCIP%2CUSERIGHT_ASSET%2CINTANGIBLE_ASSET%2CDEVELOP_EXPENSE%2CGOODWILL%2CLONG_PREPAID_EXPENSE%2CDEFER_TAX_ASSET%2CINVEST_INCOME%2CEXCHANGE_INCOME%2CFAIRVALUE_CHANGE_INCOME%2CASSET_DISPOSAL_INCOME%2COPERATE_COST%2CSURRENDER_VALUE%2CNET_COMPENSATE_EXPENSE%2CNET_CONTRACT_RESERVE%2CPOLICY_BONUS_EXPENSE%2COPERATE_TAX_ADD%2CINCOME_TAX%2CASSET_IMPAIRMENT_INCOME%2CCREDIT_IMPAIRMENT_INCOME%2CNONBUSINESS_EXPENSE%2CFINANCE_EXPENSE%2CSALE_EXPENSE%2CMANAGE_EXPENSE%2CRESEARCH_EXPENSE%2CINTEREST_NI%2CFEE_COMMISSION_NI%2CEARNED_PREMIUM%2CBUSINESS_MANAGE_EXPENSE%2COTHER_CREDITOR_INVEST%2COTHER_EQUITY_INVEST%2CLONG_RECE%2CAVAILABLE_SALE_FINASSET%2CHOLD_MATURITY_INVEST%2CFEE_COMMISSION_EXPENSE&quoteColumns=&filter=(SECUCODE%3D%22" + stockCode + "%22)&pageNumber=1&pageSize=12&sortTypes=-1&sortColumns=REPORT_DATE&source=HSF10&client=PC&v=" + convertor.ToString(time.Now().Unix())
-	logger.SugaredLogger.Infof("url:%s", url)
+	//logger.SugaredLogger.Infof("url:%s", url)
 	var data models.StockFinancialInfoResp
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "datacenter.eastmoney.com").
@@ -2116,15 +2105,15 @@ func (receiver StockDataApi) GetStockFinancialInfo(stockCode string) *models.Sto
 		//SetResult(&data).
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	//logger.SugaredLogger.Infof("resp:%s", string(resp.Body()))
 	err = json.Unmarshal(resp.Body(), &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return &models.StockFinancialInfoResp{}
 	}
-	logger.SugaredLogger.Infof("data:%v", data)
+	//logger.SugaredLogger.Infof("data:%v", data)
 	return &data
 }
 
@@ -2133,7 +2122,7 @@ func (receiver StockDataApi) GetStockHolderNum(stockCode string) *models.StockHo
 		stockCode = ConvertStockCodeToTushareCode(stockCode)
 	}
 	url := "https://datacenter.eastmoney.com/securities/api/data/v1/get?reportName=RPT_F10_EH_HOLDERNUM&columns=SECUCODE%2CSECURITY_CODE%2CEND_DATE%2CHOLDER_TOTAL_NUM%2CTOTAL_NUM_RATIO%2CAVG_FREE_SHARES%2CAVG_FREESHARES_RATIO%2CHOLD_FOCUS%2CPRICE%2CAVG_HOLD_AMT%2CHOLD_RATIO_TOTAL%2CFREEHOLD_RATIO_TOTAL&quoteColumns=&filter=(SECUCODE%3D%22" + stockCode + "%22)&pageNumber=1&pageSize=12&sortTypes=-1&sortColumns=END_DATE&source=HSF10&client=PC&v=" + strconv.Itoa(time.Now().Nanosecond())
-	logger.SugaredLogger.Infof("url:%s", url)
+	//logger.SugaredLogger.Infof("url:%s", url)
 	var data models.StockHolderNumResp
 	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("Host", "datacenter.eastmoney.com").
@@ -2143,11 +2132,11 @@ func (receiver StockDataApi) GetStockHolderNum(stockCode string) *models.StockHo
 		//SetResult(&data).
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	err = json.Unmarshal(resp.Body(), &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return &models.StockHolderNumResp{}
 	}
 	return &data
@@ -2160,29 +2149,29 @@ func (receiver StockDataApi) GetIndustryValuation(bkName string) *models.Industr
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	body := string(resp.Body())
-	logger.SugaredLogger.Infof("resp:%s", body)
+	//logger.SugaredLogger.Infof("resp:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 	val, err := vm.Run(body)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	value, err := val.Export()
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	marshal, err := json.Marshal(value)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
-	logger.SugaredLogger.Infof("data:%s", string(marshal))
+	//logger.SugaredLogger.Infof("data:%s", string(marshal))
 	data := models.IndustryValuationResp{}
 	err = json.Unmarshal(marshal, &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	return &data
 }
@@ -2240,12 +2229,12 @@ func (receiver StockDataApi) GetAllStocks(page int, pageSize int, name string, t
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
 		Get(url)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
 	data := models.AllStocksResp{}
 	err = json.Unmarshal(resp.Body(), &data)
 	if err != nil {
-		logger.SugaredLogger.Errorf("err:%s", err.Error())
+		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 		return &models.AllStocksResp{}
 	}
 	//for _, info := range data.Result.Data {

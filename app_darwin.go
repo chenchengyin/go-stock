@@ -50,7 +50,7 @@ func (a *App) startup(ctx context.Context) {
 		//	return
 		//}
 
-		logger.SugaredLogger.Infof("updateSettings config:%+v", config)
+		//logger.SugaredLogger.Infof("updateSettings config:%+v", config)
 		if config.DarkTheme {
 			runtime.WindowSetBackgroundColour(ctx, 27, 38, 54, 1)
 			runtime.WindowSetDarkTheme(ctx)

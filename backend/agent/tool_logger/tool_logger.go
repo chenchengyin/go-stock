@@ -24,9 +24,9 @@ type LoggerCallback struct {
 }
 
 func (cb *LoggerCallback) OnStart(ctx context.Context, info *callbacks.RunInfo, input callbacks.CallbackInput) context.Context {
-	logger.SugaredLogger.Infof("==================")
-	inputStr, _ := json.MarshalIndent(input, "", "  ") // nolint: byted_s_returned_err_check
-	logger.SugaredLogger.Infof("[OnStart] %s\n", string(inputStr))
+	//logger.SugaredLogger.Infof("==================")
+	//inputStr, _ := json.MarshalIndent(input, "", "  ") // nolint: byted_s_returned_err_check
+	//logger.SugaredLogger.Infof("[OnStart] %s\n", string(inputStr))
 
 	modelCallbackInput := model.ConvCallbackInput(input)
 	if modelCallbackInput != nil {

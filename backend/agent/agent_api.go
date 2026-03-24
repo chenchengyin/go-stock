@@ -83,7 +83,7 @@ func (receiver StockAiAgent) Chat(question string, aiConfigId int, sysPromptId *
 				logger.SugaredLogger.Errorf("failed to recv: %v", err)
 				break
 			}
-			logger.SugaredLogger.Infof("stream: %s", msg.String())
+			//logger.SugaredLogger.Infof("stream: %s", msg.String())
 			ch <- msg
 		}
 	}()

@@ -53,7 +53,7 @@ func (a *App) startup(ctx context.Context) {
 	// 监听设置更新事件
 	runtime.EventsOn(ctx, "updateSettings", func(optionalData ...interface{}) {
 		config := data.GetSettingConfig()
-		logger.SugaredLogger.Infof("updateSettings config:%+v", config)
+		//logger.SugaredLogger.Infof("updateSettings config:%+v", config)
 		if config.DarkTheme {
 			runtime.WindowSetBackgroundColour(ctx, 27, 38, 54, 1)
 			runtime.WindowSetDarkTheme(ctx)

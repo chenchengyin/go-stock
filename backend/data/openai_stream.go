@@ -445,10 +445,10 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 
 		go func() {
 			defer wg.Done()
-			logger.SugaredLogger.Infof("NewChatStream getKLineData stock:%s stockCode:%s", stock, stockCode)
+			//logger.SugaredLogger.Infof("NewChatStream getKLineData stock:%s stockCode:%s", stock, stockCode)
 			if strutil.HasPrefixAny(stockCode, []string{"sz", "sh", "hk", "us", "gb_"}) {
 				K := &[]KLineData{}
-				logger.SugaredLogger.Infof("NewChatStream getKLineData stock:%s stockCode:%s", stock, stockCode)
+				//logger.SugaredLogger.Infof("NewChatStream getKLineData stock:%s stockCode:%s", stock, stockCode)
 				if strutil.HasPrefixAny(stockCode, []string{"sz", "sh"}) {
 					K = NewStockDataApi().GetKLineData(stockCode, "240", o.KDays)
 				}
@@ -477,7 +477,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 					"role":    "assistant",
 					"content": "## " + stock + "日K数据如下：\n" + markdownTable,
 				})
-				logger.SugaredLogger.Infof("getKLineData=\n%s", markdownTable)
+				//logger.SugaredLogger.Infof("getKLineData=\n%s", markdownTable)
 			}
 		}()
 
@@ -506,8 +506,8 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 				"role":    "assistant",
 				"content": "\n## " + stock + "股价数据：\n" + price,
 			})
-			logger.SugaredLogger.Infof("SearchStockPriceInfo stock:%s stockCode:%s", stock, stockCode)
-			logger.SugaredLogger.Infof("SearchStockPriceInfo assistant:%s", "\n## "+stock+"股价数据：\n"+price)
+			//logger.SugaredLogger.Infof("SearchStockPriceInfo stock:%s stockCode:%s", stock, stockCode)
+			//logger.SugaredLogger.Infof("SearchStockPriceInfo assistant:%s", "\n## "+stock+"股价数据：\n"+price)
 		}()
 
 		go func() {

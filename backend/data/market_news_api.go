@@ -182,7 +182,7 @@ func (m MarketNewsApi) GetNewsList(source string, limit int) *[]*models.Telegrap
 			return item.Name
 		})
 		item.SubjectTags = tagNames
-		logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
+		//logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
 	}
 	return news
 }
@@ -203,7 +203,7 @@ func (m MarketNewsApi) GetNewsList2(source string, limit int) *[]*models.Telegra
 			return item.Name
 		})
 		item.SubjectTags = tagNames
-		logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
+		//logger.SugaredLogger.Infof("tagNames %v ，SubjectTags：%s", tagNames, item.SubjectTags)
 	}
 	return news
 }

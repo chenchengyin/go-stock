@@ -139,7 +139,7 @@ func TestStockNotice(t *testing.T) {
 
 	}
 	md := util.MarkdownTableWithTitle("上市公司公告", rows)
-	logger.SugaredLogger.Infof(md)
+	//logger.SugaredLogger.Infof(md)
 }
 
 func TestEMDictCode(t *testing.T) {
@@ -343,5 +343,5 @@ func TestGetNewsListData(t *testing.T) {
 	for _, d := range *list {
 		md.WriteString(d.DataTime.Format(time.DateTime) + " " + d.Content + "\r\n")
 	}
-	logger.SugaredLogger.Infof("%s", md.String())
+	//logger.SugaredLogger.Infof("%s", md.String())
 }

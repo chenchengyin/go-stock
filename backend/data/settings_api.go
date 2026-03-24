@@ -126,7 +126,7 @@ func UpdateConfig(s *SettingConfig) string {
 			return "更新AI模型服务配置失败: " + err.Error()
 		}
 	} else {
-		logger.SugaredLogger.Infof("未找到配置，创建默认配置")
+		//logger.SugaredLogger.Infof("未找到配置，创建默认配置")
 		// 创建主配置
 		result := db.Dao.Model(&Settings{}).Create(&Settings{})
 		if result.Error != nil {
@@ -200,7 +200,7 @@ func updateAiConfigs(aiConfigs []*AIConfig) error {
 			return err
 		}
 	}
-	logger.SugaredLogger.Infof("更新aiConfigs +%d", len(addAiConfigs))
+	//logger.SugaredLogger.Infof("更新aiConfigs +%d", len(addAiConfigs))
 	//批量新增的配置
 	err = db.Dao.CreateInBatches(addAiConfigs, len(addAiConfigs)).Error
 	return err
