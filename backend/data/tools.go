@@ -870,8 +870,12 @@ func Tools(tools []Tool) []Tool {
 						"type":        "number",
 						"description": "止损价（亏损止损价格），0 表示不设置",
 					},
+					"costPrice": map[string]any{
+						"type":        "number",
+						"description": "成本价（持仓成本价格），0 表示不设置",
+					},
 				},
-				Required: []string{"stockCode", "entryPrice", "takeProfitPrice", "stopLossPrice"},
+				Required: []string{"stockCode", "entryPrice", "takeProfitPrice", "stopLossPrice", "costPrice"},
 			},
 		},
 	})

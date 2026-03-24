@@ -266,7 +266,7 @@ const columnsRef = ref([
     }
   },
   {
-    title: '预警',
+    title: '监控预警',
     key: 'enableAlert',
     width: 80,
     render(row, index) {

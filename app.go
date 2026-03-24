@@ -523,6 +523,16 @@ func (a *App) domReady(ctx context.Context) {
 			a.cronEntrys["MonitorAiRecommendStockPrices"] = idAiStock
 		}
 
+		// 自选股成本价监控定时器
+		idCostPrice, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", 60), func() {
+			MonitorFollowedStockCostPrices(a)
+		})
+		if err != nil {
+			logger.SugaredLogger.Errorf("AddFunc MonitorFollowedStockCostPrices error:%s", err.Error())
+		} else {
+			a.cronEntrys["MonitorFollowedStockCostPrices"] = idCostPrice
+		}
+
 	}()
 
 	if config.EnableNews {
@@ -559,6 +569,8 @@ func (a *App) domReady(ctx context.Context) {
 	}
 	// AI 推荐股票价格监控
 	go MonitorAiRecommendStockPrices(a)
+	// 自选股成本价监控
+	go MonitorFollowedStockCostPrices(a)
 	//检查新版本
 	go func() {
 		a.CheckUpdate(0)
@@ -1064,6 +1076,90 @@ func MonitorAiRecommendStockPrices(a *App) {
 	}
 }
 
+// MonitorFollowedStockCostPrices 监控自选股的持仓成本价，当股价低于成本价时发送预警
+func MonitorFollowedStockCostPrices(a *App) {
+	isAStockOpen := isTradingTime(time.Now())
+	isHKStockOpen := IsHKTradingTime(time.Now())
+	isUSStockOpen := IsUSTradingTime(time.Now())
+
+	if !isAStockOpen && !isHKStockOpen && !isUSStockOpen {
+		logger.SugaredLogger.Debugf("当前所有市场均未开市，跳过自选股成本价监控")
+		return
+	}
+
+	var followedStocks []data.FollowedStock
+	db.Dao.Model(&data.FollowedStock{}).Where("cost_price > 0").Find(&followedStocks)
+
+	if len(followedStocks) == 0 {
+		return
+	}
+
+	stockCodes := make([]string, 0)
+	stockMap := make(map[string]*data.FollowedStock)
+	for i := range followedStocks {
+		stock := &followedStocks[i]
+		stockCodes = append(stockCodes, tools.GetStockCode(stock.StockCode))
+		stockMap[tools.GetStockCode(stock.StockCode)] = stock
+	}
+
+	stockData, err := data.NewStockDataApi().GetStockCodeRealTimeData(stockCodes...)
+	if err != nil || stockData == nil || len(*stockData) == 0 {
+		logger.SugaredLogger.Errorf("获取自选股实时数据失败: %v", err)
+		return
+	}
+
+	for _, stockInfo := range *stockData {
+		followedStock, ok := stockMap[tools.GetStockCode(stockInfo.Code)]
+		if !ok {
+			continue
+		}
+
+		currentPrice, _ := convertor.ToFloat(stockInfo.Price)
+		if currentPrice <= 0 {
+			continue
+		}
+
+		costPrice := followedStock.CostPrice
+		if costPrice <= 0 {
+			continue
+		}
+
+		alertKey := fmt.Sprintf("COST:%s:%s", followedStock.StockCode, followedStock.Time.Format("20060102"))
+
+		if currentPrice < costPrice {
+			priceSinceLastAlert := a.getPriceAtAlertReset(alertKey)
+			if priceSinceLastAlert == 0 || priceSinceLastAlert >= costPrice {
+				dropPercent := ((costPrice - currentPrice) / costPrice) * 100
+				title := fmt.Sprintf("【成本价预警】%s", followedStock.Name)
+				content := fmt.Sprintf("## %s\n\n- **股票代码**: %s\n- **当前价格**: %.2f\n- **持仓成本价**: %.2f\n- **亏损比例**: %.2f%%\n- **关注时间**: %s",
+					followedStock.Name, followedStock.StockCode, currentPrice, costPrice, dropPercent,
+					followedStock.Time.Format("2006-01-02 15:04:05"))
+				plainContent := fmt.Sprintf("%s(%s)\n当前价格: %.2f\n成本价: %.2f\n亏损: %.2f%%",
+					followedStock.Name, followedStock.StockCode, currentPrice, costPrice, dropPercent)
+				if a.canSendAlert(alertKey, 5*time.Minute) {
+					go data.NewAlertWindowsApi("go-stock价格预警", title, content, "").SendNotification()
+					go data.NewDingDingAPI().SendToDingDing(title, content)
+					go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
+						"time":    title,
+						"isRed":   true,
+						"source":  "go-stock",
+						"content": plainContent,
+					})
+					a.updateAlertSentTime(alertKey)
+					a.updatePriceAtAlertReset(alertKey, currentPrice)
+				}
+			} else {
+				a.updatePriceAtAlertReset(alertKey, currentPrice)
+			}
+		} else {
+			priceSinceLastAlert := a.getPriceAtAlertReset(alertKey)
+			if currentPrice >= costPrice && (priceSinceLastAlert == 0 || currentPrice < priceSinceLastAlert) {
+				a.updatePriceAtAlertReset(alertKey, currentPrice)
+			}
+		}
+	}
+}
+
 // canSendAlert 检查是否可以发送预警，避免重复发送
 // alertKey: 预警的唯一标识
 // interval: 发送间隔
@@ -1266,8 +1362,8 @@ func (a *App) SetCostPriceAndVolume(stockCode string, price float64, volume int6
 	return data.NewStockDataApi().SetCostPriceAndVolume(price, volume, stockCode)
 }
 
-func (a *App) SetTradingPrice(stockCode string, entryPrice, takeProfitPrice, stopLossPrice float64) string {
-	return data.NewStockDataApi().SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, stockCode)
+func (a *App) SetTradingPrice(stockCode string, entryPrice, takeProfitPrice, stopLossPrice, costPrice float64) string {
+	return data.NewStockDataApi().SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, costPrice, stockCode)
 }
 
 func (a *App) SetAlarmChangePercent(val, alarmPrice float64, stockCode string) string {

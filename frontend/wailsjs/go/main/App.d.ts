@@ -203,7 +203,7 @@ export function SetStockAICron(arg1:string,arg2:string):Promise<void>;
 
 export function SetStockSort(arg1:number,arg2:string):Promise<void>;
 
-export function SetTradingPrice(arg1:string,arg2:number,arg3:number,arg4:number):Promise<string>;
+export function SetTradingPrice(arg1:string,arg2:number,arg3:number,arg4:number,arg5:number):Promise<string>;
 
 export function ShareAnalysis(arg1:string,arg2:string):Promise<string>;
 

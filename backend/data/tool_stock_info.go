@@ -61,12 +61,13 @@ func handleSetTradingPrice(o *OpenAi, funcArguments string, ctx *ToolContext) er
 	entryPrice := gjson.Get(funcArguments, "entryPrice").Float()
 	takeProfitPrice := gjson.Get(funcArguments, "takeProfitPrice").Float()
 	stopLossPrice := gjson.Get(funcArguments, "stopLossPrice").Float()
+	costPrice := gjson.Get(funcArguments, "costPrice").Float()
 
-	result := NewStockDataApi().SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, stockCode)
+	result := NewStockDataApi().SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, costPrice, stockCode)
 
 	var content string
 	if result == "设置成功" {
-		content = fmt.Sprintf("✅ 价位线设置成功！\n\n📈 %s\n💰 开仓价：%.2f\n🎯 止盈价：%.2f\n🛑 止损价：%.2f", stockCode, entryPrice, takeProfitPrice, stopLossPrice)
+		content = fmt.Sprintf("✅ 价位线设置成功！\n\n📈 %s\n💰 开仓价：%.2f\n🎯 止盈价：%.2f\n🛑 止损价：%.2f\n💵 成本价：%.2f", stockCode, entryPrice, takeProfitPrice, stopLossPrice, costPrice)
 	} else {
 		content = fmt.Sprintf("❌ 价位线设置失败：%s", result)
 	}

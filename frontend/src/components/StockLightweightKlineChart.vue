@@ -53,12 +53,15 @@ const props = defineProps({
   longStopLossPrice: { type: [String, Number], default: undefined },
   /** 多单止盈价 */
   longTakeProfitPrice: { type: [String, Number], default: undefined },
+  /** 成本价 */
+  costPrice: { type: [String, Number], default: undefined },
 })
 
 const emit = defineEmits([
   'update:longEntryPrice',
   'update:longStopLossPrice',
   'update:longTakeProfitPrice',
+  'update:costPrice',
 ])
 const chartContainerRef = ref(null)
 /** 十字线当前 K 对应的原始行（东财字段） */
@@ -77,6 +80,7 @@ const showLongPosition = ref(false)
 const longEntryStr = ref('')
 const longStopStr = ref('')
 const longTakeProfitStr = ref('')
+const longCostStr = ref('')
 /** 在 K 线主区点击，按顺序写入开仓 → 止损 → 止盈（再点回到开仓） */
 const longClickPickEnabled = ref(false)
 const longClickNextField = ref('entry')
@@ -867,14 +871,17 @@ function syncLongPositionPriceLines() {
     return
   }
   const entry = parseNumStr(longEntryStr.value)
-  console.log('[DEBUG syncLongPositionPriceLines] entry:', entry, 'isFinite:', Number.isFinite(entry))
-  if (!Number.isFinite(entry)) {
-    console.log('[DEBUG syncLongPositionPriceLines] entry not finite, returning')
-    return
-  }
   const stop = parseNumStr(longStopStr.value)
   const tp = parseNumStr(longTakeProfitStr.value)
-  console.log('[DEBUG syncLongPositionPriceLines] creating lines, entry:', entry, 'stop:', stop, 'tp:', tp)
+  const cost = parseNumStr(longCostStr.value)
+  console.log('[DEBUG syncLongPositionPriceLines] entry:', entry, 'stop:', stop, 'tp:', tp, 'cost:', cost)
+
+  // 如果没有任何价格信息，直接返回
+  if (!Number.isFinite(entry) && !Number.isFinite(cost)) {
+    console.log('[DEBUG syncLongPositionPriceLines] no valid price, returning')
+    return
+  }
+
   const pushLine = (price, kind, partial) => {
     const pl = candleSeries.createPriceLine({
       price,
@@ -885,11 +892,20 @@ function syncLongPositionPriceLines() {
     longPositionPriceLines.push(pl)
     longLineByKind[kind] = pl
   }
-  pushLine(entry, 'entry', {
-    color: '#3b82f6',
-    lineStyle: LineStyle.Solid,
-    title: '开仓',
-  })
+  if (Number.isFinite(entry)) {
+    pushLine(entry, 'entry', {
+      color: '#3b82f6',
+      lineStyle: LineStyle.Solid,
+      title: '开仓',
+    })
+  }
+  if (Number.isFinite(cost)) {
+    pushLine(cost, 'cost', {
+      color: '#f59e0b',
+      lineStyle: LineStyle.Dashed,
+      title: '成本',
+    })
+  }
   if (Number.isFinite(stop)) {
     pushLine(stop, 'stop', {
       color: CLR_FALL,
@@ -1744,9 +1760,9 @@ function pricePropToInputStr(v) {
 }
 
 watch(
-  () => [props.longEntryPrice, props.longStopLossPrice, props.longTakeProfitPrice],
-  ([e, s, t]) => {
-    console.log('[DEBUG props watch] triggered, e:', e, 's:', s, 't:', t, 'candleSeries:', !!candleSeries)
+  () => [props.longEntryPrice, props.longStopLossPrice, props.longTakeProfitPrice, props.costPrice],
+  ([e, s, t, c]) => {
+    console.log('[DEBUG props watch] triggered, e:', e, 's:', s, 't:', t, 'c:', c, 'candleSeries:', !!candleSeries)
     let needReleaseSuppress = false
     if (e !== undefined) {
       const se = pricePropToInputStr(e)
@@ -1773,12 +1789,20 @@ watch(
         longTakeProfitStr.value = st
       }
     }
+    if (c !== undefined) {
+      const sc = pricePropToInputStr(c)
+      if (sc !== longCostStr.value) {
+        suppressLongPriceEmit.value = true
+        needReleaseSuppress = true
+        longCostStr.value = sc
+      }
+    }
     if (needReleaseSuppress) {
       nextTick(() => {
         suppressLongPriceEmit.value = false
       })
     }
-    const hasPrice = Number.isFinite(parseNumStr(longEntryStr.value)) || Number.isFinite(parseNumStr(longStopStr.value)) || Number.isFinite(parseNumStr(longTakeProfitStr.value))
+    const hasPrice = Number.isFinite(parseNumStr(longEntryStr.value)) || Number.isFinite(parseNumStr(longStopStr.value)) || Number.isFinite(parseNumStr(longTakeProfitStr.value)) || Number.isFinite(parseNumStr(longCostStr.value))
     console.log('[DEBUG props watch] hasPrice:', hasPrice, 'showLongPosition:', showLongPosition.value)
     if (hasPrice) {
       showLongPosition.value = true
@@ -1805,6 +1829,11 @@ watch(longTakeProfitStr, (v) => {
   console.log('[DEBUG longTakeProfitStr watch] v:', v, 'suppress:', suppressLongPriceEmit.value, 'props.longTakeProfitPrice:', props.longTakeProfitPrice)
   if (suppressLongPriceEmit.value) return
   emit('update:longTakeProfitPrice', v)
+})
+watch(longCostStr, (v) => {
+  console.log('[DEBUG longCostStr watch] v:', v, 'suppress:', suppressLongPriceEmit.value, 'props.costPrice:', props.costPrice)
+  if (suppressLongPriceEmit.value) return
+  emit('update:costPrice', v)
 })
 
 onMounted(() => {
@@ -1993,7 +2022,7 @@ watch(showLongPosition, (newVal) => {
                 :secondary="!longClickPickEnabled"
                 @click="toggleLongClickPick"
               >
-                设置价位线
+                设置价位线(预警)
               </NButton>
               <NButton
                 v-if="longClickPickEnabled"

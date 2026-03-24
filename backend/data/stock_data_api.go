@@ -566,7 +566,7 @@ func (receiver StockDataApi) SetStockAICron(cron string, stockCode string) {
 	db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", strings.ToLower(stockCode)).Update("cron", cron)
 
 }
-func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice float64, stockCode string) string {
+func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice, costPrice float64, stockCode string) string {
 	stockCode = strings.ToUpper(stockCode)
 	if strings.HasSuffix(stockCode, ".SZ") {
 		stockCode = "sz" + strings.TrimSuffix(stockCode, ".SZ")
@@ -580,30 +580,25 @@ func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLo
 		stockCode = strings.Replace(stockCode, "GB_", "us", 1)
 	}
 	lowerStockCode := strings.ToLower(stockCode)
-	logger.SugaredLogger.Infof("SetTradingPrice converting stockCode to: %s (lower: %s)", stockCode, lowerStockCode)
 
 	var stock FollowedStock
 	if err := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", lowerStockCode).First(&stock).Error; err != nil {
-		logger.SugaredLogger.Errorf("SetTradingPrice: stock not found with code %s, error: %s", lowerStockCode, err.Error())
 		return "股票未关注"
 	}
-	logger.SugaredLogger.Infof("SetTradingPrice: found stock %s, current prices: entry=%.2f, takeProfit=%.2f, stopLoss=%.2f",
-		stock.Name, entryPrice, takeProfitPrice, stopLossPrice)
 
-	result := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", lowerStockCode).Updates(&map[string]any{
+	updates := &map[string]any{
 		"entry_price":       entryPrice,
 		"take_profit_price": takeProfitPrice,
 		"stop_loss_price":   stopLossPrice,
-	})
+		"cost_price":        costPrice,
+	}
+	result := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", lowerStockCode).Updates(updates)
 	if result.Error != nil {
-		logger.SugaredLogger.Errorf("SetTradingPrice update error: %s", result.Error.Error())
 		return "设置失败"
 	}
 	if result.RowsAffected == 0 {
-		logger.SugaredLogger.Warnf("SetTradingPrice: no rows affected for stock_code %s", lowerStockCode)
 		return "设置失败"
 	}
-	logger.SugaredLogger.Infof("SetTradingPrice success: %d rows affected", result.RowsAffected)
 	return "设置成功"
 }
 func (receiver StockDataApi) GetFollowList(groupId int) *[]FollowedStock {

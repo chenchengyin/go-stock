@@ -116,6 +116,7 @@ const lwKlineCode = ref('')
 const lwKlineName = ref('')
 const currentStockTradingPrice = ref({
   stockCode: '',
+  costPrice: 0,
   entryPrice: 0,
   takeProfitPrice: 0,
   stopLossPrice: 0,
@@ -902,6 +903,12 @@ function handleLongTakeProfitPriceUpdate(newPrice) {
   saveTradingPriceToBackend()
 }
 
+function handleCostPriceUpdate(newPrice) {
+  console.log('[DEBUG handleCostPriceUpdate] called, newPrice:', newPrice, 'type:', typeof newPrice)
+  currentStockTradingPrice.value.costPrice = newPrice
+  saveTradingPriceToBackend()
+}
+
 function saveTradingPriceToBackend() {
   console.log('[DEBUG saveTradingPriceToBackend] called, stockCode:', currentStockTradingPrice.value.stockCode)
   if (!currentStockTradingPrice.value.stockCode) {
@@ -917,12 +924,14 @@ function saveTradingPriceToBackend() {
   const entryPrice = Number(currentStockTradingPrice.value.entryPrice) || 0
   const takeProfitPrice = Number(currentStockTradingPrice.value.takeProfitPrice) || 0
   const stopLossPrice = Number(currentStockTradingPrice.value.stopLossPrice) || 0
-  console.log('[DEBUG saveTradingPriceToBackend] calling SetTradingPrice with:', code, entryPrice, takeProfitPrice, stopLossPrice)
+  const costPrice = Number(currentStockTradingPrice.value.costPrice) || 0
+  console.log('[DEBUG saveTradingPriceToBackend] calling SetTradingPrice with:', code, entryPrice, takeProfitPrice, stopLossPrice, costPrice)
   SetTradingPrice(
     code,
     entryPrice,
     takeProfitPrice,
-    stopLossPrice
+    stopLossPrice,
+    costPrice
   ).then(result => {
     console.log('[DEBUG saveTradingPriceToBackend] SetTradingPrice result:', result)
     if (result === '设置成功') {
@@ -1636,11 +1645,13 @@ async function showLightweightKline(code, name) {
   const stockInfo = followList.value.find(item => item.StockCode === code || item.StockCode === followListCode)
   if (stockInfo) {
     currentStockTradingPrice.value.stockCode = lwKlineCode.value  // 使用东方财富格式
+    currentStockTradingPrice.value.costPrice = stockInfo.CostPrice || 0
     currentStockTradingPrice.value.entryPrice = stockInfo.EntryPrice || 0
     currentStockTradingPrice.value.takeProfitPrice = stockInfo.TakeProfitPrice || 0
     currentStockTradingPrice.value.stopLossPrice = stockInfo.StopLossPrice || 0
   } else {
     currentStockTradingPrice.value.stockCode = lwKlineCode.value
+    currentStockTradingPrice.value.costPrice = 0
     currentStockTradingPrice.value.entryPrice = 0
     currentStockTradingPrice.value.takeProfitPrice = 0
     currentStockTradingPrice.value.stopLossPrice = 0
@@ -1697,9 +1708,9 @@ function updateCostPriceAndVolumeNew(code, price, volume, alarm, formModel) {
     })
   }
   
-  // 保存交易价格（开仓价、止盈价、止损价）
-  if (formModel.entryPrice || formModel.takeProfitPrice || formModel.stopLossPrice) {
-    SetTradingPrice(code, formModel.entryPrice || 0, formModel.takeProfitPrice || 0, formModel.stopLossPrice || 0).then(result => {
+  // 保存交易价格（开仓价、止盈价、止损价、成本价）
+  if (formModel.entryPrice || formModel.takeProfitPrice || formModel.stopLossPrice || formModel.costPrice) {
+    SetTradingPrice(code, formModel.entryPrice || 0, formModel.takeProfitPrice || 0, formModel.stopLossPrice || 0, formModel.costPrice || 0).then(result => {
       //message.success(result)
     })
   }
@@ -1819,15 +1830,15 @@ function checkPriceLineAlerts(result) {
   const stockName = followedStock.Name || followedStock.StockName || result["股票名称"] || code
   const stockCodeDisplay = code.length > 6 ? code : code.toUpperCase()
 
-  notify.info({
-    avatar: () => h(NAvatar, { size: 'small', round: false, src: icon.value }),
-    title: `📈 ${stockName} (${stockCodeDisplay})`,
-    duration: 5000,
-    meta: `当前价: ${price}`,
-    content: () => h('div', { style: { 'text-align': 'left', 'font-size': '13px' } },
-      alerts.map(a => h('div', { style: { 'margin-bottom': '4px' } }, a))
-    ),
-  })
+  // notify.info({
+  //   avatar: () => h(NAvatar, { size: 'small', round: false, src: icon.value }),
+  //   title: `📈 ${stockName} (${stockCodeDisplay})`,
+  //   duration: 5000,
+  //   meta: `当前价: ${price}`,
+  //   content: () => h('div', { style: { 'text-align': 'left', 'font-size': '13px' } },
+  //     alerts.map(a => h('div', { style: { 'margin-bottom': '4px' } }, a))
+  //   ),
+  // })
 
   if (triggeredType > 0) {
     const msg = `### 📈 价位线预警\n\n### ${stockName} (${stockCodeDisplay})\n\n- 当前价格: ${price}\n- 预警类型: ${triggeredType === 4 ? '止盈触及' : '止损触及'}\n- 开仓价: ${followedStock.EntryPrice || '-'}\n- 止盈价: ${followedStock.TakeProfitPrice || '-'}\n- 止损价: ${followedStock.StopLossPrice || '-'}`;
@@ -2734,9 +2745,11 @@ watch(modalShow6, (newVal) => {
       :long-entry-price="currentStockTradingPrice.entryPrice"
       :long-stop-loss-price="currentStockTradingPrice.stopLossPrice"
       :long-take-profit-price="currentStockTradingPrice.takeProfitPrice"
+      :cost-price="currentStockTradingPrice.costPrice"
       @update:longEntryPrice="handleLongEntryPriceUpdate"
       @update:longStopLossPrice="handleLongStopLossPriceUpdate"
       @update:longTakeProfitPrice="handleLongTakeProfitPriceUpdate"
+      @update:costPrice="handleCostPriceUpdate"
     />
   </n-modal>
 </template>

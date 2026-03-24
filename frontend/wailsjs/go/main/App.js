@@ -398,8 +398,8 @@ export function SetStockSort(arg1, arg2) {
   return window['go']['main']['App']['SetStockSort'](arg1, arg2);
 }
 
-export function SetTradingPrice(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['SetTradingPrice'](arg1, arg2, arg3, arg4);
+export function SetTradingPrice(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['SetTradingPrice'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function ShareAnalysis(arg1, arg2) {
