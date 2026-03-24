@@ -143,7 +143,7 @@ func fetchEastMoneyCookiesViaChromedp(browserPath string, timeout time.Duration,
 		}
 		logger.SugaredLogger.Infof("chromedp: 自动检测到浏览器路径：%s", browserPath)
 	}
-	logger.SugaredLogger.Debugf("chromedp: 获取 Cookie，浏览器路径：%s，URL：%s", browserPath, pageURL)
+	//logger.SugaredLogger.Debugf("chromedp: 获取 Cookie，浏览器路径：%s，URL：%s", browserPath, pageURL)
 
 	now := time.Now()
 	// 使用 URL 路径部分作为缓存键（排除查询参数）
@@ -154,7 +154,7 @@ func fetchEastMoneyCookiesViaChromedp(browserPath string, timeout time.Duration,
 	eastMoneyCookieCache.mu.Lock()
 	if item, ok := eastMoneyCookieCache.items[cacheKey]; ok && now.Before(item.expiry) {
 		eastMoneyCookieCache.mu.Unlock()
-		logger.SugaredLogger.Debugf("东财 Cookie 使用缓存（URL: %s），至 %s 失效", urlCacheKey, item.expiry.Format(time.RFC3339))
+		//logger.SugaredLogger.Debugf("东财 Cookie 使用缓存（URL: %s），至 %s 失效", urlCacheKey, item.expiry.Format(time.RFC3339))
 		return item.header, nil
 	}
 	eastMoneyCookieCache.mu.Unlock()

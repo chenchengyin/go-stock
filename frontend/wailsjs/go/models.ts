@@ -373,6 +373,9 @@ export namespace data {
 	    IsDel: number;
 	    Groups: GroupStock[];
 	    AiConfigId: number;
+	    EntryPrice: number;
+	    TakeProfitPrice: number;
+	    StopLossPrice: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new FollowedStock(source);
@@ -395,6 +398,9 @@ export namespace data {
 	        this.IsDel = source["IsDel"];
 	        this.Groups = this.convertValues(source["Groups"], GroupStock);
 	        this.AiConfigId = source["AiConfigId"];
+	        this.EntryPrice = source["EntryPrice"];
+	        this.TakeProfitPrice = source["TakeProfitPrice"];
+	        this.StopLossPrice = source["StopLossPrice"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

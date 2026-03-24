@@ -177,6 +177,9 @@ type FollowedStock struct {
 	IsDel              soft_delete.DeletedAt `gorm:"softDelete:flag"`
 	Groups             []GroupStock          `gorm:"foreignKey:StockCode;references:StockCode"`
 	AiConfigId         int
+	EntryPrice         float64
+	TakeProfitPrice    float64
+	StopLossPrice      float64
 }
 
 func (receiver FollowedStock) TableName() string {
@@ -566,7 +569,7 @@ func (receiver StockDataApi) SetStockAICron(cron string, stockCode string) {
 func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLossPrice float64, stockCode string) string {
 	stockCode = strings.ToUpper(stockCode)
 	if strings.HasSuffix(stockCode, ".SZ") {
-		stockCode = "sh" + strings.TrimSuffix(stockCode, ".SZ")
+		stockCode = "sz" + strings.TrimSuffix(stockCode, ".SZ")
 	} else if strings.HasSuffix(stockCode, ".SH") {
 		stockCode = "sh" + strings.TrimSuffix(stockCode, ".SH")
 	} else if strings.HasSuffix(stockCode, ".HK") {
@@ -581,11 +584,11 @@ func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLo
 
 	var stock FollowedStock
 	if err := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", lowerStockCode).First(&stock).Error; err != nil {
-		//logger.SugaredLogger.Errorf("SetTradingPrice: stock not found with code %s, error: %s", lowerStockCode, err.Error())
+		logger.SugaredLogger.Errorf("SetTradingPrice: stock not found with code %s, error: %s", lowerStockCode, err.Error())
 		return "股票未关注"
 	}
-	//logger.SugaredLogger.Infof("SetTradingPrice: found stock %s, current prices: entry=%.2f, takeProfit=%.2f, stopLoss=%.2f",
-	//	stock.Name, entryPrice, takeProfitPrice, stopLossPrice)
+	logger.SugaredLogger.Infof("SetTradingPrice: found stock %s, current prices: entry=%.2f, takeProfit=%.2f, stopLoss=%.2f",
+		stock.Name, entryPrice, takeProfitPrice, stopLossPrice)
 
 	result := db.Dao.Model(&FollowedStock{}).Where("stock_code = ?", lowerStockCode).Updates(&map[string]any{
 		"entry_price":       entryPrice,
@@ -593,14 +596,14 @@ func (receiver StockDataApi) SetTradingPrice(entryPrice, takeProfitPrice, stopLo
 		"stop_loss_price":   stopLossPrice,
 	})
 	if result.Error != nil {
-		//logger.SugaredLogger.Errorf("SetTradingPrice update error: %s", result.Error.Error())
+		logger.SugaredLogger.Errorf("SetTradingPrice update error: %s", result.Error.Error())
 		return "设置失败"
 	}
 	if result.RowsAffected == 0 {
-		//logger.SugaredLogger.Warnf("SetTradingPrice: no rows affected for stock_code %s", lowerStockCode)
+		logger.SugaredLogger.Warnf("SetTradingPrice: no rows affected for stock_code %s", lowerStockCode)
 		return "设置失败"
 	}
-	//logger.SugaredLogger.Infof("SetTradingPrice success: %d rows affected", result.RowsAffected)
+	logger.SugaredLogger.Infof("SetTradingPrice success: %d rows affected", result.RowsAffected)
 	return "设置成功"
 }
 func (receiver StockDataApi) GetFollowList(groupId int) *[]FollowedStock {

@@ -1614,6 +1614,14 @@ async function showLightweightKline(code, name) {
   lwKlineCode.value = em
   lwKlineName.value = name || ''
 
+  // 刷新自选列表，确保获取最新的交易价格数据
+  try {
+    const list = await GetFollowList(currentGroupId.value)
+    followList.value = list || []
+  } catch (e) {
+    console.error('[showLightweightKline] 刷新自选列表失败:', e)
+  }
+
   // 从自选列表中获取交易价格
   // lwKlineCode 格式为 000001.SZ，followList 中的 StockCode 格式为 sh000001
   // 需要进行格式转换来匹配
