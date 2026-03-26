@@ -11,9 +11,10 @@ import {
   CheckSponsorCode,
   FetchAiModels
 } from "../../wailsjs/go/main/App";
-import {NTag, useMessage} from "naive-ui";
+import {NTag, NTooltip, NIcon, useMessage} from "naive-ui";
 import {data, models} from "../../wailsjs/go/models";
 import {EventsEmit} from "../../wailsjs/runtime";
+import {HelpCircleFilledIcon, HelpIcon} from "tdesign-icons-vue-next";
 
 const message = useMessage()
 
@@ -371,14 +372,46 @@ function deletePrompt(ID) {
             </n-form-item-gi>
             <n-form-item-gi :span="11" label="东财唯一标识：" path="qgqpBId">
               <n-input type="text" placeholder="东财唯一标识" v-model:value="formValue.qgqpBId" clearable/>
+              <n-tooltip placement="top">
+                <template #trigger>
+                  <n-icon color="#0e7a0d" size="20">
+                    <HelpCircleFilledIcon />
+                  </n-icon>
+                </template>
+                <template #default>
+                  <n-gradient-text :type="'warning'">
+                  <div style="max-width: 300px;text-align: left">
+                    获取方法：<br>
+                    打开浏览器,访问东财网站，<br>
+                    按F12打开开发人员工具-》网络面板，<br>
+                    随便点开一个请求，复制请求cookie中qgqp_b_id对应的值。
+                  </div>
+                  </n-gradient-text>
+                </template>
+              </n-tooltip>
             </n-form-item-gi>
 
             <n-form-item-gi :span="11" label="赞助码：" path="sponsorCode">
               <n-input-group>
-                <n-input :show-count="true" placeholder="赞助码" v-model:value="formValue.sponsorCode"/>
+                <n-input :show-count="true" placeholder="联系作者QQ或微信获取，激活VIP功能" v-model:value="formValue.sponsorCode">
+                </n-input>
                 <n-button type="success" secondary strong
                           @click="CheckSponsorCode(formValue.sponsorCode).then((res) => {message.warning(res.msg)})">验证
                 </n-button>
+                <n-popover trigger="hover" placement="top">
+                  <template #trigger>
+                    <n-icon color="#0e7a0d" size="20">
+                      <HelpCircleFilledIcon />
+                    </n-icon>
+                  </template>
+                  <n-gradient-text :type="'warning'">
+                    <div style="max-width: 300px;text-align: left">
+                      赞助码获取方式：<br>
+                      联系作者获取赞助码，激活VIP功能<br>
+                      享受更多高级功能和优先支持
+                    </div>
+                  </n-gradient-text>
+                </n-popover>
               </n-input-group>
             </n-form-item-gi>
           </n-grid>

@@ -19,6 +19,8 @@ export function AddPromptTemplate(arg1:models.PromptTemplate):Promise<string>;
 
 export function AddStockGroup(arg1:number,arg2:string):Promise<string>;
 
+export function AddTradingRecord(arg1:data.TradingRecord):Promise<number>;
+
 export function AnalyzeSentiment(arg1:string):Promise<models.SentimentResult>;
 
 export function AnalyzeSentimentWithFreqWeight(arg1:string):Promise<Record<string, any>>;
@@ -32,6 +34,8 @@ export function CalculateNextRunTime(arg1:string):Promise<string>;
 export function CalculateNextRunTimes(arg1:string,arg2:number):Promise<Array<string>>;
 
 export function ChatWithAgent(arg1:string,arg2:number,arg3:any):Promise<void>;
+
+export function CheckFrequentTrading(arg1:string):Promise<Record<string, any>>;
 
 export function CheckSponsorCode(arg1:string):Promise<Record<string, any>>;
 
@@ -54,6 +58,8 @@ export function DeleteAllStockInfo(arg1:number):Promise<string>;
 export function DeleteCronTask(arg1:number):Promise<string>;
 
 export function DeletePromptTemplate(arg1:number):Promise<string>;
+
+export function DeleteTradingRecord(arg1:number):Promise<void>;
 
 export function EMDictCode(arg1:string):Promise<Array<any>>;
 
@@ -137,7 +143,17 @@ export function GetStockMinutePriceLineData(arg1:string,arg2:string):Promise<Rec
 
 export function GetStockMoneyTrendByDay(arg1:string,arg2:number):Promise<Array<Record<string, any>>>;
 
+export function GetStockRealTimePrice(arg1:string):Promise<Record<string, any>>;
+
 export function GetTelegraphList(arg1:string):Promise<any>;
+
+export function GetTimezone():Promise<Record<string, any>>;
+
+export function GetTradingRecordById(arg1:number):Promise<data.TradingRecord>;
+
+export function GetTradingRecordList(arg1:data.TradingRecordListQuery):Promise<data.TradingRecordPageData>;
+
+export function GetTradingRecordStatistics():Promise<data.TradingRecordStatistics>;
 
 export function GetVersionInfo():Promise<models.VersionInfo>;
 
@@ -228,5 +244,7 @@ export function UpdateCronTask(arg1:models.CronTask):Promise<string>;
 export function UpdateGroupSort(arg1:number,arg2:number):Promise<boolean>;
 
 export function UpdatePromptTemplate(arg1:models.PromptTemplate):Promise<string>;
+
+export function UpdateTradingRecord(arg1:data.TradingRecord):Promise<void>;
 
 export function ValidateCronExpr(arg1:string):Promise<string>;

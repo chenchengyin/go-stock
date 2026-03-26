@@ -8,6 +8,7 @@ import PromptTemplateList from "./promptTemplateList.vue";
 import AllStockList from "./allStockList.vue";
 import AllStockInfoList from "./allStockInfoList.vue";
 import CronTaskManager from "./cron-task-manager.vue";
+import TradingRecordManager from "./TradingRecordManager.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -52,6 +53,9 @@ function updateTab(name) {
       </n-tab-pane>
       <n-tab-pane name="定时任务">
         <CronTaskManager />
+      </n-tab-pane>
+      <n-tab-pane name="交易日志">
+        <TradingRecordManager />
       </n-tab-pane>
 <!--      <n-tab-pane name="全部股票信息">-->
 <!--        <AllStockInfoList/>-->

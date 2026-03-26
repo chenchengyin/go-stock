@@ -30,6 +30,10 @@ export function AddStockGroup(arg1, arg2) {
   return window['go']['main']['App']['AddStockGroup'](arg1, arg2);
 }
 
+export function AddTradingRecord(arg1) {
+  return window['go']['main']['App']['AddTradingRecord'](arg1);
+}
+
 export function AnalyzeSentiment(arg1) {
   return window['go']['main']['App']['AnalyzeSentiment'](arg1);
 }
@@ -56,6 +60,10 @@ export function CalculateNextRunTimes(arg1, arg2) {
 
 export function ChatWithAgent(arg1, arg2, arg3) {
   return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3);
+}
+
+export function CheckFrequentTrading(arg1) {
+  return window['go']['main']['App']['CheckFrequentTrading'](arg1);
 }
 
 export function CheckSponsorCode(arg1) {
@@ -100,6 +108,10 @@ export function DeleteCronTask(arg1) {
 
 export function DeletePromptTemplate(arg1) {
   return window['go']['main']['App']['DeletePromptTemplate'](arg1);
+}
+
+export function DeleteTradingRecord(arg1) {
+  return window['go']['main']['App']['DeleteTradingRecord'](arg1);
 }
 
 export function EMDictCode(arg1) {
@@ -266,8 +278,28 @@ export function GetStockMoneyTrendByDay(arg1, arg2) {
   return window['go']['main']['App']['GetStockMoneyTrendByDay'](arg1, arg2);
 }
 
+export function GetStockRealTimePrice(arg1) {
+  return window['go']['main']['App']['GetStockRealTimePrice'](arg1);
+}
+
 export function GetTelegraphList(arg1) {
   return window['go']['main']['App']['GetTelegraphList'](arg1);
+}
+
+export function GetTimezone() {
+  return window['go']['main']['App']['GetTimezone']();
+}
+
+export function GetTradingRecordById(arg1) {
+  return window['go']['main']['App']['GetTradingRecordById'](arg1);
+}
+
+export function GetTradingRecordList(arg1) {
+  return window['go']['main']['App']['GetTradingRecordList'](arg1);
+}
+
+export function GetTradingRecordStatistics() {
+  return window['go']['main']['App']['GetTradingRecordStatistics']();
 }
 
 export function GetVersionInfo() {
@@ -448,6 +480,10 @@ export function UpdateGroupSort(arg1, arg2) {
 
 export function UpdatePromptTemplate(arg1) {
   return window['go']['main']['App']['UpdatePromptTemplate'](arg1);
+}
+
+export function UpdateTradingRecord(arg1) {
+  return window['go']['main']['App']['UpdateTradingRecord'](arg1);
 }
 
 export function ValidateCronExpr(arg1) {

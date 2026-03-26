@@ -2275,3 +2275,80 @@ func (a *App) CalculateNextRunTimes(cron string, count int) []string {
 	}
 	return result
 }
+
+// AddTradingRecord 添加交易记录
+// 参数:
+//   - record: 交易记录结构体
+//
+// 返回值:
+//   - uint: 新添加的交易记录ID
+//   - error: 错误信息
+func (a *App) AddTradingRecord(record data.TradingRecord) (uint, error) {
+	return data.NewStockDataApi().AddTradingRecord(record)
+}
+
+// GetTradingRecordList 获取交易记录列表（分页与筛选，返回结构与 AI 推荐列表一致）
+func (a *App) GetTradingRecordList(query data.TradingRecordListQuery) *data.TradingRecordPageData {
+	page, err := data.NewStockDataApi().GetTradingRecordList(query)
+	if err != nil {
+		return &data.TradingRecordPageData{}
+	}
+	return page
+}
+
+// GetTradingRecordById 根据ID获取单个交易记录
+// 参数:
+//   - id: 交易记录ID
+//
+// 返回值:
+//   - *data.TradingRecord: 交易记录指针
+//   - error: 错误信息
+func (a *App) GetTradingRecordById(id uint) (*data.TradingRecord, error) {
+	return data.NewStockDataApi().GetTradingRecordById(id)
+}
+
+// GetTradingRecordStatistics 获取交易记录统计数据
+//
+// 返回值:
+//   - *data.TradingRecordStatistics: 统计数据指针
+func (a *App) GetTradingRecordStatistics() *data.TradingRecordStatistics {
+	stats, err := data.NewStockDataApi().GetTradingRecordStatistics()
+	if err != nil {
+		return &data.TradingRecordStatistics{}
+	}
+	return stats
+}
+
+// UpdateTradingRecord 更新交易记录
+// 参数:
+//   - record: 交易记录结构体
+//
+// 返回值:
+//   - error: 错误信息
+func (a *App) UpdateTradingRecord(record data.TradingRecord) error {
+	return data.NewStockDataApi().UpdateTradingRecord(record)
+}
+
+// DeleteTradingRecord 删除交易记录
+// 参数:
+//   - id: 交易记录ID
+//
+// 返回值:
+//   - error: 错误信息
+func (a *App) DeleteTradingRecord(id uint) error {
+	return data.NewStockDataApi().DeleteTradingRecord(id)
+}
+
+// CheckFrequentTrading 检查是否频繁交易
+// 参数:
+//   - stockCode: 股票代码
+//
+// 返回值:
+//   - map[string]any: 包含 canTrade (bool) 和 msg (string)
+func (a *App) CheckFrequentTrading(stockCode string) map[string]any {
+	canTrade, msg := data.NewStockDataApi().CheckFrequentTrading(stockCode)
+	return map[string]any{
+		"canTrade": canTrade,
+		"msg":      msg,
+	}
+}

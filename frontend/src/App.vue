@@ -34,7 +34,7 @@ import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
 import {Prompt, ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
 import {AppsList20Regular, BoxSearch20Regular, CommentNote20Filled} from "@vicons/fluent";
-import {FireFilled, FireOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
+import {FireFilled, MoneyCollectOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
 
 
 
@@ -584,6 +584,29 @@ const menuOptions = ref([
               ),
           key: 'research5',
           icon: renderIcon(TimeOutline),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"交易日志",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 6, name: '交易日志'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '交易日志(beta)'}
+              ),
+          key: 'research6',
+          icon: renderIcon(MoneyCollectOutlined),
         },
       ],
     },

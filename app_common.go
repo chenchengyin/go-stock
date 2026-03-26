@@ -5,14 +5,33 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
+	"time"
 
+	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // @Author spark
 // @Date 2025/6/8 20:45
 // @Desc
-//-----------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+var ShanghaiTimezone = time.FixedZone("CST", 8*60*60)
+
+func GetShanghaiTime() time.Time {
+	return time.Now().In(ShanghaiTimezone)
+}
+
+func FormatShanghaiTime(t time.Time) string {
+	return t.In(ShanghaiTimezone).Format("2006-01-02 15:04:05")
+}
+
+func (a *App) GetTimezone() map[string]any {
+	return map[string]any{
+		"offset":   8 * 60 * 60,
+		"location": "Asia/Shanghai",
+	}
+}
 
 func (a *App) LongTigerRank(date string) *[]models.LongTigerRankData {
 	return data.NewMarketNewsApi().LongTiger(date)
@@ -218,4 +237,32 @@ func (a *App) GetAllConcepts() []string {
 		return []string{}
 	}
 	return concepts
+}
+
+func (a *App) GetStockRealTimePrice(stockCode string) map[string]any {
+	stockDatas, err := data.NewStockDataApi().GetStockCodeRealTimeData(stockCode)
+	if err != nil || stockDatas == nil || len(*stockDatas) == 0 {
+		return map[string]any{
+			"code":    -1,
+			"message": "获取股票价格失败",
+			"price":   0,
+		}
+	}
+	stock := (*stockDatas)[0]
+	price, _ := convertor.ToFloat(stock.Price)
+	if price == 0 {
+		price, _ = convertor.ToFloat(stock.A1P)
+	}
+	if price == 0 {
+		price, _ = convertor.ToFloat(stock.B1P)
+	}
+	if price == 0 {
+		price, _ = convertor.ToFloat(stock.PreClose)
+	}
+	return map[string]any{
+		"code":    0,
+		"message": "success",
+		"price":   price,
+		"name":    stock.Name,
+	}
 }

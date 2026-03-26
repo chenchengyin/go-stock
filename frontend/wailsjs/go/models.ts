@@ -735,6 +735,226 @@ export namespace data {
 		    return a;
 		}
 	}
+	export class TradingRecord {
+	    ID: number;
+	    StockCode: string;
+	    StockName: string;
+	    Direction: string;
+	    Price: number;
+	    Volume: number;
+	    Amount: number;
+	    // Go type: time
+	    TradingTime: any;
+	    Reason: string;
+	    StopLossPrice: number;
+	    TakeProfitPrice: number;
+	    Fee: number;
+	    MarketValue: number;
+	    Mindset: string;
+	    recordedClosePrice: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new TradingRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.StockCode = source["StockCode"];
+	        this.StockName = source["StockName"];
+	        this.Direction = source["Direction"];
+	        this.Price = source["Price"];
+	        this.Volume = source["Volume"];
+	        this.Amount = source["Amount"];
+	        this.TradingTime = this.convertValues(source["TradingTime"], null);
+	        this.Reason = source["Reason"];
+	        this.StopLossPrice = source["StopLossPrice"];
+	        this.TakeProfitPrice = source["TakeProfitPrice"];
+	        this.Fee = source["Fee"];
+	        this.MarketValue = source["MarketValue"];
+	        this.Mindset = source["Mindset"];
+	        this.recordedClosePrice = source["recordedClosePrice"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TradingRecordItem {
+	    ID: number;
+	    StockCode: string;
+	    StockName: string;
+	    Direction: string;
+	    Price: number;
+	    Volume: number;
+	    Amount: number;
+	    // Go type: time
+	    TradingTime: any;
+	    Reason: string;
+	    StopLossPrice: number;
+	    TakeProfitPrice: number;
+	    Fee: number;
+	    MarketValue: number;
+	    Mindset: string;
+	    recordedClosePrice: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	    closePrice: number;
+	    profitAmount: number;
+	    profitPercent: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TradingRecordItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.StockCode = source["StockCode"];
+	        this.StockName = source["StockName"];
+	        this.Direction = source["Direction"];
+	        this.Price = source["Price"];
+	        this.Volume = source["Volume"];
+	        this.Amount = source["Amount"];
+	        this.TradingTime = this.convertValues(source["TradingTime"], null);
+	        this.Reason = source["Reason"];
+	        this.StopLossPrice = source["StopLossPrice"];
+	        this.TakeProfitPrice = source["TakeProfitPrice"];
+	        this.Fee = source["Fee"];
+	        this.MarketValue = source["MarketValue"];
+	        this.Mindset = source["Mindset"];
+	        this.recordedClosePrice = source["recordedClosePrice"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	        this.closePrice = source["closePrice"];
+	        this.profitAmount = source["profitAmount"];
+	        this.profitPercent = source["profitPercent"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TradingRecordListQuery {
+	    page: number;
+	    pageSize: number;
+	    keyword: string;
+	    direction: string;
+	    startDate: string;
+	    endDate: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TradingRecordListQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.keyword = source["keyword"];
+	        this.direction = source["direction"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	    }
+	}
+	export class TradingRecordPageData {
+	    list: TradingRecordItem[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TradingRecordPageData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.list = this.convertValues(source["list"], TradingRecordItem);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TradingRecordStatistics {
+	    totalBuyAmount: number;
+	    totalSellAmount: number;
+	    totalProfit: number;
+	    profitRate: number;
+	    holdingsAmount: number;
+	    currentValue: number;
+	    stockCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TradingRecordStatistics(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.totalBuyAmount = source["totalBuyAmount"];
+	        this.totalSellAmount = source["totalSellAmount"];
+	        this.totalProfit = source["totalProfit"];
+	        this.profitRate = source["profitRate"];
+	        this.holdingsAmount = source["holdingsAmount"];
+	        this.currentValue = source["currentValue"];
+	        this.stockCount = source["stockCount"];
+	    }
+	}
 
 }
 
