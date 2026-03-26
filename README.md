@@ -191,5 +191,5 @@
 
 
 ## License
-[Apache License 2.0](LICENSE)
+[GNU GPLv3](LICENSE)
 
