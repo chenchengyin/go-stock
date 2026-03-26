@@ -22,7 +22,7 @@
 - 开发环境主要基于Windows10+，其他平台未测试或功能受限。
 
 ### 📃 使用手册
-[go-stock使用手册](go-stock使用手册.md)
+[go-stock使用手册](docs/go-stock使用手册.md)
 
 ### 📦 立即体验
 [//]: # (- 安装版：[go-stock-amd64-installer.exe]&#40;https://github.com/ArvinLovegood/go-stock/releases&#41;)
