@@ -21,6 +21,9 @@
 - 本项目仅供娱乐，不喜勿喷，AI分析股票结果仅供学习研究，投资有风险，请谨慎使用。
 - 开发环境主要基于Windows10+，其他平台未测试或功能受限。
 
+### 📃 使用手册
+[go-stock使用手册](go-stock使用手册.md)
+
 ### 📦 立即体验
 [//]: # (- 安装版：[go-stock-amd64-installer.exe]&#40;https://github.com/ArvinLovegood/go-stock/releases&#41;)
 - 绿色版：[go-stock-windows-amd64.exe](https://github.com/ArvinLovegood/go-stock/releases)
