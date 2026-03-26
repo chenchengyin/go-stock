@@ -45,6 +45,11 @@ declare module 'vue' {
     StockNoticeList: typeof import('./src/components/StockNoticeList.vue')['default']
     StockResearchReportList: typeof import('./src/components/StockResearchReportList.vue')['default']
     StockSparkLine: typeof import('./src/components/stockSparkLine.vue')['default']
+    TChat: typeof import('@tdesign-vue-next/chat')['Chat']
+    TChatAction: typeof import('@tdesign-vue-next/chat')['ChatAction']
+    TChatContent: typeof import('@tdesign-vue-next/chat')['ChatContent']
+    TChatLoading: typeof import('@tdesign-vue-next/chat')['ChatLoading']
+    TChatSender: typeof import('@tdesign-vue-next/chat')['ChatSender']
     TradingRecordManager: typeof import('./src/components/TradingRecordManager.vue')['default']
   }
 }

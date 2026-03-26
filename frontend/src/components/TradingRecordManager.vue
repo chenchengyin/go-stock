@@ -8,7 +8,8 @@ import {
   DeleteTradingRecord,
   CheckFrequentTrading,
   GetAllStockInfoList,
-  GetStockRealTimePrice
+  GetStockRealTimePrice,
+  GetConfig
 } from '../../wailsjs/go/main/App'
 import {
   NButton,
@@ -31,9 +32,21 @@ import {
   useMessage,
   useNotification
 } from 'naive-ui'
+import sparkLine from "./stockSparkLine.vue";
+import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
+import { GetEffectiveSponsorVip } from '../../wailsjs/go/main/App'
 
 const message = useMessage()
 const notify = useNotification()
+
+const vipLevel = ref(0)
+const showKlineModal = ref(false)
+const klineStockCode = ref('')
+const klineStockName = ref('')
+const longStopLossPrice = ref(0)
+const longTakeProfitPrice = ref(0)
+const costPrice = ref(0)
+const darkTheme = ref(false)
 
 const dataRef = ref([])
 const loadingRef = ref(true)
@@ -200,6 +213,46 @@ function formatDate(dateVal) {
 
 function formatAmount(n) {
   return Number(n).toFixed(2)
+}
+
+function toEastMoneyCode(code) {
+  if (!code) return ''
+  const c = String(code).trim().toUpperCase()
+  if (c.endsWith('.SH')) return 'sh' + c.slice(0, -3).toLowerCase()
+  if (c.endsWith('.SZ')) return 'sz' + c.slice(0, -3).toLowerCase()
+  if (c.endsWith('.BJ')) return 'bj' + c.slice(0, -3).toLowerCase()
+  if (c.endsWith('.HK')) return 'hk' + c.slice(0, -3).toLowerCase()
+  // 不带后缀的代码，根据规则添加前缀
+  if (c.startsWith('6')) return 'sh' + c.toLowerCase()
+  if (c.startsWith('0') || c.startsWith('3')) return 'sz' + c.toLowerCase()
+  if (c.startsWith('8') || c.startsWith('9')) return 'bj' + c.toLowerCase()
+  return c.toLowerCase()
+}
+
+async function refreshEffectiveVip() {
+  try {
+    const r = await GetEffectiveSponsorVip()
+    const active = !!r?.active
+    const lvl = Number(r?.vipLevel ?? 0)
+    vipLevel.value = active && !Number.isNaN(lvl) ? lvl : 0
+  } catch (_) {
+    vipLevel.value = 0
+  }
+}
+
+function openKlineChart(row) {
+  refreshEffectiveVip().then(() => {
+    if (vipLevel.value < 2) {
+      message.warning('查看K线仅限VIP2及以上用户使用')
+      return
+    }
+    klineStockCode.value = toEastMoneyCode(row.StockCode)
+    klineStockName.value = row.StockName || ''
+    showKlineModal.value = true
+    longStopLossPrice.value = row.StopLossPrice || 0
+    longTakeProfitPrice.value = row.TakeProfitPrice || 0
+    costPrice.value = row.Price || 0
+  })
 }
 
 
@@ -462,7 +515,7 @@ const columnsRef = ref([
     }
   },
   {
-    title: '收盘价',
+    title: '收盘/最新价',
     key: 'closePrice',
     width: 100,
     render(row) {
@@ -523,9 +576,19 @@ const columnsRef = ref([
   },
   {
     title: '操作',
-    width: 140,
+    width: 200,
     render(row) {
       return [
+        h(
+          NTag,
+          {
+            strong: true,
+            tertiary: true,
+            type: 'info',
+            onClick: () => openKlineChart(row)
+          },
+          { default: () => 'K线' }
+        ),
         h(
           NTag,
           {
@@ -552,6 +615,13 @@ const columnsRef = ref([
 ])
 
 onMounted(() => {
+  // 获取主题配置
+  GetConfig().then(result => {
+    if (result.darkTheme) {
+      darkTheme.value = true
+    }
+  })
+
   loadingRef.value = true
   query({
     page: 1,
@@ -576,7 +646,7 @@ onMounted(() => {
   // 启动定时刷新，每3秒刷新一次
   refreshTimer.value = setInterval(() => {
     handleSearch()
-  }, 3000)
+  }, 1000*10)
 })
 
 onUnmounted(() => {
@@ -833,6 +903,18 @@ onUnmounted(() => {
         <n-button type="primary" @click="handleUpdate">更新</n-button>
       </n-space>
     </template>
+  </n-modal>
+
+  <n-modal v-model:show="showKlineModal" preset="card" :title="'K线 - ' + klineStockName" style="width: 95vw; max-width: 1400px">
+    <StockLightweightKlineChart
+      :code="klineStockCode"
+      :stock-name="klineStockName"
+      :chart-height="500"
+      :dark-theme="darkTheme"
+      :longStopLossPrice="longStopLossPrice"
+      :longTakeProfitPrice="longTakeProfitPrice"
+      :costPrice="costPrice"
+    />
   </n-modal>
 </template>
 
