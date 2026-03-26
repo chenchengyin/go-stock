@@ -237,6 +237,9 @@ func GetSettingConfig() *SettingConfig {
 	if settings.BrowserPoolSize <= 0 {
 		settings.BrowserPoolSize = 1
 	}
+	settings.EnableFund = false
+	settings.EnableAgent = false
+
 	settingConfig.Settings = settings
 	settingConfig.AiConfigs = aiConfigs
 
