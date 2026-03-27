@@ -1,3 +1,4 @@
+// Deprecated: 该模块已被废弃，建议使用 package data 中的 组件
 package agent
 
 import (

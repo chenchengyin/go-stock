@@ -98,10 +98,25 @@ func handleGetStockConceptInfo(o *OpenAi, funcArguments string, ctx *ToolContext
 		"time":     time.Now().Format(time.DateTime),
 	}
 
-	code := gjson.Get(funcArguments, "code").String()
-	res := NewStockDataApi().GetStockConceptInfo(code)
-	md := util.MarkdownTableWithTitle(code+" 股票所属概念详细信息", res.Result.Data)
-	//logger.SugaredLogger.Infof("%s", md)
+	codes := parseStockCodesFromToolArgs(funcArguments, "code")
+	if len(codes) == 0 {
+		appendToolMessages(
+			ctx.Messages,
+			ctx.CurrentAIContent.String(),
+			ctx.ReasoningContentText.String(),
+			ctx.CurrentCallID,
+			ctx.FuncName,
+			funcArguments,
+			"参数 code 或 stockCodes 不能为空，请传入股票代码（多只可用英文逗号分隔）。",
+		)
+		return nil
+	}
+
+	api := NewStockDataApi()
+	md := parallelStockToolSections(codes, func(code string) string {
+		res := api.GetStockConceptInfo(code)
+		return util.MarkdownTableWithTitle(code+" 股票所属概念详细信息", res.Result.Data)
+	})
 
 	appendToolMessages(
 		ctx.Messages,
@@ -127,10 +142,25 @@ func handleGetStockFinancialInfo(o *OpenAi, funcArguments string, ctx *ToolConte
 		"time":     time.Now().Format(time.DateTime),
 	}
 
-	stockCode := gjson.Get(funcArguments, "stockCode").String()
-	res := NewStockDataApi().GetStockFinancialInfo(stockCode)
-	md := util.MarkdownTableWithTitle("股票"+stockCode+"财务报表信息", res.Result.Data)
-	//logger.SugaredLogger.Infof("%s", md)
+	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
+	if len(codes) == 0 {
+		appendToolMessages(
+			ctx.Messages,
+			ctx.CurrentAIContent.String(),
+			ctx.ReasoningContentText.String(),
+			ctx.CurrentCallID,
+			ctx.FuncName,
+			funcArguments,
+			"参数 stockCode 或 stockCodes 不能为空，请传入股票代码（多只可用英文逗号分隔）。",
+		)
+		return nil
+	}
+
+	api := NewStockDataApi()
+	md := parallelStockToolSections(codes, func(stockCode string) string {
+		res := api.GetStockFinancialInfo(stockCode)
+		return util.MarkdownTableWithTitle("股票"+stockCode+"财务报表信息", res.Result.Data)
+	})
 
 	appendToolMessages(
 		ctx.Messages,
@@ -156,10 +186,25 @@ func handleGetStockHolderNum(o *OpenAi, funcArguments string, ctx *ToolContext) 
 		"time":     time.Now().Format(time.DateTime),
 	}
 
-	stockCode := gjson.Get(funcArguments, "stockCode").String()
-	res := NewStockDataApi().GetStockHolderNum(stockCode)
-	md := util.MarkdownTableWithTitle("股票"+stockCode+"股东人数信息", res.Result.Data)
-	//logger.SugaredLogger.Infof("%s", md)
+	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
+	if len(codes) == 0 {
+		appendToolMessages(
+			ctx.Messages,
+			ctx.CurrentAIContent.String(),
+			ctx.ReasoningContentText.String(),
+			ctx.CurrentCallID,
+			ctx.FuncName,
+			funcArguments,
+			"参数 stockCode 或 stockCodes 不能为空，请传入股票代码（多只可用英文逗号分隔）。",
+		)
+		return nil
+	}
+
+	api := NewStockDataApi()
+	md := parallelStockToolSections(codes, func(stockCode string) string {
+		res := api.GetStockHolderNum(stockCode)
+		return util.MarkdownTableWithTitle("股票"+stockCode+"股东人数信息", res.Result.Data)
+	})
 
 	appendToolMessages(
 		ctx.Messages,
@@ -185,10 +230,25 @@ func handleGetStockHistoryMoneyData(o *OpenAi, funcArguments string, ctx *ToolCo
 		"time":     time.Now().Format(time.DateTime),
 	}
 
-	stockCode := gjson.Get(funcArguments, "stockCode").String()
-	res := NewStockDataApi().GetStockHistoryMoneyData(stockCode)
-	md := util.MarkdownTableWithTitle("股票"+stockCode+"历史资金流向数据", res)
-	//logger.SugaredLogger.Infof("%s", md)
+	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
+	if len(codes) == 0 {
+		appendToolMessages(
+			ctx.Messages,
+			ctx.CurrentAIContent.String(),
+			ctx.ReasoningContentText.String(),
+			ctx.CurrentCallID,
+			ctx.FuncName,
+			funcArguments,
+			"参数 stockCode 或 stockCodes 不能为空，请传入股票代码（多只可用英文逗号分隔）。",
+		)
+		return nil
+	}
+
+	api := NewStockDataApi()
+	md := parallelStockToolSections(codes, func(stockCode string) string {
+		res := api.GetStockHistoryMoneyData(stockCode)
+		return util.MarkdownTableWithTitle("股票"+stockCode+"历史资金流向数据", res)
+	})
 
 	appendToolMessages(
 		ctx.Messages,

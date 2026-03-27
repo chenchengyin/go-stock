@@ -48,31 +48,10 @@ func normalizeKLineType(s string) string {
 	}
 }
 
-func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) error {
-	stockCode := gjson.Get(funcArguments, "stockCode").String()
-	kLineType := gjson.Get(funcArguments, "kLineType").String()
-	adjustFlag := gjson.Get(funcArguments, "adjustFlag").String()
-	limit := gjson.Get(funcArguments, "limit").Int()
-	if limit <= 0 {
-		limit = 60
-	}
-
-	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetEastMoneyKLine，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
-	}
-
-	api := NewEastMoneyKLineApi(GetSettingConfig())
+func eastMoneyKLineSection(api *EastMoneyKLineApi, stockCode, kLineType, adjustFlag string, limit int) string {
 	if !api.ValidateStockCode(stockCode) {
-		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
-			ctx.CurrentCallID, ctx.FuncName, funcArguments, "股票代码无效，请使用正确格式（如 000001.SZ、600000.SH、00700.HK）。")
-		return nil
+		return stockCode + "：股票代码无效，请使用正确格式（如 000001.SZ、600000.SH、00700.HK）。"
 	}
-
 	kType := normalizeKLineType(kLineType)
 	var list *[]KLineData
 	if adjustFlag != "" && (kType == "101" || kType == "day") {
@@ -84,13 +63,9 @@ func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) 
 	} else {
 		list = api.GetKLineData(stockCode, kType, strings.TrimSpace(adjustFlag), int(limit))
 	}
-
 	if list == nil || len(*list) == 0 {
-		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
-			ctx.CurrentCallID, ctx.FuncName, funcArguments, "未获取到 K 线数据，请检查股票代码与类型。")
-		return nil
+		return stockCode + "：未获取到 K 线数据，请检查股票代码与类型。"
 	}
-
 	rows := make([]map[string]any, 0, len(*list))
 	for _, k := range *list {
 		vol, _ := convertor.ToFloat(k.Volume)
@@ -116,8 +91,36 @@ func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) 
 	if typeLabel == "" {
 		typeLabel = kType
 	}
-	res := "\r\n### " + stockCode + " " + typeLabel + " K线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
-	//logger.SugaredLogger.Infof("GetEastMoneyKLine: %s %s -> %d 条", stockCode, kType, len(*list))
+	return "\r\n### " + stockCode + " " + typeLabel + " K线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
+}
+
+func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) error {
+	kLineType := gjson.Get(funcArguments, "kLineType").String()
+	adjustFlag := gjson.Get(funcArguments, "adjustFlag").String()
+	limit := int(gjson.Get(funcArguments, "limit").Int())
+	if limit <= 0 {
+		limit = 60
+	}
+	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
+	if len(codes) == 0 {
+		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
+			ctx.CurrentCallID, ctx.FuncName, funcArguments, "参数 stockCode 或 stockCodes 不能为空，请传入股票代码（多只可用英文逗号分隔）。")
+		return nil
+	}
+
+	ctx.Ch <- map[string]any{
+		"code":     1,
+		"question": ctx.Question,
+		"chatId":   ctx.StreamResponseID,
+		"model":    ctx.Model,
+		"content":  "\r\n```\r\n开始调用工具：GetEastMoneyKLine，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":     time.Now().Format(time.DateTime),
+	}
+
+	res := parallelStockToolSections(codes, func(stockCode string) string {
+		api := NewEastMoneyKLineApi(GetSettingConfig())
+		return eastMoneyKLineSection(api, stockCode, kLineType, adjustFlag, limit)
+	})
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
 		ctx.CurrentCallID, ctx.FuncName, funcArguments, res)
 	return nil
@@ -166,41 +169,16 @@ func parseMaPeriods(s string) []int {
 	return out
 }
 
-func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolContext) error {
-	stockCode := gjson.Get(funcArguments, "stockCode").String()
-	kLineType := gjson.Get(funcArguments, "kLineType").String()
-	limit := gjson.Get(funcArguments, "limit").Int()
-	maPeriodsStr := gjson.Get(funcArguments, "maPeriods").String()
-	if limit <= 0 {
-		limit = 60
-	}
-
-	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetEastMoneyKLineWithMA，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
-	}
-
-	api := NewEastMoneyKLineApi(GetSettingConfig())
+func eastMoneyKLineWithMASection(api *EastMoneyKLineApi, stockCode, kLineType string, limit int, maPeriodsStr string) string {
 	if !api.ValidateStockCode(stockCode) {
-		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
-			ctx.CurrentCallID, ctx.FuncName, funcArguments, "股票代码无效，请使用正确格式（如 000001.SZ、600000.SH、00700.HK）。")
-		return nil
+		return stockCode + "：股票代码无效，请使用正确格式（如 000001.SZ、600000.SH、00700.HK）。"
 	}
-
 	kType := normalizeKLineType(kLineType)
 	maPeriods := parseMaPeriods(maPeriodsStr)
 	list, err := api.GetKLineWithMA(stockCode, kType, int(limit), maPeriods...)
 	if err != nil || list == nil || len(*list) == 0 {
-		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
-			ctx.CurrentCallID, ctx.FuncName, funcArguments, "未获取到带均线的 K 线数据，请检查股票代码与参数。")
-		return nil
+		return stockCode + "：未获取到带均线的 K 线数据，请检查股票代码与参数。"
 	}
-
-	// 均线列名：若调用时传了 maPeriods 用其顺序，否则从第一条数据的 MA 中取（API 默认 5,10,20,60）
 	maLabels := make([]string, 0, len(maPeriods))
 	if len(maPeriods) > 0 {
 		for _, p := range maPeriods {
@@ -210,7 +188,6 @@ func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolCon
 		for p := range (*list)[0].MA {
 			maLabels = append(maLabels, "MA"+p)
 		}
-		// 按周期数字排序，保证列顺序稳定
 		maLabels = sortMALabels(maLabels)
 	}
 	rows := make([]map[string]any, 0, len(*list))
@@ -245,8 +222,36 @@ func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolCon
 	if typeLabel == "" {
 		typeLabel = kType
 	}
-	res := "\r\n### 东方财富 " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
-	//logger.SugaredLogger.Infof("GetEastMoneyKLineWithMA: %s %s limit=%d maPeriods=%v -> %d 条", stockCode, kType, limit, maPeriods, len(*list))
+	return "\r\n### 东方财富 " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
+}
+
+func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolContext) error {
+	kLineType := gjson.Get(funcArguments, "kLineType").String()
+	limit := int(gjson.Get(funcArguments, "limit").Int())
+	maPeriodsStr := gjson.Get(funcArguments, "maPeriods").String()
+	if limit <= 0 {
+		limit = 60
+	}
+	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
+	if len(codes) == 0 {
+		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
+			ctx.CurrentCallID, ctx.FuncName, funcArguments, "参数 stockCode 或 stockCodes 不能为空，请传入股票代码（多只可用英文逗号分隔）。")
+		return nil
+	}
+
+	ctx.Ch <- map[string]any{
+		"code":     1,
+		"question": ctx.Question,
+		"chatId":   ctx.StreamResponseID,
+		"model":    ctx.Model,
+		"content":  "\r\n```\r\n开始调用工具：GetEastMoneyKLineWithMA，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":     time.Now().Format(time.DateTime),
+	}
+
+	res := parallelStockToolSections(codes, func(stockCode string) string {
+		api := NewEastMoneyKLineApi(GetSettingConfig())
+		return eastMoneyKLineWithMASection(api, stockCode, kLineType, limit, maPeriodsStr)
+	})
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
 		ctx.CurrentCallID, ctx.FuncName, funcArguments, res)
 	return nil

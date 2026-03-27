@@ -2552,7 +2552,7 @@ func (receiver StockDataApi) AddTradingRecord(record TradingRecord) (uint, error
 	if record.Direction == "买入" {
 		canTrade, msg := receiver.CheckFrequentTrading(record.StockCode)
 		if !canTrade {
-			return 0, fmt.Errorf(msg)
+			return 0, fmt.Errorf("%s", msg)
 		}
 	}
 

@@ -5,6 +5,15 @@ package data
 // @Desc
 //-----------------------------------------------------------------------------------
 
+// toolSchemaStockCodes 可选多只股票，与 code/stockCode 合并解析（去重）；也可仅在 code/stockCode 中用英文逗号分隔。
+var toolSchemaStockCodes = map[string]any{
+	"type": "array",
+	"items": map[string]any{
+		"type": "string",
+	},
+	"description": "可选，多只股票代码列表；与主字段合并后去重。也可仅在主字段中用英文逗号分隔多只。",
+}
+
 func Tools(tools []Tool) []Tool {
 	tools = append(tools, Tool{
 		Type: "function",
@@ -150,7 +159,7 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockKLine",
-			Description: "获取股票日K线数据。",
+			Description: "获取股票日K线数据。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
@@ -160,8 +169,9 @@ func Tools(tools []Tool) []Tool {
 					},
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码（A股：sh,sz开头;港股hk开头,美股：us开头）",
+						"description": "股票代码（A股：sh,sz开头;港股hk开头,美股：us开头）。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"days", "stockCode"},
 			},
@@ -172,14 +182,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetEastMoneyKLine",
-			Description: "获取股票 K 线数据。支持日/周/月/季/年 K 线及 1/5/15/30/60 分钟线，可选前复权(qfq)或后复权(hfq)。股票代码格式：A股 000001.SZ、600000.SH，港股 00700.HK 等。",
+			Description: "获取股票 K 线数据。支持日/周/月/季/年 K 线及 1/5/15/30/60 分钟线，可选前复权(qfq)或后复权(hfq)。股票代码格式：A股 000001.SZ、600000.SH，港股 00700.HK 等。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码。A股如 000001.SZ、600000.SH；港股如 00700.HK。",
+						"description": "股票代码。A股如 000001.SZ、600000.SH；港股如 00700.HK。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 					"kLineType": map[string]any{
 						"type":        "string",
 						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K，quarter/季/104=季K，halfYear/半年/105=半年K，year/年/106=年K；分钟线：1/5/15/30/60/120。",
@@ -202,14 +213,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetEastMoneyKLineWithMA",
-			Description: "获取股票 K 线数据并带多条均线（SMA，按收盘价计算）。用于技术分析时同时查看 K 线与均线。股票代码格式同 GetEastMoneyKLine。",
+			Description: "获取股票 K 线数据并带多条均线（SMA，按收盘价计算）。用于技术分析时同时查看 K 线与均线。股票代码格式同 GetEastMoneyKLine。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码。A股如 000001.SZ、600000.SH；港股如 00700.HK。",
+						"description": "股票代码。A股如 000001.SZ、600000.SH；港股如 00700.HK。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 					"kLineType": map[string]any{
 						"type":        "string",
 						"description": "K 线类型：day/日/101=日K，week/周/102=周K，month/月/103=月K；分钟线：1/5/15/30/60/120。",
@@ -284,14 +296,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockResearchReport",
-			Description: "获取市场分析师的股票研究报告",
+			Description: "获取市场分析师的股票研究报告。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码",
+						"description": "股票代码。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"stockCode"},
 			},
@@ -382,14 +395,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockConceptInfo",
-			Description: "获取股票所属概念详细信息",
+			Description: "获取股票所属概念详细信息。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"code": map[string]any{
 						"type":        "string",
-						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"code"},
 			},
@@ -400,14 +414,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockFinancialInfo",
-			Description: "获取股票财务报表信息",
+			Description: "获取股票财务报表信息。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"stockCode"},
 			},
@@ -417,14 +432,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockHolderNum",
-			Description: "获取股票股东人数信息(股东人数与股价比( 注:股票价格通常与股东人数成反比，股东人数越少代表筹码越集中，股价越有可能上涨))",
+			Description: "获取股票股东人数信息(股东人数与股价比( 注:股票价格通常与股东人数成反比，股东人数越少代表筹码越集中，股价越有可能上涨))。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"stockCode"},
 			},
@@ -435,14 +451,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockHistoryMoneyData",
-			Description: "获取股票历史资金流向数据",
+			Description: "获取股票历史资金流向数据。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾，",
+						"description": "股票代码,如：601138.SH。注意 上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，港股股票以.HK结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"stockCode"},
 			},
@@ -453,14 +470,15 @@ func Tools(tools []Tool) []Tool {
 		Type: "function",
 		Function: ToolFunction{
 			Name:        "GetStockRZRQInfo",
-			Description: "获取股票融资融券信息，包括融资余额、融券余额、两融余额、融资净买入等。适用于 A 股两融标的。",
+			Description: "获取股票融资融券信息，包括融资余额、融券余额、两融余额、融资净买入等。适用于 A 股两融标的。支持一次查询多只，将并行请求后合并结果。",
 			Parameters: &FunctionParameters{
 				Type: "object",
 				Properties: map[string]any{
 					"stockCode": map[string]any{
 						"type":        "string",
-						"description": "股票代码。如：601138.SH、000001.SZ 或 sh601138、sz000001",
+						"description": "股票代码。如：601138.SH、000001.SZ 或 sh601138、sz000001。多只时可用英文逗号分隔。",
 					},
+					"stockCodes": toolSchemaStockCodes,
 				},
 				Required: []string{"stockCode"},
 			},
