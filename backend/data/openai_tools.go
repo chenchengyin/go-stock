@@ -326,8 +326,8 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 	}
 	//StripAssistantReasoningExceptLast(messages)
 
-	bytes, _ := json.Marshal(messages)
-	logger.SugaredLogger.Debugf("Stream request messages:\n %s", string(bytes))
+	//bytes, _ := json.Marshal(messages)
+	//logger.SugaredLogger.Debugf("Stream request messages:\n %s", string(bytes))
 
 	bodyMap := map[string]interface{}{
 		"model":       o.Model,
