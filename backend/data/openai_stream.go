@@ -136,9 +136,9 @@ func (o *OpenAi) NewSummaryStockNewsStreamWithTools(userQuestion string, sysProm
 
 		wg.Wait()
 
-		for _, m := range history {
-			msg = append(msg, m)
-		}
+		//for _, m := range TrimAiAssistantHistoryForAPI(history) {
+		//	msg = append(msg, m)
+		//}
 		if userQuestion == "" {
 			userQuestion = "请根据当前时间，总结和分析股票市场新闻中的投资机会"
 		}
@@ -261,7 +261,8 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 
 		wg.Wait()
 
-		news := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(200, 1000))
+		// 资讯条数过多会单独占满 context；限制在合理范围（原先 200–1000 极易撑爆上下文）
+		news := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(20, 40))
 		messageText := strings.Builder{}
 		for _, telegraph := range *news {
 			messageText.WriteString("## " + telegraph.Time + ":" + "\n")
@@ -277,9 +278,9 @@ func (o *OpenAi) NewSummaryStockNewsStream(userQuestion string, sysPromptId *int
 			"content": messageText.String(),
 		})
 
-		for _, m := range history {
-			msg = append(msg, m)
-		}
+		//for _, m := range TrimAiAssistantHistoryForAPI(history) {
+		//	msg = append(msg, m)
+		//}
 		if userQuestion == "" {
 			userQuestion = "请根据当前时间，总结和分析股票市场新闻中的投资机会"
 		}
@@ -543,7 +544,7 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 
 		go func() {
 			defer wg.Done()
-			messages := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(200, 1000))
+			messages := NewMarketNewsApi().GetNews24HoursList("", random.RandInt(80, 200))
 			if messages == nil || len(*messages) == 0 {
 				//logger.SugaredLogger.Error("获取市场资讯失败")
 				return

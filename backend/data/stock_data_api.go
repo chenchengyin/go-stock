@@ -204,7 +204,7 @@ type TradingRecord struct {
 	MarketValue     float64
 	Mindset         string `gorm:"type:text"`
 	// RecordedClosePrice 保存时写入的当日收盘价或现价快照，列表盈亏计算优先使用，减少重复请求行情
-	RecordedClosePrice float64 `json:"recordedClosePrice"`
+	RecordedClosePrice float64 `json:"recordedClosePrice" gorm:"column:recorded_close_price"`
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -2746,10 +2746,18 @@ func (receiver StockDataApi) GetTradingRecordList(query TradingRecordListQuery) 
 	closeCache := make(map[string]float64)
 
 	resolveClose := func(apiCode string, tradingTime time.Time, fallback float64, recorded float64) float64 {
+		// 当天或未来日期的记录始终获取实时行情，不使用缓存快照
+		tradingDateStr := tradingTime.Format("2006-01-02")
+		key := apiCode + "|" + tradingDateStr
+		if tradingDateStr == time.Now().Format("2006-01-02") || tradingTime.After(time.Now()) {
+			closePrice := receiver.resolveTradingRecordClosePrice(apiCode, tradingTime, fallback)
+			closeCache[key] = closePrice
+			return closePrice
+		}
+		// 历史记录优先使用已保存的快照
 		if recorded > 0 {
 			return recorded
 		}
-		key := apiCode + "|" + tradingTime.Format("2006-01-02")
 		if v, ok := closeCache[key]; ok {
 			return v
 		}
@@ -2759,13 +2767,27 @@ func (receiver StockDataApi) GetTradingRecordList(query TradingRecordListQuery) 
 	}
 
 	stockHoldings := make(map[string][]tradingRecordFIFOLot)
+	// 需要回写收盘价快照的历史记录：RecordedClosePrice == 0 且成功获取到 closePrice
+	type closeBackfill struct {
+		id         uint
+		closePrice float64
+	}
+	var backfills []closeBackfill
+	todayStr := time.Now().Format("2006-01-02")
+	now := time.Now()
+
 	for _, r := range allGlobal {
 		_, need := needProfitByID[r.ID]
 		apiCode := normalizeTradingRecordAPI(r.StockCode)
+		tradingDateStr := r.TradingTime.In(time.Local).Format("2006-01-02")
 
 		if r.Direction == "买入" {
 			if need {
 				closePrice := resolveClose(apiCode, r.TradingTime, r.Price, r.RecordedClosePrice)
+				// 历史交易日：把解析到的收盘价落库，避免每次列表重复拉 K 线
+				if r.RecordedClosePrice == 0 && closePrice > 0 && tradingDateStr != todayStr && !r.TradingTime.After(now) {
+					backfills = append(backfills, closeBackfill{id: r.ID, closePrice: closePrice})
+				}
 				if r.Price > 0 {
 					profitByID[r.ID] = rowProfit{
 						closePrice:    closePrice,
@@ -2781,6 +2803,9 @@ func (receiver StockDataApi) GetTradingRecordList(query TradingRecordListQuery) 
 			if need {
 				avgCost, ok := fifoAvgUnitCost(stockHoldings[r.StockCode], r.Volume)
 				closePrice := resolveClose(apiCode, r.TradingTime, r.Price, r.RecordedClosePrice)
+				if r.RecordedClosePrice == 0 && closePrice > 0 && tradingDateStr != todayStr && !r.TradingTime.After(now) {
+					backfills = append(backfills, closeBackfill{id: r.ID, closePrice: closePrice})
+				}
 				if ok && avgCost > 0 {
 					profitByID[r.ID] = rowProfit{
 						closePrice:    closePrice,
@@ -2805,6 +2830,19 @@ func (receiver StockDataApi) GetTradingRecordList(query TradingRecordListQuery) 
 					remaining = 0
 				}
 			}
+		}
+	}
+
+	seenBackfill := make(map[uint]struct{}, len(backfills))
+	for _, bf := range backfills {
+		if _, dup := seenBackfill[bf.id]; dup {
+			continue
+		}
+		seenBackfill[bf.id] = struct{}{}
+		res := db.Dao.Model(&TradingRecord{}).Where("id = ? AND (recorded_close_price IS NULL OR recorded_close_price = 0)", bf.id).
+			Update("recorded_close_price", bf.closePrice)
+		if res.Error != nil {
+			logger.SugaredLogger.Warnf("回写交易记录收盘价快照失败 id=%d: %s", bf.id, res.Error.Error())
 		}
 	}
 
@@ -2961,6 +2999,12 @@ func (receiver StockDataApi) UpdateTradingRecord(record TradingRecord) error {
 	err := db.Dao.Model(&TradingRecord{}).Where("id = ?", record.ID).Updates(&record).Error
 	if err != nil {
 		logger.SugaredLogger.Errorf("更新交易日志失败: %s", err.Error())
+		return err
+	}
+	// Updates(struct) 会忽略零值字段，收盘价快照单独写入保证落库
+	if err := db.Dao.Model(&TradingRecord{}).Where("id = ?", record.ID).
+		Update("recorded_close_price", record.RecordedClosePrice).Error; err != nil {
+		logger.SugaredLogger.Errorf("更新交易日志收盘价快照失败: %s", err.Error())
 		return err
 	}
 	return nil

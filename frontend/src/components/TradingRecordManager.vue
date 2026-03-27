@@ -276,6 +276,15 @@ function formatRowTradingTime(row) {
   return `${utc8Time.getFullYear()}-${pad(utc8Time.getMonth() + 1)}-${pad(utc8Time.getDate())} ${pad(utc8Time.getHours())}:${pad(utc8Time.getMinutes())}:${pad(utc8Time.getSeconds())}`
 }
 
+/** 统一列表行字段（Wails/JSON 可能为 PascalCase），供表格渲染与刷新使用 */
+function normalizeTradingRecordRow(row) {
+  if (!row || typeof row !== 'object') return row
+  const closePrice = Number(row.closePrice ?? row.ClosePrice ?? 0)
+  const profitAmount = Number(row.profitAmount ?? row.ProfitAmount ?? 0)
+  const profitPercent = Number(row.profitPercent ?? row.ProfitPercent ?? 0)
+  return { ...row, closePrice, profitAmount, profitPercent }
+}
+
 function query({ page, pageSize = 12, keyword = '', direction = '', startDate = '', endDate = '' }) {
   return new Promise((resolve, reject) => {
     GetTradingRecordList({
@@ -287,7 +296,8 @@ function query({ page, pageSize = 12, keyword = '', direction = '', startDate = 
       endDate
     })
       .then((res) => {
-        const list = res.list ?? []
+        const raw = res.list ?? []
+        const list = raw.map(normalizeTradingRecordRow)
         const total = res.total ?? 0
         const pageCount = res.totalPages ?? 1
         resolve({
@@ -299,6 +309,25 @@ function query({ page, pageSize = 12, keyword = '', direction = '', startDate = 
       })
       .catch(reject)
   })
+}
+
+/** 定时静默刷新当前列表与统计，不占用 loadingRef，避免与上次请求重叠时整页停更 */
+function silentRefreshCurrentPage() {
+  query({
+    page: paginationReactive.page,
+    pageSize: paginationReactive.pageSize,
+    keyword: paginationReactive.keyword,
+    direction: paginationReactive.direction,
+    startDate: formatDate(paginationReactive.range[0]),
+    endDate: formatDate(paginationReactive.range[1])
+  })
+    .then((data) => {
+      dataRef.value = data.data
+      paginationReactive.pageCount = data.pageCount
+      paginationReactive.itemCount = data.total
+    })
+    .catch(() => {})
+  fetchStatistics()
 }
 
 function handlePageChange(currentPage) {
@@ -643,10 +672,10 @@ onMounted(() => {
       loadingRef.value = false
     })
   fetchStatistics()
-  // 启动定时刷新，每3秒刷新一次
+  // 定时刷新收盘/最新价与盈亏：不抢 loading，避免请求进行中时跳过后续刷新
   refreshTimer.value = setInterval(() => {
-    handleSearch()
-  }, 1000*10)
+    silentRefreshCurrentPage()
+  }, 1000 * 10)
 })
 
 onUnmounted(() => {

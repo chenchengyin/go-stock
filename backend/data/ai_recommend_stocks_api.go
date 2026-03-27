@@ -102,7 +102,7 @@ func (s *AiRecommendStocksService) GetAiRecommendStocksList(query *models.AiReco
 	if page <= 0 {
 		page = 1
 	}
-	if pageSize <= 0 || pageSize > 100 {
+	if pageSize <= 0 {
 		pageSize = 10
 	}
 

@@ -86,12 +86,11 @@ func appendToolMessages(
 	*messages = append(*messages, map[string]any{
 		"role":              "assistant",
 		"content":           currentAIContent,
-		"reasoning_content": reasoningContent,
-		"tool_calls": []map[string]any{
+		"reasoning_content": reasoningContent, "tool_calls": []map[string]any{
 			{
-				"id":           callID,
-				"tool_call_id": callID,
-				"type":         "function",
+				"id": callID,
+				//"tool_call_id": callID,
+				"type": "function",
 				"function": map[string]string{
 					"name":       funcName,
 					"arguments":  funcArgs,
@@ -176,6 +175,7 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 	if o.HttpProxyEnabled && o.HttpProxy != "" {
 		client.SetProxy(o.HttpProxy)
 	}
+	//StripAssistantReasoningExceptLast(messages)
 	bodyMap := map[string]interface{}{
 		"model":       o.Model,
 		"max_tokens":  o.MaxTokens,
@@ -324,6 +324,11 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 	if o.HttpProxyEnabled && o.HttpProxy != "" {
 		client.SetProxy(o.HttpProxy)
 	}
+	//StripAssistantReasoningExceptLast(messages)
+
+	bytes, _ := json.Marshal(messages)
+	logger.SugaredLogger.Debugf("Stream request messages:\n %s", string(bytes))
+
 	bodyMap := map[string]interface{}{
 		"model":       o.Model,
 		"max_tokens":  o.MaxTokens,

@@ -83,15 +83,12 @@ func TestCheckUpdate(t *testing.T) {
 
 func TestGetAiRecommendStocksList(t *testing.T) {
 	db.Init("./data/stock.db")
-	pageData, err := data.NewAiRecommendStocksService().GetAiRecommendStocksList(&models.AiRecommendStocksQuery{
-		StartDate: "2025-12-31 00:00:00",
-		EndDate:   "2026-12-31 23:59:59",
-		Page:      int(1),
-		PageSize:  int(10),
-		StockCode: "",
-		StockName: "",
-		BkName:    "",
-	})
+
+	str := "{\"startDate\": \"2026-03-20 00:00:00\", \"endDate\": \"2026-03-27 23:59:59\", \"page\": 1, \"pageSize\": 5000}"
+	query := &models.AiRecommendStocksQuery{}
+	json.Unmarshal([]byte(str), query)
+
+	pageData, err := data.NewAiRecommendStocksService().GetAiRecommendStocksList(query)
 	logger.SugaredLogger.Infof("pageData:%+v", pageData.List)
 	if err != nil {
 		pageData = &models.AiRecommendStocksPageData{}

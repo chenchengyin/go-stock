@@ -705,7 +705,12 @@ function sendMessage() {
   // 记忆模式：带上最近 N 条对话（排除当前这条空的 assistant 占位）
   let historyJSON = ''
   if (memoryMode.value) {
-    const historyMessages = messages.value.slice(0, -1)
+    // 去掉末尾空的 assistant 占位
+    let historyMessages = messages.value.slice(0, -1)
+    // 当前用户问题已由 SummaryStockNews 的 question 参数单独传递，勿再写入 history，避免重复占 token
+    if (historyMessages.length > 0 && historyMessages[historyMessages.length - 1]?.role === 'user') {
+      historyMessages = historyMessages.slice(0, -1)
+    }
     const maxHistory = Math.max(1, Number(memoryCount.value) || 5)
     const toSend =
       historyMessages.length <= maxHistory ? historyMessages : historyMessages.slice(-maxHistory)
