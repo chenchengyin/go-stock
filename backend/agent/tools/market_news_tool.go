@@ -60,21 +60,21 @@ func (q QueryMarketNews) InvokableRun(ctx context.Context, argumentsInJSON strin
 	}
 	md.WriteString("\n### 市场资讯：\n" + messageText.String())
 
-	resp := data.NewMarketNewsApi().TradingViewNews()
-	var newsText strings.Builder
-	for _, a := range *resp {
-		logger.SugaredLogger.Debugf("TradingViewNews: %s", a.Title)
-		newsText.WriteString(a.Title + "\n")
-	}
-	md.WriteString("\n### 全球新闻资讯：\n" + newsText.String())
-
-	reutersNew := data.NewMarketNewsApi().ReutersNew()
-	reutersNewMessageText := strings.Builder{}
-	for _, article := range reutersNew.Result.Articles {
-		reutersNewMessageText.WriteString("## " + article.Title + "\n")
-		reutersNewMessageText.WriteString("### " + article.Description + "\n")
-	}
-	md.WriteString("\n### 外媒全球新闻资讯：\n" + reutersNewMessageText.String())
+	//resp := data.NewMarketNewsApi().TradingViewNews()
+	//var newsText strings.Builder
+	//for _, a := range *resp {
+	//	logger.SugaredLogger.Debugf("TradingViewNews: %s", a.Title)
+	//	newsText.WriteString(a.Title + "\n")
+	//}
+	//md.WriteString("\n### 全球新闻资讯：\n" + newsText.String())
+	//
+	//reutersNew := data.NewMarketNewsApi().ReutersNew()
+	//reutersNewMessageText := strings.Builder{}
+	//for _, article := range reutersNew.Result.Articles {
+	//	reutersNewMessageText.WriteString("## " + article.Title + "\n")
+	//	reutersNewMessageText.WriteString("### " + article.Description + "\n")
+	//}
+	//md.WriteString("\n### 外媒全球新闻资讯：\n" + reutersNewMessageText.String())
 
 	return md.String(), nil
 }
