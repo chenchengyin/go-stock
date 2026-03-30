@@ -30,6 +30,7 @@ import {
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList,GetVersionInfo} from "../wailsjs/go/main/App";
 import FloatingAiAssistant from "./components/FloatingAiAssistant.vue";
+import FloatingAgentAssistant from "./components/FloatingAgentAssistant.vue";
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
 import {Prompt, ReportAnalytics, ReportMoney, ReportSearch} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
@@ -901,6 +902,7 @@ onMounted(() => {
                 :rotate="-15"
             >
               <FloatingAiAssistant />
+              <FloatingAgentAssistant />
               <n-flex>
                 <n-grid x-gap="12" :cols="1">
                   <n-gi>

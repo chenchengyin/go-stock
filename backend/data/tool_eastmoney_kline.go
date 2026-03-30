@@ -48,7 +48,7 @@ func normalizeKLineType(s string) string {
 	}
 }
 
-func eastMoneyKLineSection(api *EastMoneyKLineApi, stockCode, kLineType, adjustFlag string, limit int) string {
+func EastMoneyKLineSection(api *EastMoneyKLineApi, stockCode, kLineType, adjustFlag string, limit int) string {
 	if !api.ValidateStockCode(stockCode) {
 		return stockCode + "：股票代码无效，请使用正确格式（如 000001.SZ、600000.SH、00700.HK）。"
 	}
@@ -119,7 +119,7 @@ func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) 
 
 	res := parallelStockToolSections(codes, func(stockCode string) string {
 		api := NewEastMoneyKLineApi(GetSettingConfig())
-		return eastMoneyKLineSection(api, stockCode, kLineType, adjustFlag, limit)
+		return EastMoneyKLineSection(api, stockCode, kLineType, adjustFlag, limit)
 	})
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
 		ctx.CurrentCallID, ctx.FuncName, funcArguments, res)
@@ -169,7 +169,7 @@ func parseMaPeriods(s string) []int {
 	return out
 }
 
-func eastMoneyKLineWithMASection(api *EastMoneyKLineApi, stockCode, kLineType string, limit int, maPeriodsStr string) string {
+func EastMoneyKLineWithMASection(api *EastMoneyKLineApi, stockCode, kLineType string, limit int, maPeriodsStr string) string {
 	if !api.ValidateStockCode(stockCode) {
 		return stockCode + "：股票代码无效，请使用正确格式（如 000001.SZ、600000.SH、00700.HK）。"
 	}
@@ -250,7 +250,7 @@ func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolCon
 
 	res := parallelStockToolSections(codes, func(stockCode string) string {
 		api := NewEastMoneyKLineApi(GetSettingConfig())
-		return eastMoneyKLineWithMASection(api, stockCode, kLineType, limit, maPeriodsStr)
+		return EastMoneyKLineWithMASection(api, stockCode, kLineType, limit, maPeriodsStr)
 	})
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(),
 		ctx.CurrentCallID, ctx.FuncName, funcArguments, res)

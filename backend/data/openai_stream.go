@@ -593,9 +593,9 @@ func (o *OpenAi) NewChatStream(stock, stockCode, userQuestion string, sysPromptI
 		})
 
 		if tools != nil && len(tools) > 0 {
-			AskAiWithTools(o, err, msg, ch, question, tools, thinking)
+			AskAiWithTools(o, errors.New(""), msg, ch, question, tools, thinking)
 		} else {
-			AskAi(o, err, msg, ch, question, thinking)
+			AskAi(o, errors.New(""), msg, ch, question, thinking)
 		}
 	}()
 	return ch

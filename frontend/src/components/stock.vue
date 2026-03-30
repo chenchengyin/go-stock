@@ -254,6 +254,9 @@ function handleTabDrop(event) {
 
   // 移除所有高亮样式
   const tabs = document.querySelectorAll('.n-tabs-tab');
+  if(!tabs || tabs.length === 0){
+    return
+  }
   tabs.forEach(tab => {
     tab.classList.remove('tab-drag-over');
   });
@@ -297,6 +300,9 @@ function handleTabDrop(event) {
 function handleTabDragEnd(event) {
   // 移除所有高亮样式
   const tabs = document.querySelectorAll('.n-tabs-tab')
+  if(!tabs || tabs.length === 0){
+    return
+  }
   tabs.forEach(tab => {
     tab.classList.remove('tab-drag-over', 'tab-dragging')
   })
@@ -559,6 +565,9 @@ onMounted(() => {
 // 清理拖拽事件监听器
 function cleanupDraggableTabs() {
   const tabs = document.querySelectorAll('.n-tabs-tab');
+  if(!tabs || tabs.length === 0){
+    return
+  }
   tabs.forEach((tab) => {
     // 移除所有可能的拖拽事件监听器
     tab.removeEventListener('dragstart', handleTabDragStart);
@@ -580,6 +589,9 @@ function initDraggableTabs() {
   // 添加拖拽事件监听器到选项卡元素
   setTimeout(() => {
     const tabs = document.querySelectorAll('.n-tabs-tab');
+    if(!tabs || tabs.length === 0){
+      return
+    }
     tabs.forEach((tab, index) => {
       const dataIndex = tab.getAttribute('data-name');
       const name = parseInt(dataIndex);

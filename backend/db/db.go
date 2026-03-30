@@ -53,4 +53,5 @@ func Init(sqlitePath string) {
 	dbCon.SetMaxOpenConns(5)
 	dbCon.SetConnMaxLifetime(time.Hour)
 	Dao = openDb
+	AutoMigrate()
 }

@@ -4,30 +4,40 @@ import (
 	"encoding/json"
 	"go-stock/backend/db"
 	"go-stock/backend/models"
+	"time"
 )
 
 const maxSavedMessages = 65535 * 10000
 
-// GetAiAssistantSession 获取最近一次会话的消息列表
-func GetAiAssistantSession() ([]models.AiAssistantMessage, error) {
+// GetAiAssistantSession 获取指定 sessionId 的会话消息列表，若 sessionId 为空则获取最新的
+func GetAiAssistantSession(sessionId string) (*models.AiAssistantSessionResp, error) {
 	var row models.AiAssistantSession
-	err := db.Dao.Model(&models.AiAssistantSession{}).Order("updated_at DESC").First(&row).Error
+	var err error
+	if sessionId != "" {
+		err = db.Dao.Model(&models.AiAssistantSession{}).Where("session_id = ?", sessionId).First(&row).Error
+	} else {
+		err = db.Dao.Model(&models.AiAssistantSession{}).Order("updated_at DESC").First(&row).Error
+	}
+	resp := &models.AiAssistantSessionResp{
+		Messages:  []models.AiAssistantMessage{},
+		SessionId: row.SessionId,
+	}
 	if err != nil {
-		// 无记录时返回空切片
-		return []models.AiAssistantMessage{}, nil
+		return resp, nil
 	}
 	if row.Messages == "" {
-		return []models.AiAssistantMessage{}, nil
+		return resp, nil
 	}
 	var list []models.AiAssistantMessage
 	if err := json.Unmarshal([]byte(row.Messages), &list); err != nil {
-		return []models.AiAssistantMessage{}, nil
+		return resp, nil
 	}
-	return list, nil
+	resp.Messages = list
+	return resp, nil
 }
 
-// SaveAiAssistantSession 保存会话消息到数据库（每次保存一条新会话记录，单条最多 maxSavedMessages 条消息）
-func SaveAiAssistantSession(messages []models.AiAssistantMessage) error {
+// SaveAiAssistantSession 保存会话消息到数据库，若 sessionId 已存在则更新，否则创建新记录
+func SaveAiAssistantSession(sessionId string, messages []models.AiAssistantMessage) error {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -41,6 +51,13 @@ func SaveAiAssistantSession(messages []models.AiAssistantMessage) error {
 	}
 	payload := string(raw)
 
-	// 始终创建新会话记录，保留历史会话
-	return db.Dao.Create(&models.AiAssistantSession{Messages: payload}).Error
+	var existing models.AiAssistantSession
+	err = db.Dao.Model(&models.AiAssistantSession{}).Where("session_id = ?", sessionId).First(&existing).Error
+	if err == nil {
+		return db.Dao.Model(&models.AiAssistantSession{}).Where("session_id = ?", sessionId).Updates(map[string]interface{}{
+			"messages":   payload,
+			"updated_at": time.Now(),
+		}).Error
+	}
+	return db.Dao.Create(&models.AiAssistantSession{SessionId: sessionId, Messages: payload}).Error
 }

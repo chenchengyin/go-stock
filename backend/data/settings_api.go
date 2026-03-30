@@ -60,6 +60,8 @@ type AIConfig struct {
 	TimeOut          int     `json:"timeOut"`
 	HttpProxy        string  `json:"httpProxy"`
 	HttpProxyEnabled bool    `json:"httpProxyEnabled"`
+	SessionId        string  `json:"sessionId" gorm:"index;size:64"`
+	Thinking         bool    `json:"thinking"`
 }
 
 func (AIConfig) TableName() string {

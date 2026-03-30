@@ -5,6 +5,8 @@ import {data} from '../models';
 import {context} from '../models';
 import {lo} from '../models';
 
+export function AbortChatWithAgent():Promise<void>;
+
 export function AbortSummaryStockNews():Promise<void>;
 
 export function AddAllStockInfo(arg1:models.AllStockInfo):Promise<string>;
@@ -33,7 +35,7 @@ export function CalculateNextRunTime(arg1:string):Promise<string>;
 
 export function CalculateNextRunTimes(arg1:string,arg2:number):Promise<Array<string>>;
 
-export function ChatWithAgent(arg1:string,arg2:number,arg3:any):Promise<void>;
+export function ChatWithAgent(arg1:string,arg2:number,arg3:any,arg4:boolean,arg5:number,arg6:boolean):Promise<void>;
 
 export function CheckFrequentTrading(arg1:string):Promise<Record<string, any>>;
 
@@ -79,7 +81,7 @@ export function GetAIResponseResult(arg1:string):Promise<models.AIResponseResult
 
 export function GetAIResponseResultList(arg1:models.AIResponseResultQuery):Promise<models.AIResponseResultPageData>;
 
-export function GetAiAssistantSession():Promise<Array<models.AiAssistantMessage>>;
+export function GetAiAssistantSession(arg1:string):Promise<models.AiAssistantSessionResp>;
 
 export function GetAiConfigs():Promise<Array<data.AIConfig>>;
 
@@ -195,7 +197,7 @@ export function RemoveStockGroup(arg1:string,arg2:string,arg3:number):Promise<st
 
 export function SaveAIResponseResult(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:number):Promise<void>;
 
-export function SaveAiAssistantSession(arg1:Array<models.AiAssistantMessage>):Promise<void>;
+export function SaveAiAssistantSession(arg1:string,arg2:Array<models.AiAssistantMessage>):Promise<void>;
 
 export function SaveAsMarkdown(arg1:string,arg2:string):Promise<string>;
 

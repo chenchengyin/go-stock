@@ -39,7 +39,8 @@ type chatRequest struct {
 }
 
 type sessionSaveRequest struct {
-	Messages []models.AiAssistantMessage `json:"messages"`
+	SessionId string                      `json:"sessionId"`
+	Messages  []models.AiAssistantMessage `json:"messages"`
 }
 
 type shareRequest struct {
@@ -161,7 +162,8 @@ func (a *app) session(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		res, err := data.GetAiAssistantSession()
+		sessionId := r.URL.Query().Get("sessionId")
+		res, err := data.GetAiAssistantSession(sessionId)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
@@ -173,7 +175,7 @@ func (a *app) session(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 			return
 		}
-		if err := data.SaveAiAssistantSession(req.Messages); err != nil {
+		if err := data.SaveAiAssistantSession(req.SessionId, req.Messages); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}

@@ -41,11 +41,14 @@ type App struct {
 	cache              *freecache.Cache
 	cron               *cron.Cron
 	cronEntrys         map[string]cron.EntryID
+	cronEntrysMu       sync.Mutex
 	AiTools            []data.Tool
 	SponsorInfo        map[string]any
 	VipLevel           int64
 	summaryMu          sync.Mutex
 	summaryCancel      context.CancelFunc
+	agentMu            sync.Mutex
+	agentCancel        context.CancelFunc
 	stockAlertMu       sync.Mutex
 	stockAlertLastSent map[string]time.Time
 	priceAtAlertReset  map[string]float64
@@ -67,6 +70,25 @@ func NewApp() *App {
 		stockAlertLastSent: make(map[string]time.Time),
 		priceAtAlertReset:  make(map[string]float64),
 	}
+}
+
+func (a *App) setCronEntry(key string, id cron.EntryID) {
+	a.cronEntrysMu.Lock()
+	a.cronEntrys[key] = id
+	a.cronEntrysMu.Unlock()
+}
+
+func (a *App) getCronEntry(key string) (cron.EntryID, bool) {
+	a.cronEntrysMu.Lock()
+	id, exists := a.cronEntrys[key]
+	a.cronEntrysMu.Unlock()
+	return id, exists
+}
+
+func (a *App) removeCronEntry(key string) {
+	a.cronEntrysMu.Lock()
+	delete(a.cronEntrys, key)
+	a.cronEntrysMu.Unlock()
 }
 
 func (a *App) GetSponsorInfo() map[string]any {
@@ -436,11 +458,6 @@ func (a *App) domReady(ctx context.Context) {
 		if interval <= 0 {
 			interval = 1
 		}
-		a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+60), func() {
-			data.NewsAnalyze("", true)
-			cacheCookies("https://push2his.eastmoney.com/api/qt/stock/kline/get")
-		})
-
 		//ticker := time.NewTicker(time.Second * time.Duration(interval))
 		//defer ticker.Stop()
 		//for range ticker.C {
@@ -452,7 +469,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
 		} else {
-			a.cronEntrys["MonitorStockPrices"] = id
+			a.setCronEntry("MonitorStockPrices", id)
 		}
 		entryID, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+10), func() {
 			//news := data.NewMarketNewsApi().GetNewTelegraph(30)
@@ -465,7 +482,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
 		} else {
-			a.cronEntrys["GetNewTelegraph"] = entryID
+			a.setCronEntry("GetNewTelegraph", entryID)
 		}
 
 		entryIDSina, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+10), func() {
@@ -478,7 +495,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
 		} else {
-			a.cronEntrys["newSinaNews"] = entryIDSina
+			a.setCronEntry("newSinaNews", entryIDSina)
 		}
 
 		entryIDTradingViewNews, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+10), func() {
@@ -491,7 +508,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
 		} else {
-			a.cronEntrys["tradingViewNews"] = entryIDTradingViewNews
+			a.setCronEntry("tradingViewNews", entryIDTradingViewNews)
 		}
 	}()
 
@@ -509,7 +526,7 @@ func (a *App) domReady(ctx context.Context) {
 			if err != nil {
 				logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
 			} else {
-				a.cronEntrys["MonitorFundPrices"] = id
+				a.setCronEntry("MonitorFundPrices", id)
 			}
 		}
 
@@ -520,7 +537,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc MonitorAiRecommendStockPrices error:%s", err.Error())
 		} else {
-			a.cronEntrys["MonitorAiRecommendStockPrices"] = idAiStock
+			a.setCronEntry("MonitorAiRecommendStockPrices", idAiStock)
 		}
 
 		// 自选股成本价监控定时器
@@ -530,7 +547,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc MonitorFollowedStockCostPrices error:%s", err.Error())
 		} else {
-			a.cronEntrys["MonitorFollowedStockCostPrices"] = idCostPrice
+			a.setCronEntry("MonitorFollowedStockCostPrices", idCostPrice)
 		}
 
 	}()
@@ -557,7 +574,7 @@ func (a *App) domReady(ctx context.Context) {
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
 		} else {
-			a.cronEntrys["refreshTelegraphList"] = id
+			a.setCronEntry("refreshTelegraphList", id)
 		}
 
 		go runtime.EventsEmit(a.ctx, "telegraph", refreshTelegraphList())
@@ -617,7 +634,7 @@ func (a *App) domReady(ctx context.Context) {
 			logger.SugaredLogger.Errorf("添加自动分析任务失败:%s cron=%s entryID:%v", follow.Name, *follow.Cron, entryID)
 			continue
 		}
-		a.cronEntrys[follow.StockCode] = entryID
+		a.setCronEntry(follow.StockCode, entryID)
 	}
 	//logger.SugaredLogger.Infof("domReady-cronEntrys:%+v", a.cronEntrys)
 
@@ -1556,14 +1573,13 @@ func (a *App) UpdateConfig(settingConfig *data.SettingConfig) string {
 	//s1, _ := json.Marshal(settingConfig)
 	//logger.SugaredLogger.Infof("UpdateConfig:%s", s1)
 	if settingConfig.RefreshInterval > 0 {
-		if entryID, exists := a.cronEntrys["MonitorStockPrices"]; exists {
+		if entryID, exists := a.getCronEntry("MonitorStockPrices"); exists {
 			a.cron.Remove(entryID)
 		}
 		id, _ := a.cron.AddFunc(fmt.Sprintf("@every %ds", settingConfig.RefreshInterval), func() {
-			//logger.SugaredLogger.Infof("MonitorStockPrices:%s", time.Now())
 			MonitorStockPrices(a)
 		})
-		a.cronEntrys["MonitorStockPrices"] = id
+		a.setCronEntry("MonitorStockPrices", id)
 	}
 
 	return data.UpdateConfig(settingConfig)
@@ -1693,12 +1709,12 @@ func (a *App) SetStockAICron(cronText, stockCode string) {
 		stockCode = strings.Replace(stockCode, "gb_", "us", 1)
 		stockCode = strings.Replace(stockCode, "GB_", "us", 1)
 	}
-	if entryID, exists := a.cronEntrys[stockCode]; exists {
+	if entryID, exists := a.getCronEntry(stockCode); exists {
 		a.cron.Remove(entryID)
 	}
 	follow := data.NewStockDataApi().GetFollowedStockByStockCode(stockCode)
 	id, _ := a.cron.AddFunc(cronText, a.AddCronTask(follow))
-	a.cronEntrys[stockCode] = id
+	a.setCronEntry(stockCode, id)
 
 }
 func (a *App) AddGroup(group data.Group) string {
@@ -1979,14 +1995,14 @@ func (a *App) GetAiConfigs() []*data.AIConfig {
 	return data.GetSettingConfig().AiConfigs
 }
 
-// GetAiAssistantSession 获取 AI 助手最近一次会话消息列表
-func (a *App) GetAiAssistantSession() ([]models.AiAssistantMessage, error) {
-	return data.GetAiAssistantSession()
+// GetAiAssistantSession 获取 AI 助手会话消息列表，sessionId 为空时获取最新的
+func (a *App) GetAiAssistantSession(sessionId string) (*models.AiAssistantSessionResp, error) {
+	return data.GetAiAssistantSession(sessionId)
 }
 
 // SaveAiAssistantSession 保存 AI 助手会话消息到数据库
-func (a *App) SaveAiAssistantSession(messages []models.AiAssistantMessage) error {
-	return data.SaveAiAssistantSession(messages)
+func (a *App) SaveAiAssistantSession(sessionId string, messages []models.AiAssistantMessage) error {
+	return data.SaveAiAssistantSession(sessionId, messages)
 }
 
 // FetchAiModels
@@ -2056,7 +2072,7 @@ func (a *App) InitCronTasks() {
 			logger.SugaredLogger.Errorf("自动创建定时任务失败：%v %s", err, taskCopy.Name)
 			continue
 		}
-		a.cronEntrys[convertor.ToString(taskCopy.ID)+"_"+taskCopy.Name] = entryID
+		a.setCronEntry(convertor.ToString(taskCopy.ID)+"_"+taskCopy.Name, entryID)
 		//logger.SugaredLogger.Infof("自动创建定时任务成功：%s (ID:%d) entryID:%v", taskCopy.Name, taskCopy.ID, entryID)
 	}
 }
@@ -2089,22 +2105,18 @@ func (a *App) CreateCronTask(task *models.CronTask) string {
 			return
 		}
 	})
-	a.cronEntrys[convertor.ToString(task.ID)+"_"+task.Name] = entryID
+	a.setCronEntry(convertor.ToString(task.ID)+"_"+task.Name, entryID)
 	if err != nil {
 		return "任务创建成功,但定时失败"
 	}
 	return "创建成功"
 }
 
-// UpdateCronTask
-//
-//	@Description: 更新定时任务
-//	@receiver a
-//	@param task 定时任务信息
-//	@return string 操作结果
 func (a *App) UpdateCronTask(task *models.CronTask) string {
 	err := data.NewCronTaskApi().Update(task)
-	a.cron.Remove(a.cronEntrys[convertor.ToString(task.ID)+"_"+task.Name])
+	if entryID, exists := a.getCronEntry(convertor.ToString(task.ID) + "_" + task.Name); exists {
+		a.cron.Remove(entryID)
+	}
 	entryID, err := a.cron.AddFunc(task.CronExpr, func() {
 		err := data.NewCronTaskApi().ExecuteTask(a.ctx, task)
 		if err != nil {
@@ -2112,7 +2124,7 @@ func (a *App) UpdateCronTask(task *models.CronTask) string {
 			return
 		}
 	})
-	a.cronEntrys[convertor.ToString(task.ID)+"_"+task.Name] = entryID
+	a.setCronEntry(convertor.ToString(task.ID)+"_"+task.Name, entryID)
 	if err != nil {
 		return fmt.Sprintf("更新失败：%v", err)
 	}
@@ -2129,7 +2141,9 @@ func (a *App) DeleteCronTask(id uint) string {
 	err := data.NewCronTaskApi().Delete(id)
 	task, err := data.NewCronTaskApi().GetByID(id)
 	if err == nil {
-		a.cron.Remove(a.cronEntrys[convertor.ToString(id)+"_"+task.Name])
+		if entryID, exists := a.getCronEntry(convertor.ToString(id) + "_" + task.Name); exists {
+			a.cron.Remove(entryID)
+		}
 	}
 	if err != nil {
 		return fmt.Sprintf("删除失败：%v", err)
@@ -2165,14 +2179,13 @@ func (a *App) GetCronTaskList(query *models.CronTaskQuery) *models.CronTaskPageR
 //
 //	@Description: 启用/禁用定时任务
 //	@receiver a
-//	@param id 任务 ID
-//	@param enable 是否启用
-//	@return string 操作结果
 func (a *App) EnableCronTask(id uint, enable bool) string {
 	err := data.NewCronTaskApi().EnableTask(id, enable)
 	task, err := data.NewCronTaskApi().GetByID(id)
 	if err == nil {
-		a.cron.Remove(a.cronEntrys[convertor.ToString(id)+"_"+task.Name])
+		if entryID, exists := a.getCronEntry(convertor.ToString(id) + "_" + task.Name); exists {
+			a.cron.Remove(entryID)
+		}
 		if enable {
 			entryID, err := a.cron.AddFunc(task.CronExpr, func() {
 				err := data.NewCronTaskApi().ExecuteTask(a.ctx, task)
@@ -2181,7 +2194,7 @@ func (a *App) EnableCronTask(id uint, enable bool) string {
 					return
 				}
 			})
-			a.cronEntrys[convertor.ToString(id)+"_"+task.Name] = entryID
+			a.setCronEntry(convertor.ToString(id)+"_"+task.Name, entryID)
 			if err != nil {
 				return "操作成功,但定时失败"
 			}

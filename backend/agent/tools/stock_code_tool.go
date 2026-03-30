@@ -3,9 +3,11 @@ package tools
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"go-stock/backend/data"
+	"go-stock/backend/logger"
 )
 
 // @Author spark
@@ -35,15 +37,25 @@ func (q QueryStockCodeInfo) Info(ctx context.Context) (*schema.ToolInfo, error) 
 }
 
 func (q QueryStockCodeInfo) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
+	logger.SugaredLogger.Infof("QueryStockCodeInfo called with args: %s", argumentsInJSON)
 	parms := map[string]any{}
 	err := json.Unmarshal([]byte(argumentsInJSON), &parms)
 	if err != nil {
+		logger.SugaredLogger.Errorf("QueryStockCodeInfo unmarshal error: %v", err)
 		return "", err
 	}
-	stockList := data.NewStockDataApi().GetStockList(parms["searchWord"].(string))
+	searchWord, ok := parms["searchWord"].(string)
+	if !ok {
+		logger.SugaredLogger.Errorf("QueryStockCodeInfo searchWord not found in args")
+		return "未找到股票信息", nil
+	}
+	logger.SugaredLogger.Infof("QueryStockCodeInfo searching for: %s", searchWord)
+	stockList := data.NewStockDataApi().GetStockList(searchWord)
 	marshal, err := json.Marshal(stockList)
 	if err != nil {
+		logger.SugaredLogger.Errorf("QueryStockCodeInfo marshal error: %v", err)
 		return "", err
 	}
+	logger.SugaredLogger.Infof("QueryStockCodeInfo result length: %d", len(marshal))
 	return string(marshal), nil
 }

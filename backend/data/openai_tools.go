@@ -92,9 +92,9 @@ func appendToolMessages(
 				//"tool_call_id": callID,
 				"type": "function",
 				"function": map[string]string{
-					"name":       funcName,
-					"arguments":  funcArgs,
-					"parameters": funcArgs,
+					"name":      funcName,
+					"arguments": funcArgs,
+					//"parameters": funcArgs,
 				},
 			},
 		},

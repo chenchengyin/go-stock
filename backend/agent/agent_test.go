@@ -78,7 +78,7 @@ func TestAgent(t *testing.T) {
 	db.Init("../../data/stock.db")
 
 	md := strings.Builder{}
-	ch := NewStockAiAgentApi().Chat("分析一下立讯精密", 0, nil)
+	ch := NewStockAiAgentApi().Chat("分析一下立讯精密", 2, nil)
 	for message := range ch {
 		logger.SugaredLogger.Infof("res:%s", message.String())
 		md.WriteString(message.String())

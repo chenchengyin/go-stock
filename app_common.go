@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"go-stock/backend/agent"
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -90,15 +93,68 @@ func (a *App) GetAllStocks(page int, pageSize int, name string, technicalIndicat
 	return data.NewStockDataApi().GetAllStocks(page, pageSize, name, technicalIndicators)
 }
 
-func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int) {
+func (a *App) ChatWithAgent(question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.SugaredLogger.Errorf("ChatWithAgent panic: %v", r)
 		}
 	}()
-	ch := agent.NewStockAiAgentApi().Chat(question, aiConfigId, sysPromptId)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	a.agentMu.Lock()
+	if a.agentCancel != nil {
+		a.agentCancel()
+	}
+	a.agentCancel = cancel
+	a.agentMu.Unlock()
+
+	defer func() {
+		a.agentMu.Lock()
+		a.agentCancel = nil
+		a.agentMu.Unlock()
+	}()
+
+	ch := agent.NewStockAiAgentApi().ChatWithContext(ctx, question, aiConfigId, sysPromptId, memoryMode, memoryCount, thinkingMode)
 	for msg := range ch {
-		runtime.EventsEmit(a.ctx, "agent-message", msg)
+		runtime.EventsEmit(a.ctx, "agent-message", agentMessageToFrontendMap(msg))
+	}
+	runtime.EventsEmit(a.ctx, "agent-message", agentMessageToFrontendMap(&schema.Message{
+		Role:    schema.Assistant,
+		Content: "agent-DONE",
+	}))
+}
+
+// agentMessageToFrontendMap 用标准 JSON 将 schema.Message 转为 map 再 EventsEmit，
+// 保证与 json 标签一致（如 reasoning_content、extra），避免 Wails 直接传结构体时前端字段名不一致。
+func agentMessageToFrontendMap(msg *schema.Message) map[string]any {
+	if msg == nil {
+		return map[string]any{}
+	}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return map[string]any{
+			"role":              string(msg.Role),
+			"content":           msg.Content,
+			"reasoning_content": msg.ReasoningContent,
+		}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return map[string]any{
+			"role":              string(msg.Role),
+			"content":           msg.Content,
+			"reasoning_content": msg.ReasoningContent,
+		}
+	}
+	return m
+}
+
+func (a *App) AbortChatWithAgent() {
+	a.agentMu.Lock()
+	defer a.agentMu.Unlock()
+	if a.agentCancel != nil {
+		a.agentCancel()
+		a.agentCancel = nil
 	}
 }
 
