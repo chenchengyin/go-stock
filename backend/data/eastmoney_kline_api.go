@@ -47,14 +47,14 @@ func (receiver *EastMoneyKLineApi) fetchKLineJSONBytesByHTTP(reqURL string) ([]b
 	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
 	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
 	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
-	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*5, reqURL)
-	if err != nil {
-		logger.SugaredLogger.Errorf("FetchEastMoneyCookiesViaChromedp error: %v", err)
-	}
-	if err == nil {
-		//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
-		req.SetHeader("Cookie", cookieHeader)
-	}
+	//cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*5, reqURL)
+	//if err != nil {
+	//	logger.SugaredLogger.Errorf("FetchEastMoneyCookiesViaChromedp error: %v", err)
+	//}
+	//if err == nil {
+	//	//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+	//	req.SetHeader("Cookie", cookieHeader)
+	//}
 
 	resp, err := req.Get(reqURL)
 	if err != nil {

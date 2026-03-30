@@ -1958,11 +1958,11 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 	req := receiver.client.SetHeader("User-Agent", getRandomUA()).R()
 	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
 	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
-	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, reqURL)
-	if err == nil {
-		//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
-		req.SetHeader("Cookie", cookieHeader)
-	}
+	//cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, reqURL)
+	//if err == nil {
+	//	//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+	//	req.SetHeader("Cookie", cookieHeader)
+	//}
 
 	resp, err := req.Get(reqURL)
 	if err != nil {
@@ -2024,11 +2024,11 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 
 	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
 	// 使用缓存的 Cookie，pageURL 参数传空字符串由函数内部使用默认值
-	cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, quoteEastMoneyPage)
-	if err == nil {
-		//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
-		req.SetHeader("Cookie", cookieHeader)
-	}
+	//cookieHeader, err := FetchEastMoneyCookiesViaChromedp("", time.Second*3, quoteEastMoneyPage)
+	//if err == nil {
+	//	//logger.SugaredLogger.Infof("Cookie: %s", cookieHeader)
+	//	req.SetHeader("Cookie", cookieHeader)
+	//}
 
 	resp, err := req.
 		SetHeader("Host", "push2.eastmoney.com").

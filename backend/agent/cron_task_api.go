@@ -1,9 +1,10 @@
-package data
+package agent
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
@@ -30,7 +31,6 @@ func (a *CronTaskApi) Update(task *models.CronTask) error {
 		return fmt.Errorf("无效的任务ID")
 	}
 
-	// 只更新基础配置字段，不更新 last_run_at / next_run_at / run_count
 	updates := map[string]any{
 		"name":        task.Name,
 		"cron_expr":   task.CronExpr,
@@ -127,10 +127,6 @@ func (a *CronTaskApi) GetTaskTypes() []lo.Tuple2[string, string] {
 		{A: "stock_analysis", B: "股票分析"},
 		{A: "market_analysis", B: "市场分析"},
 		{A: "global_stock_index_cache", B: "全球指数缓存"},
-		//{A: "fund_analysis", B: "基金分析"},
-		//{A: "stock_monitor", B: "股票监控"},
-		//{A: "news_fetch", B: "新闻抓取"},
-		//{A: "custom", B: "自定义任务"},
 	}
 }
 
@@ -139,7 +135,6 @@ func (a *CronTaskApi) ValidateCronExpr(expr string) error {
 	return err
 }
 
-// CalculateNextRunTimes 计算未来多次运行时间
 func (a *CronTaskApi) CalculateNextRunTimes(cronExpr string, count int) []time.Time {
 	if count <= 0 {
 		return []time.Time{}
@@ -172,21 +167,18 @@ func (a *CronTaskApi) SearchTasks(keyword string) []models.CronTask {
 	return tasks
 }
 
-// ExecuteTask 执行单个任务
 func (a *CronTaskApi) ExecuteTask(ctx context.Context, task *models.CronTask) error {
 	logger.SugaredLogger.Infof("开始执行定时任务：%s (ID: %d)", task.Name, task.ID)
 
 	now := time.Now()
 	nextRunAt := a.CalculateNextRunTime(task.CronExpr)
 
-	// 更新运行信息
 	err := a.UpdateRunInfo(task.ID, now, &nextRunAt)
 	if err != nil {
 		logger.SugaredLogger.Errorf("更新任务运行信息失败：%v", err)
 		return err
 	}
 
-	// 根据任务类型执行不同逻辑
 	switch task.TaskType {
 	case "stock_analysis":
 		return a.executeStockAnalysis(ctx, task)
@@ -208,16 +200,14 @@ func (a *CronTaskApi) ExecuteTask(ctx context.Context, task *models.CronTask) er
 	}
 }
 
-// CalculateNextRunTime 计算下次运行时间
 func (a *CronTaskApi) CalculateNextRunTime(cronExpr string) time.Time {
 	schedule, err := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow).Parse(cronExpr)
 	if err != nil {
-		return time.Now().Add(time.Hour) // 默认 1 小时后
+		return time.Now().Add(time.Hour)
 	}
 	return schedule.Next(time.Now())
 }
 
-// executeStockAnalysis 执行股票分析任务
 func (a *CronTaskApi) executeStockAnalysis(ctx context.Context, task *models.CronTask) error {
 	logger.SugaredLogger.Infof("执行股票分析任务：%s", task.Name)
 	var params struct {
@@ -237,20 +227,19 @@ func (a *CronTaskApi) executeStockAnalysis(ctx context.Context, task *models.Cro
 	}
 
 	prompt := fmt.Sprintf("分析总结市场资讯，针对%s[%s]，找出潜在投资机会", params.StockName, params.StockCode)
-	prompt = NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
-	var tools []Tool
-	tools = Tools(tools)
-	msgs := NewDeepSeekOpenAi(ctx, params.AiConfigId).NewChatStream(params.StockName, ConvertTushareCodeToStockCode(params.StockCode), prompt, &params.SysPromptId, tools, params.Thinking)
+	prompt = data.NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
+	var tools []data.Tool
+	tools = data.Tools(tools)
+	msgs := data.NewDeepSeekOpenAi(ctx, params.AiConfigId).NewChatStream(params.StockName, data.ConvertTushareCodeToStockCode(params.StockCode), prompt, &params.SysPromptId, tools, params.Thinking)
 	content := &strings.Builder{}
 	for msg := range msgs {
 		content.WriteString(msg["content"].(string))
 	}
 	logger.SugaredLogger.Infof("content:%s", content.String())
-	NewDeepSeekOpenAi(ctx, params.AiConfigId).SaveAIResponseResult(params.StockCode, params.StockName, content.String(), "", prompt)
+	data.NewDeepSeekOpenAi(ctx, params.AiConfigId).SaveAIResponseResult(params.StockCode, params.StockName, content.String(), "", prompt)
 	return nil
 }
 
-// executeFundAnalysis 执行基金分析任务
 func (a *CronTaskApi) executeFundAnalysis(ctx context.Context, task *models.CronTask) error {
 	var params struct {
 		FundCodes  []string `json:"fund_codes"`
@@ -270,7 +259,6 @@ func (a *CronTaskApi) executeFundAnalysis(ctx context.Context, task *models.Cron
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			// TODO: 调用基金分析逻辑
 			logger.SugaredLogger.Infof("分析基金：%s", fundCode)
 		}
 	}
@@ -278,20 +266,17 @@ func (a *CronTaskApi) executeFundAnalysis(ctx context.Context, task *models.Cron
 	return nil
 }
 
-// executeNewsFetch 执行新闻抓取任务
 func (a *CronTaskApi) executeNewsFetch(ctx context.Context, task *models.CronTask) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		// 获取财联社电报
-		NewMarketNewsApi().TelegraphList(30)
+		data.NewMarketNewsApi().TelegraphList(30)
 		logger.SugaredLogger.Info("新闻抓取完成")
 		return nil
 	}
 }
 
-// executeStockMonitor 执行股票监控任务
 func (a *CronTaskApi) executeStockMonitor(ctx context.Context, task *models.CronTask) error {
 	var params struct {
 		StockCodes      []string `json:"stock_codes"`
@@ -312,7 +297,6 @@ func (a *CronTaskApi) executeStockMonitor(ctx context.Context, task *models.Cron
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			// TODO: 调用股票监控逻辑
 			logger.SugaredLogger.Infof("监控股票：%s", stockCode)
 		}
 	}
@@ -320,10 +304,8 @@ func (a *CronTaskApi) executeStockMonitor(ctx context.Context, task *models.Cron
 	return nil
 }
 
-// executeCustomTask 执行自定义任务
 func (a *CronTaskApi) executeCustomTask(ctx context.Context, task *models.CronTask) error {
 	logger.SugaredLogger.Infof("执行自定义任务：%s", task.Name)
-	// TODO: 自定义任务逻辑
 	return nil
 }
 
@@ -344,20 +326,21 @@ func (a *CronTaskApi) executeMarketAnalysis(ctx context.Context, task *models.Cr
 	}
 
 	prompt := "分析总结市场资讯，找出潜在投资机会"
-	prompt = NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
-	var tools []Tool
-	tools = Tools(tools)
-	msgs := NewDeepSeekOpenAi(ctx, params.AiConfigId).NewSummaryStockNewsStreamWithTools(prompt, &params.SysPromptId, tools, params.Thinking, nil)
+	prompt = data.NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
 	content := &strings.Builder{}
-	for msg := range msgs {
-		content.WriteString(msg["content"].(string))
+
+	ch := NewStockAiAgentApi().ChatWithContext(ctx, prompt, params.AiConfigId, &params.SysPromptId, false, 0, false)
+	for msg := range ch {
+		if msg.ReasoningContent != "" {
+			content.WriteString(msg.ReasoningContent)
+		}
+		content.WriteString(msg.Content)
 	}
 	logger.SugaredLogger.Infof("content:%s", content.String())
-	NewDeepSeekOpenAi(ctx, params.AiConfigId).SaveAIResponseResult("市场分析", "市场分析", content.String(), "", prompt)
+	data.NewDeepSeekOpenAi(ctx, params.AiConfigId).SaveAIResponseResult("市场分析", "市场分析", content.String(), "", prompt)
 	return nil
 }
 
-// executeGlobalStockIndexCache 执行全球指数缓存任务
 func (a *CronTaskApi) executeGlobalStockIndexCache(ctx context.Context, task *models.CronTask) error {
 	logger.SugaredLogger.Infof("执行全球指数缓存任务：%s", task.Name)
 	var params struct {
@@ -373,5 +356,5 @@ func (a *CronTaskApi) executeGlobalStockIndexCache(ctx context.Context, task *mo
 	if params.CrawlTimeOut == 0 {
 		params.CrawlTimeOut = 30
 	}
-	return NewMarketNewsApi().CacheGlobalStockIndexes(params.CrawlTimeOut)
+	return data.NewMarketNewsApi().CacheGlobalStockIndexes(params.CrawlTimeOut)
 }

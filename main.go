@@ -84,9 +84,9 @@ func main() {
 	//log.SugaredLogger.Infof("build key: %s", BuildKey)
 
 	// 程序启动时预缓存东财 Cookie
-	go func() {
-		cacheCookies("https://push2his.eastmoney.com/api/qt/stock/kline/get")
-	}()
+	//go func() {
+	//	cacheCookies("https://push2his.eastmoney.com/api/qt/stock/kline/get")
+	//}()
 
 	// Create an instance of the app structure
 	app := NewApp()

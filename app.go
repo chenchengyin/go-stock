@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"go-stock/backend/agent"
 	"go-stock/backend/agent/tools"
 	"go-stock/backend/data"
 	"go-stock/backend/db"
@@ -2054,7 +2055,7 @@ func (a *App) FetchAiModels(baseUrl, apiKey string) []string {
 
 // InitCronTasks 在应用启动时，自动为启用状态的定时任务创建调度
 func (a *App) InitCronTasks() {
-	tasks := data.NewCronTaskApi().GetAll()
+	tasks := agent.NewCronTaskApi().GetAll()
 	if len(tasks) == 0 {
 		return
 	}
@@ -2062,7 +2063,7 @@ func (a *App) InitCronTasks() {
 		// 避免闭包捕获循环变量
 		taskCopy := t
 		entryID, err := a.cron.AddFunc(taskCopy.CronExpr, func() {
-			err := data.NewCronTaskApi().ExecuteTask(a.ctx, &taskCopy)
+			err := agent.NewCronTaskApi().ExecuteTask(a.ctx, &taskCopy)
 			if err != nil {
 				logger.SugaredLogger.Errorf("启动任务失败：%v %s", err, taskCopy.Name)
 				return
@@ -2094,12 +2095,12 @@ func (a *App) AbortSummaryStockNews() {
 //	@param task 定时任务信息
 //	@return string 操作结果
 func (a *App) CreateCronTask(task *models.CronTask) string {
-	err := data.NewCronTaskApi().Create(task)
+	err := agent.NewCronTaskApi().Create(task)
 	if err != nil {
 		return fmt.Sprintf("创建失败：%v", err)
 	}
 	entryID, err := a.cron.AddFunc(task.CronExpr, func() {
-		err := data.NewCronTaskApi().ExecuteTask(a.ctx, task)
+		err := agent.NewCronTaskApi().ExecuteTask(a.ctx, task)
 		if err != nil {
 			logger.SugaredLogger.Errorf("执行任务失败：%v %s", err, task.Name)
 			return
@@ -2113,12 +2114,12 @@ func (a *App) CreateCronTask(task *models.CronTask) string {
 }
 
 func (a *App) UpdateCronTask(task *models.CronTask) string {
-	err := data.NewCronTaskApi().Update(task)
+	err := agent.NewCronTaskApi().Update(task)
 	if entryID, exists := a.getCronEntry(convertor.ToString(task.ID) + "_" + task.Name); exists {
 		a.cron.Remove(entryID)
 	}
 	entryID, err := a.cron.AddFunc(task.CronExpr, func() {
-		err := data.NewCronTaskApi().ExecuteTask(a.ctx, task)
+		err := agent.NewCronTaskApi().ExecuteTask(a.ctx, task)
 		if err != nil {
 			logger.SugaredLogger.Errorf("执行任务失败：%v %s", err, task.Name)
 			return
@@ -2138,8 +2139,8 @@ func (a *App) UpdateCronTask(task *models.CronTask) string {
 //	@param id 任务 ID
 //	@return string 操作结果
 func (a *App) DeleteCronTask(id uint) string {
-	err := data.NewCronTaskApi().Delete(id)
-	task, err := data.NewCronTaskApi().GetByID(id)
+	err := agent.NewCronTaskApi().Delete(id)
+	task, err := agent.NewCronTaskApi().GetByID(id)
 	if err == nil {
 		if entryID, exists := a.getCronEntry(convertor.ToString(id) + "_" + task.Name); exists {
 			a.cron.Remove(entryID)
@@ -2158,7 +2159,7 @@ func (a *App) DeleteCronTask(id uint) string {
 //	@param id 任务 ID
 //	@return *models.CronTask 任务信息
 func (a *App) GetCronTaskByID(id uint) *models.CronTask {
-	task, err := data.NewCronTaskApi().GetByID(id)
+	task, err := agent.NewCronTaskApi().GetByID(id)
 	if err != nil {
 		return nil
 	}
@@ -2172,7 +2173,7 @@ func (a *App) GetCronTaskByID(id uint) *models.CronTask {
 //	@param query 查询条件
 //	@return *models.CronTaskPageResp 分页结果
 func (a *App) GetCronTaskList(query *models.CronTaskQuery) *models.CronTaskPageResp {
-	return data.NewCronTaskApi().List(query)
+	return agent.NewCronTaskApi().List(query)
 }
 
 // EnableCronTask
@@ -2180,15 +2181,15 @@ func (a *App) GetCronTaskList(query *models.CronTaskQuery) *models.CronTaskPageR
 //	@Description: 启用/禁用定时任务
 //	@receiver a
 func (a *App) EnableCronTask(id uint, enable bool) string {
-	err := data.NewCronTaskApi().EnableTask(id, enable)
-	task, err := data.NewCronTaskApi().GetByID(id)
+	err := agent.NewCronTaskApi().EnableTask(id, enable)
+	task, err := agent.NewCronTaskApi().GetByID(id)
 	if err == nil {
 		if entryID, exists := a.getCronEntry(convertor.ToString(id) + "_" + task.Name); exists {
 			a.cron.Remove(entryID)
 		}
 		if enable {
 			entryID, err := a.cron.AddFunc(task.CronExpr, func() {
-				err := data.NewCronTaskApi().ExecuteTask(a.ctx, task)
+				err := agent.NewCronTaskApi().ExecuteTask(a.ctx, task)
 				if err != nil {
 					logger.SugaredLogger.Errorf("%s 执行任务失败：%v", task.Name, err)
 					return
@@ -2214,13 +2215,13 @@ func (a *App) EnableCronTask(id uint, enable bool) string {
 //	@param id 任务 ID
 //	@return string 操作结果
 func (a *App) ExecuteCronTaskNow(id uint) string {
-	task, err := data.NewCronTaskApi().GetByID(id)
+	task, err := agent.NewCronTaskApi().GetByID(id)
 	if err != nil {
 		return fmt.Sprintf("任务不存在：%v", err)
 	}
 
 	go func() {
-		err := data.NewCronTaskApi().ExecuteTask(a.ctx, task)
+		err := agent.NewCronTaskApi().ExecuteTask(a.ctx, task)
 		if err != nil {
 			logger.SugaredLogger.Errorf("执行任务失败：%v %s", err, task.Name)
 		}
@@ -2235,7 +2236,7 @@ func (a *App) ExecuteCronTaskNow(id uint) string {
 //	@receiver a
 //	@return []lo.Tuple2[string, string] 任务类型列表
 func (a *App) GetCronTaskTypes() []lo.Tuple2[string, string] {
-	return data.NewCronTaskApi().GetTaskTypes()
+	return agent.NewCronTaskApi().GetTaskTypes()
 }
 
 // ValidateCronExpr
@@ -2245,7 +2246,7 @@ func (a *App) GetCronTaskTypes() []lo.Tuple2[string, string] {
 //	@param expr Cron 表达式
 //	@return string 验证结果
 func (a *App) ValidateCronExpr(expr string) string {
-	err := data.NewCronTaskApi().ValidateCronExpr(expr)
+	err := agent.NewCronTaskApi().ValidateCronExpr(expr)
 	if err != nil {
 		return fmt.Sprintf("无效表达式：%v", err)
 	}
@@ -2259,7 +2260,7 @@ func (a *App) ValidateCronExpr(expr string) string {
 //	@param keyword 搜索关键词
 //	@return []models.CronTask 搜索结果
 func (a *App) SearchCronTasks(keyword string) []models.CronTask {
-	return data.NewCronTaskApi().SearchTasks(keyword)
+	return agent.NewCronTaskApi().SearchTasks(keyword)
 }
 
 // CalculateNextRunTime 根据 Cron 表达式计算下一次运行时间
@@ -2269,7 +2270,7 @@ func (a *App) SearchCronTasks(keyword string) []models.CronTask {
 // 返回值:
 //   - string: 格式化为 "2006-01-02 15:04:05" 的下一次运行时间字符串
 func (a *App) CalculateNextRunTime(cron string) string {
-	nextRunTime := data.NewCronTaskApi().CalculateNextRunTime(cron)
+	nextRunTime := agent.NewCronTaskApi().CalculateNextRunTime(cron)
 	return nextRunTime.Format("2006-01-02 15:04:05")
 }
 
@@ -2281,7 +2282,7 @@ func (a *App) CalculateNextRunTime(cron string) string {
 // 返回值:
 //   - []string: 按时间顺序排序的运行时间列表，格式为 "2006-01-02 15:04:05"
 func (a *App) CalculateNextRunTimes(cron string, count int) []string {
-	times := data.NewCronTaskApi().CalculateNextRunTimes(cron, count)
+	times := agent.NewCronTaskApi().CalculateNextRunTimes(cron, count)
 	result := make([]string, 0, len(times))
 	for _, t := range times {
 		result = append(result, t.Format("2006-01-02 15:04:05"))
