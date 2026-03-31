@@ -107,11 +107,11 @@ func GetAllDataTools() []tool.BaseTool {
 
 	tools = append(tools, NewDataToolWrapper(
 		"SearchStockByIndicators",
-		"根据自然语言筛选股票。可以使用K线形态、技术指标、财务指标等条件选股。",
+		"根据自然语言筛选股票。可以使用K线形态、技术指标、财务指标等条件选股。可以查询股票常用的指标，如均线，kdj,rsi,boll，macd等。",
 		map[string]*schema.ParameterInfo{
 			"words": {
 				Type:     "string",
-				Desc:     "选股条件描述，支持K线形态、技术指标、财务指标等。",
+				Desc:     "选股条件描述，支持K线形态、技术指标、财务指标、均线、kdj、rsi、boll、macd等。",
 				Required: true,
 			},
 		},
@@ -310,8 +310,9 @@ func GetAllDataTools() []tool.BaseTool {
 				pageSize = 10
 			}
 			result := data.NewStockDataApi().GetMutualTop10Deal(mutualType, tradeDate, page, pageSize)
-			jsonData, _ := json.Marshal(result)
-			return string(jsonData), nil
+			title := mutualTypeName(mutualType) + " " + tradeDate
+			md := util.MarkdownTableWithTitle(title, result.Result.Data)
+			return md, nil
 		},
 	))
 
@@ -328,8 +329,8 @@ func GetAllDataTools() []tool.BaseTool {
 		func(args string) (string, error) {
 			stockCode := gjson.Get(args, "stockCode").String()
 			result := data.NewStockDataApi().GetStockFinancialInfo(stockCode)
-			jsonData, _ := json.Marshal(result)
-			return string(jsonData), nil
+			md := util.MarkdownTableWithTitle("股票"+stockCode+"财务报表信息", result.Result.Data)
+			return md, nil
 		},
 	))
 
@@ -346,8 +347,8 @@ func GetAllDataTools() []tool.BaseTool {
 		func(args string) (string, error) {
 			stockCode := gjson.Get(args, "stockCode").String()
 			result := data.NewStockDataApi().GetStockHolderNum(stockCode)
-			jsonData, _ := json.Marshal(result)
-			return string(jsonData), nil
+			md := util.MarkdownTableWithTitle("股票"+stockCode+"股东人数信息", result.Result.Data)
+			return md, nil
 		},
 	))
 
@@ -364,8 +365,8 @@ func GetAllDataTools() []tool.BaseTool {
 		func(args string) (string, error) {
 			stockCode := gjson.Get(args, "stockCode").String()
 			result := data.NewStockDataApi().GetStockHistoryMoneyData(stockCode)
-			jsonData, _ := json.Marshal(result)
-			return string(jsonData), nil
+			md := util.MarkdownTableWithTitle("股票"+stockCode+"历史资金流向数据", result)
+			return md, nil
 		},
 	))
 
@@ -382,8 +383,8 @@ func GetAllDataTools() []tool.BaseTool {
 		func(args string) (string, error) {
 			stockCode := gjson.Get(args, "stockCode").String()
 			result := data.NewStockDataApi().GetStockRZRQInfo(stockCode)
-			jsonData, _ := json.Marshal(result)
-			return string(jsonData), nil
+			md := util.MarkdownTableWithTitle(stockCode+" 融资融券信息", result.Result.Data)
+			return md, nil
 		},
 	))
 
@@ -400,8 +401,8 @@ func GetAllDataTools() []tool.BaseTool {
 		func(args string) (string, error) {
 			bkName := gjson.Get(args, "bkName").String()
 			result := data.NewStockDataApi().GetIndustryValuation(bkName)
-			jsonData, _ := json.Marshal(result)
-			return string(jsonData), nil
+			md := util.MarkdownTableWithTitle(bkName+"行业估值", result.Result.Data)
+			return md, nil
 		},
 	))
 
@@ -555,17 +556,18 @@ func GetAllDataTools() []tool.BaseTool {
 
 	tools = append(tools, NewDataToolWrapper(
 		"GetCurrentTime",
-		"获取当前本地时间",
+		"获取当前本地时间及全球市场开盘状态",
 		map[string]*schema.ParameterInfo{},
 		func(args string) (string, error) {
 			now := time.Now().Format("2006-01-02 15:04:05")
-			return "当前本地时间是：" + now, nil
+			marketStatus := data.NewMarketNewsApi().GlobalStockIndexesReadable(30)
+			return "当前本地时间是：" + now + "\n\n" + marketStatus, nil
 		},
 	))
 
 	tools = append(tools, NewDataToolWrapper(
 		"GetMarketData",
-		"获取市场行情数据，包括指数行情、涨跌分布和今日申购信息",
+		"获取市场行情数据，包括指数行情、上涨/下跌/涨停/跌停家数、涨跌分布和今日申购信息",
 		map[string]*schema.ParameterInfo{},
 		func(args string) (string, error) {
 			return getMarketDataContent()
@@ -906,40 +908,50 @@ func GetAllDataTools() []tool.BaseTool {
 				Desc:     "推荐理由/驱动因素/逻辑",
 				Required: true,
 			},
+			"recommendBuyPrice": {
+				Type:     "string",
+				Desc:     "ai建议买入价区间最低价和最高价之间用`-`分隔",
+				Required: true,
+			},
 			"recommendBuyPriceMin": {
 				Type:     "number",
 				Desc:     "ai建议最低买入价",
-				Required: false,
+				Required: true,
 			},
 			"recommendBuyPriceMax": {
 				Type:     "number",
 				Desc:     "ai建议最高买入价",
-				Required: false,
+				Required: true,
+			},
+			"recommendStopProfitPrice": {
+				Type:     "string",
+				Desc:     "ai建议止盈价区间最低价和最高价之间用`-`分隔",
+				Required: true,
 			},
 			"recommendStopProfitPriceMin": {
 				Type:     "number",
 				Desc:     "ai建议最低止盈价",
-				Required: false,
+				Required: true,
 			},
 			"recommendStopProfitPriceMax": {
 				Type:     "number",
 				Desc:     "ai建议最高止盈价",
-				Required: false,
+				Required: true,
 			},
 			"recommendStopLossPrice": {
 				Type:     "string",
 				Desc:     "ai建议止损价",
-				Required: false,
+				Required: true,
 			},
 			"riskRemarks": {
 				Type:     "string",
 				Desc:     "风险提示",
-				Required: false,
+				Required: true,
 			},
 			"remarks": {
 				Type:     "string",
 				Desc:     "操作总结/备注",
-				Required: false,
+				Required: true,
 			},
 		},
 		func(args string) (string, error) {
@@ -962,6 +974,92 @@ func GetAllDataTools() []tool.BaseTool {
 				Type:     "array",
 				Desc:     "股票推荐列表",
 				Required: true,
+				ElemInfo: &schema.ParameterInfo{
+					Type:     "object",
+					Required: true,
+					SubParams: map[string]*schema.ParameterInfo{
+						"modelName": {
+							Type:     "string",
+							Desc:     "模型名称",
+							Required: true,
+						},
+						"rating": {
+							Type:     "string",
+							Desc:     "评级(买入/增持/中性/减持/卖出)",
+							Required: true,
+						},
+						"stockCode": {
+							Type:     "string",
+							Desc:     "股票代码，如：601138.SH",
+							Required: true,
+						},
+						"stockName": {
+							Type:     "string",
+							Desc:     "股票名称",
+							Required: true,
+						},
+						"bkName": {
+							Type:     "string",
+							Desc:     "板块/概念/行业名称",
+							Required: true,
+						},
+						"stockPrice": {
+							Type:     "string",
+							Desc:     "推荐时股票价格",
+							Required: true,
+						},
+						"recommendReason": {
+							Type:     "string",
+							Desc:     "推荐理由/驱动因素/逻辑",
+							Required: true,
+						},
+						"recommendBuyPrice": {
+							Type:     "string",
+							Desc:     "ai建议买入价区间最低价和最高价之间用`-`分隔",
+							Required: true,
+						},
+						"recommendBuyPriceMin": {
+							Type:     "number",
+							Desc:     "ai建议最低买入价",
+							Required: true,
+						},
+						"recommendBuyPriceMax": {
+							Type:     "number",
+							Desc:     "ai建议最高买入价",
+							Required: true,
+						},
+						"recommendStopProfitPrice": {
+							Type:     "string",
+							Desc:     "ai建议止盈价区间最低价和最高价之间用`-`分隔",
+							Required: true,
+						},
+						"recommendStopProfitPriceMin": {
+							Type:     "number",
+							Desc:     "ai建议最低止盈价",
+							Required: true,
+						},
+						"recommendStopProfitPriceMax": {
+							Type:     "number",
+							Desc:     "ai建议最高止盈价",
+							Required: true,
+						},
+						"recommendStopLossPrice": {
+							Type:     "string",
+							Desc:     "ai建议止损价",
+							Required: true,
+						},
+						"riskRemarks": {
+							Type:     "string",
+							Desc:     "风险提示",
+							Required: true,
+						},
+						"remarks": {
+							Type:     "string",
+							Desc:     "操作总结/备注",
+							Required: true,
+						},
+					},
+				},
 			},
 		},
 		func(args string) (string, error) {
@@ -1647,114 +1745,6 @@ func GetAllDataTools() []tool.BaseTool {
 	))
 
 	tools = append(tools, NewDataToolWrapper(
-		"CompareStocks",
-		"对比多只股票的基本信息、估值指标等",
-		map[string]*schema.ParameterInfo{
-			"stockCodes": {
-				Type:     "string",
-				Desc:     "股票代码列表，逗号分隔，如：600519,000001",
-				Required: true,
-			},
-		},
-		func(args string) (string, error) {
-			stockCodes := parseStockCodesFromArgs(args, "stockCodes")
-			if len(stockCodes) == 0 {
-				return "请输入股票代码", nil
-			}
-			if len(stockCodes) > 10 {
-				return "最多支持对比10只股票", nil
-			}
-			type compareRow struct {
-				Code          string  `md:"股票代码"`
-				Name          string  `md:"股票名称"`
-				Price         float64 `md:"当前价"`
-				ChangePercent float64 `md:"涨跌幅(%)"`
-				PE            float64 `md:"市盈率"`
-				PB            float64 `md:"市净率"`
-				MarketCap     float64 `md:"总市值(亿)"`
-				Circulation   float64 `md:"流通市值(亿)"`
-			}
-			var rows []compareRow
-			for _, code := range stockCodes {
-				stockData, _ := data.NewStockDataApi().GetStockCodeRealTimeData(code)
-				if stockData == nil || len(*stockData) == 0 {
-					continue
-				}
-				s := (*stockData)[0]
-				price, _ := convertor.ToFloat(s.Price)
-				prePrice, _ := convertor.ToFloat(s.PrePrice)
-				var pChange float64
-				if prePrice > 0 {
-					pChange = (price - prePrice) / prePrice * 100
-				}
-				rows = append(rows, compareRow{
-					Code:          s.Code,
-					Name:          s.Name,
-					Price:         price,
-					ChangePercent: pChange,
-				})
-			}
-			if len(rows) == 0 {
-				return "未获取到股票数据", nil
-			}
-			return util.MarkdownTableWithTitle("股票对比", rows), nil
-		},
-	))
-
-	tools = append(tools, NewDataToolWrapper(
-		"GetStockRZRQ",
-		"获取股票融资融券数据（融资余额、融券余额、融资净买入等）",
-		map[string]*schema.ParameterInfo{
-			"stockCode": {
-				Type:     "string",
-				Desc:     "股票代码，如：600519",
-				Required: true,
-			},
-		},
-		func(args string) (string, error) {
-			stockCode := gjson.Get(args, "stockCode").String()
-			if stockCode == "" {
-				return "请输入股票代码", nil
-			}
-			codes := parseStockCodesFromArgs(args, "stockCode")
-			var results []string
-			for _, code := range codes {
-				rzrqInfo := data.NewStockDataApi().GetStockRZRQInfo(code)
-				if rzrqInfo.Success && len(rzrqInfo.Result.Data) > 0 {
-					results = append(results, code+"：未获取到融资融券数据")
-					continue
-				}
-				type rzrqRow struct {
-					Date string  `md:"日期"`
-					RZYE float64 `md:"融资余额(万元)"`
-					RZJE float64 `md:"融资买入额(万元)"`
-					RQYE float64 `md:"融券余额(万元)"`
-					RQSL float64 `md:"融券余量(股)"`
-				}
-				var rows []rzrqRow
-				for i, d := range rzrqInfo.Result.Data {
-					if i >= 10 {
-						break
-					}
-					rzye, _ := convertor.ToFloat(d.FINBALANCE)
-					rzje, _ := convertor.ToFloat(d.FINBUYAMT)
-					rqye, _ := convertor.ToFloat(d.LOANBALANCE)
-					rqsl, _ := convertor.ToFloat(d.LOANSELLVOL)
-					rows = append(rows, rzrqRow{
-						Date: d.TRADEDATE,
-						RZYE: rzye / 10000,
-						RZJE: rzje / 10000,
-						RQYE: rqye / 10000,
-						RQSL: rqsl,
-					})
-				}
-				results = append(results, util.MarkdownTableWithTitle(code+" 融资融券数据", rows))
-			}
-			return strings.Join(results, "\n\n"), nil
-		},
-	))
-
-	tools = append(tools, NewDataToolWrapper(
 		"GetStockMinuteData",
 		"获取股票分时数据（当日分钟级成交量和价格）",
 		map[string]*schema.ParameterInfo{
@@ -1796,91 +1786,6 @@ func GetAllDataTools() []tool.BaseTool {
 	))
 
 	tools = append(tools, NewDataToolWrapper(
-		"ScreenStocks",
-		"根据条件筛选股票，支持技术指标、财务指标、估值指标等多维度筛选",
-		map[string]*schema.ParameterInfo{
-			"name": {
-				Type:     "string",
-				Desc:     "股票名称/代码关键词",
-				Required: false,
-			},
-			"market": {
-				Type:     "string",
-				Desc:     "市场：sh=上海, sz=深圳, hk=港股, us=美股",
-				Required: false,
-			},
-			"minPE": {
-				Type:     "number",
-				Desc:     "最小市盈率",
-				Required: false,
-			},
-			"maxPE": {
-				Type:     "number",
-				Desc:     "最大市盈率",
-				Required: false,
-			},
-			"minMarketCap": {
-				Type:     "number",
-				Desc:     "最小总市值(亿)",
-				Required: false,
-			},
-			"maxMarketCap": {
-				Type:     "number",
-				Desc:     "最大总市值(亿)",
-				Required: false,
-			},
-			"limit": {
-				Type:     "integer",
-				Desc:     "返回条数限制，默认50",
-				Required: false,
-			},
-		},
-		func(args string) (string, error) {
-			name := gjson.Get(args, "name").String()
-			market := gjson.Get(args, "market").String()
-			limit := int(gjson.Get(args, "limit").Int())
-			if limit <= 0 {
-				limit = 50
-			}
-			query := &data.AllStockInfoQuery{
-				Page:     1,
-				PageSize: limit,
-			}
-			if name != "" {
-				query.SecurityName = name
-			}
-			if market != "" {
-				query.Market = market
-			}
-			result, err := data.NewStockDataApi().GetAllStockInfoList(query)
-			if err != nil || result == nil {
-				return "未筛选到符合条件的股票", nil
-			}
-			type screenRow struct {
-				Code   string `md:"股票代码"`
-				Name   string `md:"股票名称"`
-				Market string `md:"交易所"`
-				Price  string `md:"最新价"`
-				Change string `md:"涨跌幅(%)"`
-			}
-			var rows []screenRow
-			for _, s := range result.List {
-				rows = append(rows, screenRow{
-					Code:   s.SECURITYCODE,
-					Name:   s.SECURITYNAMEABBR,
-					Market: s.MARKET,
-					Price:  s.NEWPRICE,
-					Change: s.CHANGERATE,
-				})
-			}
-			if len(rows) == 0 {
-				return "未筛选到符合条件的股票", nil
-			}
-			return util.MarkdownTableWithTitle(fmt.Sprintf("股票筛选结果 (共%d只)", len(rows)), rows), nil
-		},
-	))
-
-	tools = append(tools, NewDataToolWrapper(
 		"GetStockConceptInfo",
 		"获取股票的概念板块信息，包括概念名称、成分股数量等",
 		map[string]*schema.ParameterInfo{
@@ -1917,39 +1822,6 @@ func GetAllDataTools() []tool.BaseTool {
 	))
 
 	tools = append(tools, NewDataToolWrapper(
-		"GetMarketOverview",
-		"获取市场整体概况，包括上涨下跌家数、涨停跌停数量等",
-		map[string]*schema.ParameterInfo{},
-		func(args string) (string, error) {
-			upCount := 0
-			downCount := 0
-			limitUpCount := 0
-			limitDownCount := 0
-			newsList, _ := data.NewMarketNewsApi().GetNewsListData("", time.Now().Add(-24*time.Hour), 1, 20)
-			if newsList != nil && len(*newsList) > 0 {
-				upCount = 2500
-				downCount = 2000
-				limitUpCount = 50
-				limitDownCount = 20
-			}
-			marketOverview := fmt.Sprintf(`## 市场整体概况
-
-| 指标 | 数值 |
-| --- | --- |
-| 上涨家数 | %d |
-| 下跌家数 | %d |
-| 涨停数量 | %d |
-| 跌停数量 | %d |
-| 市场情绪 | %s |
-
-> 数据更新时间：%s`, upCount, downCount, limitUpCount, limitDownCount,
-				marketSentiment(upCount, downCount),
-				time.Now().Format("2006-01-02 15:04:05"))
-			return marketOverview, nil
-		},
-	))
-
-	tools = append(tools, NewDataToolWrapper(
 		"WebSearch",
 		"联网搜索工具，支持搜索最新财经新闻、股票资讯、市场动态等信息。使用此工具获取实时网络数据。",
 		map[string]*schema.ParameterInfo{
@@ -1965,6 +1837,7 @@ func GetAllDataTools() []tool.BaseTool {
 			},
 		},
 		func(args string) (string, error) {
+			defer data.GetBrowserManager().ResetBrowser()
 			query := gjson.Get(args, "query").String()
 			maxResults := int(gjson.Get(args, "maxResults").Int())
 			if query == "" {
@@ -1994,6 +1867,7 @@ func GetAllDataTools() []tool.BaseTool {
 			},
 		},
 		func(args string) (string, error) {
+			defer data.GetBrowserManager().ResetBrowser()
 			paramName := gjson.Get(args, "paramName").String()
 			searchScope := gjson.Get(args, "searchScope").String()
 			if paramName == "" {
@@ -2012,6 +1886,293 @@ func GetAllDataTools() []tool.BaseTool {
 			}
 			searchApi := data.NewWebSearchApi(30)
 			return searchApi.SearchToMarkdown(query, 5), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"FilterStocksByIndicators",
+		"根据技术指标或者关注排名或者连涨/连跌跌天数筛选股票。支持多种K线形态和技术指标条件筛选，如MACD金叉、KDJ金叉、均线排列、K线形态，人气，关注排名，连涨/连跌跌天数等。",
+		map[string]*schema.ParameterInfo{
+			"keyword": {
+				Type:     "string",
+				Desc:     "股票名称或代码关键词搜索（可选）",
+				Required: false,
+			},
+			"page": {
+				Type:     "integer",
+				Desc:     "页码，默认1",
+				Required: false,
+			},
+			"pageSize": {
+				Type:     "integer",
+				Desc:     "每页条数，默认20",
+				Required: false,
+			},
+			"macdGoldenFork": {
+				Type:     "boolean",
+				Desc:     "MACD金叉",
+				Required: false,
+			},
+			"kdjGoldenFork": {
+				Type:     "boolean",
+				Desc:     "KDJ金叉",
+				Required: false,
+			},
+			"breakThrough": {
+				Type:     "boolean",
+				Desc:     "放量突破",
+				Required: false,
+			},
+			"lowFundsInflow": {
+				Type:     "boolean",
+				Desc:     "低位资金净流入",
+				Required: false,
+			},
+			"highFundsOutflow": {
+				Type:     "boolean",
+				Desc:     "高位资金净流出",
+				Required: false,
+			},
+			"breakUpMa5Days": {
+				Type:     "boolean",
+				Desc:     "向上突破5日均线",
+				Required: false,
+			},
+			"longAvgArray": {
+				Type:     "boolean",
+				Desc:     "均线多头排列",
+				Required: false,
+			},
+			"shortAvgArray": {
+				Type:     "boolean",
+				Desc:     "均线空头排列",
+				Required: false,
+			},
+			"upperLargeVolume": {
+				Type:     "boolean",
+				Desc:     "连涨放量",
+				Required: false,
+			},
+			"downNarrowVolume": {
+				Type:     "boolean",
+				Desc:     "下跌无量",
+				Required: false,
+			},
+			"oneDayangLine": {
+				Type:     "boolean",
+				Desc:     "一根大阳线",
+				Required: false,
+			},
+			"twoDayangLines": {
+				Type:     "boolean",
+				Desc:     "两根大阳线",
+				Required: false,
+			},
+			"riseSun": {
+				Type:     "boolean",
+				Desc:     "旭日东升",
+				Required: false,
+			},
+			"powerFulgun": {
+				Type:     "boolean",
+				Desc:     "强势多方炮",
+				Required: false,
+			},
+			"restoreJustice": {
+				Type:     "boolean",
+				Desc:     "拨云见日",
+				Required: false,
+			},
+			"down7Days": {
+				Type:     "boolean",
+				Desc:     "七仙女下凡(七连阴)",
+				Required: false,
+			},
+			"upper8Days": {
+				Type:     "boolean",
+				Desc:     "八仙过海(八连阳)",
+				Required: false,
+			},
+			"upper9Days": {
+				Type:     "boolean",
+				Desc:     "九阳神功(九连阳)",
+				Required: false,
+			},
+			"upper4Days": {
+				Type:     "boolean",
+				Desc:     "四串阳",
+				Required: false,
+			},
+			"heavenRule": {
+				Type:     "boolean",
+				Desc:     "天量法则",
+				Required: false,
+			},
+			"upsideVolume": {
+				Type:     "boolean",
+				Desc:     "放量上攻",
+				Required: false,
+			},
+			"bearishEngulfing": {
+				Type:     "boolean",
+				Desc:     "穿头破脚",
+				Required: false,
+			},
+			"reversingHammer": {
+				Type:     "boolean",
+				Desc:     "倒转锤头",
+				Required: false,
+			},
+			"shootingStar": {
+				Type:     "boolean",
+				Desc:     "射击之星",
+				Required: false,
+			},
+			"eveningStar": {
+				Type:     "boolean",
+				Desc:     "黄昏之星",
+				Required: false,
+			},
+			"firstDawn": {
+				Type:     "boolean",
+				Desc:     "曙光初现",
+				Required: false,
+			},
+			"pregnant": {
+				Type:     "boolean",
+				Desc:     "身怀六甲",
+				Required: false,
+			},
+			"blackCloudTops": {
+				Type:     "boolean",
+				Desc:     "乌云盖顶",
+				Required: false,
+			},
+			"morningStar": {
+				Type:     "boolean",
+				Desc:     "早晨之星",
+				Required: false,
+			},
+			"narrowFinish": {
+				Type:     "boolean",
+				Desc:     "窄幅整理",
+				Required: false,
+			},
+			"uppDays": {
+				Type:     "integer",
+				Desc:     "人气排名连涨天数：3/5/7天及以上",
+				Required: false,
+			},
+			"concernRank7Days": {
+				Type:     "integer",
+				Desc:     "7日关注排名：10/50/100名以内",
+				Required: false,
+			},
+			"upNday": {
+				Type:     "integer",
+				Desc:     "连涨天数：3/5/8天及以上",
+				Required: false,
+			},
+			"downNday": {
+				Type:     "integer",
+				Desc:     "连跌天数：3/5/8/10/14天及以上",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			keyword := gjson.Get(args, "keyword").String()
+			page := int(gjson.Get(args, "page").Int())
+			pageSize := int(gjson.Get(args, "pageSize").Int())
+			if page <= 0 {
+				page = 1
+			}
+			if pageSize <= 0 {
+				pageSize = 20
+			}
+
+			indicators := models.TechnicalIndicators{
+				MACDGOLDENFORK:     gjson.Get(args, "macdGoldenFork").Bool(),
+				KDJGOLDENFORK:      gjson.Get(args, "kdjGoldenFork").Bool(),
+				BREAKTHROUGH:       gjson.Get(args, "breakThrough").Bool(),
+				LOWFUNDSINFLOW:     gjson.Get(args, "lowFundsInflow").Bool(),
+				HIGHFUNDSOUTFLOW:   gjson.Get(args, "highFundsOutflow").Bool(),
+				BREAKUPMA5DAYS:     gjson.Get(args, "breakUpMa5Days").Bool(),
+				LONGAVGARRAY:       gjson.Get(args, "longAvgArray").Bool(),
+				SHORTAVGARRAY:      gjson.Get(args, "shortAvgArray").Bool(),
+				UPPERLARGEVOLUME:   gjson.Get(args, "upperLargeVolume").Bool(),
+				DOWNNARROWVOLUME:   gjson.Get(args, "downNarrowVolume").Bool(),
+				ONEDAYANGLINE:      gjson.Get(args, "oneDayangLine").Bool(),
+				TWODAYANGLINES:     gjson.Get(args, "twoDayangLines").Bool(),
+				RISESUN:            gjson.Get(args, "riseSun").Bool(),
+				POWERFULGUN:        gjson.Get(args, "powerFulgun").Bool(),
+				RESTOREJUSTICE:     gjson.Get(args, "restoreJustice").Bool(),
+				DOWN7DAYS:          gjson.Get(args, "down7Days").Bool(),
+				UPPER8DAYS:         gjson.Get(args, "upper8Days").Bool(),
+				UPPER9DAYS:         gjson.Get(args, "upper9Days").Bool(),
+				UPPER4DAYS:         gjson.Get(args, "upper4Days").Bool(),
+				HEAVENRULE:         gjson.Get(args, "heavenRule").Bool(),
+				UPSIDEVOLUME:       gjson.Get(args, "upsideVolume").Bool(),
+				BEARISHENGULFING:   gjson.Get(args, "bearishEngulfing").Bool(),
+				REVERSINGHAMMER:    gjson.Get(args, "reversingHammer").Bool(),
+				SHOOTINGSTAR:       gjson.Get(args, "shootingStar").Bool(),
+				EVENINGSTAR:        gjson.Get(args, "eveningStar").Bool(),
+				FIRSTDAWN:          gjson.Get(args, "firstDawn").Bool(),
+				PREGNANT:           gjson.Get(args, "pregnant").Bool(),
+				BLACKCLOUDTOPS:     gjson.Get(args, "blackCloudTops").Bool(),
+				MORNINGSTAR:        gjson.Get(args, "morningStar").Bool(),
+				NARROWFINISH:       gjson.Get(args, "narrowFinish").Bool(),
+				UPP_DAYS:           int(gjson.Get(args, "uppDays").Int()),
+				CONCERN_RANK_7DAYS: int(gjson.Get(args, "concernRank7Days").Int()),
+				UPNDAY:             int(gjson.Get(args, "upNday").Int()),
+				DOWNNDAY:           int(gjson.Get(args, "downNday").Int()),
+			}
+
+			result := data.NewStockDataApi().GetAllStocks(page, pageSize, keyword, indicators)
+			if result == nil || len(result.Result.Data) == 0 {
+				return "未找到符合条件的股票", nil
+			}
+
+			type stockRow struct {
+				SECUCODE         string  `md:"股票代码"`
+				SECURITYNAMEABBR string  `md:"股票名称"`
+				NEWPRICE         float64 `md:"最新价"`
+				CHANGERATE       float64 `md:"涨跌幅(%)"`
+				HIGHPRICE        float64 `md:"最高价"`
+				LOWPRICE         float64 `md:"最低价"`
+				VOLUME           string  `md:"成交量"`
+				DEALAMOUNT       float64 `md:"成交额"`
+				TURNOVERRATE     float64 `md:"换手率(%)"`
+				VOLUMERATIO      float64 `md:"量比"`
+				INDUSTRY         string  `md:"所属行业"`
+			}
+
+			var rows []stockRow
+			for _, s := range result.Result.Data {
+				newPrice, _ := convertor.ToFloat(s.NEWPRICE)
+				changeRate, _ := convertor.ToFloat(s.CHANGERATE)
+				highPrice, _ := convertor.ToFloat(s.HIGHPRICE)
+				lowPrice, _ := convertor.ToFloat(s.LOWPRICE)
+				dealAmount, _ := convertor.ToFloat(s.DEALAMOUNT)
+				turnoverRate, _ := convertor.ToFloat(s.TURNOVERRATE)
+				volumeRatio, _ := convertor.ToFloat(s.VOLUMERATIO)
+
+				rows = append(rows, stockRow{
+					SECUCODE:         s.SECUCODE,
+					SECURITYNAMEABBR: s.SECURITYNAMEABBR,
+					NEWPRICE:         newPrice,
+					CHANGERATE:       changeRate,
+					HIGHPRICE:        highPrice,
+					LOWPRICE:         lowPrice,
+					VOLUME:           convertor.ToString(s.VOLUME),
+					DEALAMOUNT:       dealAmount,
+					TURNOVERRATE:     turnoverRate,
+					VOLUMERATIO:      volumeRatio,
+					INDUSTRY:         s.INDUSTRY,
+				})
+			}
+
+			summary := fmt.Sprintf("共找到 %d 只符合条件的股票，当前显示第 %d 页（每页 %d 条）", result.Result.Count, page, pageSize)
+			return summary + "\n\n" + util.MarkdownTableWithTitle("股票筛选结果", rows), nil
 		},
 	))
 
@@ -2198,4 +2359,21 @@ func getMarketDataContent() (string, error) {
 
 	logger.SugaredLogger.Debug("%s", content.String())
 	return content.String(), nil
+}
+
+// mutualTypeName 将 MUTUAL_TYPE 代码翻译为中文名称
+// 001=沪股通十大成交股, 002=港股通(沪)十大成交股, 003=深股通十大成交股, 004=港股通(深)十大成交股
+func mutualTypeName(code string) string {
+	switch code {
+	case "001":
+		return "沪股通十大成交股"
+	case "002":
+		return "港股通(沪)十大成交股"
+	case "003":
+		return "深股通十大成交股"
+	case "004":
+		return "港股通(深)十大成交股"
+	default:
+		return code
+	}
 }

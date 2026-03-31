@@ -280,13 +280,14 @@ const userPromptOptions = computed(() =>
 const userPromptId = ref(null)
 const thinkingMode = ref(false)
 const memoryMode = ref(true)
-const memoryCount = ref(5)
+const memoryCount = ref(3)
 const memoryCountOptions = [
+  { label: '1 条', value: 1 },
+  { label: '2 条', value: 2 },
+  { label: '3 条', value: 3 },
+  { label: '4 条', value: 4 },
   { label: '5 条', value: 5 },
   { label: '10 条', value: 10 },
-  { label: '20 条', value: 20 },
-  { label: '30 条', value: 30 },
-  { label: '50 条', value: 50 }
 ]
 
 function onUserPromptChange(id) {
@@ -680,27 +681,27 @@ onBeforeUnmount(() => {
 .edge-trigger {
   position: fixed;
   top: 50%;
-  left: 0;
+  right: 0;
   z-index: 9998;
   transform: translateY(-50%);
   width: 32px;
   height: 120px;
-  border-radius: 0 12px 12px 0;
+  border-radius: 12px 0 0 12px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 2px 0 12px rgba(102, 126, 234, 0.4);
+  box-shadow: -2px 0 12px rgba(102, 126, 234, 0.4);
   transition: width 0.2s ease, box-shadow 0.2s ease;
 }
 .edge-trigger-busy {
-  box-shadow: 4px 0 18px rgba(248, 113, 113, 0.8);
+  box-shadow: -4px 0 18px rgba(248, 113, 113, 0.8);
 }
 .edge-trigger:hover {
   width: 40px;
-  box-shadow: 4px 0 16px rgba(102, 126, 234, 0.5);
+  box-shadow: -4px 0 16px rgba(102, 126, 234, 0.5);
 }
 .edge-trigger-inner {
   position: relative;
@@ -711,7 +712,7 @@ onBeforeUnmount(() => {
 .edge-trigger-badge {
   position: absolute;
   top: 6px;
-  right: 6px;
+  left: 6px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -743,13 +744,13 @@ onBeforeUnmount(() => {
 .drawer-panel {
   position: absolute;
   top: 0;
-  left: 0;
+  right: 0;
   bottom: 0;
   width: 60vw;
   min-width: 320px;
   max-width: calc(100vw - 48px);
   background: var(--n-color-modal);
-  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.15);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1091,7 +1092,7 @@ onBeforeUnmount(() => {
 }
 .drawer-slide-enter-from .drawer-panel,
 .drawer-slide-leave-to .drawer-panel {
-  transform: translateX(-100%);
+  transform: translateX(100%);
 }
 .drawer-slide-enter-to .drawer-mask,
 .drawer-slide-leave-from .drawer-mask {

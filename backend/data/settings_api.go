@@ -186,6 +186,7 @@ func updateAiConfigs(aiConfigs []*AIConfig) error {
 				"time_out":           item.TimeOut,
 				"http_proxy":         item.HttpProxy,
 				"http_proxy_enabled": item.HttpProxyEnabled,
+				"session_id":         item.SessionId,
 			}).Error
 			if e != nil {
 				return

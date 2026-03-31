@@ -114,7 +114,7 @@ func TestSearchStockPriceInfo(t *testing.T) {
 }
 func TestGetStockMinutePriceData(t *testing.T) {
 	db.Init("../../data/stock.db")
-	data, date := NewStockDataApi().GetStockMinutePriceData("usTSLA.OQ")
+	data, date := NewStockDataApi().GetStockMinutePriceData("sh600171")
 	logger.SugaredLogger.Infof("date:%s", date)
 	logger.SugaredLogger.Infof("%+#v", *data)
 }

@@ -901,7 +901,7 @@ onMounted(() => {
                 :y-offset="150"
                 :rotate="-15"
             >
-              <FloatingAiAssistant />
+<!--              <FloatingAiAssistant />-->
               <FloatingAgentAssistant />
               <n-flex>
                 <n-grid x-gap="12" :cols="1">

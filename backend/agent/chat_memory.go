@@ -3,6 +3,8 @@ package agent
 import (
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+
+	"github.com/cloudwego/eino/schema"
 )
 
 type ChatMemoryService struct {
@@ -16,7 +18,7 @@ func NewChatMemoryService(sessionID string, maxMemory int) *ChatMemoryService {
 	}
 	return &ChatMemoryService{
 		sessionID: sessionID,
-		maxMemory: maxMemory,
+		maxMemory: maxMemory * 2,
 	}
 }
 
@@ -36,6 +38,30 @@ func (s *ChatMemoryService) AddAssistantMessage(content string) error {
 		Content:   content,
 	}
 	return memory.Save()
+}
+
+func (s *ChatMemoryService) GetHistoryMessages() ([]*schema.Message, error) {
+	memories, err := db.GetRecentChatMemory(s.sessionID, s.maxMemory)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetChatMemoryList failed: %v", err)
+		return nil, err
+	}
+
+	var messages []*schema.Message
+	for _, m := range memories {
+		if m.Role == "user" {
+			messages = append(messages, &schema.Message{
+				Role:    schema.User,
+				Content: m.Content,
+			})
+		} else if m.Role == "assistant" {
+			messages = append(messages, &schema.Message{
+				Role:    schema.Assistant,
+				Content: m.Content,
+			})
+		}
+	}
+	return messages, nil
 }
 
 func (s *ChatMemoryService) GetHistory() ([]string, error) {

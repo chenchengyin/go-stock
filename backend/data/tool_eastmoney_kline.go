@@ -222,7 +222,7 @@ func EastMoneyKLineWithMASection(api *EastMoneyKLineApi, stockCode, kLineType st
 	if typeLabel == "" {
 		typeLabel = kType
 	}
-	return "\r\n### 东方财富 " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
+	return "\r\n### " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
 }
 
 func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolContext) error {

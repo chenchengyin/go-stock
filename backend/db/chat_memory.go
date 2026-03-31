@@ -48,7 +48,9 @@ func GetRecentChatMemory(sessionID string, limit int) ([]ChatMemory, error) {
 			Limit(limit).
 			Find(&memories).Error
 	}
-
+	for i, j := 0, len(memories)-1; i < j; i, j = i+1, j-1 {
+		memories[i], memories[j] = memories[j], memories[i]
+	}
 	return memories, err
 }
 
