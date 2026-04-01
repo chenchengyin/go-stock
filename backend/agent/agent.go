@@ -97,14 +97,14 @@ func GetStockAiAgent(ctx *context.Context, aiConfig data.AIConfig) *react.Agent 
 func getAllTools() []tool.BaseTool {
 	var allTools []tool.BaseTool
 
-	allTools = append(allTools, tools.GetQueryEconomicDataTool())
-	allTools = append(allTools, tools.GetQueryStockPriceInfoTool())
+	//allTools = append(allTools, tools.GetQueryEconomicDataTool())
+	//allTools = append(allTools, tools.GetQueryStockPriceInfoTool())
 	allTools = append(allTools, tools.GetQueryStockCodeInfoTool())
-	allTools = append(allTools, tools.GetQueryMarketNewsTool())
-	allTools = append(allTools, tools.GetChoiceStockByIndicatorsTool())
-	allTools = append(allTools, tools.GetStockKLineTool())
-	allTools = append(allTools, tools.GetInteractiveAnswerDataTool())
-	allTools = append(allTools, tools.GetFinancialReportTool())
+	//allTools = append(allTools, tools.GetQueryMarketNewsTool())
+	//allTools = append(allTools, tools.GetChoiceStockByIndicatorsTool())
+	//allTools = append(allTools, tools.GetStockKLineTool())
+	//allTools = append(allTools, tools.GetInteractiveAnswerDataTool())
+	//allTools = append(allTools, tools.GetFinancialReportTool())
 	allTools = append(allTools, tools.GetQueryStockNewsTool())
 	allTools = append(allTools, tools.GetIndustryResearchReportTool())
 	allTools = append(allTools, tools.GetQueryBKDictTool())
