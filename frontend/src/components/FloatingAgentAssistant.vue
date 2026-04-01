@@ -51,80 +51,95 @@
             </div>
             <NScrollbar ref="scrollbarRef" class="chat-scroll">
               <div class="message-list">
-                <div v-if="messages.length > DEFAULT_VISIBLE_COUNT" class="message-list-expand">
-                  <NButton quaternary size="small" @click="showMoreHistory">
-                    {{ expandAll ? '收起' : '展开更多历史' }}{{ expandAll ? '' : '（共 ' + hiddenCount + ' 条）' }}
-                  </NButton>
-                </div>
                 <div
-                  v-for="(msg, index) in displayedMessages"
-                  :key="displayFromIndex + index"
-                  :class="['message-item', msg.role]"
+                  v-for="(group, groupIndex) in messageGroups"
+                  :key="group.id"
+                  class="message-group"
                 >
-                  <div v-if="msg.role === 'assistant'" class="msg-avatar assistant-avatar">
-                    <NIcon :component="SparklesOutline" size="20" />
+                  <div class="message-group-header" @click="toggleGroup(groupIndex)">
+                    <div class="message-group-summary">
+                      <NIcon :component="isGroupExpanded(groupIndex) ? ChevronDownOutline : ChevronForwardOutline" size="16" />
+                      <span class="message-group-title">{{ group.userMsg.content.slice(0, 50) }}{{ group.userMsg.content.length > 50 ? '...' : '' }}</span>
+                      <span class="message-group-time">{{ group.userMsg.time }}</span>
+                    </div>
                   </div>
-                  <div class="msg-bubble">
-                    <div v-if="msg.role === 'assistant'" class="msg-content">
-                      <MdPreview
-                        :theme="theme"
-                        :style="{ textAlign: 'left' }"
-                        :model-value="msg.content || '...'"
-                        :editor-id="'agent-msg-' + (displayFromIndex + index)"
-                        class="msg-markdown"
-                      />
-                      <div v-if="isStreamLoad && index === displayedMessages.length - 1" class="msg-loading">
-                        <NSpin size="small" />
-                        <span>思考中...</span>
-                      </div>
-                      <div class="msg-bubble-actions">
-                        <div v-if="msg.modelName || msg.time" class="msg-meta-row-assistant">
-                          <span v-if="msg.modelName" class="msg-model-name" :title="msg.modelName">{{ msg.modelName }}</span>
-                          <span v-if="msg.time" class="msg-time">{{ msg.time }}</span>
+                  <div v-show="isGroupExpanded(groupIndex)" class="message-group-content">
+                    <div
+                      :class="['message-item', group.userMsg.role]"
+                    >
+                      <div class="msg-bubble">
+                        <div class="msg-content">
+                          <div v-if="group.userMsg.time" class="msg-meta msg-meta-user-inner">
+                            <span class="msg-time">{{ group.userMsg.time }}</span>
+                          </div>
+                          <MdPreview
+                            :theme="theme"
+                            :style="{ textAlign: 'right' }"
+                            v-if="group.userMsg.content"
+                            :model-value="group.userMsg.content"
+                            :editor-id="'agent-msg-' + group.userIndex"
+                            class="msg-markdown"
+                          />
                         </div>
-                        <NButton quaternary size="tiny" class="msg-copy-btn" @click="copyAiContent(msg)">
-                          <template #icon>
-                            <NIcon :component="CopyOutline" />
-                          </template>
-                          复制
-                        </NButton>
-                        <NButton
-                          quaternary
-                          size="tiny"
-                          class="msg-export-img-btn"
-                          :loading="exportImageKey === String(displayFromIndex + index)"
-                          title="导出为图片"
-                          @click="exportAiReplyImage(displayFromIndex, index, $event)"
-                        >
-                          <template #icon>
-                            <NIcon :component="ImageOutline" />
-                          </template>
-                          导出图
-                        </NButton>
-                        <NButton quaternary size="tiny" class="msg-share-btn" :loading="shareLoading" @click="shareAiContent(msg)">
-                          <template #icon>
-                            <NIcon :component="ShareSocialOutline" />
-                          </template>
-                          分享
-                        </NButton>
+                      </div>
+                      <div class="msg-avatar user-avatar">
+                        <NIcon :component="PersonCircleOutline" size="20" />
                       </div>
                     </div>
-                    <div v-else class="msg-content">
-                      <div v-if="msg.time" class="msg-meta msg-meta-user-inner">
-                        <span class="msg-time">{{ msg.time }}</span>
+                    <div
+                      v-if="group.assistantMsg"
+                      :class="['message-item', 'assistant']"
+                    >
+                      <div class="msg-avatar assistant-avatar">
+                        <NIcon :component="SparklesOutline" size="20" />
                       </div>
-                      <MdPreview
-                        :theme="theme"
-                        :style="{ textAlign: 'right' }"
-                        v-if="msg.content"
-                        :model-value="msg.content"
-                        :editor-id="'agent-msg-' + (displayFromIndex + index)"
-                        class="msg-markdown"
-                      />
+                      <div class="msg-bubble">
+                        <div class="msg-content">
+                          <MdPreview
+                            :theme="theme"
+                            :style="{ textAlign: 'left' }"
+                            :model-value="group.assistantMsg.content || '...'"
+                            :editor-id="'agent-msg-' + group.assistantIndex"
+                            class="msg-markdown"
+                          />
+                          <div v-if="isStreamLoad && groupIndex === messageGroups.length - 1 && !group.assistantMsg.content" class="msg-loading">
+                            <NSpin size="small" />
+                            <span>思考中...</span>
+                          </div>
+                          <div class="msg-bubble-actions">
+                            <div v-if="group.assistantMsg.modelName || group.assistantMsg.time" class="msg-meta-row-assistant">
+                              <span v-if="group.assistantMsg.modelName" class="msg-model-name" :title="group.assistantMsg.modelName">{{ group.assistantMsg.modelName }}</span>
+                              <span v-if="group.assistantMsg.time" class="msg-time">{{ group.assistantMsg.time }}</span>
+                            </div>
+                            <NButton quaternary size="tiny" class="msg-copy-btn" @click="copyAiContent(group.assistantMsg)">
+                              <template #icon>
+                                <NIcon :component="CopyOutline" />
+                              </template>
+                              复制
+                            </NButton>
+                            <NButton
+                              quaternary
+                              size="tiny"
+                              class="msg-export-img-btn"
+                              :loading="exportImageKey === String(group.assistantIndex)"
+                              title="导出为图片"
+                              @click="exportAiReplyImage(group.assistantIndex, $event)"
+                            >
+                              <template #icon>
+                                <NIcon :component="ImageOutline" />
+                              </template>
+                              导出图
+                            </NButton>
+                            <NButton quaternary size="tiny" class="msg-share-btn" :loading="shareLoading" @click="shareAiContent(group.assistantMsg)">
+                              <template #icon>
+                                <NIcon :component="ShareSocialOutline" />
+                              </template>
+                              分享
+                            </NButton>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">
-                    <NIcon :component="PersonCircleOutline" size="20" />
                   </div>
                 </div>
               </div>
@@ -234,7 +249,9 @@ import {
   PersonCircleOutline,
   CopyOutline,
   ShareSocialOutline,
-  ImageOutline
+  ImageOutline,
+  ChevronDownOutline,
+  ChevronForwardOutline
 } from '@vicons/ionicons5'
 import { ChatWithAgent, GetAiConfigs, GetConfig, GetPromptTemplates, GetSponsorInfo, SaveAiAssistantSession, GetAiAssistantSession, ShareText, AbortChatWithAgent } from '../../wailsjs/go/main/App'
 import { EventsOff, EventsOn } from '../../wailsjs/runtime'
@@ -242,7 +259,6 @@ import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import html2canvas from 'html2canvas'
 
-const DEFAULT_VISIBLE_COUNT = 20
 const STORAGE_KEY_MODEL_ID = 'go-stock-agent-last-model-id'
 
 const route = useRoute()
@@ -306,11 +322,68 @@ const shareTipText = ref('')
 const vipLevel = ref(0)
 const vipLoaded = ref(false)
 const vipLoading = ref(false)
-const visibleCount = ref(DEFAULT_VISIBLE_COUNT)
 const isAborted = ref(false)
+const expandedGroups = ref(new Set())
 
 const hasBackgroundTask = computed(() => isStreamLoad.value && sentFromFloating.value && !panelVisible.value)
 const AGENT_EVENT = 'agent-message'
+
+const messageGroups = computed(() => {
+  const groups = []
+  let currentGroup = null
+  
+  for (let i = 0; i < messages.value.length; i++) {
+    const msg = messages.value[i]
+    if (msg.role === 'user') {
+      if (currentGroup) {
+        groups.push(currentGroup)
+      }
+      currentGroup = {
+        id: i,
+        userMsg: msg,
+        userIndex: i,
+        assistantMsg: null,
+        assistantIndex: -1
+      }
+    } else if (msg.role === 'assistant' && currentGroup) {
+      currentGroup.assistantMsg = msg
+      currentGroup.assistantIndex = i
+    }
+  }
+  if (currentGroup) {
+    groups.push(currentGroup)
+  }
+  return groups
+})
+
+function isGroupExpanded(groupIndex) {
+  return expandedGroups.value.has(groupIndex)
+}
+
+function toggleGroup(groupIndex) {
+  const newSet = new Set(expandedGroups.value)
+  if (newSet.has(groupIndex)) {
+    newSet.delete(groupIndex)
+  } else {
+    newSet.add(groupIndex)
+  }
+  expandedGroups.value = newSet
+}
+
+function initDefaultExpanded() {
+  if (messageGroups.value.length > 0 && expandedGroups.value.size === 0) {
+    expandedGroups.value = new Set([messageGroups.value.length - 1])
+  }
+}
+
+function ensureLatestGroupExpanded() {
+  if (messageGroups.value.length > 0) {
+    const lastIndex = messageGroups.value.length - 1
+    const newSet = new Set(expandedGroups.value)
+    newSet.add(lastIndex)
+    expandedGroups.value = newSet
+  }
+}
 
 async function copyAiContent(msg) {
   const text = (msg?.content ?? '').trim()
@@ -388,17 +461,17 @@ function shareAiToCommunity() {
   shareTextToCommunity(text, 'go-stock AI Agent助手')
 }
 
-async function exportAiReplyImage(displayFromIndex, index, evt) {
-  const msg = messages.value[displayFromIndex + index]
+async function exportAiReplyImage(assistantIndex, evt) {
+  const msg = messages.value[assistantIndex]
   if (msg?.role !== 'assistant') return
   if (!(msg.content ?? '').trim()) {
     shareTipText.value = '暂无可导出的 AI 回答内容'
     shareTipVisible.value = true
     return
   }
-  const editorId = 'agent-msg-' + (displayFromIndex + index)
+  const editorId = 'agent-msg-' + assistantIndex
   const bubble = evt?.currentTarget?.closest?.('.msg-bubble')
-  const key = String(displayFromIndex + index)
+  const key = String(assistantIndex)
   if (exportImageKey.value) return
   exportImageKey.value = key
   await nextTick()
@@ -445,24 +518,6 @@ function abortStream(showTip = true) {
   AbortChatWithAgent()
 }
 
-const displayedMessages = computed(() => {
-  const total = messages.value.length
-  const from = Math.max(0, total - visibleCount.value)
-  return messages.value.slice(from)
-})
-const displayFromIndex = computed(() => Math.max(0, messages.value.length - visibleCount.value))
-const hiddenCount = computed(() => Math.max(0, messages.value.length - visibleCount.value))
-const expandAll = computed(() => visibleCount.value >= messages.value.length)
-
-function showMoreHistory() {
-  if (expandAll.value) {
-    visibleCount.value = DEFAULT_VISIBLE_COUNT
-  } else {
-    visibleCount.value = messages.value.length
-  }
-  nextTick(scrollToBottom)
-}
-
 const theme = computed(() => (darkTheme.value ? 'dark' : 'light'))
 
 async function loadHistory() {
@@ -479,6 +534,9 @@ async function loadHistory() {
         time: m.time ?? '',
         modelName: m.modelName ?? ''
       }))
+      nextTick(() => {
+        initDefaultExpanded()
+      })
     }
   } catch (_) {
   }
@@ -510,7 +568,10 @@ function openPanel() {
       }
     ]
   }
-  nextTick(scrollToBottom)
+  nextTick(() => {
+    initDefaultExpanded()
+    scrollToBottom()
+  })
 }
 
 function closePanel() {
@@ -580,7 +641,10 @@ function sendMessage() {
   isAborted.value = false
   sentFromFloating.value = true
   saveHistory()
-  nextTick(scrollToBottom)
+  nextTick(() => {
+    ensureLatestGroupExpanded()
+    scrollToBottom()
+  })
   ChatWithAgent(text, configId, sysPromptId.value, memoryMode.value, memoryCount.value, thinkingMode.value)
 }
 
@@ -837,11 +901,48 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 16px;
 }
-.message-list-expand {
+.message-group {
+  border: 1px solid var(--n-border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--n-color-modal);
+}
+.message-group-header {
+  padding: 10px 14px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--n-border-color);
+  transition: background 0.2s;
+}
+.message-group-header:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.message-group-summary {
   display: flex;
-  justify-content: center;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--n-border-color);
+  align-items: center;
+  gap: 8px;
+}
+.message-group-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-group-time {
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  flex-shrink: 0;
+}
+.message-group-content {
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.message-group-content .message-item {
+  padding: 0 14px;
 }
 .message-item {
   display: flex;

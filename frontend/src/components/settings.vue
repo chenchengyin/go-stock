@@ -107,6 +107,64 @@ async function fetchAiModels(aiConfig) {
 
 
 const promptTemplates = ref([])
+
+const aiPlatformOptions = [
+  { label: 'DeepSeek (https://api.deepseek.com)', value: 'https://api.deepseek.com' },
+  { label: '硅基流动 (https://api.siliconflow.cn/v1)', value: 'https://api.siliconflow.cn/v1' },
+  { label: '智谱AI(GLM) (https://open.bigmodel.cn/api/paas/v4)', value: 'https://open.bigmodel.cn/api/paas/v4' },
+  { label: '字节豆包(火山引擎) (https://ark.cn-beijing.volces.com/api/v3)', value: 'https://ark.cn-beijing.volces.com/api/v3' },
+  { label: '阿里云百炼 (https://dashscope.aliyuncs.com/compatible-mode/v1)', value: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  { label: 'Moonshot(月之暗面) (https://api.moonshot.cn/v1)', value: 'https://api.moonshot.cn/v1' },
+  { label: '腾讯混元 (https://api.hunyuan.cloud.tencent.com/v1)', value: 'https://api.hunyuan.cloud.tencent.com/v1' },
+  { label: '讯飞星火 (https://spark-api-open.xf-yun.com/v1)', value: 'https://spark-api-open.xf-yun.com/v1' },
+  { label: '零一万物 (https://api.lingyiwanwu.com/v1)', value: 'https://api.lingyiwanwu.com/v1' },
+  { label: 'MiniMax (https://api.minimax.chat/v1)', value: 'https://api.minimax.chat/v1' },
+  { label: '百川智能 (https://api.baichuan-ai.com/v1)', value: 'https://api.baichuan-ai.com/v1' },
+  { label: '百度千帆 (https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop)', value: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop' },
+  { label: 'OpenAI (https://api.openai.com/v1)', value: 'https://api.openai.com/v1' },
+  { label: 'Azure OpenAI (https://YOUR_RESOURCE.openai.azure.com)', value: 'https://YOUR_RESOURCE.openai.azure.com' },
+  { label: 'OpenRouter (https://openrouter.ai/api/v1)', value: 'https://openrouter.ai/api/v1' },
+]
+
+function getPlatformName(baseUrl) {
+  if (!baseUrl) return ''
+  const platform = aiPlatformOptions.find(opt => opt.value === baseUrl)
+  if (platform) {
+    const idx = platform.label.indexOf(' (')
+    return idx > 0 ? platform.label.substring(0, idx) : platform.label
+  }
+  return ''
+}
+
+function onBaseUrlChange(aiConfig, newBaseUrl) {
+  const platformName = getPlatformName(newBaseUrl)
+  if (platformName && aiConfig.name && !aiConfig.name.startsWith(platformName)) {
+    aiConfig.name = platformName + '-' + aiConfig.name
+  } else if (platformName && !aiConfig.name) {
+    aiConfig.name = platformName
+  }
+}
+
+function onModelNameChange(aiConfig, newModelName) {
+  if (!newModelName) return
+  const platformName = getPlatformName(aiConfig.baseUrl)
+  const baseName = platformName || 'AI'
+  
+  if (!aiConfig.name) {
+    aiConfig.name = baseName + '-' + newModelName
+  } else if (aiConfig.name === platformName) {
+    aiConfig.name = platformName + '-' + newModelName
+  } else {
+    const parts = aiConfig.name.split('-')
+    if (parts.length >= 2 && parts[0] === platformName) {
+      parts[parts.length - 1] = newModelName
+      aiConfig.name = parts.join('-')
+    } else if (!aiConfig.name.endsWith(newModelName)) {
+      aiConfig.name = aiConfig.name + '-' + newModelName
+    }
+  }
+}
+
 onMounted(() => {
   GetConfig().then(res => {
     formValue.value.ID = res.ID
@@ -380,7 +438,7 @@ function deletePrompt(ID) {
                 </template>
                 <template #default>
                   <n-gradient-text :type="'warning'">
-                  <div style="max-width: 300px;text-align: left">
+                  <div style="max-width: 400px;text-align: left">
                     获取方法：<br>
                     打开浏览器,访问东财网站，<br>
                     按F12打开开发人员工具-》网络面板，<br>
@@ -405,7 +463,7 @@ function deletePrompt(ID) {
                     </n-icon>
                   </template>
                   <n-gradient-text :type="'warning'">
-                    <div style="max-width: 300px;text-align: left">
+                    <div style="max-width: 400px;text-align: left">
                       赞助码获取方式：<br>
                       联系作者获取赞助码，激活VIP功能<br>
                       享受更多高级功能和优先支持
@@ -504,7 +562,15 @@ function deletePrompt(ID) {
                       <n-input type="text" placeholder="配置名称" v-model:value="aiConfig.name" clearable/>
                     </n-form-item-gi>
                     <n-form-item-gi :span="12" label="接口地址" :path="`openAI.aiConfigs[${index}].baseUrl`">
-                      <n-input type="text" placeholder="AI接口地址" v-model:value="aiConfig.baseUrl" clearable/>
+                      <n-select
+                        v-model:value="aiConfig.baseUrl"
+                        :options="aiPlatformOptions"
+                        filterable
+                        tag
+                        clearable
+                        placeholder="选择或输入AI接口地址"
+                        @update:value="(val) => onBaseUrlChange(aiConfig, val)"
+                      />
                     </n-form-item-gi>
                     <n-form-item-gi :span="12" label="令牌(apiKey)" :path="`openAI.aiConfigs[${index}].apiKey`">
                       <n-input type="password" placeholder="apiKey" v-model:value="aiConfig.apiKey" clearable
@@ -519,6 +585,7 @@ function deletePrompt(ID) {
                         :loading="aiConfig._loadingModels"
                         placeholder="点击获取模型列表或手动输入"
                         @click="fetchAiModels(aiConfig)"
+                        @update:value="(val) => onModelNameChange(aiConfig, val)"
                       />
                     </n-form-item-gi>
                     <n-form-item-gi :span="5" label="Temperature" :path="`openAI.aiConfigs[${index}].temperature`">
