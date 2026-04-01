@@ -111,6 +111,12 @@
                               <span v-if="group.assistantMsg.modelName" class="msg-model-name" :title="group.assistantMsg.modelName">{{ group.assistantMsg.modelName }}</span>
                               <span v-if="group.assistantMsg.time" class="msg-time">{{ group.assistantMsg.time }}</span>
                             </div>
+                            <NButton quaternary size="tiny" class="msg-toggle-btn" @click="toggleGroup(groupIndex)">
+                              <template #icon>
+                                <NIcon :component="isGroupExpanded(groupIndex) ? ChevronUpOutline : ChevronDownOutline" />
+                              </template>
+                              {{ isGroupExpanded(groupIndex) ? '收起' : '展开' }}
+                            </NButton>
                             <NButton quaternary size="tiny" class="msg-copy-btn" @click="copyAiContent(group.assistantMsg)">
                               <template #icon>
                                 <NIcon :component="CopyOutline" />
@@ -251,7 +257,8 @@ import {
   ShareSocialOutline,
   ImageOutline,
   ChevronDownOutline,
-  ChevronForwardOutline
+  ChevronForwardOutline,
+  ChevronUpOutline
 } from '@vicons/ionicons5'
 import { ChatWithAgent, GetAiConfigs, GetConfig, GetPromptTemplates, GetSponsorInfo, SaveAiAssistantSession, GetAiAssistantSession, ShareText, AbortChatWithAgent } from '../../wailsjs/go/main/App'
 import { EventsOff, EventsOn } from '../../wailsjs/runtime'
@@ -1035,7 +1042,8 @@ onBeforeUnmount(() => {
 }
 .msg-share-btn,
 .msg-copy-btn,
-.msg-export-img-btn {
+.msg-export-img-btn,
+.msg-toggle-btn {
   padding: 2px 10px;
   font-size: 12px;
   border-radius: 12px;
@@ -1046,21 +1054,24 @@ onBeforeUnmount(() => {
 }
 .msg-share-btn:hover,
 .msg-copy-btn:hover,
-.msg-export-img-btn:hover {
+.msg-export-img-btn:hover,
+.msg-toggle-btn:hover {
   border-color: var(--n-primary-color);
   background-color: var(--n-primary-color);
   color: #fff;
 }
 .message-item.user .msg-bubble .msg-share-btn,
 .message-item.user .msg-bubble .msg-copy-btn,
-.message-item.user .msg-bubble .msg-export-img-btn {
+.message-item.user .msg-bubble .msg-export-img-btn,
+.message-item.user .msg-bubble .msg-toggle-btn {
   color: rgba(255, 255, 255, 0.92);
   background-color: rgba(255, 255, 255, 0.22);
   border-color: rgba(255, 255, 255, 0.65);
 }
 .message-item.user .msg-bubble .msg-share-btn:hover,
 .message-item.user .msg-bubble .msg-copy-btn:hover,
-.message-item.user .msg-bubble .msg-export-img-btn:hover {
+.message-item.user .msg-bubble .msg-export-img-btn:hover,
+.message-item.user .msg-bubble .msg-toggle-btn:hover {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.95);
   background-color: rgba(255, 255, 255, 0.32);
