@@ -2544,7 +2544,7 @@ watch(modalShow6, (newVal) => {
     </n-input-group>
     <!--    </n-card>-->
   </div>
-  <n-modal transform-origin="center" size="small" v-model:show="modalShow" :title="formModel.name" style="width: 400px"
+  <n-modal transform-origin="center" size="small" v-model:show="modalShow" :title="formModel.name" style="width: 800px"
            :preset="'card'">
     <n-form :model="formModel" :rules="{
               costPrice: { required: true, message: '请输入成本'},
@@ -2552,63 +2552,78 @@ watch(modalShow6, (newVal) => {
               alarm:{required: true, message: '涨跌报警值'} ,
               alarmPrice: { required: true, message: '请输入报警价格'},
               sort: { required: true, message: '请输入排序值'},
-            }" label-placement="left" label-width="80px">
-      <n-form-item label="股票成本" path="costPrice">
-        <n-input-number v-model:value="formModel.costPrice" min="0" placeholder="请输入股票成本">
-          <template #suffix>
-            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
-          </template>
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="股票数量" path="volume">
-        <n-input-number v-model:value="formModel.volume" min="0" step="100" placeholder="请输入股票数量">
-          <template #suffix>
-            股
-          </template>
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="涨跌提醒" path="alarm">
-        <n-input-number v-model:value="formModel.alarm" min="0" placeholder="请输入涨跌报警值(%)">
-          <template #suffix>
-            %
-          </template>
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="股价提醒" path="alarmPrice">
-        <n-input-number v-model:value="formModel.alarmPrice" min="0" placeholder="请输入股价报警值(¥)">
-          <template #suffix>
-            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
-          </template>
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="股票排序" path="sort">
-        <n-input-number v-model:value="formModel.sort" min="0" placeholder="请输入股价排序值">
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="AI cron" path="cron">
-        <n-input v-model:value="formModel.cron" placeholder="请输入cron表达式"/>
-      </n-form-item>
-      <n-form-item label="开仓价" path="entryPrice">
-        <n-input-number v-model:value="formModel.entryPrice" min="0" step="0.01" placeholder="请输入开仓价">
-          <template #suffix>
-            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
-          </template>
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="止盈价" path="takeProfitPrice">
-        <n-input-number v-model:value="formModel.takeProfitPrice" min="0" step="0.01" placeholder="请输入止盈价">
-          <template #suffix>
-            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
-          </template>
-        </n-input-number>
-      </n-form-item>
-      <n-form-item label="止损价" path="stopLossPrice">
-        <n-input-number v-model:value="formModel.stopLossPrice" min="0" step="0.01" placeholder="请输入止损价">
-          <template #suffix>
-            {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
-          </template>
-        </n-input-number>
-      </n-form-item>
+            }" label-placement="left" label-width="100px">
+      <n-grid :cols="2" :x-gap="12">
+        <n-gi>
+          <n-form-item label="股票成本" path="costPrice">
+            <n-input-number v-model:value="formModel.costPrice" min="0" placeholder="请输入股票成本" style="width: 100%">
+              <template #suffix>
+                {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="股票数量" path="volume">
+            <n-input-number v-model:value="formModel.volume" min="0" step="100" placeholder="请输入股票数量" style="width: 100%">
+              <template #suffix>
+                股
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="涨跌提醒" path="alarm">
+            <n-input-number v-model:value="formModel.alarm" min="0" placeholder="涨跌报警值(%)" style="width: 100%">
+              <template #suffix>
+                %
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="股价提醒" path="alarmPrice">
+            <n-input-number v-model:value="formModel.alarmPrice" min="0" placeholder="股价报警值" style="width: 100%">
+              <template #suffix>
+                {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="开仓价" path="entryPrice">
+            <n-input-number v-model:value="formModel.entryPrice" min="0" step="0.01" placeholder="请输入开仓价" style="width: 100%">
+              <template #suffix>
+                {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="股票排序" path="sort">
+            <n-input-number v-model:value="formModel.sort" min="0" placeholder="排序值" style="width: 100%">
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="止盈价" path="takeProfitPrice">
+            <n-input-number v-model:value="formModel.takeProfitPrice" min="0" step="0.01" placeholder="请输入止盈价" style="width: 100%">
+              <template #suffix>
+                {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+        <n-gi>
+          <n-form-item label="止损价" path="stopLossPrice">
+            <n-input-number v-model:value="formModel.stopLossPrice" min="0" step="0.01" placeholder="请输入止损价" style="width: 100%">
+              <template #suffix>
+                {{ formModel.code.indexOf("hk") >= 0 ? "HK$" : "¥" }}
+              </template>
+            </n-input-number>
+          </n-form-item>
+        </n-gi>
+      </n-grid>
     </n-form>
     <template #footer>
       <n-button type="primary"

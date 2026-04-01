@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"go-stock/backend/agent/tool_logger"
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/flow/agent"
 	"github.com/cloudwego/eino/schema"
 	"github.com/duke-git/lancet/v2/fileutil"
@@ -29,7 +27,7 @@ func TestGetStockAiAgent(t *testing.T) {
 	aiAgent := GetStockAiAgent(&ctx, *config.AiConfigs[0])
 
 	opt := []agent.AgentOption{
-		agent.WithComposeOptions(compose.WithCallbacks(&tool_logger.LoggerCallback{})),
+		//agent.WithComposeOptions(compose.WithCallbacks(&tool_logger.LoggerCallback{})),
 		//react.WithChatModelOptions(ark.WithCache(cacheOption)),
 	}
 

@@ -114,11 +114,12 @@ func (a *CronTaskApi) EnableTask(id uint, enable bool) error {
 	}).Error
 }
 
-func (a *CronTaskApi) UpdateRunInfo(id uint, lastRunAt time.Time, nextRunAt *time.Time) error {
+func (a *CronTaskApi) UpdateRunInfo(id uint, lastRunAt time.Time, nextRunAt *time.Time, lastRunResult string) error {
 	return db.Dao.Model(&models.CronTask{}).Where("id = ?", id).Updates(map[string]any{
-		"last_run_at": lastRunAt,
-		"next_run_at": nextRunAt,
-		"run_count":   gorm.Expr("run_count + 1"),
+		"last_run_at":     lastRunAt,
+		"next_run_at":     nextRunAt,
+		"run_count":       gorm.Expr("run_count + 1"),
+		"last_run_result": lastRunResult,
 	}).Error
 }
 
@@ -173,12 +174,24 @@ func (a *CronTaskApi) ExecuteTask(ctx context.Context, task *models.CronTask) er
 	now := time.Now()
 	nextRunAt := a.CalculateNextRunTime(task.CronExpr)
 
-	err := a.UpdateRunInfo(task.ID, now, &nextRunAt)
+	var runResult string
+	err := a.executeTaskByType(ctx, task)
 	if err != nil {
-		logger.SugaredLogger.Errorf("更新任务运行信息失败：%v", err)
-		return err
+		runResult = "失败: " + err.Error()
+		logger.SugaredLogger.Errorf("执行定时任务失败：%s, 错误：%v", task.Name, err)
+	} else {
+		runResult = "成功"
 	}
 
+	err2 := a.UpdateRunInfo(task.ID, now, &nextRunAt, runResult)
+	if err2 != nil {
+		logger.SugaredLogger.Errorf("更新任务运行信息失败：%v", err2)
+	}
+
+	return err
+}
+
+func (a *CronTaskApi) executeTaskByType(ctx context.Context, task *models.CronTask) error {
 	switch task.TaskType {
 	case "stock_analysis":
 		return a.executeStockAnalysis(ctx, task)

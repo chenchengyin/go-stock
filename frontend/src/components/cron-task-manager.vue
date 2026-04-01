@@ -952,14 +952,18 @@ const columns = [
     }
   },
   {
-    title: '上次运行',
+    title: '最近执行',
     key: 'lastRunAt',
-    width: 160,
+    width: 200,
     render(row) {
       if (!row.lastRunAt) return h(NText, { depth: 3 }, { default: () => '未运行' })
       const date = new Date(row.lastRunAt)
-      return h(NText, {}, {
-        default: () => date.toLocaleString('zh-CN')
+      const resultType = row.lastRunResult && row.lastRunResult.startsWith('成功') ? 'success' : 'error'
+      return h(NSpace, { vertical: true, size: 2 }, {
+        default: () => [
+          h(NText, {}, { default: () => date.toLocaleString('zh-CN') }),
+          row.lastRunResult ? h(NTag, { type: resultType, size: 'small' }, { default: () => row.lastRunResult }) : null
+        ]
       })
     }
   },

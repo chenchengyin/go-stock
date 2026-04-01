@@ -184,10 +184,11 @@ function fetchStockPrice(stockCode, market) {
 /** 当前自然月 [月初 0 点, 月末当日]（供日期区间选择与 formatDate 查询） */
 function currentMonthDateRange() {
   const now = new Date()
-  return [
-    new Date(now.getFullYear(), now.getMonth(), 1),
-    new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  ]
+  // return [
+  //   new Date(now.getFullYear(), now.getMonth(), 1),
+  //   new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  // ]
+  return null
 }
 
 const paginationReactive = reactive({
@@ -318,8 +319,8 @@ function silentRefreshCurrentPage() {
     pageSize: paginationReactive.pageSize,
     keyword: paginationReactive.keyword,
     direction: paginationReactive.direction,
-    startDate: formatDate(paginationReactive.range[0]),
-    endDate: formatDate(paginationReactive.range[1])
+    startDate: paginationReactive.range ? formatDate(paginationReactive.range[0]) : '',
+    endDate: paginationReactive.range ? formatDate(paginationReactive.range[1]) : ''
   })
     .then((data) => {
       dataRef.value = data.data
@@ -338,8 +339,8 @@ function handlePageChange(currentPage) {
       pageSize: paginationReactive.pageSize,
       keyword: paginationReactive.keyword,
       direction: paginationReactive.direction,
-      startDate: formatDate(paginationReactive.range[0]),
-      endDate: formatDate(paginationReactive.range[1])
+      startDate: paginationReactive.range ? formatDate(paginationReactive.range[0]) : '',
+      endDate: paginationReactive.range ? formatDate(paginationReactive.range[1]) : ''
     })
       .then((data) => {
         dataRef.value = data.data
@@ -363,8 +364,8 @@ function handleSearch() {
       pageSize: paginationReactive.pageSize,
       keyword: paginationReactive.keyword,
       direction: paginationReactive.direction,
-      startDate: formatDate(paginationReactive.range[0]),
-      endDate: formatDate(paginationReactive.range[1])
+      startDate: paginationReactive.range ? formatDate(paginationReactive.range[0]) : '',
+      endDate: paginationReactive.range ? formatDate(paginationReactive.range[1]) : ''
     })
       .then((data) => {
         dataRef.value = data.data
@@ -657,8 +658,8 @@ onMounted(() => {
     pageSize: paginationReactive.pageSize,
     keyword: paginationReactive.keyword,
     direction: paginationReactive.direction,
-    startDate: formatDate(paginationReactive.range[0]),
-    endDate: formatDate(paginationReactive.range[1])
+    startDate: paginationReactive.range ? formatDate(paginationReactive.range[0]) : '',
+    endDate: paginationReactive.range ? formatDate(paginationReactive.range[1]) : ''
   })
     .then((data) => {
       dataRef.value = data.data

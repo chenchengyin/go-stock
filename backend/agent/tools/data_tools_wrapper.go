@@ -1514,11 +1514,11 @@ func GetAllDataTools() []tool.BaseTool {
 
 	tools = append(tools, NewDataToolWrapper(
 		"GetFollowedStocks",
-		"获取用户关注的股票列表",
+		"获取用户关注/自选的股票列表",
 		map[string]*schema.ParameterInfo{
 			"groupId": {
 				Type:     "integer",
-				Desc:     "股票分组ID，不传则返回所有关注的股票",
+				Desc:     "股票分组ID，不传则返回所有关注/自选的股票",
 				Required: false,
 			},
 		},
@@ -1531,11 +1531,10 @@ func GetAllDataTools() []tool.BaseTool {
 					stockInfo := data.NewStockDataApi().GetFollowedStockByStockCode(gs.StockCode)
 					if stockInfo.StockCode != "" {
 						rows = append(rows, map[string]any{
-							"股票代码":   stockInfo.StockCode,
-							"股票名称":   stockInfo.Name,
-							"当前价格":   stockInfo.Price,
-							"涨跌额":    stockInfo.PriceChange,
-							"涨跌幅(%)": stockInfo.ChangePercent,
+							"股票代码": stockInfo.StockCode,
+							"股票名称": stockInfo.Name,
+							"成本价格": stockInfo.CostPrice,
+							"持仓数量": stockInfo.Volume,
 						})
 					}
 				}
@@ -1544,19 +1543,18 @@ func GetAllDataTools() []tool.BaseTool {
 				if list != nil {
 					for _, s := range *list {
 						rows = append(rows, map[string]any{
-							"股票代码":   s.StockCode,
-							"股票名称":   s.Name,
-							"当前价格":   s.Price,
-							"涨跌额":    s.PriceChange,
-							"涨跌幅(%)": s.ChangePercent,
+							"股票代码": s.StockCode,
+							"股票名称": s.Name,
+							"成本价格": s.CostPrice,
+							"持仓数量": s.Volume,
 						})
 					}
 				}
 			}
 			if len(rows) == 0 {
-				return "暂无关注的股票", nil
+				return "暂无关注/自选的股票", nil
 			}
-			return util.MarkdownTableWithTitle("关注的股票", rows), nil
+			return util.MarkdownTableWithTitle("关注/自选的股票", rows), nil
 		},
 	))
 

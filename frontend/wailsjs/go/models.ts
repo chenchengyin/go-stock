@@ -1445,6 +1445,7 @@ export namespace models {
 	    runCount: number;
 	    status: string;
 	    description: string;
+	    lastRunResult: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CronTask(source);
@@ -1466,6 +1467,7 @@ export namespace models {
 	        this.runCount = source["runCount"];
 	        this.status = source["status"];
 	        this.description = source["description"];
+	        this.lastRunResult = source["lastRunResult"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
