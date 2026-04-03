@@ -546,14 +546,17 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 }
 
 func (o *OpenAi) SaveAIResponseResult(stockCode, stockName, result, chatId, question string) {
-	db.Dao.Create(&models.AIResponseResult{
+	err := db.Dao.Create(&models.AIResponseResult{
 		StockCode: stockCode,
 		StockName: stockName,
 		ModelName: o.Model,
 		Content:   result,
 		ChatId:    chatId,
 		Question:  question,
-	})
+	}).Error
+	if err != nil {
+		logger.SugaredLogger.Errorf("failed to save ai response result: %v", err)
+	}
 }
 
 func (o *OpenAi) GetAIResponseResult(stock string) *models.AIResponseResult {

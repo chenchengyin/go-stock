@@ -14,6 +14,46 @@ import (
 // @Desc
 //-----------------------------------------------------------------------------------
 
+type StockChangeHistory struct {
+	ID         uint      `json:"id" gorm:"primarykey"`
+	ChangeTime string    `json:"changeTime" gorm:"uniqueIndex:idx_unique_change;size:10"`       // 异动时间 HH:MM:SS
+	ChangeDate string    `json:"changeDate" gorm:"uniqueIndex:idx_unique_change;index;size:10"` // 异动日期 YYYY-MM-DD
+	StockCode  string    `json:"stockCode" gorm:"uniqueIndex:idx_unique_change;index;size:20"`  // 股票代码
+	StockName  string    `json:"stockName" gorm:"size:50"`                                      // 股票名称
+	Market     int       `json:"market"`                                                        // 市场
+	ChangeType int       `json:"changeType" gorm:"uniqueIndex:idx_unique_change;index"`         // 异动类型代码
+	TypeName   string    `json:"typeName" gorm:"size:20"`                                       // 异动类型名称
+	Volume     int64     `json:"volume" gorm:"uniqueIndex:idx_unique_change"`                   // 成交量(股)
+	Price      float64   `json:"price" gorm:"uniqueIndex:idx_unique_change"`                    // 价格
+	ChangeRate float64   `json:"changeRate" gorm:"uniqueIndex:idx_unique_change"`               // 涨跌幅(%)
+	Amount     float64   `json:"amount" gorm:"uniqueIndex:idx_unique_change"`                   // 金额
+	CreatedAt  time.Time `json:"createdAt" gorm:"autoCreateTime"`
+}
+
+func (StockChangeHistory) TableName() string {
+	return "stock_change_history"
+}
+
+type StockChangeHistoryQuery struct {
+	StockCode   string `json:"stockCode"`
+	StockName   string `json:"stockName"`
+	ChangeType  int    `json:"changeType"`
+	ChangeTypes []int  `json:"changeTypes"`
+	TypeName    string `json:"typeName"`
+	StartDate   string `json:"startDate"`
+	EndDate     string `json:"endDate"`
+	Page        int    `json:"page"`
+	PageSize    int    `json:"pageSize"`
+}
+
+type StockChangeHistoryPageData struct {
+	List       []StockChangeHistory `json:"list"`
+	Total      int64                `json:"total"`
+	Page       int                  `json:"page"`
+	PageSize   int                  `json:"pageSize"`
+	TotalPages int                  `json:"totalPages"`
+}
+
 type GitHubReleaseVersion struct {
 	Url       string `json:"url"`
 	AssetsUrl string `json:"assets_url"`

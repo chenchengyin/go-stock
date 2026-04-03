@@ -9,6 +9,7 @@ import AllStockList from "./allStockList.vue";
 import AllStockInfoList from "./allStockInfoList.vue";
 import CronTaskManager from "./cron-task-manager.vue";
 import TradingRecordManager from "./TradingRecordManager.vue";
+import StockChangesMonitor from "./stockChangesMonitor.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -44,6 +45,9 @@ function updateTab(name) {
       </n-tab-pane>
       <n-tab-pane name="股票推荐记录">
         <AiRecommendStocksList/>
+      </n-tab-pane>
+      <n-tab-pane name="异动监控">
+        <StockChangesMonitor/>
       </n-tab-pane>
       <n-tab-pane name="提示词模板">
         <PromptTemplateList/>

@@ -128,6 +128,7 @@ func (a *CronTaskApi) GetTaskTypes() []lo.Tuple2[string, string] {
 		{A: "stock_analysis", B: "股票分析"},
 		{A: "market_analysis", B: "市场分析"},
 		{A: "global_stock_index_cache", B: "全球指数缓存"},
+		{A: "stock_change_save", B: "异动数据保存"},
 	}
 }
 
@@ -205,6 +206,8 @@ func (a *CronTaskApi) executeTaskByType(ctx context.Context, task *models.CronTa
 		return a.executeNewsFetch(ctx, task)
 	case "stock_monitor":
 		return a.executeStockMonitor(ctx, task)
+	case "stock_change_save":
+		return a.executeStockChangeSave(ctx, task)
 	case "custom":
 		return a.executeCustomTask(ctx, task)
 	default:
@@ -370,4 +373,77 @@ func (a *CronTaskApi) executeGlobalStockIndexCache(ctx context.Context, task *mo
 		params.CrawlTimeOut = 30
 	}
 	return data.NewMarketNewsApi().CacheGlobalStockIndexes(params.CrawlTimeOut)
+}
+
+func (a *CronTaskApi) executeStockChangeSave(ctx context.Context, task *models.CronTask) error {
+	logger.SugaredLogger.Infof("执行异动数据保存任务：%s", task.Name)
+
+	if !isTradingTime() {
+		logger.SugaredLogger.Info("当前不在A股交易时间，跳过异动数据保存")
+		return nil
+	}
+
+	var params struct {
+		ChangeTypes []int `json:"changeTypes"`
+		DeleteDays  int   `json:"deleteDays"`
+	}
+
+	if task.Params != "" {
+		err := json.Unmarshal([]byte(task.Params), &params)
+		if err != nil {
+			logger.SugaredLogger.Errorf("解析任务参数失败：%v", err)
+			return err
+		}
+	}
+
+	if len(params.ChangeTypes) == 0 {
+		params.ChangeTypes = []int{8201, 8202, 8193, 4, 8204, 8203, 8194, 8}
+	}
+
+	api := data.NewStockChangesApi()
+	result := api.GetStockChanges(params.ChangeTypes, 0, 500)
+	if result == nil || len(result.Data) == 0 {
+		logger.SugaredLogger.Info("没有获取到异动数据")
+		return nil
+	}
+
+	savedCount, err := data.NewStockChangeHistoryService().SaveStockChangesWithDedup(result.Data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("保存异动数据失败：%v", err)
+		return err
+	}
+
+	logger.SugaredLogger.Infof("成功保存 %d 条异动数据（去重后）", savedCount)
+
+	if params.DeleteDays > 0 {
+		err = data.NewStockChangeHistoryService().DeleteOldData(params.DeleteDays)
+		if err != nil {
+			logger.SugaredLogger.Warnf("删除旧数据失败：%v", err)
+		} else {
+			logger.SugaredLogger.Infof("已删除 %d 天前的历史数据", params.DeleteDays)
+		}
+	}
+
+	return nil
+}
+
+func isTradingTime() bool {
+	now := time.Now()
+	weekday := now.Weekday()
+	if weekday == time.Saturday || weekday == time.Sunday {
+		return false
+	}
+
+	hour, minute := now.Hour(), now.Minute()
+	currentTime := hour*100 + minute
+
+	morningStart := 915
+	morningEnd := 1130
+	afternoonStart := 1300
+	afternoonEnd := 1500
+
+	isMorning := currentTime >= morningStart && currentTime <= morningEnd
+	isAfternoon := currentTime >= afternoonStart && currentTime <= afternoonEnd
+
+	return isMorning || isAfternoon
 }

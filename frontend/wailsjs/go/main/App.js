@@ -114,6 +114,10 @@ export function DeletePromptTemplate(arg1) {
   return window['go']['main']['App']['DeletePromptTemplate'](arg1);
 }
 
+export function DeleteStockChangeHistory(arg1) {
+  return window['go']['main']['App']['DeleteStockChangeHistory'](arg1);
+}
+
 export function DeleteTradingRecord(arg1) {
   return window['go']['main']['App']['DeleteTradingRecord'](arg1);
 }
@@ -176,6 +180,10 @@ export function GetAllIndustries() {
 
 export function GetAllMarkets() {
   return window['go']['main']['App']['GetAllMarkets']();
+}
+
+export function GetAllStockChangesWithPaging(arg1) {
+  return window['go']['main']['App']['GetAllStockChangesWithPaging'](arg1);
 }
 
 export function GetAllStockInfoById(arg1) {
@@ -252,6 +260,14 @@ export function GetPromptTemplates(arg1, arg2) {
 
 export function GetSponsorInfo() {
   return window['go']['main']['App']['GetSponsorInfo']();
+}
+
+export function GetStockChangeHistory(arg1) {
+  return window['go']['main']['App']['GetStockChangeHistory'](arg1);
+}
+
+export function GetStockChanges(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetStockChanges'](arg1, arg2, arg3);
 }
 
 export function GetStockCommonKLine(arg1, arg2, arg3) {
@@ -396,6 +412,10 @@ export function SaveAsMarkdown(arg1, arg2) {
 
 export function SaveImage(arg1, arg2) {
   return window['go']['main']['App']['SaveImage'](arg1, arg2);
+}
+
+export function SaveStockChangesToHistory(arg1) {
+  return window['go']['main']['App']['SaveStockChangesToHistory'](arg1);
 }
 
 export function SaveWordFile(arg1, arg2) {

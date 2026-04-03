@@ -600,6 +600,68 @@ export namespace data {
 		    return a;
 		}
 	}
+	export class StockChangeItem {
+	    time: string;
+	    code: string;
+	    name: string;
+	    market: number;
+	    changeType: number;
+	    typeName: string;
+	    volume: number;
+	    price: number;
+	    changeRate: number;
+	    amount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StockChangeItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.time = source["time"];
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.market = source["market"];
+	        this.changeType = source["changeType"];
+	        this.typeName = source["typeName"];
+	        this.volume = source["volume"];
+	        this.price = source["price"];
+	        this.changeRate = source["changeRate"];
+	        this.amount = source["amount"];
+	    }
+	}
+	export class StockChangesResponse {
+	    totalCount: number;
+	    data: StockChangeItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new StockChangesResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.totalCount = source["totalCount"];
+	        this.data = this.convertValues(source["data"], StockChangeItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class StockInfo {
 	    ID: number;
 	    // Go type: time
@@ -1678,6 +1740,127 @@ export namespace models {
 	        this.PositiveCount = source["PositiveCount"];
 	        this.NegativeCount = source["NegativeCount"];
 	        this.Description = source["Description"];
+	    }
+	}
+	export class StockChangeHistory {
+	    id: number;
+	    changeTime: string;
+	    changeDate: string;
+	    stockCode: string;
+	    stockName: string;
+	    market: number;
+	    changeType: number;
+	    typeName: string;
+	    volume: number;
+	    price: number;
+	    changeRate: number;
+	    amount: number;
+	    // Go type: time
+	    createdAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new StockChangeHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.changeTime = source["changeTime"];
+	        this.changeDate = source["changeDate"];
+	        this.stockCode = source["stockCode"];
+	        this.stockName = source["stockName"];
+	        this.market = source["market"];
+	        this.changeType = source["changeType"];
+	        this.typeName = source["typeName"];
+	        this.volume = source["volume"];
+	        this.price = source["price"];
+	        this.changeRate = source["changeRate"];
+	        this.amount = source["amount"];
+	        this.createdAt = this.convertValues(source["createdAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StockChangeHistoryPageData {
+	    list: StockChangeHistory[];
+	    total: number;
+	    page: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StockChangeHistoryPageData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.list = this.convertValues(source["list"], StockChangeHistory);
+	        this.total = source["total"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class StockChangeHistoryQuery {
+	    stockCode: string;
+	    stockName: string;
+	    changeType: number;
+	    changeTypes: number[];
+	    typeName: string;
+	    startDate: string;
+	    endDate: string;
+	    page: number;
+	    pageSize: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StockChangeHistoryQuery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stockCode = source["stockCode"];
+	        this.stockName = source["stockName"];
+	        this.changeType = source["changeType"];
+	        this.changeTypes = source["changeTypes"];
+	        this.typeName = source["typeName"];
+	        this.startDate = source["startDate"];
+	        this.endDate = source["endDate"];
+	        this.page = source["page"];
+	        this.pageSize = source["pageSize"];
 	    }
 	}
 	export class StockInfo {

@@ -372,10 +372,10 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 
 		if contentBuilder.Len() > 0 && len(toolCallsMap) == 0 {
 			fmt.Printf("\n[FinalAnswer]\n%s\n", contentBuilder.String())
-			safeSend(ch, &schema.Message{
-				Role:    schema.Assistant,
-				Content: "agent-DONE",
-			})
+			//safeSend(ch, &schema.Message{
+			//	Role:    schema.Assistant,
+			//	Content: "agent-DONE",
+			//})
 		}
 	}
 }

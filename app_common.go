@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go-stock/backend/agent"
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
@@ -186,6 +187,47 @@ func (a *App) BatchDeleteAIResponseResult(ids []uint) string {
 		return "删除失败"
 	}
 	return "删除成功"
+}
+
+func (a *App) GetStockChanges(changeTypes []int, pageIndex, pageSize int) *data.StockChangesResponse {
+	return data.NewStockChangesApi().GetStockChanges(changeTypes, pageIndex, pageSize)
+}
+
+func (a *App) GetAllStockChangesWithPaging(pageSize int) *data.StockChangesResponse {
+	all := data.NewStockChangesApi().GetAllStockChangesWithPaging(pageSize)
+	historyService := data.NewStockChangeHistoryService()
+	_, _ = historyService.SaveStockChangesWithDedup(all.Data)
+	return all
+}
+
+func (a *App) GetStockChangeHistory(query models.StockChangeHistoryQuery) *models.StockChangeHistoryPageData {
+	result, err := data.NewStockChangeHistoryService().GetHistoryList(query)
+	if err != nil {
+		return &models.StockChangeHistoryPageData{}
+	}
+	return result
+}
+
+func (a *App) SaveStockChangesToHistory(changeTypes []int) string {
+	api := data.NewStockChangesApi()
+	result := api.GetStockChanges(changeTypes, 0, 500)
+	if result == nil || len(result.Data) == 0 {
+		return "没有获取到异动数据"
+	}
+
+	err := data.NewStockChangeHistoryService().SaveStockChanges(result.Data)
+	if err != nil {
+		return "保存失败: " + err.Error()
+	}
+	return fmt.Sprintf("成功保存 %d 条异动数据", len(result.Data))
+}
+
+func (a *App) DeleteStockChangeHistory(days int) string {
+	err := data.NewStockChangeHistoryService().DeleteOldData(days)
+	if err != nil {
+		return "删除失败: " + err.Error()
+	}
+	return fmt.Sprintf("已删除 %d 天前的历史数据", days)
 }
 
 func (a *App) GetAiRecommendStocksList(query models.AiRecommendStocksQuery) *models.AiRecommendStocksPageData {

@@ -41,6 +41,7 @@ declare module 'vue' {
     SelectStock: typeof import('./src/components/SelectStock.vue')['default']
     Settings: typeof import('./src/components/settings.vue')['default']
     Stock: typeof import('./src/components/stock.vue')['default']
+    StockChangesMonitor: typeof import('./src/components/stockChangesMonitor.vue')['default']
     Stockhotmap: typeof import('./src/components/stockhotmap.vue')['default']
     StockLightweightKlineChart: typeof import('./src/components/StockLightweightKlineChart.vue')['default']
     StockNoticeList: typeof import('./src/components/StockNoticeList.vue')['default']

@@ -260,7 +260,18 @@ import {
   ChevronForwardOutline,
   ChevronUpOutline
 } from '@vicons/ionicons5'
-import { ChatWithAgent, GetAiConfigs, GetConfig, GetPromptTemplates, GetSponsorInfo, SaveAiAssistantSession, GetAiAssistantSession, ShareText, AbortChatWithAgent } from '../../wailsjs/go/main/App'
+import {
+  ChatWithAgent,
+  GetAiConfigs,
+  GetConfig,
+  GetPromptTemplates,
+  GetSponsorInfo,
+  SaveAiAssistantSession,
+  GetAiAssistantSession,
+  ShareText,
+  AbortChatWithAgent,
+  SaveAIResponseResult
+} from '../../wailsjs/go/main/App'
 import { EventsOff, EventsOn } from '../../wailsjs/runtime'
 import { MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
@@ -673,6 +684,11 @@ function onAgentMessage(msg) {
     isAborted.value = false
     saveHistory()
     nextTick(scrollToBottom)
+    const last = messages.value[messages.value.length - 1]
+    if (msg.content === 'agent-DONE' && last && last.role === 'assistant' && last.content) {
+      const user = messages.value[messages.value.length - 2]
+      SaveAIResponseResult("agent","市场分析", last.content, sessionId.value,user.content, aiConfigId.value)
+    }
     return
   }
 

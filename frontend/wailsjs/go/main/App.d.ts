@@ -61,6 +61,8 @@ export function DeleteCronTask(arg1:number):Promise<string>;
 
 export function DeletePromptTemplate(arg1:number):Promise<string>;
 
+export function DeleteStockChangeHistory(arg1:number):Promise<string>;
+
 export function DeleteTradingRecord(arg1:number):Promise<void>;
 
 export function EMDictCode(arg1:string):Promise<Array<any>>;
@@ -92,6 +94,8 @@ export function GetAllConcepts():Promise<Array<string>>;
 export function GetAllIndustries():Promise<Array<string>>;
 
 export function GetAllMarkets():Promise<Array<string>>;
+
+export function GetAllStockChangesWithPaging(arg1:number):Promise<data.StockChangesResponse>;
 
 export function GetAllStockInfoById(arg1:number):Promise<models.AllStockInfo>;
 
@@ -130,6 +134,10 @@ export function GetPromptTemplateList(arg1:models.PromptTemplateQuery):Promise<m
 export function GetPromptTemplates(arg1:string,arg2:string):Promise<any>;
 
 export function GetSponsorInfo():Promise<Record<string, any>>;
+
+export function GetStockChangeHistory(arg1:models.StockChangeHistoryQuery):Promise<models.StockChangeHistoryPageData>;
+
+export function GetStockChanges(arg1:Array<number>,arg2:number,arg3:number):Promise<data.StockChangesResponse>;
 
 export function GetStockCommonKLine(arg1:string,arg2:string,arg3:number):Promise<any>;
 
@@ -202,6 +210,8 @@ export function SaveAiAssistantSession(arg1:string,arg2:Array<models.AiAssistant
 export function SaveAsMarkdown(arg1:string,arg2:string):Promise<string>;
 
 export function SaveImage(arg1:string,arg2:string):Promise<string>;
+
+export function SaveStockChangesToHistory(arg1:Array<number>):Promise<string>;
 
 export function SaveWordFile(arg1:string,arg2:string):Promise<string>;
 
