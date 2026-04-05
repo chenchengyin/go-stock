@@ -111,5 +111,7 @@ func getAllTools() []tool.BaseTool {
 
 	allTools = append(allTools, tools.GetAllDataTools()...)
 
+	allTools = append(allTools, tools.GetHolidayTools()...)
+
 	return allTools
 }
