@@ -1,12 +1,11 @@
 <template>
-  <n-space :vertical="true" :size="16" class="cron-task-container">
-    <n-card size="small">
       <!-- 搜索和筛选区域 -->
-      <n-space :size="12" style="margin-bottom: 16px">
-        <n-input
+   <n-space vertical style="margin-bottom: 12px">
+      <n-space>
+    <n-input
           v-model:value="searchKeyword"
-          placeholder="搜索任务名称、目标或描述..."
-          style="width: 280px"
+          placeholder="搜索任务名称..."
+          style="width: 200px"
           clearable
           @keyup.enter="handleSearch"
         >
@@ -18,50 +17,44 @@
         <n-select
           v-model:value="filterTaskType"
           :options="taskTypeOptions"
-          placeholder="选择任务类型"
-          style="width: 160px"
+          placeholder="任务类型"
+          style="width: 140px"
           clearable
         />
         
         <n-select
           v-model:value="filterStatus"
           :options="statusOptions"
-          placeholder="选择任务状态"
-          style="width: 140px"
+          placeholder="任务状态"
+          style="width: 120px"
           clearable
         />
         
-        <n-divider vertical />
-        
-        <n-button type="primary" @click="handleSearch">
-          <template #icon>
-            <n-icon :component="SearchOutline" />
-          </template>
+        <n-button type="primary"  @click="handleSearch">
           搜索
         </n-button>
         
-        <n-button type="success" @click="handleCreate">
+        <n-button type="warning"  @click="handleCreate">
           <template #icon>
             <n-icon :component="AddOutline" />
           </template>
           新建任务
         </n-button>
-      </n-space>
+ </n-space>
+ </n-space> 
 
       <!-- 任务列表表格 -->
       <n-data-table
-         remote
-        :columns="columns"
-        :data="taskList"
-        :loading="loading"
-        :pagination="pagination"
-         :row-key="(rowData)=>rowData.id"
-         striped
-        bordered
-        flex-height
-         style="height: calc(100vh - 210px);margin-top: 10px"
+          remote
+          size="small"
+          :columns="columns"
+          :data="taskList"
+          :loading="loading"
+          :pagination="pagination"
+          :row-key="(rowData)=>rowData.id"
+          flex-height
+          style="height: calc(100vh - 210px);margin-top: 10px"
       />
-    </n-card>
 
     <!-- 创建/编辑任务弹窗 -->
     <n-modal
@@ -466,7 +459,6 @@
         </n-button>
       </template>
     </n-modal>
-  </n-space>
 </template>
 
 <script setup>

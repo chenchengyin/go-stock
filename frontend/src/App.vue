@@ -592,7 +592,7 @@ const menuOptions = ref([
                   RouterLink,
                   {
                     to: {
-                      name: 'cronTasks',
+                      name: 'research',
                       query: {
                         name:"定时任务",
                       },
