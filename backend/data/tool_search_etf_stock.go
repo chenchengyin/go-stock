@@ -24,12 +24,12 @@ func init() {
 func handleSearchETF(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	words := gjson.Get(funcArguments, "words").String()
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：SearchETF，\n参数：" + words + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：SearchETF，\n参数：" + words + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	res := NewSearchStockApi(words).SearchETF(random.RandInt(50, 120))
@@ -53,12 +53,12 @@ func handleSearchStockByIndicators(o *OpenAi, funcArguments string, ctx *ToolCon
 	words := gjson.Get(funcArguments, "words").String()
 
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：SearchStockByIndicators，\n参数：" + words + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：SearchStockByIndicators，\n参数：" + words + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	res := NewSearchStockApi(words).SearchStock(random.RandInt(50, 120))
@@ -86,12 +86,12 @@ func handleAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolContext) 
 	endDate := gjson.Get(funcArguments, "endDate").String()
 
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：AiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：AiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	pageNo, convErr := convertor.ToInt(page)
@@ -137,12 +137,12 @@ func handleAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolContext) 
 // handleCreateAiRecommendStocks 处理 CreateAiRecommendStocks 工具调用
 func handleCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：CreateAiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：CreateAiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	recommend := models.AiRecommendStocks{}
@@ -180,12 +180,12 @@ func handleCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolCon
 // handleBatchCreateAiRecommendStocks 处理 BatchCreateAiRecommendStocks 工具调用
 func handleBatchCreateAiRecommendStocks(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：BatchCreateAiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：BatchCreateAiRecommendStocks，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	stocks := gjson.Get(funcArguments, "stocks").String()

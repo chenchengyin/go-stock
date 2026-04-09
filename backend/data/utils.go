@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/duke-git/lancet/v2/slice"
 	"github.com/duke-git/lancet/v2/strutil"
 )
 
@@ -62,6 +63,11 @@ func ConvertTushareCodeToStockCode(stockCode string) string {
 	//提取非数字
 	stockCode = strings.ToLower(RemoveAllDigitChar(stockCode)) + RemoveAllNonDigitChar(stockCode)
 	return strings.ReplaceAll(stockCode, ".", "")
+}
+func ConvertTushareCodeToStockCodes(a []string) []string {
+	return slice.Map(a, func(i int, s string) string {
+		return ConvertTushareCodeToStockCode(s)
+	})
 }
 
 func GetTableMarkdown(document *goquery.Document, waitVisible string, markdown *strings.Builder) {

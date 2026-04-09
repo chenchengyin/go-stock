@@ -23,6 +23,8 @@ const paginationReactive = reactive({
   itemCount: 0,
   keyword: "",
   range: null,
+  startTime: null,
+  endTime: null,
   prefix({ itemCount }) {
     return `${itemCount} 条记录`
   }
@@ -158,6 +160,28 @@ const columnsRef = ref([
       return '-'
     }
   },
+  {
+    title: '行业',
+    key: 'industry',
+    width: 100,
+    ellipsis: {
+      tooltip: true
+    },
+    render(row) {
+      return row.industry || row.Industry || '-'
+    }
+  },
+  {
+    title: '概念',
+    key: 'concept',
+    width: 150,
+    ellipsis: {
+      tooltip: true
+    },
+    render(row) {
+      return row.concept || row.Concept || '-'
+    }
+  },
 ])
 
 function formatVolume(vol) {
@@ -258,6 +282,12 @@ async function fetchHistoryData() {
       query.startDate = formatDate(paginationReactive.range[0])
       query.endDate = formatDate(paginationReactive.range[1])
     }
+    if (paginationReactive.startTime) {
+      query.startTime = formatTime(paginationReactive.startTime)
+    }
+    if (paginationReactive.endTime) {
+      query.endTime = formatTime(paginationReactive.endTime)
+    }
     if (paginationReactive.keyword.trim()) {
       const keyword = paginationReactive.keyword.trim()
       if (/^\d+$/.test(keyword)) {
@@ -289,6 +319,15 @@ function formatDate(dateValue) {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function formatTime(timeValue) {
+  if (!timeValue) return ''
+  const date = new Date(timeValue)
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${hours}:${minutes}:${seconds}`
 }
 
 async function fetchData() {
@@ -492,6 +531,20 @@ onBeforeUnmount(() => {
             @keyup="handleSearchKeyup"
           />
           <n-date-picker v-model:value="paginationReactive.range" type="daterange" clearable />
+          <n-time-picker 
+            v-model:value="paginationReactive.startTime" 
+            placeholder="开始时间" 
+            clearable 
+            format="HH:mm:ss"
+            style="width: 120px"
+          />
+          <n-time-picker 
+            v-model:value="paginationReactive.endTime" 
+            placeholder="结束时间" 
+            clearable 
+            format="HH:mm:ss"
+            style="width: 120px"
+          />
           <n-button type="primary" @click="handleSearch" :loading="loadingRef">
             查询
           </n-button>
@@ -549,7 +602,7 @@ onBeforeUnmount(() => {
         :pagination="viewMode === 'history' ? paginationReactive : false"
         :bordered="false"
         :max-height="500"
-        :scroll-x="1000"
+        :scroll-x="1300"
         striped
         size="small"
         @update:page="handlePageChange"

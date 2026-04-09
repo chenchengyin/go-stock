@@ -62,12 +62,12 @@ func handleGetStockKLine(o *OpenAi, funcArguments string, ctx *ToolContext) erro
 	}
 
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetStockKLine，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetStockKLine，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	toIntDay, convErr := convertor.ToInt(days)

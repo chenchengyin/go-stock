@@ -19,12 +19,12 @@ func init() {
 // handleCailianpressWeb 处理 CailianpressWeb 工具调用
 func handleCailianpressWeb(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：CailianpressWeb，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：CailianpressWeb，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	searchWords := gjson.Get(funcArguments, "searchWords").String()
@@ -48,12 +48,12 @@ func handleCailianpressWeb(o *OpenAi, funcArguments string, ctx *ToolContext) er
 // handleGetSecuritiesCompanyOpinion 处理 GetSecuritiesCompanyOpinion 工具调用
 func handleGetSecuritiesCompanyOpinion(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetSecuritiesCompanyOpinion，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetSecuritiesCompanyOpinion，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	startDate := gjson.Get(funcArguments, "startDate").String()
@@ -81,12 +81,12 @@ func handleGetSecuritiesCompanyOpinion(o *OpenAi, funcArguments string, ctx *Too
 // handleGetNewsListData 获取新闻列表数据
 func handleGetNewsListData(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetNewsListData，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetNewsListData，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 	keyWord := gjson.Get(funcArguments, "keyWord").String()
 	startTime := gjson.Get(funcArguments, "startTime").String()

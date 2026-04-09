@@ -2402,6 +2402,138 @@ func GetAllDataTools() []tool.BaseTool {
 		},
 	))
 
+	tools = append(tools, NewDataToolWrapper(
+		"GetStockChangeHistoryList",
+		"查询股票异动历史记录。可以根据股票代码、股票名称、异动类型、日期范围等条件筛选历史异动数据。",
+		map[string]*schema.ParameterInfo{
+			"stockCode": {
+				Type:     "string",
+				Desc:     "股票代码筛选（可选），支持模糊匹配",
+				Required: false,
+			},
+			"stockName": {
+				Type:     "string",
+				Desc:     "股票名称筛选（可选），支持模糊匹配",
+				Required: false,
+			},
+			"changeType": {
+				Type:     "integer",
+				Desc:     "异动类型代码筛选（可选）。完整列表：8201=火箭发射,8202=快速反弹,8193=大笔买入,4=封涨停板,32=打开跌停板,64=有大买盘,8207=竞价上涨,8209=高开5日线,8211=向上缺口,8213=60日新高,8215=60日大幅上涨,8204=加速下跌,8203=高台跳水,8194=大笔卖出,8=封跌停板,16=打开涨停板,128=有大卖盘,8208=竞价下跌,8210=低开5日线,8212=向下缺口,8214=60日新低,8216=60日大幅下跌",
+				Required: false,
+			},
+			"typeName": {
+				Type:     "string",
+				Desc:     "异动类型名称筛选（可选）。完整列表：火箭发射、快速反弹、大笔买入、封涨停板、打开跌停板、有大买盘、竞价上涨、高开5日线、向上缺口、60日新高、60日大幅上涨、加速下跌、高台跳水、大笔卖出、封跌停板、打开涨停板、有大卖盘、竞价下跌、低开5日线、向下缺口、60日新低、60日大幅下跌",
+				Required: false,
+			},
+			"startDate": {
+				Type:     "string",
+				Desc:     "开始日期，格式：YYYY-MM-DD（可选）",
+				Required: true,
+			},
+			"endDate": {
+				Type:     "string",
+				Desc:     "结束日期，格式：YYYY-MM-DD（可选）",
+				Required: true,
+			},
+			"startTime": {
+				Type:     "string",
+				Desc:     "开始时间，格式：HH:MM:SS（可选）",
+				Required: true,
+			},
+			"endTime": {
+				Type:     "string",
+				Desc:     "结束时间，格式：HH:MM:SS（可选）",
+				Required: true,
+			},
+			"page": {
+				Type:     "integer",
+				Desc:     "页码，默认1",
+				Required: true,
+			},
+			"pageSize": {
+				Type:     "integer",
+				Desc:     "每页条数，默认20",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			stockCode := gjson.Get(args, "stockCode").String()
+			stockName := gjson.Get(args, "stockName").String()
+			changeType := int(gjson.Get(args, "changeType").Int())
+			typeName := gjson.Get(args, "typeName").String()
+			startDate := gjson.Get(args, "startDate").String()
+			endDate := gjson.Get(args, "endDate").String()
+			page := int(gjson.Get(args, "page").Int())
+			pageSize := int(gjson.Get(args, "pageSize").Int())
+			startTime := gjson.Get(args, "startTime").String()
+			endTime := gjson.Get(args, "endTime").String()
+
+			if page <= 0 {
+				page = 1
+			}
+			if pageSize <= 0 {
+				pageSize = 20
+			}
+
+			query := models.StockChangeHistoryQuery{
+				StockCode:  stockCode,
+				StockName:  stockName,
+				ChangeType: changeType,
+				TypeName:   typeName,
+				StartDate:  startDate,
+				EndDate:    endDate,
+				Page:       page,
+				PageSize:   pageSize,
+				StartTime:  startTime,
+				EndTime:    endTime,
+			}
+
+			pageData, err := data.NewStockChangeHistoryService().GetHistoryList(query)
+			if err != nil {
+				return "", err
+			}
+
+			if pageData == nil || len(pageData.List) == 0 {
+				return "未找到符合条件的异动历史记录", nil
+			}
+
+			type historyRow struct {
+				ChangeTime string  `md:"异动时间"`
+				ChangeDate string  `md:"异动日期"`
+				StockCode  string  `md:"股票代码"`
+				StockName  string  `md:"股票名称"`
+				TypeName   string  `md:"异动类型"`
+				Volume     int64   `md:"成交量(股)"`
+				Price      float64 `md:"价格"`
+				ChangeRate float64 `md:"涨跌幅(%)"`
+				Amount     float64 `md:"金额"`
+				Industry   string  `md:"所属行业"`
+				Concept    string  `md:"所属概念"`
+			}
+
+			var rows []historyRow
+			for _, item := range pageData.List {
+				rows = append(rows, historyRow{
+					ChangeTime: item.ChangeTime,
+					ChangeDate: item.ChangeDate,
+					StockCode:  item.StockCode,
+					StockName:  item.StockName,
+					TypeName:   item.TypeName,
+					Volume:     item.Volume,
+					Price:      item.Price,
+					ChangeRate: item.ChangeRate,
+					Amount:     item.Amount,
+					Industry:   item.Industry,
+					Concept:    item.Concept,
+				})
+			}
+
+			summary := fmt.Sprintf("共找到 %d 条异动历史记录，当前第 %d/%d 页", pageData.Total, page, pageData.TotalPages)
+			return summary + "\n\n" + util.MarkdownTableWithTitle("股票异动历史记录", rows), nil
+		},
+	))
+
 	return tools
 }
 

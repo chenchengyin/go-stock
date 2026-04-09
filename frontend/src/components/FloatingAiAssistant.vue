@@ -122,8 +122,14 @@
                     </template>
                     <template v-else>
                       <div v-if="msg.role === 'assistant'" class="ai-reply-export-root">
-                        <div v-if="msg.reasoning" class="msg-reasoning">
-                          {{ msg.reasoning }}
+                        <div v-if="msg.reasoning" class="msg-reasoning-wrapper">
+                          <div class="msg-reasoning-header" @click="toggleReasoning(displayFromIndex + index)">
+                            <NIcon :component="reasoningExpandedMap[displayFromIndex + index] ? ChevronDownOutline : ChevronForwardOutline" size="14" />
+                            <span class="msg-reasoning-title">💭 思考过程</span>
+                          </div>
+                          <div v-show="reasoningExpandedMap[displayFromIndex + index]" class="msg-reasoning-content">
+                            {{ msg.reasoning }}
+                          </div>
                         </div>
                         <div class="msg-content">
                           <MdPreview
@@ -391,6 +397,7 @@ const vipLoading = ref(false)
 const visibleCount = ref(DEFAULT_VISIBLE_COUNT)
 const expandedBubbles = ref({})
 const isAborted = ref(false)
+const reasoningExpandedMap = ref({})
 
 const hasBackgroundTask = computed(() => isStreamLoad.value && sentFromFloating.value && !panelVisible.value)
 const AI_ASSISTANT_EVENT = 'aiAssistantSummaryStockNews'
@@ -406,6 +413,13 @@ function needBubbleCollapse(msg) {
 function getBubblePreview(msg) {
   const full = getBubbleFullText(msg)
   return full.length <= COLLAPSE_CHAR_LIMIT ? full : full.slice(0, COLLAPSE_CHAR_LIMIT) + '...'
+}
+
+function toggleReasoning(index) {
+  reasoningExpandedMap.value = {
+    ...reasoningExpandedMap.value,
+    [index]: !reasoningExpandedMap.value[index]
+  }
 }
 function isBubbleExpanded(index) {
   return !!expandedBubbles.value[index]
@@ -1052,6 +1066,42 @@ watch(aiConfigId, (newId) => {
 .message-item.user .msg-content :deep(.md-editor-preview),
 .message-item.user .msg-content :deep(.md-editor-preview-wrapper) {
   text-align: right;
+}
+.msg-reasoning-wrapper {
+  margin-bottom: 12px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--n-color-hover);
+}
+.msg-reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  border-bottom: 1px solid var(--n-border-color);
+  transition: background 0.2s;
+}
+.msg-reasoning-header:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%);
+}
+.msg-reasoning-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-text-color-2);
+}
+.msg-reasoning-content {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  white-space: pre-wrap;
+  padding: 12px;
+  line-height: 1.6;
+  max-height: 300px;
+  overflow-y: auto;
+  text-align: left;
 }
 .msg-reasoning {
   font-size: 12px;

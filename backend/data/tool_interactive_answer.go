@@ -19,12 +19,12 @@ func handleInteractiveAnswer(o *OpenAi, funcArguments string, ctx *ToolContext) 
 	keyWord := gjson.Get(funcArguments, "keyWord").String()
 
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：InteractiveAnswer，\n参数：" + page + "," + pageSize + "," + keyWord + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：InteractiveAnswer，\n参数：" + page + "," + pageSize + "," + keyWord + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	pageNo, convErr := convertor.ToInt(page)

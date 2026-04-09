@@ -366,6 +366,8 @@ func (receiver StockDataApi) GetStockBaseInfo() {
 }
 
 func (receiver StockDataApi) GetStockCodeRealTimeData(StockCodes ...string) (*[]StockInfo, error) {
+	StockCodes = ConvertTushareCodeToStockCodes(StockCodes)
+
 	stockInfos := make([]StockInfo, 0)
 
 	hkcodes := slice.Filter(StockCodes, func(i int, s string) bool {

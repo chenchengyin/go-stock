@@ -256,12 +256,12 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 					}
 					if reasoningContent := choice.Delta.ReasoningContent; reasoningContent != "" {
 						ch <- map[string]any{
-							"code":     1,
-							"question": question,
-							"chatId":   streamResponse.Id,
-							"model":    streamResponse.Model,
-							"content":  reasoningContent,
-							"time":     time.Now().Format(time.DateTime),
+							"code":              1,
+							"question":          question,
+							"chatId":            streamResponse.Id,
+							"model":             streamResponse.Model,
+							"reasoning_content": reasoningContent,
+							"time":              time.Now().Format(time.DateTime),
 						}
 					}
 					if choice.FinishReason == "stop" {
@@ -432,12 +432,12 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 					if reasoningContent := choice.Delta.ReasoningContent; reasoningContent != "" {
 						reasoningContentText.WriteString(reasoningContent)
 						ch <- map[string]any{
-							"code":     1,
-							"question": question,
-							"chatId":   streamResponse.Id,
-							"model":    streamResponse.Model,
-							"content":  reasoningContent,
-							"time":     time.Now().Format(time.DateTime),
+							"code":              1,
+							"question":          question,
+							"chatId":            streamResponse.Id,
+							"model":             streamResponse.Model,
+							"reasoning_content": reasoningContent,
+							"time":              time.Now().Format(time.DateTime),
 						}
 					}
 					if choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0 {

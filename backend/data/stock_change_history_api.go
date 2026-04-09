@@ -65,6 +65,8 @@ func (s *StockChangeHistoryService) SaveStockChangesWithDedup(items []StockChang
 			Price:      item.Price,
 			ChangeRate: item.ChangeRate,
 			Amount:     item.Amount,
+			Industry:   item.Industry,
+			Concept:    item.Concept,
 		}
 		histories = append(histories, history)
 	}
@@ -107,9 +109,9 @@ func (s *StockChangeHistoryService) GetHistoryList(query models.StockChangeHisto
 	if query.Page <= 0 {
 		query.Page = 1
 	}
-	if query.PageSize <= 0 || query.PageSize > 100 {
-		query.PageSize = 50
-	}
+	//if query.PageSize <= 0 || query.PageSize > 100 {
+	//	query.PageSize = 50
+	//}
 
 	dbQuery := db.Dao.Model(&models.StockChangeHistory{})
 
@@ -134,6 +136,12 @@ func (s *StockChangeHistoryService) GetHistoryList(query models.StockChangeHisto
 	if query.EndDate != "" {
 		dbQuery = dbQuery.Where("change_date <= ?", query.EndDate)
 	}
+	if query.StartTime != "" {
+		dbQuery = dbQuery.Where("change_time >= ?", query.StartTime)
+	}
+	if query.EndTime != "" {
+		dbQuery = dbQuery.Where("change_time <= ?", query.EndTime)
+	}
 
 	var total int64
 	if err := dbQuery.Count(&total).Error; err != nil {
@@ -142,7 +150,7 @@ func (s *StockChangeHistoryService) GetHistoryList(query models.StockChangeHisto
 
 	var list []models.StockChangeHistory
 	offset := (query.Page - 1) * query.PageSize
-	if err := dbQuery.Order("created_at DESC").Offset(offset).Limit(query.PageSize).Find(&list).Error; err != nil {
+	if err := dbQuery.Order("change_date DESC, change_time DESC").Offset(offset).Limit(query.PageSize).Find(&list).Error; err != nil {
 		return nil, err
 	}
 

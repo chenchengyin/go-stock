@@ -15,19 +15,21 @@ import (
 //-----------------------------------------------------------------------------------
 
 type StockChangeHistory struct {
-	ID         uint      `json:"id" gorm:"primarykey"`
-	ChangeTime string    `json:"changeTime" gorm:"uniqueIndex:idx_unique_change;size:10"`       // 异动时间 HH:MM:SS
-	ChangeDate string    `json:"changeDate" gorm:"uniqueIndex:idx_unique_change;index;size:10"` // 异动日期 YYYY-MM-DD
-	StockCode  string    `json:"stockCode" gorm:"uniqueIndex:idx_unique_change;index;size:20"`  // 股票代码
-	StockName  string    `json:"stockName" gorm:"size:50"`                                      // 股票名称
-	Market     int       `json:"market"`                                                        // 市场
-	ChangeType int       `json:"changeType" gorm:"uniqueIndex:idx_unique_change;index"`         // 异动类型代码
-	TypeName   string    `json:"typeName" gorm:"size:20"`                                       // 异动类型名称
-	Volume     int64     `json:"volume" gorm:"uniqueIndex:idx_unique_change"`                   // 成交量(股)
-	Price      float64   `json:"price" gorm:"uniqueIndex:idx_unique_change"`                    // 价格
-	ChangeRate float64   `json:"changeRate" gorm:"uniqueIndex:idx_unique_change"`               // 涨跌幅(%)
-	Amount     float64   `json:"amount" gorm:"uniqueIndex:idx_unique_change"`                   // 金额
-	CreatedAt  time.Time `json:"createdAt" gorm:"autoCreateTime"`
+	ID         uint      `json:"id" gorm:"primarykey" md:"-"`
+	ChangeTime string    `json:"changeTime" gorm:"uniqueIndex:idx_unique_change;size:10" md:"异动时间"`       // 异动时间 HH:MM:SS
+	ChangeDate string    `json:"changeDate" gorm:"uniqueIndex:idx_unique_change;index;size:10" md:"异动日期"` // 异动日期 YYYY-MM-DD
+	StockCode  string    `json:"stockCode" gorm:"uniqueIndex:idx_unique_change;index;size:20" md:"股票代码"`  // 股票代码
+	StockName  string    `json:"stockName" gorm:"size:50" md:"股票名称"`                                      // 股票名称
+	Market     int       `json:"market" md:"-"`                                                           // 市场
+	ChangeType int       `json:"changeType" gorm:"uniqueIndex:idx_unique_change;index" md:"-"`            // 异动类型代码
+	TypeName   string    `json:"typeName" gorm:"size:20" md:"异动类型名称"`                                     // 异动类型名称
+	Volume     int64     `json:"volume" gorm:"uniqueIndex:idx_unique_change" md:"成交量(股)"`                 // 成交量(股)
+	Price      float64   `json:"price" gorm:"uniqueIndex:idx_unique_change" md:"价格"`                      // 价格
+	ChangeRate float64   `json:"changeRate" gorm:"uniqueIndex:idx_unique_change" md:" 涨跌幅(%)"`            // 涨跌幅(%)
+	Amount     float64   `json:"amount" gorm:"uniqueIndex:idx_unique_change" md:"金额"`                     // 金额
+	Industry   string    `json:"industry" gorm:"size:100" md:"所属行业"`                                      // 所属行业
+	Concept    string    `json:"concept" gorm:"size:500" md:"所属概念"`                                       // 所属概念
+	CreatedAt  time.Time `json:"createdAt" gorm:"autoCreateTime" md:"-"`
 }
 
 func (StockChangeHistory) TableName() string {
@@ -42,6 +44,8 @@ type StockChangeHistoryQuery struct {
 	TypeName    string `json:"typeName"`
 	StartDate   string `json:"startDate"`
 	EndDate     string `json:"endDate"`
+	StartTime   string `json:"startTime"`
+	EndTime     string `json:"endTime"`
 	Page        int    `json:"page"`
 	PageSize    int    `json:"pageSize"`
 }

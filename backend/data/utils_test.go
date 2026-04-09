@@ -1,10 +1,11 @@
 package data
 
 import (
-	"github.com/duke-git/lancet/v2/slice"
 	"go-stock/backend/logger"
 	"os"
 	"testing"
+
+	"github.com/duke-git/lancet/v2/slice"
 )
 
 // TestRemoveNonPrintable tests the RemoveAllBlankChar function.
@@ -37,6 +38,10 @@ func TestRemoveNonPrintable(t *testing.T) {
 func TestConvertStockCodeToTushareCode(t *testing.T) {
 	logger.SugaredLogger.Infof("ConvertStockCodeToTushareCode(%s)", ConvertStockCodeToTushareCode("sz000802"))
 	logger.SugaredLogger.Infof("ConvertTushareCodeToStockCode(%s)", ConvertTushareCodeToStockCode("000802.SZ"))
+}
+
+func TestConvertTushareCodeToStockCodes(t *testing.T) {
+	logger.SugaredLogger.Infof("ConvertTushareCodeToStockCodes(%s)", ConvertTushareCodeToStockCodes([]string{"000802.SZ", "000803.SZ"}))
 }
 func TestReplaceSensitiveWords(t *testing.T) {
 	txt := "新 希 望习近平"

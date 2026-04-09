@@ -3,7 +3,9 @@ package data
 import (
 	"encoding/json"
 	"fmt"
+	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
 	"go-stock/backend/util"
 	"io"
 	"net/http"
@@ -24,6 +26,8 @@ type StockChangeItem struct {
 	Price      float64 `json:"price" md:"价格"`
 	ChangeRate float64 `json:"changeRate" md:"涨跌幅(%)"`
 	Amount     float64 `json:"amount" md:"金额"`
+	Industry   string  `json:"industry" md:"所属行业"`
+	Concept    string  `json:"concept" md:"所属概念"`
 }
 
 type StockChangesResponse struct {
@@ -135,6 +139,13 @@ func (a *StockChangesApi) GetStockChanges(changeTypes []int, pageIndex, pageSize
 		Data:       make([]StockChangeItem, 0, len(apiResp.Data.Allstock)),
 	}
 
+	stockCodes := make([]string, 0, len(apiResp.Data.Allstock))
+	for _, item := range apiResp.Data.Allstock {
+		stockCodes = append(stockCodes, item.C)
+	}
+
+	stockInfoMap := a.getStockInfoMap(stockCodes)
+
 	for _, item := range apiResp.Data.Allstock {
 		changeItem := StockChangeItem{
 			Time:       formatTime(item.Tm),
@@ -145,10 +156,33 @@ func (a *StockChangesApi) GetStockChanges(changeTypes []int, pageIndex, pageSize
 			TypeName:   getChangeTypeName(item.T),
 		}
 
+		if info, ok := stockInfoMap[item.C]; ok {
+			changeItem.Industry = info.INDUSTRY
+			changeItem.Concept = info.CONCEPT
+		}
+
 		parseItemData(item.I, &changeItem, item.T)
 		result.Data = append(result.Data, changeItem)
 	}
 
+	return result
+}
+
+func (a *StockChangesApi) getStockInfoMap(stockCodes []string) map[string]models.AllStockInfo {
+	result := make(map[string]models.AllStockInfo)
+	if len(stockCodes) == 0 {
+		return result
+	}
+
+	var stockInfos []models.AllStockInfo
+	if err := db.Dao.Model(&models.AllStockInfo{}).Where("sec_uri_tycode IN ?", stockCodes).Find(&stockInfos).Error; err != nil {
+		logger.SugaredLogger.Errorf("查询股票信息失败: %v", err)
+		return result
+	}
+
+	for _, info := range stockInfos {
+		result[info.SECURITYCODE] = info
+	}
 	return result
 }
 

@@ -287,14 +287,15 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 			if msg.ReasoningContent != "" {
 				reasoningBuilder.WriteString(msg.ReasoningContent)
 				safeSend(ch, &schema.Message{
-					Role: schema.Assistant,
-					Content: strutil.ReplaceWithMap(msg.ReasoningContent, map[string]string{
-						"# ":     "\r\n# ",
-						"## ":    "\r\n## ",
-						"### ":   "\r\n### ",
-						"#### ":  "\r\n#### ",
-						"##### ": "\r\n##### ",
-						"```":    "\r\n```",
+					Role:    schema.Assistant,
+					Content: "",
+					ReasoningContent: strutil.ReplaceWithMap(msg.ReasoningContent, map[string]string{
+						"# ":      "\r\n# ",
+						"## ":     "\r\n## ",
+						"### ":    "\r\n### ",
+						"#### ":   "\r\n#### ",
+						"##### ":  "\r\n##### ",
+						"###### ": "\r\n###### ",
 					}),
 				})
 			}
@@ -330,12 +331,12 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 				safeSend(ch, &schema.Message{
 					Role: schema.Assistant,
 					Content: strutil.ReplaceWithMap(msg.Content, map[string]string{
-						"# ":     "\r\n# ",
-						"## ":    "\r\n## ",
-						"### ":   "\r\n### ",
-						"#### ":  "\r\n#### ",
-						"##### ": "\r\n##### ",
-						"```":    "\r\n```",
+						"# ":      "\r\n# ",
+						"## ":     "\r\n## ",
+						"### ":    "\r\n### ",
+						"#### ":   "\r\n#### ",
+						"##### ":  "\r\n##### ",
+						"###### ": "\r\n###### ",
 					}),
 				})
 			}
@@ -343,10 +344,10 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 
 		if reasoningBuilder.Len() > 0 {
 			fmt.Printf("\n[Reasoning]\n%s\n", reasoningBuilder.String())
-			safeSend(ch, &schema.Message{
-				Role:    schema.Assistant,
-				Content: "\r\n",
-			})
+			//safeSend(ch, &schema.Message{
+			//	Role:    schema.Assistant,
+			//	Content: "\n",
+			//})
 		}
 
 		if len(toolCallsMap) > 0 {
@@ -355,8 +356,9 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 					name := toolCallNames[idx]
 					fmt.Printf("\n[ToolCall] %s(%s)\n", name, builder.String())
 					safeSend(ch, &schema.Message{
-						Role:    schema.Assistant,
-						Content: fmt.Sprintf("\r\n```\r\n开始调用工具： %s(%s)\r\n```\r\n", name, builder.String()),
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: fmt.Sprintf("\r\n```\r\n开始调用工具： %s(%s)\r\n```\r\n", name, builder.String()),
 					})
 				}
 			}
@@ -364,10 +366,10 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 
 		if toolResult != nil {
 			fmt.Printf("\n[ToolResult] %s:\n%s\n", toolResult.name, truncateString(toolResult.content, 300))
-			safeSend(ch, &schema.Message{
-				Role:    schema.Assistant,
-				Content: "\r\n",
-			})
+			//safeSend(ch, &schema.Message{
+			//	Role:    schema.Assistant,
+			//	Content: truncateString(toolResult.content, 300),
+			//})
 		}
 
 		if contentBuilder.Len() > 0 && len(toolCallsMap) == 0 {

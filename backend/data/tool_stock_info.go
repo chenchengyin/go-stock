@@ -21,12 +21,12 @@ func init() {
 // handleGetIndustryValuation 处理 GetIndustryValuation 工具调用
 func handleGetIndustryValuation(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetIndustryValuation，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetIndustryValuation，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	bkName := gjson.Get(funcArguments, "bkName").String()
@@ -49,12 +49,12 @@ func handleGetIndustryValuation(o *OpenAi, funcArguments string, ctx *ToolContex
 
 func handleSetTradingPrice(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：SetTradingPrice，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：SetTradingPrice，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	stockCode := gjson.Get(funcArguments, "stockCode").String()
@@ -90,12 +90,12 @@ func handleSetTradingPrice(o *OpenAi, funcArguments string, ctx *ToolContext) er
 // handleGetStockConceptInfo 处理 GetStockConceptInfo 工具调用
 func handleGetStockConceptInfo(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetStockConceptInfo，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetStockConceptInfo，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	codes := parseStockCodesFromToolArgs(funcArguments, "code")
@@ -134,12 +134,12 @@ func handleGetStockConceptInfo(o *OpenAi, funcArguments string, ctx *ToolContext
 // handleGetStockFinancialInfo 处理 GetStockFinancialInfo 工具调用
 func handleGetStockFinancialInfo(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetStockFinancialInfo，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetStockFinancialInfo，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
@@ -178,12 +178,12 @@ func handleGetStockFinancialInfo(o *OpenAi, funcArguments string, ctx *ToolConte
 // handleGetStockHolderNum 处理 GetStockHolderNum 工具调用
 func handleGetStockHolderNum(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetStockHolderNum，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetStockHolderNum，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")
@@ -222,12 +222,12 @@ func handleGetStockHolderNum(o *OpenAi, funcArguments string, ctx *ToolContext) 
 // handleGetStockHistoryMoneyData 处理 GetStockHistoryMoneyData 工具调用
 func handleGetStockHistoryMoneyData(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetStockHistoryMoneyData，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetStockHistoryMoneyData，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	codes := parseStockCodesFromToolArgs(funcArguments, "stockCode")

@@ -228,6 +228,10 @@ func TestNewStockDataApi(t *testing.T) {
 	for _, data := range *datas {
 		t.Log(data)
 	}
+	datas, _ = stockDataApi.GetStockCodeRealTimeData("002352.SZ", "600859.SH", "600745.SH", "09660.HK", "00700.HK")
+	for _, data := range *datas {
+		t.Log(data)
+	}
 }
 
 func TestGetStockBaseInfo(t *testing.T) {

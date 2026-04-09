@@ -611,6 +611,8 @@ export namespace data {
 	    price: number;
 	    changeRate: number;
 	    amount: number;
+	    industry: string;
+	    concept: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new StockChangeItem(source);
@@ -628,6 +630,8 @@ export namespace data {
 	        this.price = source["price"];
 	        this.changeRate = source["changeRate"];
 	        this.amount = source["amount"];
+	        this.industry = source["industry"];
+	        this.concept = source["concept"];
 	    }
 	}
 	export class StockChangesResponse {
@@ -1755,6 +1759,8 @@ export namespace models {
 	    price: number;
 	    changeRate: number;
 	    amount: number;
+	    industry: string;
+	    concept: string;
 	    // Go type: time
 	    createdAt: any;
 	
@@ -1776,6 +1782,8 @@ export namespace models {
 	        this.price = source["price"];
 	        this.changeRate = source["changeRate"];
 	        this.amount = source["amount"];
+	        this.industry = source["industry"];
+	        this.concept = source["concept"];
 	        this.createdAt = this.convertValues(source["createdAt"], null);
 	    }
 	
@@ -1843,6 +1851,8 @@ export namespace models {
 	    typeName: string;
 	    startDate: string;
 	    endDate: string;
+	    startTime: string;
+	    endTime: string;
 	    page: number;
 	    pageSize: number;
 	
@@ -1859,6 +1869,8 @@ export namespace models {
 	        this.typeName = source["typeName"];
 	        this.startDate = source["startDate"];
 	        this.endDate = source["endDate"];
+	        this.startTime = source["startTime"];
+	        this.endTime = source["endTime"];
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	    }

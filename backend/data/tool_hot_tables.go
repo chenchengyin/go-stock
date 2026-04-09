@@ -18,12 +18,12 @@ func init() {
 // handleHotStrategyTable 处理 HotStrategyTable 工具调用
 func handleHotStrategyTable(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：HotStrategyTable，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：HotStrategyTable，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	table := NewSearchStockApi("").HotStrategyTable()
@@ -47,12 +47,12 @@ func handleHotStockTable(o *OpenAi, funcArguments string, ctx *ToolContext) erro
 	pageSize := gjson.Get(funcArguments, "pageSize").String()
 
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：HotStockTable，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：HotStockTable，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	pageSizeNum, convErr := convertor.ToInt(pageSize)
@@ -80,12 +80,12 @@ func handleHotStockTable(o *OpenAi, funcArguments string, ctx *ToolContext) erro
 // handleGetStockMoneyData 处理 GetStockMoneyData 工具调用
 func handleGetStockMoneyData(o *OpenAi, funcArguments string, ctx *ToolContext) error {
 	ctx.Ch <- map[string]any{
-		"code":     1,
-		"question": ctx.Question,
-		"chatId":   ctx.StreamResponseID,
-		"model":    ctx.Model,
-		"content":  "\r\n```\r\n开始调用工具：GetStockMoneyData，\n参数：" + funcArguments + "\r\n```\r\n",
-		"time":     time.Now().Format(time.DateTime),
+		"code":              1,
+		"question":          ctx.Question,
+		"chatId":            ctx.StreamResponseID,
+		"model":             ctx.Model,
+		"reasoning_content": "\r\n```\r\n🔧 开始调用工具：GetStockMoneyData，\n参数：" + funcArguments + "\r\n```\r\n",
+		"time":              time.Now().Format(time.DateTime),
 	}
 
 	res := NewStockDataApi().GetStockMoneyData()
