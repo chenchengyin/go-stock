@@ -1,8 +1,8 @@
 <script setup>
 
-import {AnalyzeSentimentWithFreqWeight,GlobalStockIndexes} from "../../wailsjs/go/main/App";
+import {AnalyzeSentimentWithFreqWeight,GlobalStockIndexes,GetTodayMarketStatistic} from "../../wailsjs/go/main/App";
 import * as echarts from "echarts";
-import {onMounted,onUnmounted, ref} from "vue";
+import {onMounted,onUnmounted, ref, watch, nextTick} from "vue";
 import _ from "lodash";
 const { name,darkTheme,kDays ,chartHeight} = defineProps({
   name: {
@@ -31,12 +31,17 @@ const chinaIndex = ref([])
 const other = ref([])
 const globalStockIndexes = ref(null)
 const chartRef = ref(null);
-const gaugeChartRef = ref(null);
+const limitChartRef = ref(null);
+const treemapRef = ref(null);
+const showTreemap = ref(false);
 const triggerAreas=ref(["main","extra","arrow"])
 let handleChartInterval=null
 let handleIndexInterval=null
+let treemapchart =null;
+
 onMounted(() => {
   handleChart()
+  handleTreemap()
   getIndex()
   handleChartInterval=setInterval(function () {
     handleChart()
@@ -44,12 +49,21 @@ onMounted(() => {
 
   handleIndexInterval=setInterval(function () {
     getIndex()
-  }, 1000 * 2)
+    handleTreemap()
+  }, 1000 * 10)
 })
 
 onUnmounted(()=>{
   clearInterval(handleChartInterval)
   clearInterval(handleIndexInterval)
+})
+
+watch(showTreemap, (newVal) => {
+  if (newVal) {
+    nextTick(() => {
+      handleTreemap()
+    })
+  }
 })
 
 function getIndex() {
@@ -72,15 +86,373 @@ function getIndex() {
 
   })
 }
-function  handleChart(){
+
+async function handleChart(){
+  try {
+    const data = await GetTodayMarketStatistic()
+    if (data && data.length > 0) {
+      renderUpDownChart(data)
+      renderLimitChart(data)
+    }
+  } catch (error) {
+    console.error('获取市场统计数据失败:', error)
+  }
+}
+
+function renderUpDownChart(data) {
+  if (!chartRef.value || !data || data.length === 0) return
+  
+  const chart = echarts.init(chartRef.value)
+  
+  const times = data.map(d => d.dataTime)
+  const upCounts = data.map(d => d.upCount)
+  const downCounts = data.map(d => d.downCount)
+  const ratios = data.map(d => d.upRatio.toFixed(2))
+  const upDownRatios = data.map(d => d.upDownRatio.toFixed(2))
+  
+  const option = {
+    darkMode: darkTheme,
+    title: {
+      text: '涨跌家数比',
+      left: 'center',
+      textStyle: {
+        color: darkTheme ? '#ccc' : '#333',
+        fontSize: 14
+      }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>'
+        params.forEach(param => {
+          result += param.marker + ' ' + param.seriesName + ': ' + param.value + '<br/>'
+        })
+        const idx = params[0].dataIndex
+        if (idx < data.length) {
+          const d = data[idx]
+          result += `<span style="color:#666">红盘率: ${d.upRatio.toFixed(1)}%</span><br/>`
+          result += `<span style="color:#666">情绪指标: ${d.upDownRatio.toFixed(2)} (${d.sentimentDesc || ''})</span>`
+        }
+        return result
+      }
+    },
+    legend: {
+      data: ['上涨家数', '下跌家数', '红盘率(%)', '情绪指标'],
+      top: 25,
+      textStyle: {
+        color: darkTheme ? '#ccc' : '#333'
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: 60,
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: times,
+      axisLabel: {
+        color: darkTheme ? '#999' : '#666',
+        rotate: 45
+      },
+      axisLine: {
+        lineStyle: {
+          color: darkTheme ? '#444' : '#ccc'
+        }
+      }
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '家数',
+        position: 'left',
+        axisLabel: {
+          color: darkTheme ? '#999' : '#666'
+        },
+        axisLine: {
+          lineStyle: {
+            color: darkTheme ? '#444' : '#ccc'
+          }
+        },
+        splitLine: {
+          lineStyle: {
+            color: darkTheme ? '#333' : '#eee'
+          }
+        }
+      },
+      {
+        type: 'value',
+        name: '红盘率(%)',
+        position: 'right',
+        min: 0,
+        max: 100,
+        axisLabel: {
+          color: darkTheme ? '#999' : '#666',
+          formatter: '{value}%'
+        },
+        axisLine: {
+          lineStyle: {
+            color: darkTheme ? '#444' : '#ccc'
+          }
+        },
+        splitLine: {
+          show: false
+        }
+      },
+      {
+        type: 'value',
+        name: '情绪指标',
+        position: 'right',
+        offset: 60,
+        axisLabel: {
+          color: darkTheme ? '#999' : '#666'
+        },
+        axisLine: {
+          lineStyle: {
+            color: darkTheme ? '#444' : '#ccc'
+          }
+        },
+        splitLine: {
+          show: false
+        }
+      }
+    ],
+    series: [
+      {
+        name: '上涨家数',
+        type: 'bar',
+        stack: 'total',
+        data: upCounts,
+        itemStyle: {
+          color: '#ef4444'
+        }
+      },
+      {
+        name: '下跌家数',
+        type: 'bar',
+        stack: 'total',
+        data: downCounts,
+        itemStyle: {
+          color: '#22c55e'
+        }
+      },
+      {
+        name: '红盘率(%)',
+        type: 'line',
+        yAxisIndex: 1,
+        data: ratios,
+        smooth: true,
+        lineStyle: {
+          color: '#f59e0b',
+          width: 2
+        },
+        itemStyle: {
+          color: '#f59e0b'
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
+            { offset: 1, color: 'rgba(245, 158, 11, 0.05)' }
+          ])
+        },
+        markLine: {
+          silent: true,
+          data: [
+            { yAxis: 50, name: '平衡线', lineStyle: { color: '#888', type: 'dashed' } }
+          ]
+        }
+      },
+      {
+        name: '情绪指标',
+        type: 'line',
+        yAxisIndex: 2,
+        data: upDownRatios,
+        smooth: true,
+        lineStyle: {
+          color: '#8b5cf6',
+          width: 2
+        },
+        itemStyle: {
+          color: '#8b5cf6'
+        },
+        markLine: {
+          silent: true,
+          data: [
+            { yAxis: 1, name: '平衡线', lineStyle: { color: '#8b5cf6', type: 'dashed' } },
+            { yAxis: 2, name: '极强线', lineStyle: { color: '#ef4444', type: 'dotted' } },
+            { yAxis: 0.5, name: '冰点线', lineStyle: { color: '#22c55e', type: 'dotted' } }
+          ]
+        }
+      }
+    ]
+  }
+  
+  chart.setOption(option)
+}
+
+function renderLimitChart(data) {
+  if (!limitChartRef.value || !data || data.length === 0) return
+  
+  const chart = echarts.init(limitChartRef.value)
+  
+  const times = data.map(d => d.dataTime)
+  const limitUps = data.map(d => d.limitUp)
+  const limitDowns = data.map(d => d.limitDown)
+  const ratios = data.map(d => d.limitRatio.toFixed(2))
+  
+  const option = {
+    darkMode: darkTheme,
+    title: {
+      text: '涨跌停家数比',
+      left: 'center',
+      textStyle: {
+        color: darkTheme ? '#ccc' : '#333',
+        fontSize: 14
+      }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>'
+        params.forEach(param => {
+          result += param.marker + ' ' + param.seriesName + ': ' + param.value + '<br/>'
+        })
+        const idx = params[0].dataIndex
+        if (idx < data.length) {
+          const d = data[idx]
+          result += `<span style="color:#666">涨跌停比: ${d.limitRatio.toFixed(2)}</span><br/>`
+        }
+        return result
+      }
+    },
+    legend: {
+      data: ['涨停家数', '跌停家数', '涨跌停比'],
+      top: 25,
+      textStyle: {
+        color: darkTheme ? '#ccc' : '#333'
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: 60,
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: times,
+      axisLabel: {
+        color: darkTheme ? '#999' : '#666',
+        rotate: 45
+      },
+      axisLine: {
+        lineStyle: {
+          color: darkTheme ? '#444' : '#ccc'
+        }
+      }
+    },
+    yAxis: [
+      {
+        type: 'value',
+        name: '家数',
+        position: 'left',
+        axisLabel: {
+          color: darkTheme ? '#999' : '#666'
+        },
+        axisLine: {
+          lineStyle: {
+            color: darkTheme ? '#444' : '#ccc'
+          }
+        },
+        splitLine: {
+          lineStyle: {
+            color: darkTheme ? '#333' : '#eee'
+          }
+        }
+      },
+      {
+        type: 'value',
+        name: '涨跌停比',
+        position: 'right',
+        axisLabel: {
+          color: darkTheme ? '#999' : '#666'
+        },
+        axisLine: {
+          lineStyle: {
+            color: darkTheme ? '#444' : '#ccc'
+          }
+        },
+        splitLine: {
+          show: false
+        }
+      }
+    ],
+    series: [
+      {
+        name: '涨停家数',
+        type: 'bar',
+        stack: 'total',
+        data: limitUps,
+        itemStyle: {
+          color: '#ef4444'
+        }
+      },
+      {
+        name: '跌停家数',
+        type: 'bar',
+        stack: 'total',
+        data: limitDowns,
+        itemStyle: {
+          color: '#22c55e'
+        }
+      },
+      {
+        name: '涨跌停比',
+        type: 'line',
+        yAxisIndex: 1,
+        data: ratios,
+        smooth: true,
+        lineStyle: {
+          color: '#f59e0b',
+          width: 2
+        },
+        itemStyle: {
+          color: '#f59e0b'
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
+            { offset: 1, color: 'rgba(245, 158, 11, 0.05)' }
+          ])
+        },
+        markLine: {
+          silent: true,
+          data: [
+            { yAxis: 1, name: '平衡线', lineStyle: { color: '#888', type: 'dashed' } }
+          ]
+        }
+      }
+    ]
+  }
+  
+  chart.setOption(option)
+}
+
+function handleTreemap() {
   const formatUtil = echarts.format;
   AnalyzeSentimentWithFreqWeight("").then((res) => {
-    const treemapchart = echarts.init(chartRef.value);
-    const gaugeChart=echarts.init(gaugeChartRef.value);
+    treemapchart = echarts.init(treemapRef.value);
     let data = res['frequencies'].map(item => ({
       name: item.Word,
-      // value: item.Frequency,
-      // value: item.Weight,
       frequency: item.Frequency,
       weight: item.Weight,
       value: item.Score,
@@ -89,19 +461,15 @@ function  handleChart(){
     let data2 = res['frequencies'].map(item => ({
       name: item.Word,
        value: item.Frequency,
-      // value: item.Weight,
       frequency: item.Frequency,
       weight: item.Weight,
-      //value: item.Score,
     }));
 
     let data3 = res['frequencies'].map(item => ({
       name: item.Word,
-      //value: item.Frequency,
        value: item.Weight,
       frequency: item.Frequency,
       weight: item.Weight,
-      //value: item.Score,
     }));
 
     let option = {
@@ -179,104 +547,6 @@ function  handleChart(){
       ]
     };
     treemapchart.setOption(option);
-
-
-
-    let option2 = {
-      darkMode: darkTheme,
-      series: [
-        {
-          type: 'gauge',
-          startAngle: 180,
-          endAngle: 0,
-          center: ['50%', '75%'],
-          radius: '90%',
-          min: -100,
-          max: 100,
-          splitNumber: 8,
-          axisLine: {
-            lineStyle: {
-              width: 6,
-              color: [
-                // [0.25, '#FF6E76'],
-                // [0.5, '#FDDD60'],
-                // [0.75, '#58D9F9'],
-                // [1, '#7CFFB2'],
-
-                [0.25, '#03fb6a'],
-                [0.5, '#58e1f9'],
-                [0.75, '#ef5922'],
-                [1, '#f11d29'],
-
-              ]
-            }
-          },
-          pointer: {
-            icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z',
-            length: '12%',
-            width: 20,
-            offsetCenter: [0, '-60%'],
-            itemStyle: {
-              color: 'auto'
-            }
-          },
-          axisTick: {
-            length: 12,
-            lineStyle: {
-              color: 'auto',
-              width: 2
-            }
-          },
-          splitLine: {
-            length: 20,
-            lineStyle: {
-              color: 'auto',
-              width: 5
-            }
-          },
-          axisLabel: {
-            color:  darkTheme?'#ccc':'#456',
-            fontSize: 20,
-            distance: -45,
-            rotate: 'tangential',
-            formatter: function (value) {
-              if (value ===100) {
-                return '极热';
-              } else if (value === 50) {
-                return '乐观';
-              }  else if (value === 0) {
-                return '中性';
-              }else if (value === -50) {
-                return '谨慎';
-              } else if (value === -100) {
-                return '冰点';
-              }
-              return '';
-            }
-          },
-          title: {
-            offsetCenter: [0, '-10%'],
-            fontSize: 20
-          },
-          detail: {
-            fontSize: 30,
-            offsetCenter: [0, '-35%'],
-            valueAnimation: true,
-            formatter: function (value) {
-              return value.toFixed(2) + '';
-            },
-            color: 'inherit'
-          },
-          data: [
-            {
-              value: res.result.Score*0.2,
-              name: '市场情绪强弱'
-            }
-          ]
-        }
-      ]
-    };
-    gaugeChart.setOption(option2);
   })
 }
 </script>
@@ -300,13 +570,24 @@ function  handleChart(){
         主要股指
       </template>
       <n-grid :cols="24" :y-gap="0">
-        <n-gi span="6">
-          <div ref="gaugeChartRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
-        </n-gi>
-        <n-gi span="18">
+        <n-gi span="12">
           <div ref="chartRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
         </n-gi>
+        <n-gi span="12">
+          <div ref="limitChartRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+        </n-gi>
       </n-grid>
+      <n-divider style="margin: 8px 0">
+        <n-button text @click="showTreemap = !showTreemap">
+          <template #icon>
+            <n-icon><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11 7V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-3v3a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h3zm-2 4v6h6v-6H9zm8-4v6h2V5h-6v2h4z"></path></svg></n-icon>
+          </template>
+          {{ showTreemap ? '隐藏热词' : '查看热词' }}
+        </n-button>
+      </n-divider>
+      <n-collapse-transition :show="showTreemap">
+        <div ref="treemapRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+      </n-collapse-transition>
     </n-collapse-item>
   </n-collapse>
 </template>

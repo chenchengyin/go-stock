@@ -142,6 +142,24 @@ func (s *StockChangeHistoryService) GetHistoryList(query models.StockChangeHisto
 	if query.EndTime != "" {
 		dbQuery = dbQuery.Where("change_time <= ?", query.EndTime)
 	}
+	if query.MinVolume > 0 {
+		dbQuery = dbQuery.Where("volume >= ?", query.MinVolume)
+	}
+	if query.MinAmount > 0 {
+		dbQuery = dbQuery.Where("amount >= ?", query.MinAmount)
+	}
+	if query.MinChangeRate != 0 {
+		dbQuery = dbQuery.Where("change_rate >= ?", query.MinChangeRate)
+	}
+	if query.MaxChangeRate != 0 {
+		dbQuery = dbQuery.Where("change_rate <= ?", query.MaxChangeRate)
+	}
+	if query.Industry != "" {
+		dbQuery = dbQuery.Where("industry LIKE ?", "%"+query.Industry+"%")
+	}
+	if query.Concept != "" {
+		dbQuery = dbQuery.Where("concept LIKE ?", "%"+query.Concept+"%")
+	}
 
 	var total int64
 	if err := dbQuery.Count(&total).Error; err != nil {

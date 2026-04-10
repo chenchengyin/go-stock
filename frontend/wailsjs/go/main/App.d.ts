@@ -75,6 +75,8 @@ export function ExportConfig():Promise<string>;
 
 export function FetchAiModels(arg1:string,arg2:string):Promise<Array<string>>;
 
+export function FetchAndSaveMarketStatistic():Promise<void>;
+
 export function Follow(arg1:string):Promise<string>;
 
 export function FollowFund(arg1:string):Promise<string>;
@@ -127,11 +129,15 @@ export function GetIndustryMoneyRankSina(arg1:string,arg2:string):Promise<Array<
 
 export function GetIndustryRank(arg1:string,arg2:number):Promise<Array<any>>;
 
+export function GetMarketStatisticByDate(arg1:string):Promise<Array<models.MarketStatistic>>;
+
 export function GetMoneyRankSina(arg1:string):Promise<Array<Record<string, any>>>;
 
 export function GetPromptTemplateList(arg1:models.PromptTemplateQuery):Promise<models.PromptTemplatePageData>;
 
 export function GetPromptTemplates(arg1:string,arg2:string):Promise<any>;
+
+export function GetRecentDaysMarketStatistic(arg1:number):Promise<Array<models.MarketStatistic>>;
 
 export function GetSponsorInfo():Promise<Record<string, any>>;
 
@@ -158,6 +164,8 @@ export function GetStockRealTimePrice(arg1:string):Promise<Record<string, any>>;
 export function GetTelegraphList(arg1:string):Promise<any>;
 
 export function GetTimezone():Promise<Record<string, any>>;
+
+export function GetTodayMarketStatistic():Promise<Array<models.MarketStatistic>>;
 
 export function GetTradingRecordById(arg1:number):Promise<data.TradingRecord>;
 

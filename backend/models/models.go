@@ -37,17 +37,23 @@ func (StockChangeHistory) TableName() string {
 }
 
 type StockChangeHistoryQuery struct {
-	StockCode   string `json:"stockCode"`
-	StockName   string `json:"stockName"`
-	ChangeType  int    `json:"changeType"`
-	ChangeTypes []int  `json:"changeTypes"`
-	TypeName    string `json:"typeName"`
-	StartDate   string `json:"startDate"`
-	EndDate     string `json:"endDate"`
-	StartTime   string `json:"startTime"`
-	EndTime     string `json:"endTime"`
-	Page        int    `json:"page"`
-	PageSize    int    `json:"pageSize"`
+	StockCode     string  `json:"stockCode"`
+	StockName     string  `json:"stockName"`
+	ChangeType    int     `json:"changeType"`
+	ChangeTypes   []int   `json:"changeTypes"`
+	TypeName      string  `json:"typeName"`
+	StartDate     string  `json:"startDate"`
+	EndDate       string  `json:"endDate"`
+	StartTime     string  `json:"startTime"`
+	EndTime       string  `json:"endTime"`
+	MinVolume     int64   `json:"minVolume"`
+	MinAmount     float64 `json:"minAmount"`
+	MinChangeRate float64 `json:"minChangeRate"`
+	MaxChangeRate float64 `json:"maxChangeRate"`
+	Industry      string  `json:"industry"`
+	Concept       string  `json:"concept"`
+	Page          int     `json:"page"`
+	PageSize      int     `json:"pageSize"`
 }
 
 type StockChangeHistoryPageData struct {
@@ -1569,4 +1575,27 @@ type GlobalStockIndex struct {
 
 func (GlobalStockIndex) TableName() string {
 	return "global_stock_index"
+}
+
+type MarketStatistic struct {
+	ID            uint      `json:"id" gorm:"primarykey"`
+	DataDate      string    `json:"dataDate" gorm:"index;size:10"` // 日期 YYYY-MM-DD
+	DataTime      string    `json:"dataTime" gorm:"index;size:8"`  // 时间 HH:MM
+	UpCount       int       `json:"upCount"`                       // 上涨家数
+	DownCount     int       `json:"downCount"`                     // 下跌家数
+	UpRatio       float64   `json:"upRatio"`                       // 涨跌比(上涨家数占比)
+	UpDownRatio   float64   `json:"upDownRatio"`                   // 市场情绪指标(上涨家数/下跌家数)
+	SentimentDesc string    `json:"sentimentDesc" gorm:"size:20"`  // 市场情绪描述
+	LimitUp       int       `json:"limitUp"`                       // 涨停家数
+	LimitDown     int       `json:"limitDown"`                     // 跌停家数
+	LimitRatio    float64   `json:"limitRatio"`                    // 涨跌停比(涨停/跌停)
+	ShUpCount     int       `json:"shUpCount"`                     // 上海上涨家数
+	ShDownCount   int       `json:"shDownCount"`                   // 上海下跌家数
+	SzUpCount     int       `json:"szUpCount"`                     // 深圳上涨家数
+	SzDownCount   int       `json:"szDownCount"`                   // 深圳下跌家数
+	CreatedAt     time.Time `json:"createdAt" gorm:"autoCreateTime"`
+}
+
+func (MarketStatistic) TableName() string {
+	return "market_statistic"
 }

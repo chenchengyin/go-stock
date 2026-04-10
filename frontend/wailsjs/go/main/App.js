@@ -142,6 +142,10 @@ export function FetchAiModels(arg1, arg2) {
   return window['go']['main']['App']['FetchAiModels'](arg1, arg2);
 }
 
+export function FetchAndSaveMarketStatistic() {
+  return window['go']['main']['App']['FetchAndSaveMarketStatistic']();
+}
+
 export function Follow(arg1) {
   return window['go']['main']['App']['Follow'](arg1);
 }
@@ -246,6 +250,10 @@ export function GetIndustryRank(arg1, arg2) {
   return window['go']['main']['App']['GetIndustryRank'](arg1, arg2);
 }
 
+export function GetMarketStatisticByDate(arg1) {
+  return window['go']['main']['App']['GetMarketStatisticByDate'](arg1);
+}
+
 export function GetMoneyRankSina(arg1) {
   return window['go']['main']['App']['GetMoneyRankSina'](arg1);
 }
@@ -256,6 +264,10 @@ export function GetPromptTemplateList(arg1) {
 
 export function GetPromptTemplates(arg1, arg2) {
   return window['go']['main']['App']['GetPromptTemplates'](arg1, arg2);
+}
+
+export function GetRecentDaysMarketStatistic(arg1) {
+  return window['go']['main']['App']['GetRecentDaysMarketStatistic'](arg1);
 }
 
 export function GetSponsorInfo() {
@@ -308,6 +320,10 @@ export function GetTelegraphList(arg1) {
 
 export function GetTimezone() {
   return window['go']['main']['App']['GetTimezone']();
+}
+
+export function GetTodayMarketStatistic() {
+  return window['go']['main']['App']['GetTodayMarketStatistic']();
 }
 
 export function GetTradingRecordById(arg1) {

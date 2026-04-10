@@ -475,7 +475,7 @@ func (a *App) domReady(ctx context.Context) {
 		entryID, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+10), func() {
 			//news := data.NewMarketNewsApi().GetNewTelegraph(30)
 			news := data.NewMarketNewsApi().TelegraphList(30)
-			if config.EnablePushNews {
+			if data.GetSettingConfig().EnablePushNews {
 				go a.NewsPush(news)
 			}
 			go runtime.EventsEmit(a.ctx, "newTelegraph", news)
@@ -488,7 +488,7 @@ func (a *App) domReady(ctx context.Context) {
 
 		entryIDSina, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+10), func() {
 			news := data.NewMarketNewsApi().GetSinaNews(30)
-			if config.EnablePushNews {
+			if data.GetSettingConfig().EnablePushNews {
 				go a.NewsPush(news)
 			}
 			go runtime.EventsEmit(a.ctx, "newSinaNews", news)
@@ -501,7 +501,7 @@ func (a *App) domReady(ctx context.Context) {
 
 		entryIDTradingViewNews, err := a.cron.AddFunc(fmt.Sprintf("@every %ds", interval+10), func() {
 			news := data.NewMarketNewsApi().TradingViewNews()
-			if config.EnablePushNews {
+			if data.GetSettingConfig().EnablePushNews {
 				go a.NewsPush(news)
 			}
 			go runtime.EventsEmit(a.ctx, "tradingViewNews", news)
@@ -589,6 +589,18 @@ func (a *App) domReady(ctx context.Context) {
 	go MonitorAiRecommendStockPrices(a)
 	// 自选股成本价监控
 	go MonitorFollowedStockCostPrices(a)
+	// 市场统计数据采集（交易日每5分钟）
+	go func() {
+		a.FetchAndSaveMarketStatistic()
+		idMarketStat, err := a.cron.AddFunc("0 */5 9-15 * * 1-5", func() {
+			a.FetchAndSaveMarketStatistic()
+		})
+		if err != nil {
+			logger.SugaredLogger.Errorf("AddFunc FetchAndSaveMarketStatistic error:%s", err.Error())
+		} else {
+			a.setCronEntry("FetchAndSaveMarketStatistic", idMarketStat)
+		}
+	}()
 	//检查新版本
 	go func() {
 		a.CheckUpdate(0)
@@ -2365,4 +2377,27 @@ func (a *App) CheckFrequentTrading(stockCode string) map[string]any {
 		"canTrade": canTrade,
 		"msg":      msg,
 	}
+}
+
+func (a *App) FetchAndSaveMarketStatistic() {
+	if !isTradingTime(time.Now()) {
+		logger.SugaredLogger.Debugf("当前非交易时间，跳过市场统计数据采集")
+		return
+	}
+	err := data.NewMarketStatisticApi().FetchAndSave()
+	if err != nil {
+		logger.SugaredLogger.Errorf("获取市场统计数据失败: %v", err)
+	}
+}
+
+func (a *App) GetTodayMarketStatistic() []models.MarketStatistic {
+	return data.NewMarketStatisticApi().GetTodayData()
+}
+
+func (a *App) GetMarketStatisticByDate(date string) []models.MarketStatistic {
+	return data.NewMarketStatisticApi().GetByDate(date)
+}
+
+func (a *App) GetRecentDaysMarketStatistic(days int) []models.MarketStatistic {
+	return data.NewMarketStatisticApi().GetRecentDaysData(days)
 }

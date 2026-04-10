@@ -2404,7 +2404,7 @@ func GetAllDataTools() []tool.BaseTool {
 
 	tools = append(tools, NewDataToolWrapper(
 		"GetStockChangeHistoryList",
-		"查询股票异动历史记录。可以根据股票代码、股票名称、异动类型、日期范围等条件筛选历史异动数据。",
+		"查询股票异动历史记录。可以根据股票代码、股票名称、异动类型、日期范围、成交量、金额、涨跌幅、行业、概念等条件筛选历史异动数据。",
 		map[string]*schema.ParameterInfo{
 			"stockCode": {
 				Type:     "string",
@@ -2446,6 +2446,36 @@ func GetAllDataTools() []tool.BaseTool {
 				Desc:     "结束时间，格式：HH:MM:SS（可选）",
 				Required: true,
 			},
+			"minVolume": {
+				Type:     "integer",
+				Desc:     "最小成交量筛选（股），如50000表示大于500手（可选）",
+				Required: false,
+			},
+			"minAmount": {
+				Type:     "number",
+				Desc:     "最小金额筛选（元），如10000000表示大于1000万（可选）",
+				Required: false,
+			},
+			"minChangeRate": {
+				Type:     "number",
+				Desc:     "最小涨跌幅筛选（%），如5表示涨幅大于5%（可选）",
+				Required: false,
+			},
+			"maxChangeRate": {
+				Type:     "number",
+				Desc:     "最大涨跌幅筛选（%），如-5表示跌幅小于-5%（可选）",
+				Required: false,
+			},
+			"industry": {
+				Type:     "string",
+				Desc:     "行业关键词筛选（可选），支持模糊匹配",
+				Required: false,
+			},
+			"concept": {
+				Type:     "string",
+				Desc:     "概念关键词筛选（可选），支持模糊匹配",
+				Required: false,
+			},
 			"page": {
 				Type:     "integer",
 				Desc:     "页码，默认1",
@@ -2468,6 +2498,12 @@ func GetAllDataTools() []tool.BaseTool {
 			pageSize := int(gjson.Get(args, "pageSize").Int())
 			startTime := gjson.Get(args, "startTime").String()
 			endTime := gjson.Get(args, "endTime").String()
+			minVolume := gjson.Get(args, "minVolume").Int()
+			minAmount := gjson.Get(args, "minAmount").Float()
+			minChangeRate := gjson.Get(args, "minChangeRate").Float()
+			maxChangeRate := gjson.Get(args, "maxChangeRate").Float()
+			industry := gjson.Get(args, "industry").String()
+			concept := gjson.Get(args, "concept").String()
 
 			if page <= 0 {
 				page = 1
@@ -2477,16 +2513,22 @@ func GetAllDataTools() []tool.BaseTool {
 			}
 
 			query := models.StockChangeHistoryQuery{
-				StockCode:  stockCode,
-				StockName:  stockName,
-				ChangeType: changeType,
-				TypeName:   typeName,
-				StartDate:  startDate,
-				EndDate:    endDate,
-				Page:       page,
-				PageSize:   pageSize,
-				StartTime:  startTime,
-				EndTime:    endTime,
+				StockCode:     stockCode,
+				StockName:     stockName,
+				ChangeType:    changeType,
+				TypeName:      typeName,
+				StartDate:     startDate,
+				EndDate:       endDate,
+				Page:          page,
+				PageSize:      pageSize,
+				StartTime:     startTime,
+				EndTime:       endTime,
+				MinVolume:     minVolume,
+				MinAmount:     minAmount,
+				MinChangeRate: minChangeRate,
+				MaxChangeRate: maxChangeRate,
+				Industry:      industry,
+				Concept:       concept,
 			}
 
 			pageData, err := data.NewStockChangeHistoryService().GetHistoryList(query)

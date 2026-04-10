@@ -62,4 +62,5 @@ func ClearChatMemory(sessionID string) error {
 func AutoMigrate() {
 	Dao.AutoMigrate(&ChatMemory{})
 	Dao.AutoMigrate(&models.StockChangeHistory{})
+	Dao.AutoMigrate(&models.MarketStatistic{})
 }

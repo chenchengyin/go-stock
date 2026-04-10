@@ -192,7 +192,7 @@ func main() {
 		OnShutdown:               app.shutdown,
 		WindowStartState:         options.Normal,
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId:               "go-stock",
+			UniqueId:               "go-stock-dev",
 			OnSecondInstanceLaunch: OnSecondInstanceLaunch,
 		},
 		Bind: []interface{}{
