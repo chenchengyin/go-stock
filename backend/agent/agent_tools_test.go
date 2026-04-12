@@ -8,7 +8,7 @@ import (
 )
 
 func TestGetAllTools(t *testing.T) {
-	allTools := getAllTools()
+	allTools := getToolsByQuestion("分析一下茅台的股票行情和资金流向")
 	t.Logf("Total tools count: %d", len(allTools))
 
 	toolNames := make(map[string]int)

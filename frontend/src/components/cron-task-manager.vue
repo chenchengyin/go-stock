@@ -180,9 +180,19 @@
                   </n-form-item>
                 </n-gi>
               </n-grid>
-              
-              <!-- 第三行：股票代码和股票名称 -->
+
+              <!-- 第三行：Agent模式和股票代码 -->
               <n-grid :cols="2" :x-gap="12">
+                <n-gi>
+                  <n-form-item label-width="90px" label="Agent模式:">
+                    <n-select
+                      v-model:value="stockAnalysisParamsData.agentMode"
+                      :options="agentModeOptions"
+                      placeholder="请选择Agent模式"
+                      style="width: 100%"
+                    />
+                  </n-form-item>
+                </n-gi>
                 <n-gi>
                   <n-form-item label-width="90px" label="股票代码:">
                     <n-input
@@ -193,6 +203,10 @@
                     />
                   </n-form-item>
                 </n-gi>
+              </n-grid>
+
+              <!-- 第四行：股票名称 -->
+              <n-grid :cols="2" :x-gap="12">
                 <n-gi>
                   <n-form-item label-width="90px" label="股票名称:">
                     <n-input
@@ -260,6 +274,20 @@
                         关闭
                       </template>
                     </n-switch>
+                  </n-form-item>
+                </n-gi>
+              </n-grid>
+
+              <!-- 第三行：Agent模式 -->
+              <n-grid :cols="2" :x-gap="12">
+                <n-gi>
+                  <n-form-item label-width="90px" label="Agent模式:">
+                    <n-select
+                      v-model:value="marketAnalysisParamsData.agentMode"
+                      :options="agentModeOptions"
+                      placeholder="请选择Agent模式"
+                      style="width: 100%"
+                    />
                   </n-form-item>
                 </n-gi>
               </n-grid>
@@ -553,7 +581,8 @@ const generatedParamsJson = computed(() => {
       sysPromptId: stockAnalysisParamsData.sysPromptId ,
       thinking: stockAnalysisParamsData.thinking ,
       stockCode: stockAnalysisParamsData.stockCode,
-      stockName: stockAnalysisParamsData.stockName
+      stockName: stockAnalysisParamsData.stockName,
+      agentMode: stockAnalysisParamsData.agentMode
     }, null, 2)
   }
   if(formData.taskType==='market_analysis'){
@@ -561,7 +590,8 @@ const generatedParamsJson = computed(() => {
       promptId: marketAnalysisParamsData.promptId ,
       aiConfigId: marketAnalysisParamsData.aiConfigId,
       sysPromptId: marketAnalysisParamsData.sysPromptId ,
-      thinking: marketAnalysisParamsData.thinking
+      thinking: marketAnalysisParamsData.thinking,
+      agentMode: marketAnalysisParamsData.agentMode
     }, null, 2)
   }
 
@@ -766,19 +796,27 @@ const calculateNextRunTime = ref('')
 const nextRunTimes = ref([])
 
 //任务参数
+const agentModeOptions = [
+  { label: '🤖 自动选择', value: '' },
+  { label: '⚡ 快速模式', value: 'react' },
+  { label: '🧠 规划模式', value: 'plan_execute' }
+]
+
 const stockAnalysisParamsData = reactive({
   promptId: 0,
   aiConfigId: 0,
   sysPromptId: 0,
   thinking: true,
   stockCode: '',
-  stockName: ''
+  stockName: '',
+  agentMode: ''
 })
 const marketAnalysisParamsData= reactive({
   promptId: 0,
   aiConfigId: 0,
   sysPromptId: 0,
   thinking: true,
+  agentMode: ''
 })
 
 
@@ -1214,6 +1252,7 @@ const handleEdit = async (row) => {
           stockAnalysisParamsData.thinking = parsed.thinking || false
           stockAnalysisParamsData.stockCode = parsed.stockCode || ''
           stockAnalysisParamsData.stockName = parsed.stockName || ''
+          stockAnalysisParamsData.agentMode = parsed.agentMode || ''
         } catch (e) {
           console.error('解析参数失败:', e)
         }
@@ -1227,6 +1266,7 @@ const handleEdit = async (row) => {
           marketAnalysisParamsData.aiConfigId = parsed.aiConfigId ?? null
           marketAnalysisParamsData.sysPromptId = parsed.sysPromptId ?? null
           marketAnalysisParamsData.thinking = parsed.thinking || false
+          marketAnalysisParamsData.agentMode = parsed.agentMode || ''
         } catch (e) {
           console.error('解析参数失败:', e)
         }
@@ -1369,13 +1409,15 @@ const resetForm = () => {
     sysPromptId: null,
     thinking: false,
     stockCode: '',
-    stockName: ''
+    stockName: '',
+    agentMode: ''
   })
   Object.assign(marketAnalysisParamsData, {
     promptId: null,
     aiConfigId: null,
     sysPromptId: null,
-    thinking: false
+    thinking: false,
+    agentMode: ''
   })
   // 重置 Cron 配置器
   Object.assign(cronSecond, { type: '*', start: 0, end: 0, loopStart: 0, loopStep: 1, appoint: [] })
@@ -1406,6 +1448,7 @@ watch(() => formData.taskType, (newType) => {
         stockAnalysisParamsData.thinking = parsed.thinking || false
         stockAnalysisParamsData.stockCode = parsed.stockCode || ''
         stockAnalysisParamsData.stockName = parsed.stockName || ''
+        stockAnalysisParamsData.agentMode = parsed.agentMode || ''
       } catch (e) {
         console.error('解析参数失败:', e)
       }

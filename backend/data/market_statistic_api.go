@@ -161,6 +161,13 @@ func (a *MarketStatisticApi) GetTodayData() []models.MarketStatistic {
 	today := time.Now().Format("2006-01-02")
 	var data []models.MarketStatistic
 	db.Dao.Where("data_date = ?", today).Order("data_time ASC").Find(&data)
+	if len(data) > 0 {
+		return data
+	}
+	var latest models.MarketStatistic
+	if err := db.Dao.Order("data_date DESC, data_time DESC").First(&latest).Error; err == nil {
+		db.Dao.Where("data_date = ?", latest.DataDate).Order("data_time ASC").Find(&data)
+	}
 	return data
 }
 

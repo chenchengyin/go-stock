@@ -23,8 +23,8 @@ import {
   NewspaperSharp, Notifications,
   PowerOutline, Pulse,
   ReorderTwoOutline,
-  SettingsOutline, Skull, SkullOutline, SkullSharp,
-  SparklesOutline,
+  SettingsOutline, ServerOutline, Skull, SkullOutline, SkullSharp,
+  SparklesOutline, FlashOutline,
   StarOutline,
   Wallet, WarningOutline, TimeOutline,
 } from '@vicons/ionicons5'
@@ -631,6 +631,47 @@ const menuOptions = ref([
               ),
           key: 'research6',
           icon: renderIcon(MoneyCollectOutlined),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 7, name: 'MCP服务'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => 'MCP服务'}
+              ),
+          key: 'mcpServers',
+          icon: renderIcon(ServerOutline),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 8, name: '技能管理'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '技能管理'}
+              ),
+          key: 'skills',
+          icon: renderIcon(FlashOutline),
+          show: false,
         },
       ],
     },

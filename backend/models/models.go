@@ -1599,3 +1599,81 @@ type MarketStatistic struct {
 func (MarketStatistic) TableName() string {
 	return "market_statistic"
 }
+
+type MCPServer struct {
+	ID          uint      `json:"id" gorm:"primarykey"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Name        string    `json:"name" gorm:"size:255;not null"`
+	Description string    `json:"description" gorm:"size:500"`
+	URL         string    `json:"url" gorm:"size:500"`
+	Command     string    `json:"command" gorm:"size:500"`
+	Args        string    `json:"args" gorm:"type:text"`
+	Env         string    `json:"env" gorm:"type:text"`
+	Enable      bool      `json:"enable" gorm:"default:true"`
+	Status      string    `json:"status" gorm:"size:20;default:stopped"`
+	TestResult  string    `json:"testResult" gorm:"size:500"`
+}
+
+func (MCPServer) TableName() string {
+	return "mcp_servers"
+}
+
+type MCPServerQuery struct {
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Enable   *bool  `json:"enable"`
+}
+
+type MCPServerPageResp struct {
+	Total int         `json:"total"`
+	Data  []MCPServer `json:"data"`
+}
+
+type MCPServerTool struct {
+	ID           uint      `json:"id" gorm:"primarykey"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	MCPServerID  uint      `json:"mcpServerId" gorm:"index;not null"`
+	ToolName     string    `json:"toolName" gorm:"size:255;not null"`
+	Description  string    `json:"description" gorm:"type:text"`
+	ParamsSchema string    `json:"paramsSchema" gorm:"type:text"`
+}
+
+func (MCPServerTool) TableName() string {
+	return "mcp_server_tools"
+}
+
+type Skill struct {
+	ID              uint      `json:"id" gorm:"primarykey"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
+	Name            string    `json:"name" gorm:"size:255;not null"`
+	Description     string    `json:"description" gorm:"size:500"`
+	Category        string    `json:"category" gorm:"size:50"`
+	SystemPrompt    string    `json:"systemPrompt" gorm:"type:text"`
+	Examples        string    `json:"examples" gorm:"type:text"`
+	TriggerKeywords string    `json:"triggerKeywords" gorm:"size:500"`
+	MCPServerIDs    string    `json:"mcpServerIds" gorm:"size:500"`
+	Enable          bool      `json:"enable" gorm:"default:true"`
+	SortOrder       int       `json:"sortOrder" gorm:"default:0"`
+}
+
+func (Skill) TableName() string {
+	return "skills"
+}
+
+type SkillQuery struct {
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	Enable   *bool  `json:"enable"`
+}
+
+type SkillPageResp struct {
+	Total int     `json:"total"`
+	Data  []Skill `json:"data"`
+}

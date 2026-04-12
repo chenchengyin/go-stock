@@ -291,6 +291,9 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.AiAssistantSession{})
 	db.Dao.AutoMigrate(&models.GlobalStockIndex{})
 	db.Dao.AutoMigrate(&data.TradingRecord{})
+	db.Dao.AutoMigrate(&models.MCPServer{})
+	db.Dao.AutoMigrate(&models.MCPServerTool{})
+	db.Dao.AutoMigrate(&models.Skill{})
 
 	//updateMultipleModel()
 

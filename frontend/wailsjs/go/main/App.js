@@ -62,8 +62,8 @@ export function CalculateNextRunTimes(arg1, arg2) {
   return window['go']['main']['App']['CalculateNextRunTimes'](arg1, arg2);
 }
 
-export function ChatWithAgent(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function ChatWithAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function CheckFrequentTrading(arg1) {
@@ -90,6 +90,14 @@ export function CreateCronTask(arg1) {
   return window['go']['main']['App']['CreateCronTask'](arg1);
 }
 
+export function CreateMCPServer(arg1) {
+  return window['go']['main']['App']['CreateMCPServer'](arg1);
+}
+
+export function CreateSkill(arg1) {
+  return window['go']['main']['App']['CreateSkill'](arg1);
+}
+
 export function DelPrompt(arg1) {
   return window['go']['main']['App']['DelPrompt'](arg1);
 }
@@ -110,8 +118,16 @@ export function DeleteCronTask(arg1) {
   return window['go']['main']['App']['DeleteCronTask'](arg1);
 }
 
+export function DeleteMCPServer(arg1) {
+  return window['go']['main']['App']['DeleteMCPServer'](arg1);
+}
+
 export function DeletePromptTemplate(arg1) {
   return window['go']['main']['App']['DeletePromptTemplate'](arg1);
+}
+
+export function DeleteSkill(arg1) {
+  return window['go']['main']['App']['DeleteSkill'](arg1);
 }
 
 export function DeleteStockChangeHistory(arg1) {
@@ -130,12 +146,24 @@ export function EnableCronTask(arg1, arg2) {
   return window['go']['main']['App']['EnableCronTask'](arg1, arg2);
 }
 
+export function EnableMCPServer(arg1, arg2) {
+  return window['go']['main']['App']['EnableMCPServer'](arg1, arg2);
+}
+
+export function EnableSkill(arg1, arg2) {
+  return window['go']['main']['App']['EnableSkill'](arg1, arg2);
+}
+
 export function ExecuteCronTaskNow(arg1) {
   return window['go']['main']['App']['ExecuteCronTaskNow'](arg1);
 }
 
 export function ExportConfig() {
   return window['go']['main']['App']['ExportConfig']();
+}
+
+export function FetchAiModelInfo(arg1, arg2, arg3) {
+  return window['go']['main']['App']['FetchAiModelInfo'](arg1, arg2, arg3);
 }
 
 export function FetchAiModels(arg1, arg2) {
@@ -182,8 +210,16 @@ export function GetAllIndustries() {
   return window['go']['main']['App']['GetAllIndustries']();
 }
 
+export function GetAllMCPTools() {
+  return window['go']['main']['App']['GetAllMCPTools']();
+}
+
 export function GetAllMarkets() {
   return window['go']['main']['App']['GetAllMarkets']();
+}
+
+export function GetAllSkills() {
+  return window['go']['main']['App']['GetAllSkills']();
 }
 
 export function GetAllStockChangesWithPaging(arg1) {
@@ -250,6 +286,18 @@ export function GetIndustryRank(arg1, arg2) {
   return window['go']['main']['App']['GetIndustryRank'](arg1, arg2);
 }
 
+export function GetMCPServerByID(arg1) {
+  return window['go']['main']['App']['GetMCPServerByID'](arg1);
+}
+
+export function GetMCPServerList(arg1) {
+  return window['go']['main']['App']['GetMCPServerList'](arg1);
+}
+
+export function GetMCPToolsByServerID(arg1) {
+  return window['go']['main']['App']['GetMCPToolsByServerID'](arg1);
+}
+
 export function GetMarketStatisticByDate(arg1) {
   return window['go']['main']['App']['GetMarketStatisticByDate'](arg1);
 }
@@ -268,6 +316,14 @@ export function GetPromptTemplates(arg1, arg2) {
 
 export function GetRecentDaysMarketStatistic(arg1) {
   return window['go']['main']['App']['GetRecentDaysMarketStatistic'](arg1);
+}
+
+export function GetSkillByID(arg1) {
+  return window['go']['main']['App']['GetSkillByID'](arg1);
+}
+
+export function GetSkillList(arg1) {
+  return window['go']['main']['App']['GetSkillList'](arg1);
 }
 
 export function GetSponsorInfo() {
@@ -494,6 +550,10 @@ export function SummaryStockNews(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['SummaryStockNews'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function TestMCPServer(arg1) {
+  return window['go']['main']['App']['TestMCPServer'](arg1);
+}
+
 export function UnFollow(arg1) {
   return window['go']['main']['App']['UnFollow'](arg1);
 }
@@ -518,8 +578,16 @@ export function UpdateGroupSort(arg1, arg2) {
   return window['go']['main']['App']['UpdateGroupSort'](arg1, arg2);
 }
 
+export function UpdateMCPServer(arg1) {
+  return window['go']['main']['App']['UpdateMCPServer'](arg1);
+}
+
 export function UpdatePromptTemplate(arg1) {
   return window['go']['main']['App']['UpdatePromptTemplate'](arg1);
+}
+
+export function UpdateSkill(arg1) {
+  return window['go']['main']['App']['UpdateSkill'](arg1);
 }
 
 export function UpdateTradingRecord(arg1) {

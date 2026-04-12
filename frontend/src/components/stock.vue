@@ -1955,41 +1955,73 @@ window.onerror = function (msg, source, lineno, colno, error) {
 };
 
 function saveAsImage(name, code) {
-  Environment().then(env => {
-    switch (env.platform) {
-      case 'windows':
-        const element = document.querySelector('.md-editor-preview');
-        if (element) {
-          html2canvas(element, {
-            useCORS: true, // 解决跨域图片问题
-            scale: 2, // 提高截图质量
-            allowTaint: true, // 允许跨域图片
-          }).then(canvas => {
-            const link = document.createElement('a');
-            link.href = canvas.toDataURL('image/png');
-            link.download = name + "[" + code + ']-ai-analysis-result.png';
-            link.click();
-          });
-        } else {
-          message.error('无法找到分析结果元素');
-        }
-        break
-      default :
-        saveCanvasImage(name)
+  const previewEl = mdPreviewRef.value?.$el || mdEditorRef.value?.$el
+  const element = previewEl?.querySelector('.md-editor-preview-wrapper') ||
+                  previewEl?.querySelector('.md-editor-preview') ||
+                  document.querySelector('.md-editor-preview')
+  if (!element) {
+    message.error('无法找到分析结果元素')
+    return
+  }
+  const savedStyles = []
+  let el = element.parentElement
+  while (el && el !== document.body) {
+    const style = getComputedStyle(el)
+    if (style.overflow === 'hidden' || style.overflowY === 'hidden' || style.overflowY === 'auto' || style.overflowY === 'scroll') {
+      savedStyles.push({ el, overflow: el.style.overflow, overflowY: el.style.overflowY, height: el.style.height, maxHeight: el.style.maxHeight })
+      el.style.overflow = 'visible'
+      el.style.overflowY = 'visible'
+      el.style.height = 'auto'
+      el.style.maxHeight = 'none'
     }
-  })
-}
-
-async function saveCanvasImage(name) {
-  const element = document.querySelector('.md-editor-preview'); // 要截图的 DOM 节点
-  const canvas = await html2canvas(element)
-
-  const dataUrl = canvas.toDataURL('image/png') // base64 格式
-  const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-
-  // 调用 Go 后端保存文件（Wails 绑定方法）
-  await SaveImage(name, base64).then(result => {
-    message.success(result)
+    el = el.parentElement
+  }
+  const savedTargetStyle = { height: element.style.height, maxHeight: element.style.maxHeight, overflow: element.style.overflow, overflowY: element.style.overflowY }
+  element.style.height = 'auto'
+  element.style.maxHeight = 'none'
+  element.style.overflow = 'visible'
+  element.style.overflowY = 'visible'
+  nextTick(async () => {
+    const isDark = document.documentElement.getAttribute('theme-mode') === 'dark'
+    try {
+      const canvas = await html2canvas(element, {
+        useCORS: true,
+        scale: 2,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: isDark ? '#1e1e1e' : '#ffffff'
+      })
+      element.style.height = savedTargetStyle.height
+      element.style.maxHeight = savedTargetStyle.maxHeight
+      element.style.overflow = savedTargetStyle.overflow
+      element.style.overflowY = savedTargetStyle.overflowY
+      savedStyles.forEach(({ el, overflow, overflowY, height, maxHeight }) => {
+        el.style.overflow = overflow
+        el.style.overflowY = overflowY
+        el.style.height = height
+        el.style.maxHeight = maxHeight
+      })
+      const dataUrl = canvas.toDataURL('image/png')
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+      const result = await SaveImage(name + '[' + code + ']AI分析', base64)
+      if (result && !result.includes('异常') && !result.includes('无法')) {
+        message.success('已导出为 PNG 图片：' + result)
+      } else {
+        message.info(result || '导出取消')
+      }
+    } catch (e) {
+      element.style.height = savedTargetStyle.height
+      element.style.maxHeight = savedTargetStyle.maxHeight
+      element.style.overflow = savedTargetStyle.overflow
+      element.style.overflowY = savedTargetStyle.overflowY
+      savedStyles.forEach(({ el, overflow, overflowY, height, maxHeight }) => {
+        el.style.overflow = overflow
+        el.style.overflowY = overflowY
+        el.style.height = height
+        el.style.maxHeight = maxHeight
+      })
+      message.error('导出图片失败: ' + (e?.message ?? e))
+    }
   })
 }
 

@@ -8,6 +8,7 @@ import marketView from "../components/market.vue";
 import agentChat from "../components/agent-chat.vue"
 import research from "../components/researchIndex.vue";
 import cronTaskManager from "../components/cron-task-manager.vue"
+import mcpServerManager from "../components/mcp-server-manager.vue"
 
 const routes = [
     { path: '/', component: stockView,name: 'stock'},
@@ -18,6 +19,7 @@ const routes = [
     { path: '/agent', component: agentChat,name: 'agent' },
     { path: '/research', component: research,name: 'research' },
     { path: '/cron-tasks', component: cronTaskManager,name: 'cronTasks' },
+    { path: '/mcp-servers', component: mcpServerManager,name: 'mcpServers' },
 
 ]
 

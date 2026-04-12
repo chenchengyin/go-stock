@@ -9,7 +9,8 @@ import {
   SendDingDingMessageByType,
   UpdateConfig,
   CheckSponsorCode,
-  FetchAiModels
+  FetchAiModels,
+  FetchAiModelInfo
 } from "../../wailsjs/go/main/App";
 import {NTag, NTooltip, NIcon, useMessage} from "naive-ui";
 import {data, models} from "../../wailsjs/go/models";
@@ -93,6 +94,7 @@ async function fetchAiModels(aiConfig) {
     aiConfig._modelOptions = options
     if (!aiConfig.modelName && options.length > 0) {
       aiConfig.modelName = options[0].value
+      onModelNameChange(aiConfig, aiConfig.modelName)
     }
     if (!options.length) {
       message.warning('未从接口获取到可用模型，请检查地址和 apiKey')
@@ -163,6 +165,22 @@ function onModelNameChange(aiConfig, newModelName) {
     } else if (!aiConfig.name.endsWith(newModelName)) {
       aiConfig.name = aiConfig.name + '-' + newModelName
     }
+  }
+
+  fetchModelInfo(aiConfig, newModelName)
+}
+
+async function fetchModelInfo(aiConfig, modelName) {
+  if (!modelName || !aiConfig.baseUrl) return
+  try {
+    const info = await FetchAiModelInfo(aiConfig.baseUrl, aiConfig.apiKey || '', modelName)
+    if (info && info.maxTokens > 0) {
+      aiConfig.maxTokens = info.maxTokens
+      const sourceLabel = info.source === 'api' ? 'API' : '内置数据'
+      message.success(`已自动设置 ${modelName} 的 MaxTokens 为 ${info.maxTokens}（来源：${sourceLabel}）`)
+    }
+  } catch (e) {
+    console.error('FetchAiModelInfo error', e)
   }
 }
 

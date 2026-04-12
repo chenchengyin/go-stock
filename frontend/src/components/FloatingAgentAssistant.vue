@@ -95,13 +95,32 @@
                       </div>
                       <div class="msg-bubble">
                         <div class="msg-content">
-                          <div v-if="group.assistantMsg.reasoning" class="msg-reasoning-wrapper">
-                            <div class="msg-reasoning-header" @click="toggleReasoning(group.assistantIndex)">
+                          <div v-if="group.assistantMsg.steps && group.assistantMsg.steps.length > 0" class="msg-steps-wrapper">
+                            <div class="msg-steps-header" @click="toggleReasoning(group.assistantIndex)">
                               <NIcon :component="reasoningExpandedMap[group.assistantIndex] ? ChevronDownOutline : ChevronForwardOutline" size="14" />
+                              <span class="msg-steps-title">📋 执行步骤</span>
+                              <span class="msg-steps-count">{{ group.assistantMsg.steps.length }}</span>
+                            </div>
+                            <div v-show="reasoningExpandedMap[group.assistantIndex]" class="msg-steps-content">
+                              <div v-for="(step, si) in group.assistantMsg.steps" :key="si" class="msg-step-item">
+                                <div class="msg-step-dot" :class="getStepDotClass(step)"></div>
+                                <span class="msg-step-text">{{ step }}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div v-if="group.assistantMsg.reasoning" class="msg-reasoning-wrapper">
+                            <div class="msg-reasoning-header" @click="toggleReasoning('r-' + group.assistantIndex)">
+                              <NIcon :component="reasoningExpandedMap['r-' + group.assistantIndex] ? ChevronDownOutline : ChevronForwardOutline" size="14" />
                               <span class="msg-reasoning-title">💭 思考过程</span>
                             </div>
-                            <div v-show="reasoningExpandedMap[group.assistantIndex]" class="msg-reasoning-content">
-                              {{ group.assistantMsg.reasoning }}
+                            <div v-show="reasoningExpandedMap['r-' + group.assistantIndex]" class="msg-reasoning-content">
+                              <MdPreview
+                                :theme="theme"
+                                :style="{ textAlign: 'left' }"
+                                :model-value="group.assistantMsg.reasoning"
+                                :editor-id="'agent-reasoning-' + group.assistantIndex"
+                                class="msg-markdown"
+                              />
                             </div>
                           </div>
                           <MdPreview
@@ -110,6 +129,7 @@
                             :model-value="group.assistantMsg.content || '...'"
                             :editor-id="'agent-msg-' + group.assistantIndex"
                             class="msg-markdown"
+                            @onHtmlChanged="onMdHtmlChanged"
                           />
                           <div v-if="isStreamLoad && groupIndex === messageGroups.length - 1 && !group.assistantMsg.content" class="msg-loading">
                             <NSpin size="small" />
@@ -218,6 +238,19 @@
                     class="chat-footer-memory-count"
                   />
                 </div>
+                <div class="chat-footer-agent-mode">
+                  <NSelect
+                    v-model:value="agentMode"
+                    :options="agentModeOptions"
+                    size="small"
+                    to="body"
+                    placement="top-start"
+                    placeholder="Agent模式"
+                    :consistent-menu-width="false"
+                    :menu-props="{ style: { zIndex: 10002 } }"
+                    class="chat-footer-agent-mode-select"
+                  />
+                </div>
               </div>
               <div class="chat-footer-input">
                 <NInput
@@ -279,7 +312,8 @@ import {
   GetAiAssistantSession,
   ShareText,
   AbortChatWithAgent,
-  SaveAIResponseResult
+  SaveAIResponseResult,
+  SaveImage
 } from '../../wailsjs/go/main/App'
 import { EventsOff, EventsOn } from '../../wailsjs/runtime'
 import { MdPreview } from 'md-editor-v3'
@@ -298,6 +332,7 @@ const inputValue = ref('')
 const isStreamLoad = ref(false)
 const sentFromFloating = ref(false)
 const messages = ref([])
+let formatTimer = null
 const sessionId = ref('')
 const aiConfigOptions = ref([])
 const aiConfigId = ref(null)
@@ -331,6 +366,12 @@ const memoryCountOptions = [
   { label: '4 条', value: 4 },
   { label: '5 条', value: 5 },
   { label: '10 条', value: 10 },
+]
+const agentMode = ref('auto')
+const agentModeOptions = [
+  { label: '🤖 自动选择', value: 'auto' },
+  { label: '⚡ 快速模式', value: 'react' },
+  { label: '🧠 规划模式', value: 'plan_execute' },
 ]
 
 function onUserPromptChange(id) {
@@ -418,6 +459,39 @@ function toggleReasoning(index) {
     ...reasoningExpandedMap.value,
     [index]: !reasoningExpandedMap.value[index]
   }
+}
+
+function getStepDotClass(step) {
+  if (step.includes('✅')) return 'step-done'
+  if (step.includes('🔧')) return 'step-tool'
+  if (step.includes('⚡') || step.includes('🧠') || step.includes('📋') || step.includes('🔄')) return 'step-active'
+  return ''
+}
+
+function onMdHtmlChanged() {
+  nextTick(() => {
+    document.querySelectorAll('.msg-markdown .md-editor-code-block').forEach(block => {
+      if (block.querySelector('.code-collapse-btn')) return
+      const codeEl = block.querySelector('code')
+      if (!codeEl) return
+      const lang = (codeEl.className || '').toLowerCase()
+      const isJson = lang.includes('json') || lang.includes('language-json')
+      const text = codeEl.textContent || ''
+      const lineCount = text.split('\n').length
+      if (!isJson && lineCount <= 8) return
+
+      block.classList.add('code-collapsed')
+      const btn = document.createElement('span')
+      btn.className = 'code-collapse-btn'
+      btn.textContent = '展开'
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const collapsed = block.classList.toggle('code-collapsed')
+        btn.textContent = collapsed ? '展开' : '收起'
+      })
+      block.appendChild(btn)
+    })
+  })
 }
 
 async function copyAiContent(msg) {
@@ -520,6 +594,27 @@ async function exportAiReplyImage(assistantIndex, evt) {
       shareTipVisible.value = true
       return
     }
+    const savedStyles = []
+    const overflowParents = []
+    let el = target.parentElement
+    while (el && el !== document.body) {
+      const style = getComputedStyle(el)
+      if (style.overflow === 'hidden' || style.overflowY === 'hidden' || style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        savedStyles.push({ el, overflow: el.style.overflow, overflowY: el.style.overflowY, height: el.style.height, maxHeight: el.style.maxHeight })
+        overflowParents.push(el)
+        el.style.overflow = 'visible'
+        el.style.overflowY = 'visible'
+        el.style.height = 'auto'
+        el.style.maxHeight = 'none'
+      }
+      el = el.parentElement
+    }
+    const savedTargetStyle = { height: target.style.height, maxHeight: target.style.maxHeight, overflow: target.style.overflow, overflowY: target.style.overflowY }
+    target.style.height = 'auto'
+    target.style.maxHeight = 'none'
+    target.style.overflow = 'visible'
+    target.style.overflowY = 'visible'
+    await nextTick()
     const canvas = await html2canvas(target, {
       useCORS: true,
       scale: 2,
@@ -527,12 +622,25 @@ async function exportAiReplyImage(assistantIndex, evt) {
       logging: false,
       backgroundColor: darkTheme.value ? '#1e1e1e' : '#ffffff'
     })
-    const link = document.createElement('a')
+    target.style.height = savedTargetStyle.height
+    target.style.maxHeight = savedTargetStyle.maxHeight
+    target.style.overflow = savedTargetStyle.overflow
+    target.style.overflowY = savedTargetStyle.overflowY
+    savedStyles.forEach(({ el, overflow, overflowY, height, maxHeight }) => {
+      el.style.overflow = overflow
+      el.style.overflowY = overflowY
+      el.style.height = height
+      el.style.maxHeight = maxHeight
+    })
+    const dataUrl = canvas.toDataURL('image/png')
+    const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
     const safeTime = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')
-    link.href = canvas.toDataURL('image/png')
-    link.download = `go-stock-agent-${safeTime}.png`
-    link.click()
-    shareTipText.value = '已导出为 PNG 图片'
+    const result = await SaveImage(`go-stock-agent-${safeTime}`, base64)
+    if (result && !result.includes('异常') && !result.includes('无法')) {
+      shareTipText.value = '已导出为 PNG 图片：' + result
+    } else {
+      shareTipText.value = result || '导出取消'
+    }
     shareTipVisible.value = true
   } catch (e) {
     shareTipText.value = '导出图片失败: ' + (e?.message ?? e)
@@ -546,6 +654,12 @@ function abortStream(showTip = true) {
   if (!isStreamLoad.value) return
   isAborted.value = true
   isStreamLoad.value = false
+  stopFormatTimer()
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'assistant') {
+    if (last.rawContent) last.content = formatMarkdown(last.rawContent)
+    if (last.rawReasoning) last.reasoning = formatMarkdown(last.rawReasoning)
+  }
   if (showTip) {
     shareTipText.value = '已中断本次 AI 回答'
     shareTipVisible.value = true
@@ -568,7 +682,8 @@ async function loadHistory() {
         content: m.content ?? '',
         time: m.time ?? '',
         modelName: m.modelName ?? '',
-        reasoning: m.reasoning ?? ''
+        reasoning: m.reasoning ?? '',
+        steps: m.steps ?? []
       }))
       nextTick(() => {
         initDefaultExpanded()
@@ -585,7 +700,8 @@ function saveHistory() {
     content: m.content,
     time: m.time ?? '',
     modelName: m.modelName ?? '',
-    reasoning: m.reasoning ?? ''
+    reasoning: m.reasoning ?? '',
+    steps: m.steps ?? []
   }))
   SaveAiAssistantSession(sessionId.value, list).catch(() => {})
 }
@@ -665,27 +781,39 @@ function sendMessage() {
     content: text,
     time: new Date().toLocaleString(),
     modelName: '',
-    reasoning: ''
+    reasoning: '',
+    steps: []
   })
   const configId = aiConfigId.value ?? aiConfigOptions.value[0]?.value ?? 0
   const modelName = modelLabelForConfig(configId)
   messages.value.push({
     role: 'assistant',
     content: '',
+    rawContent: '',
     time: new Date().toLocaleString(),
     modelName,
-    reasoning: ''
+    reasoning: '',
+    rawReasoning: '',
+    steps: []
   })
   inputValue.value = ''
   isStreamLoad.value = true
   isAborted.value = false
   sentFromFloating.value = true
+  startFormatTimer()
   saveHistory()
   nextTick(() => {
     ensureLatestGroupExpanded()
+    const lastGroup = messageGroups.value[messageGroups.value.length - 1]
+    if (lastGroup) {
+      reasoningExpandedMap.value = {
+        ...reasoningExpandedMap.value,
+        [lastGroup.assistantIndex]: true
+      }
+    }
     scrollToBottom()
   })
-  ChatWithAgent(text, configId, sysPromptId.value, memoryMode.value, memoryCount.value, thinkingMode.value)
+  ChatWithAgent(text, configId, sysPromptId.value, memoryMode.value, memoryCount.value, thinkingMode.value, agentMode.value === 'auto' ? '' : agentMode.value)
 }
 
 function startNewChat() {
@@ -697,6 +825,221 @@ function startNewChat() {
   sessionId.value = Date.now().toString()
 }
 
+function startFormatTimer() {
+  stopFormatTimer()
+  formatTimer = setInterval(() => {
+    const last = messages.value[messages.value.length - 1]
+    if (last && last.role === 'assistant') {
+      if (last.rawContent) {
+        last.content = formatMarkdown(last.rawContent)
+      }
+      if (last.rawReasoning) {
+        last.reasoning = formatMarkdown(last.rawReasoning)
+      }
+    }
+  }, 1500)
+}
+
+function stopFormatTimer() {
+  if (formatTimer) {
+    clearInterval(formatTimer)
+    formatTimer = null
+  }
+}
+
+function formatMarkdown(content) {
+  if (!content) return content
+
+  content = wrapInlineJson(content)
+
+  let inCodeBlock = false
+  const lines = content.split('\n')
+  const result = []
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
+    const trimmed = line.replace(/^[\t ]+/, '')
+
+    if (trimmed.startsWith('```')) {
+      inCodeBlock = !inCodeBlock
+      if (!inCodeBlock) {
+        result.push(trimmed)
+        continue
+      }
+    }
+
+    if (inCodeBlock) {
+      result.push(line)
+      continue
+    }
+
+    if (trimmed !== line && trimmed !== '') {
+      line = trimmed
+    }
+
+    if (i > 0 && isBlockElement(trimmed)) {
+      const prev = result.length > 0 ? result[result.length - 1] : ''
+      if (prev !== '' && !isBlockElement(prev.replace(/^[\t ]+/, ''))) {
+        result.push('')
+      }
+    }
+
+    line = splitInlineHeading(line)
+
+    result.push(line)
+  }
+
+  return result.join('\n')
+}
+
+function hasMarkdownContent(str) {
+  if (!str || typeof str !== 'string') return false
+  return /(^|\n)\s*#{1,6}\s/.test(str) ||
+    /(^|\n)\s*\|/.test(str) ||
+    /(^|\n)\s*---/.test(str) ||
+    /(^|\n)\s*[-*+]\s/.test(str) ||
+    /(^|\n)\s*>\s/.test(str) ||
+    /(^|\n)\s*```/.test(str)
+}
+
+function extractMarkdownFromJson(obj) {
+  if (typeof obj === 'string') return obj
+  if (Array.isArray(obj)) {
+    const items = obj.map(item => typeof item === 'string' ? item : JSON.stringify(item, null, 2))
+    return items.join('\n\n')
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    for (const key of ['response', 'content', 'text', 'result', 'answer', 'message', 'output']) {
+      if (obj[key] != null) {
+        const val = obj[key]
+        if (typeof val === 'string' && hasMarkdownContent(val)) return val
+        if (typeof val === 'object') {
+          const extracted = extractMarkdownFromJson(val)
+          if (extracted) return extracted
+        }
+      }
+    }
+    const values = Object.values(obj).filter(v => typeof v === 'string' && hasMarkdownContent(v))
+    if (values.length > 0) return values.join('\n\n')
+    const strValues = Object.values(obj).filter(v => typeof v === 'string')
+    if (strValues.length > 0) return strValues.join('\n\n')
+  }
+  return null
+}
+
+function wrapInlineJson(content) {
+  const result = []
+  let i = 0
+  const len = content.length
+  let inCodeBlock = false
+
+  while (i < len) {
+    if (content.substring(i, i + 3) === '```') {
+      inCodeBlock = !inCodeBlock
+      result.push('```')
+      i += 3
+      continue
+    }
+
+    if (inCodeBlock) {
+      result.push(content[i])
+      i++
+      continue
+    }
+
+    if (content[i] === '{') {
+      const end = findJsonEnd(content, i)
+      if (end > i) {
+        const jsonStr = content.substring(i, end + 1)
+        try {
+          const obj = JSON.parse(jsonStr)
+          const md = extractMarkdownFromJson(obj)
+          if (md) {
+            result.push('\n\n' + md + '\n\n')
+          } else {
+            result.push('\n\n```json\n' + jsonStr + '\n```\n\n')
+          }
+          i = end + 1
+          continue
+        } catch {}
+      }
+    }
+    result.push(content[i])
+    i++
+  }
+
+  return result.join('')
+}
+
+function findJsonEnd(content, start) {
+  let depth = 0
+  let bracketDepth = 0
+  let inStr = false
+  let escape = false
+  for (let i = start; i < content.length; i++) {
+    const ch = content[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inStr) { escape = true; continue }
+    if (ch === '"') { inStr = !inStr; continue }
+    if (inStr) continue
+    if (ch === '[') bracketDepth++
+    else if (ch === ']') bracketDepth--
+    else if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0 && bracketDepth === 0) return i
+    }
+  }
+  return -1
+}
+
+function splitInlineHeading(line) {
+  const match = line.match(/(#{1,6}\s+\S)/)
+  if (!match) return line
+  const idx = match.index
+  if (idx === 0) return line
+  const prefix = line.substring(0, idx)
+  if (prefix.trim() === '') return line
+  return prefix + '\n\n' + line.substring(idx)
+}
+
+function isBlockElement(line) {
+  if (!line || line.length === 0) return false
+  if (line[0] === '#') return true
+  if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ')) return true
+  if (line.startsWith('```')) return true
+  if (line.startsWith('> ')) return true
+  if (line.length >= 2 && line[0] >= '1' && line[0] <= '9' && line[1] === '.') return true
+  if (line.startsWith('---') || line.startsWith('***') || line.startsWith('___')) return true
+  if (line.startsWith('|')) return true
+  return false
+}
+
+function parseStepText(text) {
+  if (!text) return [text]
+  const trimmed = text.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return [text]
+  try {
+    const obj = JSON.parse(trimmed)
+    if (Array.isArray(obj)) {
+      return obj.map((item, i) => `${i + 1}. ${typeof item === 'string' ? item : JSON.stringify(item)}`)
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      const steps = obj.steps || obj.step || obj.plan || obj.items || obj.list
+      if (Array.isArray(steps)) {
+        return steps.map((item, i) => `${i + 1}. ${typeof item === 'string' ? item : JSON.stringify(item)}`)
+      }
+      const entries = Object.entries(obj)
+      if (entries.length > 0) {
+        return entries.map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+      }
+    }
+    return [text]
+  } catch {
+    return [text]
+  }
+}
+
 function onAgentMessage(msg) {
   if (isAborted.value) return
 
@@ -704,9 +1047,18 @@ function onAgentMessage(msg) {
     isStreamLoad.value = false
     sentFromFloating.value = false
     isAborted.value = false
+    stopFormatTimer()
+    const last = messages.value[messages.value.length - 1]
+    if (last && last.role === 'assistant') {
+      if (last.rawContent) {
+        last.content = formatMarkdown(last.rawContent)
+      }
+      if (last.rawReasoning) {
+        last.reasoning = formatMarkdown(last.rawReasoning)
+      }
+    }
     saveHistory()
     nextTick(scrollToBottom)
-    const last = messages.value[messages.value.length - 1]
     if (msg.content === 'agent-DONE' && last && last.role === 'assistant' && last.content) {
       const user = messages.value[messages.value.length - 2]
       SaveAIResponseResult("agent","市场分析", last.content, sessionId.value,user.content, aiConfigId.value)
@@ -721,8 +1073,24 @@ function onAgentMessage(msg) {
 
   const last = messages.value[messages.value.length - 1]
   if (last && last.role === 'assistant') {
-    if (msg?.reasoning_content) last.reasoning = (last.reasoning || '') + msg.reasoning_content
-    if (msg?.content) last.content = (last.content || '') + msg.content
+    if (msg?.reasoning_content) {
+      const rc = msg.reasoning_content
+      if (rc.startsWith('[STEP]')) {
+        const stepText = rc.replace(/^\[STEP\]/, '').trim()
+        if (stepText) {
+          if (!last.steps) last.steps = []
+          const parsed = parseStepText(stepText)
+          last.steps.push(...parsed)
+        }
+      } else {
+        last.rawReasoning = (last.rawReasoning || '') + rc
+        last.reasoning = last.rawReasoning
+      }
+    }
+    if (msg?.content) {
+      last.rawContent = (last.rawContent || '') + msg.content
+      last.content = last.rawContent
+    }
     nextTick(scrollToBottom)
   }
 }
@@ -1058,6 +1426,94 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: var(--n-color-hover);
 }
+.msg-steps-wrapper {
+  margin-bottom: 12px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--n-color-hover);
+}
+.msg-steps-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: linear-gradient(135deg, rgba(56, 173, 169, 0.08) 0%, rgba(46, 139, 87, 0.08) 100%);
+  border-bottom: 1px solid var(--n-border-color);
+  transition: background 0.2s;
+}
+.msg-steps-header:hover {
+  background: linear-gradient(135deg, rgba(56, 173, 169, 0.14) 0%, rgba(46, 139, 87, 0.14) 100%);
+}
+.msg-steps-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-text-color-2);
+}
+.msg-steps-count {
+  font-size: 11px;
+  background: var(--n-primary-color);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 6px;
+  line-height: 18px;
+  min-width: 18px;
+  text-align: center;
+}
+.msg-steps-content {
+  padding: 10px 12px 10px 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.msg-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+  position: relative;
+  font-size: 12px;
+  color: var(--n-text-color-2);
+  line-height: 1.5;
+}
+.msg-step-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 18px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--n-border-color);
+}
+.msg-step-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--n-text-color-disabled);
+  flex-shrink: 0;
+  margin-top: 4px;
+  position: relative;
+  z-index: 1;
+}
+.msg-step-dot.step-active {
+  background: #e6a23c;
+  box-shadow: 0 0 4px rgba(230, 162, 60, 0.4);
+}
+.msg-step-dot.step-tool {
+  background: #409eff;
+  box-shadow: 0 0 4px rgba(64, 158, 255, 0.4);
+}
+.msg-step-dot.step-done {
+  background: #67c23a;
+  box-shadow: 0 0 4px rgba(103, 194, 58, 0.4);
+}
+.msg-step-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  text-align: left;
+}
 .msg-reasoning-header {
   display: flex;
   align-items: center;
@@ -1243,7 +1699,10 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 .chat-footer-memory-count {
-  width: 80px;
+  width: 70px;
+}
+.chat-footer-agent-mode-select {
+  width: 120px;
 }
 .chat-footer-memory-count .n-select {
   width: 100%;
@@ -1304,5 +1763,45 @@ onBeforeUnmount(() => {
 <style>
 body > div:has(.n-select-menu) {
   z-index: 10002 !important;
+}
+
+.msg-markdown .md-editor-code-block {
+  position: relative;
+}
+.msg-markdown .md-editor-code-block pre {
+  margin: 0;
+}
+.msg-markdown .md-editor-code-block .code-collapse-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  background: var(--n-color-hover);
+  border: 1px solid var(--n-border-color);
+  border-radius: 0 4px 0 4px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.msg-markdown .md-editor-code-block:hover .code-collapse-btn {
+  opacity: 1;
+}
+.msg-markdown .md-editor-code-block.code-collapsed pre {
+  max-height: 80px;
+  overflow: hidden;
+}
+.msg-markdown .md-editor-code-block.code-collapsed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(transparent, var(--n-color));
+  pointer-events: none;
 }
 </style>

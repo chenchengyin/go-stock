@@ -7,18 +7,19 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
 	"io"
+	"regexp"
 	"strings"
 	"sync"
 
+	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/flow/agent"
 	"github.com/cloudwego/eino/flow/agent/react"
 	"github.com/cloudwego/eino/schema"
-	"github.com/duke-git/lancet/v2/strutil"
 	"github.com/samber/lo"
 )
 
 type StockAiAgent struct {
-	*react.Agent
+	instance  *AgentInstance
 	sessionID string
 }
 
@@ -26,7 +27,7 @@ func NewStockAiAgentApi() *StockAiAgent {
 	return &StockAiAgent{}
 }
 
-func (receiver StockAiAgent) newStockAiAgent(ctx *context.Context, aiConfigId int, thinkingMode bool) *StockAiAgent {
+func (receiver StockAiAgent) newStockAiAgent(ctx *context.Context, aiConfigId int, thinkingMode bool, question string, agentMode string) *StockAiAgent {
 	defer func() {
 		if r := recover(); r != nil {
 			logger.SugaredLogger.Errorf("panic in newStockAiAgent: %v", r)
@@ -57,23 +58,23 @@ func (receiver StockAiAgent) newStockAiAgent(ctx *context.Context, aiConfigId in
 		sessionID = fmt.Sprintf("ai-config-%d", aiConfig.ID)
 	}
 
-	agentInstance := GetStockAiAgent(ctx, *aiConfig)
+	agentInstance := GetStockAiAgent(ctx, *aiConfig, question, agentMode)
 	if agentInstance == nil {
 		logger.SugaredLogger.Errorf("failed to create agent for config id: %d", aiConfigId)
 		return nil
 	}
 
 	return &StockAiAgent{
-		Agent:     agentInstance,
+		instance:  agentInstance,
 		sessionID: sessionID,
 	}
 }
 
 func (receiver StockAiAgent) Chat(question string, aiConfigId int, sysPromptId *int) chan *schema.Message {
-	return receiver.ChatWithContext(context.Background(), question, aiConfigId, sysPromptId, true, 20, false)
+	return receiver.ChatWithContext(context.Background(), question, aiConfigId, sysPromptId, true, 20, false, "")
 }
 
-func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool) chan *schema.Message {
+func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string) chan *schema.Message {
 	ch := make(chan *schema.Message, 1024)
 
 	go func() {
@@ -88,7 +89,7 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 			}
 		}()
 
-		stockAiAgent := receiver.newStockAiAgent(&ctx, aiConfigId, thinkingMode)
+		stockAiAgent := receiver.newStockAiAgent(&ctx, aiConfigId, thinkingMode, question, agentMode)
 		if stockAiAgent == nil {
 			logger.SugaredLogger.Errorf("stockAiAgent is nil")
 			ch <- &schema.Message{
@@ -118,6 +119,25 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 			sysPrompt = data.NewPromptTemplateApi().GetPromptTemplateByID(*sysPromptId)
 		}
 
+		settingConfig := data.GetSettingConfig()
+		aiConfig, _ := lo.Find(settingConfig.AiConfigs, func(item *data.AIConfig) bool {
+			return uint(aiConfigId) == item.ID
+		})
+		maxInputTokens := 0
+		if aiConfig != nil {
+			maxInputTokens = getMaxInputTokens(aiConfig.MaxTokens)
+		}
+
+		sysPromptTokens := estimateTokens(sysPrompt)
+		questionTokens := estimateTokens(question)
+		historyBudget := maxInputTokens - sysPromptTokens - questionTokens
+		if historyBudget < 0 {
+			historyBudget = 0
+		}
+		if len(historyMessages) > 0 && historyBudget > 0 {
+			historyMessages = trimHistoryMessages(historyMessages, historyBudget)
+		}
+
 		var messages []*schema.Message
 		messages = append(messages, &schema.Message{
 			Role:    schema.System,
@@ -135,40 +155,97 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 			}
 		}
 
-		msgFutureOpt, msgFuture := react.WithMessageFuture()
-		opts := agent.GetComposeOptions(msgFutureOpt)
-
-		agentOption := []agent.AgentOption{
-			agent.WithComposeOptions(opts...),
+		switch stockAiAgent.instance.Mode {
+		case AgentModePlanExecute:
+			runPlanExecute(ctx, stockAiAgent, messages, ch, memoryService)
+		default:
+			runReact(ctx, stockAiAgent, messages, ch, memoryService, historyMessages, sysPrompt, question)
 		}
+	}()
 
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					logger.SugaredLogger.Errorf("panic in processMessageFuture: %v", r)
-				}
-				wg.Done()
-			}()
-			processMessageFuture(msgFuture, ch)
-		}()
+	return ch
+}
 
-		func() {
-			defer close(ch)
+func runReact(ctx context.Context, stockAiAgent *StockAiAgent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService, historyMessages []*schema.Message, sysPrompt string, question string) {
+	reactAgent := stockAiAgent.instance.ReactAgent
+	if reactAgent == nil {
+		ch <- &schema.Message{
+			Role:    schema.Assistant,
+			Content: "❌ React Agent 实例无效",
+		}
+		close(ch)
+		return
+	}
 
-			if stockAiAgent.Agent == nil {
-				logger.SugaredLogger.Errorf("stockAiAgent.Agent is nil")
-				ch <- &schema.Message{
-					Role:    schema.Assistant,
-					Content: "❌ Agent 实例无效",
-				}
-				return
+	msgFutureOpt, msgFuture := react.WithMessageFuture()
+	opts := agent.GetComposeOptions(msgFutureOpt)
+
+	agentOption := []agent.AgentOption{
+		agent.WithComposeOptions(opts...),
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.SugaredLogger.Errorf("panic in processMessageFuture: %v", r)
 			}
+			wg.Done()
+		}()
+		processMessageFuture(msgFuture, ch)
+	}()
 
-			sr, err := stockAiAgent.Stream(ctx, messages, agentOption...)
-			if err != nil {
-				logger.SugaredLogger.Errorf("stream error: %v", err)
+	func() {
+		defer close(ch)
+
+		sr, err := reactAgent.Stream(ctx, messages, agentOption...)
+		if err != nil {
+			logger.SugaredLogger.Errorf("stream error: %v", err)
+
+			if isTokenLimitError(err) && len(historyMessages) > 0 {
+				logger.SugaredLogger.Infof("token limit exceeded, retrying with reduced history")
+				halfLen := len(historyMessages) / 2
+				if halfLen == 0 {
+					halfLen = 1
+				}
+				historyMessages = historyMessages[halfLen:]
+				messages = []*schema.Message{}
+				messages = append(messages, &schema.Message{
+					Role:    schema.System,
+					Content: sysPrompt,
+				})
+				messages = append(messages, historyMessages...)
+				messages = append(messages, &schema.Message{
+					Role:    schema.User,
+					Content: question,
+				})
+
+				sr, err = reactAgent.Stream(ctx, messages, agentOption...)
+				if err != nil {
+					if isTokenLimitError(err) {
+						logger.SugaredLogger.Infof("still over token limit after trimming, retrying without history")
+						messages = []*schema.Message{}
+						messages = append(messages, &schema.Message{
+							Role:    schema.System,
+							Content: sysPrompt,
+						})
+						messages = append(messages, &schema.Message{
+							Role:    schema.User,
+							Content: question,
+						})
+						sr, err = reactAgent.Stream(ctx, messages, agentOption...)
+					}
+					if err != nil {
+						errMsg := "❌ Agent 调用失败（token 超限）：输入内容超过模型最大上下文长度限制。请尝试缩短对话历史或使用支持更长上下文的模型。"
+						ch <- &schema.Message{
+							Role:    schema.Assistant,
+							Content: errMsg,
+						}
+						return
+					}
+				}
+			} else {
 				errMsg := fmt.Sprintf("❌ Agent 调用失败：%v", err)
 				if strings.Contains(err.Error(), "reasoning_content") || strings.Contains(err.Error(), "thinking is enabled") {
 					errMsg += "\n\n**可能原因**：当前模型开启了 thinking/reasoning 模式，但该模式与 Agent 工具调用不兼容。\n\n**解决方案**：请在 AI 配置中关闭 thinking 模式，或切换到支持工具调用的模型（如 deepseek-chat、gpt-4o 等）。"
@@ -179,62 +256,156 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 				}
 				return
 			}
-			if sr == nil {
-				logger.SugaredLogger.Errorf("stream result is nil")
-				ch <- &schema.Message{
-					Role:    schema.Assistant,
-					Content: "❌ 流式响应无效",
-				}
-				return
+		}
+		if sr == nil {
+			logger.SugaredLogger.Errorf("stream result is nil")
+			ch <- &schema.Message{
+				Role:    schema.Assistant,
+				Content: "❌ 流式响应无效",
 			}
-			defer func() {
-				sr.Close()
-			}()
-
-			var fullResponse strings.Builder
-			for {
-				msg, err := sr.Recv()
-				if err != nil {
-					if errors.Is(err, io.EOF) {
-						logger.SugaredLogger.Infof("stream finished with EOF")
-						break
-					}
-					logger.SugaredLogger.Errorf("failed to recv: %v", err)
-					ch <- &schema.Message{
-						Role:    schema.Assistant,
-						Content: fmt.Sprintf("❌ 接收消息失败：%v", err),
-					}
-					break
-				}
-				if msg != nil && msg.Content != "" {
-					fullResponse.WriteString(msg.Content)
-				}
-			}
-
-			if fullResponse.Len() != 0 && memoryService != nil {
-				if err := memoryService.AddAssistantMessage(fullResponse.String()); err != nil {
-					logger.SugaredLogger.Errorf("failed to save assistant message: %v", err)
-				}
-			}
+			return
+		}
+		defer func() {
+			sr.Close()
 		}()
 
-		wg.Wait()
-	}()
+		var fullResponse strings.Builder
+		for {
+			msg, err := sr.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				logger.SugaredLogger.Errorf("failed to recv: %v", err)
+				ch <- &schema.Message{
+					Role:    schema.Assistant,
+					Content: fmt.Sprintf("❌ 接收消息失败：%v", err),
+				}
+				break
+			}
+			if msg != nil && msg.Content != "" {
+				fullResponse.WriteString(msg.Content)
+			}
+		}
 
-	return ch
-}
-
-func safeSend(ch chan *schema.Message, msg *schema.Message) {
-	defer func() {
-		if r := recover(); r != nil {
-			logger.SugaredLogger.Errorf("panic when sending to channel: %v", r)
+		if fullResponse.Len() != 0 && memoryService != nil {
+			if err := memoryService.AddAssistantMessage(fullResponse.String()); err != nil {
+				logger.SugaredLogger.Errorf("failed to save assistant message: %v", err)
+			}
 		}
 	}()
-	select {
-	case ch <- msg:
-	default:
-		logger.SugaredLogger.Warnf("channel full, message dropped")
+
+	wg.Wait()
+}
+
+func runPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService) {
+	defer close(ch)
+
+	adkAgent := stockAiAgent.instance.AdkAgent
+	if adkAgent == nil {
+		ch <- &schema.Message{
+			Role:    schema.Assistant,
+			Content: "❌ PlanExecute Agent 实例无效",
+		}
+		return
 	}
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
+		Agent: adkAgent,
+	})
+
+	safeSend(ch, &schema.Message{
+		Role:             schema.Assistant,
+		Content:          "",
+		ReasoningContent: "[STEP]🧠 规划模式启动，正在分析问题并制定执行计划...\n",
+	})
+
+	iter := runner.Run(ctx, messages)
+
+	var fullResponse strings.Builder
+	stepCount := 0
+	lastPhase := ""
+
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event == nil {
+			continue
+		}
+
+		if event.Err != nil {
+			logger.SugaredLogger.Errorf("agent event error: %v", event.Err)
+			errMsg := fmt.Sprintf("❌ Agent 调用失败：%v", event.Err)
+			if isTokenLimitError(event.Err) {
+				errMsg = "❌ Agent 调用失败（token 超限）：输入内容超过模型最大上下文长度限制。请尝试缩短对话历史或使用支持更长上下文的模型。"
+			} else if strings.Contains(event.Err.Error(), "reasoning_content") || strings.Contains(event.Err.Error(), "thinking is enabled") {
+				errMsg += "\n\n**可能原因**：当前模型开启了 thinking/reasoning 模式，但该模式与 Agent 工具调用不兼容。\n\n**解决方案**：请在 AI 配置中关闭 thinking 模式，或切换到支持工具调用的模型（如 deepseek-chat、gpt-4o 等）。"
+			}
+			safeSend(ch, &schema.Message{
+				Role:    schema.Assistant,
+				Content: errMsg,
+			})
+			continue
+		}
+
+		if event.Output != nil && event.Output.MessageOutput != nil {
+			mv := event.Output.MessageOutput
+			phase := detectPhase(mv.Role, mv.ToolName)
+			if phase != "" && phase != lastPhase {
+				lastPhase = phase
+				if phase == "planning" {
+					safeSend(ch, &schema.Message{
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: "[STEP]📋 正在制定执行计划...\n",
+					})
+				} else if phase == "executing" {
+					stepCount++
+					safeSend(ch, &schema.Message{
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: fmt.Sprintf("[STEP]⚡ 执行步骤 %d...\n", stepCount),
+					})
+				} else if phase == "replanning" {
+					safeSend(ch, &schema.Message{
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: "[STEP]🔄 评估进度，调整计划...\n",
+					})
+				}
+			}
+
+			if mv.IsStreaming && mv.MessageStream != nil {
+				processAdkMessageStream(mv.MessageStream, mv.Role, mv.ToolName, ch, &fullResponse)
+			} else if mv.Message != nil {
+				processAdkMessage(mv.Message, mv.Role, mv.ToolName, ch, &fullResponse)
+			}
+		}
+	}
+
+	if fullResponse.Len() != 0 && memoryService != nil {
+		if err := memoryService.AddAssistantMessage(fullResponse.String()); err != nil {
+			logger.SugaredLogger.Errorf("failed to save assistant message: %v", err)
+		}
+	}
+}
+
+func detectPhase(role schema.RoleType, toolName string) string {
+	if toolName == "plan" {
+		return "planning"
+	}
+	if toolName == "respond" {
+		return "responding"
+	}
+	if role == schema.Tool {
+		return "executing"
+	}
+	if role == schema.Assistant {
+		return "executing"
+	}
+	return ""
 }
 
 func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message) {
@@ -287,16 +458,9 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 			if msg.ReasoningContent != "" {
 				reasoningBuilder.WriteString(msg.ReasoningContent)
 				safeSend(ch, &schema.Message{
-					Role:    schema.Assistant,
-					Content: "",
-					ReasoningContent: strutil.ReplaceWithMap(msg.ReasoningContent, map[string]string{
-						"# ":      "\r\n# ",
-						"## ":     "\r\n## ",
-						"### ":    "\r\n### ",
-						"#### ":   "\r\n#### ",
-						"##### ":  "\r\n##### ",
-						"###### ": "\r\n###### ",
-					}),
+					Role:             schema.Assistant,
+					Content:          "",
+					ReasoningContent: msg.ReasoningContent,
 				})
 			}
 
@@ -329,25 +493,14 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 			if msg.Role == schema.Assistant && msg.Content != "" {
 				contentBuilder.WriteString(msg.Content)
 				safeSend(ch, &schema.Message{
-					Role: schema.Assistant,
-					Content: strutil.ReplaceWithMap(msg.Content, map[string]string{
-						"# ":      "\r\n# ",
-						"## ":     "\r\n## ",
-						"### ":    "\r\n### ",
-						"#### ":   "\r\n#### ",
-						"##### ":  "\r\n##### ",
-						"###### ": "\r\n###### ",
-					}),
+					Role:    schema.Assistant,
+					Content: msg.Content,
 				})
 			}
 		}
 
 		if reasoningBuilder.Len() > 0 {
 			fmt.Printf("\n[Reasoning]\n%s\n", reasoningBuilder.String())
-			//safeSend(ch, &schema.Message{
-			//	Role:    schema.Assistant,
-			//	Content: "\n",
-			//})
 		}
 
 		if len(toolCallsMap) > 0 {
@@ -358,27 +511,189 @@ func processMessageFuture(msgFuture react.MessageFuture, ch chan *schema.Message
 					safeSend(ch, &schema.Message{
 						Role:             schema.Assistant,
 						Content:          "",
-						ReasoningContent: fmt.Sprintf("\r\n```\r\n开始调用工具： %s(%s)\r\n```\r\n", name, builder.String()),
+						ReasoningContent: fmt.Sprintf("[STEP]🔧 调用工具：%s(%s)\n", name, builder.String()),
 					})
 				}
 			}
 		}
 
 		if toolResult != nil {
+			safeSend(ch, &schema.Message{
+				Role:             schema.Assistant,
+				Content:          "",
+				ReasoningContent: fmt.Sprintf("[STEP]✅ %s 返回结果（%d字）\n", toolResult.name, len(toolResult.content)),
+			})
 			fmt.Printf("\n[ToolResult] %s:\n%s\n", toolResult.name, truncateString(toolResult.content, 300))
-			//safeSend(ch, &schema.Message{
-			//	Role:    schema.Assistant,
-			//	Content: truncateString(toolResult.content, 300),
-			//})
 		}
 
 		if contentBuilder.Len() > 0 && len(toolCallsMap) == 0 {
 			fmt.Printf("\n[FinalAnswer]\n%s\n", contentBuilder.String())
-			//safeSend(ch, &schema.Message{
-			//	Role:    schema.Assistant,
-			//	Content: "agent-DONE",
-			//})
 		}
+	}
+}
+
+func processAdkMessageStream(sr *schema.StreamReader[*schema.Message], role schema.RoleType, toolName string, ch chan *schema.Message, fullResponse *strings.Builder) {
+	for {
+		msg, err := sr.Recv()
+		if err != nil {
+			break
+		}
+		if msg == nil {
+			continue
+		}
+		handleAdkMessage(msg, role, toolName, ch, fullResponse)
+	}
+}
+
+func processAdkMessage(msg *schema.Message, role schema.RoleType, toolName string, ch chan *schema.Message, fullResponse *strings.Builder) {
+	handleAdkMessage(msg, role, toolName, ch, fullResponse)
+}
+
+func handleAdkMessage(msg *schema.Message, role schema.RoleType, toolName string, ch chan *schema.Message, fullResponse *strings.Builder) {
+	if msg.ReasoningContent != "" {
+		safeSend(ch, &schema.Message{
+			Role:             schema.Assistant,
+			Content:          "",
+			ReasoningContent: msg.ReasoningContent,
+		})
+	}
+
+	if len(msg.ToolCalls) > 0 {
+		for _, tc := range msg.ToolCalls {
+			if tc.Function.Name != "" {
+				safeSend(ch, &schema.Message{
+					Role:             schema.Assistant,
+					Content:          "",
+					ReasoningContent: fmt.Sprintf("[STEP]🔧 调用工具：%s(%s)\n", tc.Function.Name, tc.Function.Arguments),
+				})
+			}
+		}
+	}
+
+	if msg.Role == schema.Tool && msg.Content != "" {
+		resultPreview := msg.Content
+		if len(resultPreview) > 500 {
+			resultPreview = resultPreview[:500] + "...(结果已截断)"
+		}
+		safeSend(ch, &schema.Message{
+			Role:             schema.Assistant,
+			Content:          "",
+			ReasoningContent: fmt.Sprintf("[STEP]✅ %s 返回结果（%d字）\n", toolName, len(msg.Content)),
+		})
+		fmt.Printf("\n[ToolResult] %s:\n%s\n", toolName, truncateString(msg.Content, 300))
+	}
+
+	if msg.Content != "" && (role == schema.Assistant || msg.Role == schema.Assistant) {
+		fullResponse.WriteString(msg.Content)
+		safeSend(ch, &schema.Message{
+			Role:    schema.Assistant,
+			Content: msg.Content,
+		})
+	}
+}
+
+func formatMarkdown(content string) string {
+	if content == "" {
+		return content
+	}
+
+	inCodeBlock := false
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+
+		if strings.HasPrefix(trimmed, "```") {
+			inCodeBlock = !inCodeBlock
+			if !inCodeBlock {
+				result = append(result, trimmed)
+				continue
+			}
+		}
+
+		if inCodeBlock {
+			result = append(result, line)
+			continue
+		}
+
+		if trimmed != line && trimmed != "" {
+			line = trimmed
+		}
+
+		if i > 0 && isBlockElement(trimmed) {
+			prev := ""
+			if len(result) > 0 {
+				prev = result[len(result)-1]
+			}
+			if prev != "" && !isBlockElement(strings.TrimLeft(prev, " \t")) {
+				result = append(result, "")
+			}
+		}
+
+		line = splitInlineHeading(line)
+
+		result = append(result, line)
+	}
+
+	return strings.Join(result, "\n")
+}
+
+var headingRe = regexp.MustCompile(`(#{1,6}\s+\S)`)
+
+func splitInlineHeading(line string) string {
+	idx := headingRe.FindStringIndex(line)
+	if idx == nil {
+		return line
+	}
+	if idx[0] == 0 {
+		return line
+	}
+	prefix := line[:idx[0]]
+	if strings.TrimSpace(prefix) == "" {
+		return line
+	}
+	return prefix + "\n\n" + line[idx[0]:]
+}
+
+func isBlockElement(line string) bool {
+	if len(line) == 0 {
+		return false
+	}
+	if line[0] == '#' {
+		return true
+	}
+	if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "+ ") {
+		return true
+	}
+	if strings.HasPrefix(line, "```") {
+		return true
+	}
+	if strings.HasPrefix(line, "> ") {
+		return true
+	}
+	if len(line) >= 2 && (line[0] >= '1' && line[0] <= '9') && line[1] == '.' {
+		return true
+	}
+	if strings.HasPrefix(line, "---") || strings.HasPrefix(line, "***") || strings.HasPrefix(line, "___") {
+		return true
+	}
+	if strings.HasPrefix(line, "|") {
+		return true
+	}
+	return false
+}
+
+func safeSend(ch chan *schema.Message, msg *schema.Message) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.SugaredLogger.Errorf("panic when sending to channel: %v", r)
+		}
+	}()
+	select {
+	case ch <- msg:
+	default:
+		logger.SugaredLogger.Warnf("channel full, message dropped")
 	}
 }
 

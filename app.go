@@ -1938,7 +1938,6 @@ func (a *App) OpenURL(url string) {
 //	@param base64Data
 //	@return error
 func (a *App) SaveImage(name, base64Data string) string {
-	// 打开保存文件对话框
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           "保存图片",
 		DefaultFilename: name + "AI分析.png",
@@ -1953,10 +1952,24 @@ func (a *App) SaveImage(name, base64Data string) string {
 		return "文件路径,无法保存。"
 	}
 
-	// 解码并保存
+	base64Data = strings.ReplaceAll(base64Data, " ", "+")
+	base64Data = strings.ReplaceAll(base64Data, "\n", "")
+	base64Data = strings.ReplaceAll(base64Data, "\r", "")
+	if idx := strings.Index(base64Data, ";base64,"); idx != -1 {
+		base64Data = base64Data[idx+8:]
+	} else if idx := strings.Index(base64Data, "base64,"); idx != -1 {
+		base64Data = base64Data[idx+7:]
+	} else if strings.HasPrefix(base64Data, "data:") {
+		if commaIdx := strings.Index(base64Data, ","); commaIdx != -1 {
+			base64Data = base64Data[commaIdx+1:]
+		}
+	}
 	decodeString, err := base64.StdEncoding.DecodeString(base64Data)
 	if err != nil {
-		return "文件内容异常,无法保存。"
+		decodeString, err = base64.RawStdEncoding.DecodeString(base64Data)
+	}
+	if err != nil {
+		return "文件内容异常,无法保存。" + err.Error()
 	}
 
 	err = os.WriteFile(filepath.Clean(filePath), decodeString, os.ModePerm)
@@ -1974,7 +1987,6 @@ func (a *App) SaveImage(name, base64Data string) string {
 //	@param base64Data
 //	@return error
 func (a *App) SaveWordFile(filename string, base64Data string) string {
-	// 弹出保存文件对话框
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           "保存 Word 文件",
 		DefaultFilename: filename,
@@ -1986,12 +1998,25 @@ func (a *App) SaveWordFile(filename string, base64Data string) string {
 		return "文件路径,无法保存。"
 	}
 
-	// 解码 base64 内容
+	base64Data = strings.ReplaceAll(base64Data, " ", "+")
+	base64Data = strings.ReplaceAll(base64Data, "\n", "")
+	base64Data = strings.ReplaceAll(base64Data, "\r", "")
+	if idx := strings.Index(base64Data, ";base64,"); idx != -1 {
+		base64Data = base64Data[idx+8:]
+	} else if idx := strings.Index(base64Data, "base64,"); idx != -1 {
+		base64Data = base64Data[idx+7:]
+	} else if strings.HasPrefix(base64Data, "data:") {
+		if commaIdx := strings.Index(base64Data, ","); commaIdx != -1 {
+			base64Data = base64Data[commaIdx+1:]
+		}
+	}
 	decodeString, err := base64.StdEncoding.DecodeString(base64Data)
 	if err != nil {
-		return "文件内容异常,无法保存。"
+		decodeString, err = base64.RawStdEncoding.DecodeString(base64Data)
 	}
-	// 保存为文件
+	if err != nil {
+		return "文件内容异常,无法保存。" + err.Error()
+	}
 	err = os.WriteFile(filepath.Clean(filePath), decodeString, 0777)
 	if err != nil {
 		return "保存结果异常,无法保存。"
@@ -2063,6 +2088,188 @@ func (a *App) FetchAiModels(baseUrl, apiKey string) []string {
 		}
 	}
 	return modelsList
+}
+
+type AiModelInfo struct {
+	ModelName string `json:"modelName"`
+	MaxTokens int    `json:"maxTokens"`
+	Source    string `json:"source"`
+}
+
+func (a *App) FetchAiModelInfo(baseUrl, apiKey, modelName string) *AiModelInfo {
+	baseUrl = strutil.Trim(baseUrl)
+	modelName = strutil.Trim(modelName)
+	if baseUrl == "" || modelName == "" {
+		return nil
+	}
+
+	info := &AiModelInfo{
+		ModelName: modelName,
+		MaxTokens: 0,
+		Source:    "",
+	}
+
+	if apiKey != "" {
+		type modelDetail struct {
+			ID             string `json:"id"`
+			MaxContextLen  int    `json:"max_context_length"`
+			ContextLength  int    `json:"context_length"`
+			MaxOutputTok   int    `json:"max_output_tokens"`
+			MaxTokensField int    `json:"max_tokens"`
+		}
+		var detail modelDetail
+
+		client := resty.New()
+		client.SetBaseURL(baseUrl)
+		client.SetHeader("Authorization", "Bearer "+apiKey)
+		client.SetHeader("Content-Type", "application/json")
+		client.SetTimeout(10 * time.Second)
+
+		resp, err := client.R().
+			SetResult(&detail).
+			Get("/models/" + modelName)
+
+		if err == nil && !resp.IsError() && detail.ID != "" {
+			if detail.MaxContextLen > 0 {
+				info.MaxTokens = detail.MaxContextLen
+				info.Source = "api"
+			} else if detail.ContextLength > 0 {
+				info.MaxTokens = detail.ContextLength
+				info.Source = "api"
+			} else if detail.MaxOutputTok > 0 {
+				info.MaxTokens = detail.MaxOutputTok
+				info.Source = "api"
+			} else if detail.MaxTokensField > 0 {
+				info.MaxTokens = detail.MaxTokensField
+				info.Source = "api"
+			}
+		}
+	}
+
+	if info.MaxTokens == 0 {
+		if maxTokens := getBuiltinModelMaxTokens(modelName); maxTokens > 0 {
+			info.MaxTokens = maxTokens
+			info.Source = "builtin"
+		}
+	}
+
+	return info
+}
+
+func getBuiltinModelMaxTokens(modelName string) int {
+	modelTokenMap := map[string]int{
+		"deepseek-chat":        65536,
+		"deepseek-reasoner":    65536,
+		"deepseek-coder":       16384,
+		"deepseek-v3":          65536,
+		"deepseek-r1":          65536,
+		"gpt-4o":               16384,
+		"gpt-4o-mini":          16384,
+		"gpt-4o-2024-05-13":    4096,
+		"gpt-4-turbo":          4096,
+		"gpt-4-turbo-preview":  4096,
+		"gpt-4":                8192,
+		"gpt-4-32k":            32768,
+		"gpt-3.5-turbo":        4096,
+		"gpt-3.5-turbo-16k":    16384,
+		"gpt-4.1":              32768,
+		"gpt-4.1-mini":         32768,
+		"gpt-4.1-nano":         32768,
+		"o1":                   100000,
+		"o1-mini":              65536,
+		"o1-preview":           32768,
+		"o3-mini":              100000,
+		"o4-mini":              100000,
+		"claude-3-5-sonnet":    8192,
+		"claude-3-5-haiku":     8192,
+		"claude-3-opus":        4096,
+		"claude-3-sonnet":      4096,
+		"claude-3-haiku":       4096,
+		"glm-4":                8192,
+		"glm-4-plus":           4096,
+		"glm-4-air":            4096,
+		"glm-4-flash":          4096,
+		"glm-4-long":           4096,
+		"chatglm-turbo":        4096,
+		"moonshot-v1-8k":       8192,
+		"moonshot-v1-32k":      32768,
+		"moonshot-v1-128k":     131072,
+		"qwen-turbo":           8192,
+		"qwen-plus":            131072,
+		"qwen-max":             8192,
+		"qwen-long":            65536,
+		"qwen2.5-72b-instruct": 32768,
+		"hunyuan-lite":         4096,
+		"hunyuan-standard":     4096,
+		"hunyuan-pro":          4096,
+		"hunyuan-turbo":        4096,
+		"spark-lite":           4096,
+		"spark-pro":            4096,
+		"spark-max":            4096,
+		"spark-4.0-ultra":      4096,
+		"yi-light":             16384,
+		"yi-large":             16384,
+		"yi-medium":            16384,
+		"yi-spark":             16384,
+		"yi-vision":            16384,
+		"abab6.5-chat":         8192,
+		"abab6.5s-chat":        8192,
+		"abab5.5-chat":         4096,
+		"baichuan2-turbo":      4096,
+		"baichuan2-53b":        4096,
+		"ernie-4.0":            4096,
+		"ernie-3.5":            4096,
+		"ernie-speed":          4096,
+		"ernie-lite":           4096,
+	}
+
+	if maxTokens, ok := modelTokenMap[modelName]; ok {
+		return maxTokens
+	}
+
+	for prefix, maxTokens := range map[string]int{
+		"deepseek":      65536,
+		"gpt-4o":        16384,
+		"gpt-4-turbo":   4096,
+		"gpt-4-":        8192,
+		"gpt-3.5":       4096,
+		"gpt-4.1":       32768,
+		"o1-":           65536,
+		"o3-":           100000,
+		"o4-":           100000,
+		"claude-3":      8192,
+		"glm-4":         8192,
+		"chatglm":       4096,
+		"moonshot-v1":   8192,
+		"qwen-":         8192,
+		"qwen2":         32768,
+		"hunyuan-":      4096,
+		"spark-":        4096,
+		"yi-":           16384,
+		"abab":          8192,
+		"baichuan":      4096,
+		"ernie-":        4096,
+		"llama-3":       8192,
+		"llama3":        8192,
+		"mistral-":      8192,
+		"mixtral-":      32768,
+		"codestral-":    32768,
+		"gemini-1.5":    8192,
+		"gemini-2":      8192,
+		"command-r":     4096,
+		"Qwen/Qwen":     32768,
+		"deepseek-ai/":  65536,
+		"meta-llama/":   8192,
+		"mistralai/":    32768,
+		"Pro/deepseek-": 65536,
+		"Pro/qwen-":     32768,
+	} {
+		if strings.HasPrefix(modelName, prefix) {
+			return maxTokens
+		}
+	}
+
+	return 0
 }
 
 // InitCronTasks 在应用启动时，自动为启用状态的定时任务创建调度
@@ -2400,4 +2607,129 @@ func (a *App) GetMarketStatisticByDate(date string) []models.MarketStatistic {
 
 func (a *App) GetRecentDaysMarketStatistic(days int) []models.MarketStatistic {
 	return data.NewMarketStatisticApi().GetRecentDaysData(days)
+}
+
+func (a *App) CreateMCPServer(server *models.MCPServer) string {
+	err := data.NewMCPServerApi().Create(server)
+	if err != nil {
+		logger.SugaredLogger.Errorf("创建MCP服务器失败: %v", err)
+		return "创建失败: " + err.Error()
+	}
+	return "创建成功"
+}
+
+func (a *App) UpdateMCPServer(server *models.MCPServer) string {
+	err := data.NewMCPServerApi().Update(server)
+	if err != nil {
+		logger.SugaredLogger.Errorf("更新MCP服务器失败: %v", err)
+		return "更新失败: " + err.Error()
+	}
+	return "更新成功"
+}
+
+func (a *App) DeleteMCPServer(id uint) string {
+	err := data.NewMCPServerApi().Delete(id)
+	if err != nil {
+		logger.SugaredLogger.Errorf("删除MCP服务器失败: %v", err)
+		return "删除失败: " + err.Error()
+	}
+	return "删除成功"
+}
+
+func (a *App) GetMCPServerByID(id uint) *models.MCPServer {
+	server, err := data.NewMCPServerApi().GetByID(id)
+	if err != nil {
+		logger.SugaredLogger.Errorf("获取MCP服务器失败: %v", err)
+		return nil
+	}
+	return server
+}
+
+func (a *App) GetMCPServerList(query *models.MCPServerQuery) *models.MCPServerPageResp {
+	return data.NewMCPServerApi().List(query)
+}
+
+func (a *App) EnableMCPServer(id uint, enable bool) string {
+	err := data.NewMCPServerApi().EnableServer(id, enable)
+	if err != nil {
+		logger.SugaredLogger.Errorf("启用/禁用MCP服务器失败: %v", err)
+		return "操作失败: " + err.Error()
+	}
+	if enable {
+		return "已启用"
+	}
+	return "已禁用"
+}
+
+func (a *App) TestMCPServer(id uint) string {
+	result, err := data.NewMCPServerApi().TestConnection(id)
+	if err != nil {
+		logger.SugaredLogger.Errorf("测试MCP服务器连接失败: %v", err)
+		return "测试失败: " + err.Error()
+	}
+	return result
+}
+
+func (a *App) CreateSkill(skill *models.Skill) string {
+	err := data.NewSkillApi().Create(skill)
+	if err != nil {
+		logger.SugaredLogger.Errorf("创建技能失败: %v", err)
+		return "创建失败: " + err.Error()
+	}
+	return "创建成功"
+}
+
+func (a *App) UpdateSkill(skill *models.Skill) string {
+	err := data.NewSkillApi().Update(skill)
+	if err != nil {
+		logger.SugaredLogger.Errorf("更新技能失败: %v", err)
+		return "更新失败: " + err.Error()
+	}
+	return "更新成功"
+}
+
+func (a *App) DeleteSkill(id uint) string {
+	err := data.NewSkillApi().Delete(id)
+	if err != nil {
+		logger.SugaredLogger.Errorf("删除技能失败: %v", err)
+		return "删除失败: " + err.Error()
+	}
+	return "删除成功"
+}
+
+func (a *App) GetSkillByID(id uint) *models.Skill {
+	skill, err := data.NewSkillApi().GetByID(id)
+	if err != nil {
+		logger.SugaredLogger.Errorf("获取技能失败: %v", err)
+		return nil
+	}
+	return skill
+}
+
+func (a *App) GetSkillList(query *models.SkillQuery) *models.SkillPageResp {
+	return data.NewSkillApi().List(query)
+}
+
+func (a *App) EnableSkill(id uint, enable bool) string {
+	err := data.NewSkillApi().EnableSkill(id, enable)
+	if err != nil {
+		logger.SugaredLogger.Errorf("启用/禁用技能失败: %v", err)
+		return "操作失败: " + err.Error()
+	}
+	if enable {
+		return "已启用"
+	}
+	return "已禁用"
+}
+
+func (a *App) GetAllSkills() []models.Skill {
+	return data.NewSkillApi().GetAll()
+}
+
+func (a *App) GetMCPToolsByServerID(serverID uint) []models.MCPServerTool {
+	return data.NewMCPServerApi().GetToolsByServerID(serverID)
+}
+
+func (a *App) GetAllMCPTools() []models.MCPServerTool {
+	return data.NewMCPServerApi().GetAllTools()
 }

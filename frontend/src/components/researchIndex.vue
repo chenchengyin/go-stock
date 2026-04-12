@@ -10,6 +10,8 @@ import AllStockInfoList from "./allStockInfoList.vue";
 import CronTaskManager from "./cron-task-manager.vue";
 import TradingRecordManager from "./TradingRecordManager.vue";
 import StockChangesMonitor from "./stockChangesMonitor.vue";
+import MCPServiceManager from "./mcp-server-manager.vue";
+import SkillManager from "./skill-manager.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -63,6 +65,12 @@ function updateTab(name) {
       </n-tab-pane>
 <!--      <n-tab-pane name="全部股票信息">-->
 <!--        <AllStockInfoList/>-->
+<!--      </n-tab-pane>-->
+      <n-tab-pane name="MCP服务">
+        <MCPServiceManager/>
+      </n-tab-pane>
+<!--      <n-tab-pane name="技能管理">-->
+<!--        <SkillManager/>-->
 <!--      </n-tab-pane>-->
     </n-tabs>
   </n-card>

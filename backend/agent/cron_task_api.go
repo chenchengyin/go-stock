@@ -233,6 +233,7 @@ func (a *CronTaskApi) executeStockAnalysis(ctx context.Context, task *models.Cro
 		Thinking    bool   `json:"thinking"`
 		StockCode   string `json:"stockCode"`
 		StockName   string `json:"stockName"`
+		AgentMode   string `json:"agentMode"`
 	}
 	if task.Params != "" {
 		err := json.Unmarshal([]byte(task.Params), &params)
@@ -328,10 +329,11 @@ func (a *CronTaskApi) executeCustomTask(ctx context.Context, task *models.CronTa
 func (a *CronTaskApi) executeMarketAnalysis(ctx context.Context, task *models.CronTask) error {
 	logger.SugaredLogger.Infof("执行市场分析任务：%s", task.Name)
 	var params struct {
-		PromptId    int  `json:"promptId"`
-		AiConfigId  int  `json:"aiConfigId"`
-		SysPromptId int  `json:"sysPromptId"`
-		Thinking    bool `json:"thinking"`
+		PromptId    int    `json:"promptId"`
+		AiConfigId  int    `json:"aiConfigId"`
+		SysPromptId int    `json:"sysPromptId"`
+		Thinking    bool   `json:"thinking"`
+		AgentMode   string `json:"agentMode"`
 	}
 	if task.Params != "" {
 		err := json.Unmarshal([]byte(task.Params), &params)
@@ -345,7 +347,7 @@ func (a *CronTaskApi) executeMarketAnalysis(ctx context.Context, task *models.Cr
 	prompt = data.NewPromptTemplateApi().GetPromptTemplateByID(params.PromptId)
 	content := &strings.Builder{}
 
-	ch := NewStockAiAgentApi().ChatWithContext(ctx, prompt, params.AiConfigId, &params.SysPromptId, false, 0, false)
+	ch := NewStockAiAgentApi().ChatWithContext(ctx, prompt, params.AiConfigId, &params.SysPromptId, false, 0, false, params.AgentMode)
 	for msg := range ch {
 		if msg.ReasoningContent != "" {
 			content.WriteString(msg.ReasoningContent)
