@@ -13,6 +13,8 @@
 
 [//]: # (- QQ交流群2：[点击链接加入群聊【go-stock交流群2】：892666282]&#40;https://qm.qq.com/q/5mYiy6Yxh0&#41;)
 - QQ交流群：[点击链接加入群聊【go-stock交流群】：491605333(定期清理，随缘入群)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=0YQ8qD3exahsD4YLNhzQTWe5ssstWC89&authKey=usOMMRFtIQDC%2FYcatHYapcxQbJ7PwXPHK9OypTXWzNjAq%2FRVvQu9bj2lRgb%2BSZ3p&noverify=0&group_code=491605333)
+- 硅基流动(siliconflow)，注册即送2000万Tokens，[注册链接](https://cloud.siliconflow.cn/i/foufCerk)
+
 
 ###  ✨ 简介
 - 本项目基于Wails和NaiveUI开发，结合AI大模型构建的股票分析工具。
@@ -45,7 +47,6 @@
 ### <span style="color: #568DF4;">各位亲爱的朋友们，如果您对这个项目感兴趣，请先给我一个<i style="color: #EA2626;">star</i>吧，谢谢！</span>💕
 [//]: # (- 优云智算（by UCloud）：万卡规模4090免费用10小时，新人注册另增50万tokens，海量热门源项目镜像一键部署，[注册链接]&#40;https://www.compshare.cn/image-community?ytag=GPU_YY-gh_gostock&#41;)
 - 火山方舟：新用户每个模型注册即送50万tokens，[注册链接](https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=IJSE43PZ)
-- 硅基流动(siliconflow)，注册即送2000万Tokens，[注册链接](https://cloud.siliconflow.cn/i/foufCerk)
 
 [//]: # (- Tushare大数据开放社区,免费提供各类金融数据,助力行业和量化研究&#40;注意：Tushare只需要120积分即可，注册完成个人资料补充即可得120积分！！！&#41;，[注册链接]&#40;https://tushare.pro/register?reg=701944&#41;)
 - 软件快速迭代开发中,请大家优先测试和使用最新发布的版本。
