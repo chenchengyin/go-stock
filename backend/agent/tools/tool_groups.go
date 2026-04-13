@@ -44,6 +44,10 @@ var toolGroupMap = map[string]ToolGroup{
 	"GlobalStockIndexesReadable": GroupMarket,
 	"GetStockChanges":            GroupMarket,
 	"GetStockChangeHistoryList":  GroupMarket,
+	"GetDailyChangeStats":        GroupMarket,
+	"GetChangeRank":              GroupMarket,
+	"GetDailyDimensionStats":     GroupMarket,
+	"GetTypeStatsByDate":         GroupMarket,
 
 	"FilterStocks":            GroupScreening,
 	"SearchStockByIndicators": GroupScreening,
@@ -108,6 +112,8 @@ var groupKeywordsList = []groupKeywords{
 		"异动", "火箭发射", "快速反弹", "大笔买入", "封涨停",
 		"加速下跌", "高台跳水", "大笔卖出", "封跌停",
 		"全球指数", "道琼斯", "纳斯达克", "标普", "恒生", "日经",
+		"异动统计", "异动趋势", "异动排行", "异动排名", "异动次数",
+		"利好", "利空", "异动类型", "异动分布",
 	}},
 	{GroupScreening, []string{
 		"筛选", "选股", "过滤", "条件选股", "指标选股",

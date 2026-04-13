@@ -238,6 +238,14 @@ export function GetAllStocks(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetAllStocks'](arg1, arg2, arg3, arg4);
 }
 
+export function GetChangeRank(arg1, arg2) {
+  return window['go']['main']['App']['GetChangeRank'](arg1, arg2);
+}
+
+export function GetChangeTypeDailyStats(arg1) {
+  return window['go']['main']['App']['GetChangeTypeDailyStats'](arg1);
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
@@ -252,6 +260,14 @@ export function GetCronTaskList(arg1) {
 
 export function GetCronTaskTypes() {
   return window['go']['main']['App']['GetCronTaskTypes']();
+}
+
+export function GetDailyChangeStats(arg1) {
+  return window['go']['main']['App']['GetDailyChangeStats'](arg1);
+}
+
+export function GetDailyDimensionStats(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetDailyDimensionStats'](arg1, arg2, arg3);
 }
 
 export function GetEffectiveSponsorVip() {
@@ -392,6 +408,10 @@ export function GetTradingRecordList(arg1) {
 
 export function GetTradingRecordStatistics() {
   return window['go']['main']['App']['GetTradingRecordStatistics']();
+}
+
+export function GetTypeStatsByDate(arg1) {
+  return window['go']['main']['App']['GetTypeStatsByDate'](arg1);
 }
 
 export function GetVersionInfo() {

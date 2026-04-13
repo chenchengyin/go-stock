@@ -124,6 +124,10 @@ export function GetAllStockInfoList(arg1:data.AllStockInfoQuery):Promise<data.Al
 
 export function GetAllStocks(arg1:number,arg2:number,arg3:string,arg4:models.TechnicalIndicators):Promise<models.AllStocksResp>;
 
+export function GetChangeRank(arg1:number,arg2:number):Promise<data.ChangeRankResult>;
+
+export function GetChangeTypeDailyStats(arg1:number):Promise<Array<data.ChangeTypeDailyStats>>;
+
 export function GetConfig():Promise<data.SettingConfig>;
 
 export function GetCronTaskByID(arg1:number):Promise<models.CronTask>;
@@ -131,6 +135,10 @@ export function GetCronTaskByID(arg1:number):Promise<models.CronTask>;
 export function GetCronTaskList(arg1:models.CronTaskQuery):Promise<models.CronTaskPageResp>;
 
 export function GetCronTaskTypes():Promise<Array<lo.Tuple2_string_string_>>;
+
+export function GetDailyChangeStats(arg1:number):Promise<Array<data.DailyChangeStats>>;
+
+export function GetDailyDimensionStats(arg1:string,arg2:string,arg3:number):Promise<Array<data.DailyDimensionStats>>;
 
 export function GetEffectiveSponsorVip():Promise<Record<string, any>>;
 
@@ -201,6 +209,8 @@ export function GetTradingRecordById(arg1:number):Promise<data.TradingRecord>;
 export function GetTradingRecordList(arg1:data.TradingRecordListQuery):Promise<data.TradingRecordPageData>;
 
 export function GetTradingRecordStatistics():Promise<data.TradingRecordStatistics>;
+
+export function GetTypeStatsByDate(arg1:string):Promise<Array<data.TypeCountStats>>;
 
 export function GetVersionInfo():Promise<models.VersionInfo>;
 

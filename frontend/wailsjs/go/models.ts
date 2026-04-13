@@ -130,6 +130,116 @@ export namespace data {
 	        this.searchKeyWord = source["searchKeyWord"];
 	    }
 	}
+	export class ChangeRankItem {
+	    name: string;
+	    code?: string;
+	    count: number;
+	    upCount: number;
+	    downCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangeRankItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.code = source["code"];
+	        this.count = source["count"];
+	        this.upCount = source["upCount"];
+	        this.downCount = source["downCount"];
+	    }
+	}
+	export class ChangeRankResult {
+	    topStocks: ChangeRankItem[];
+	    topIndustries: ChangeRankItem[];
+	    topConcepts: ChangeRankItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangeRankResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.topStocks = this.convertValues(source["topStocks"], ChangeRankItem);
+	        this.topIndustries = this.convertValues(source["topIndustries"], ChangeRankItem);
+	        this.topConcepts = this.convertValues(source["topConcepts"], ChangeRankItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ChangeTypeDailyStats {
+	    changeDate: string;
+	    typeName: string;
+	    count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangeTypeDailyStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.changeDate = source["changeDate"];
+	        this.typeName = source["typeName"];
+	        this.count = source["count"];
+	    }
+	}
+	export class DailyChangeStats {
+	    changeDate: string;
+	    totalCount: number;
+	    upCount: number;
+	    downCount: number;
+	    limitUp: number;
+	    limitDown: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DailyChangeStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.changeDate = source["changeDate"];
+	        this.totalCount = source["totalCount"];
+	        this.upCount = source["upCount"];
+	        this.downCount = source["downCount"];
+	        this.limitUp = source["limitUp"];
+	        this.limitDown = source["limitDown"];
+	    }
+	}
+	export class DailyDimensionStats {
+	    changeDate: string;
+	    upCount: number;
+	    downCount: number;
+	    totalCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DailyDimensionStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.changeDate = source["changeDate"];
+	        this.upCount = source["upCount"];
+	        this.downCount = source["downCount"];
+	        this.totalCount = source["totalCount"];
+	    }
+	}
 	export class FundBasic {
 	    ID: number;
 	    // Go type: time
@@ -1023,6 +1133,24 @@ export namespace data {
 	        this.holdingsAmount = source["holdingsAmount"];
 	        this.currentValue = source["currentValue"];
 	        this.stockCount = source["stockCount"];
+	    }
+	}
+	export class TypeCountStats {
+	    typeName: string;
+	    upCount: number;
+	    downCount: number;
+	    totalCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TypeCountStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.typeName = source["typeName"];
+	        this.upCount = source["upCount"];
+	        this.downCount = source["downCount"];
+	        this.totalCount = source["totalCount"];
 	    }
 	}
 

@@ -230,6 +230,46 @@ func (a *App) DeleteStockChangeHistory(days int) string {
 	return fmt.Sprintf("已删除 %d 天前的历史数据", days)
 }
 
+func (a *App) GetDailyChangeStats(days int) []data.DailyChangeStats {
+	result, err := data.NewStockChangeHistoryService().GetDailyChangeStats(days)
+	if err != nil {
+		return []data.DailyChangeStats{}
+	}
+	return result
+}
+
+func (a *App) GetChangeTypeDailyStats(days int) []data.ChangeTypeDailyStats {
+	result, err := data.NewStockChangeHistoryService().GetChangeTypeDailyStats(days)
+	if err != nil {
+		return []data.ChangeTypeDailyStats{}
+	}
+	return result
+}
+
+func (a *App) GetChangeRank(days int, topN int) *data.ChangeRankResult {
+	result, err := data.NewStockChangeHistoryService().GetChangeRank(days, topN)
+	if err != nil {
+		return &data.ChangeRankResult{}
+	}
+	return result
+}
+
+func (a *App) GetDailyDimensionStats(dimension string, name string, days int) []data.DailyDimensionStats {
+	result, err := data.NewStockChangeHistoryService().GetDailyDimensionStats(dimension, name, days)
+	if err != nil {
+		return []data.DailyDimensionStats{}
+	}
+	return result
+}
+
+func (a *App) GetTypeStatsByDate(date string) []data.TypeCountStats {
+	result, err := data.NewStockChangeHistoryService().GetTypeStatsByDate(date)
+	if err != nil {
+		return []data.TypeCountStats{}
+	}
+	return result
+}
+
 func (a *App) GetAiRecommendStocksList(query models.AiRecommendStocksQuery) *models.AiRecommendStocksPageData {
 	page, err := data.NewAiRecommendStocksService().GetAiRecommendStocksList(&query)
 	if err != nil {

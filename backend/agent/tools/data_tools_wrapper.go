@@ -2576,6 +2576,236 @@ func GetAllDataTools() []tool.BaseTool {
 		},
 	))
 
+	tools = append(tools, NewDataToolWrapper(
+		"GetDailyChangeStats",
+		"获取近N日每日异动统计趋势，包括每天的上涨异动数、下跌异动数、封涨停数、封跌停数和总异动数。用于分析市场异动活跃度的变化趋势。",
+		map[string]*schema.ParameterInfo{
+			"days": {
+				Type:     "integer",
+				Desc:     "查询天数，如7表示近7日，30表示近30日，默认30",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			days := int(gjson.Get(args, "days").Int())
+			if days <= 0 {
+				days = 30
+			}
+			result, err := data.NewStockChangeHistoryService().GetDailyChangeStats(days)
+			if err != nil {
+				return "", err
+			}
+			if len(result) == 0 {
+				return "暂无异动统计数据", nil
+			}
+			type row struct {
+				ChangeDate string `md:"日期"`
+				TotalCount int64  `md:"总异动数"`
+				UpCount    int64  `md:"上涨异动"`
+				DownCount  int64  `md:"下跌异动"`
+				LimitUp    int64  `md:"封涨停"`
+				LimitDown  int64  `md:"封跌停"`
+			}
+			var rows []row
+			for _, d := range result {
+				rows = append(rows, row{
+					ChangeDate: d.ChangeDate,
+					TotalCount: d.TotalCount,
+					UpCount:    d.UpCount,
+					DownCount:  d.DownCount,
+					LimitUp:    d.LimitUp,
+					LimitDown:  d.LimitDown,
+				})
+			}
+			return util.MarkdownTableWithTitle(fmt.Sprintf("近%d日每日异动统计", days), rows), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetChangeRank",
+		"获取异动次数排行榜，支持按股票、行业、概念三个维度排名，区分利好异动（封涨停板、火箭发射、快速反弹等）和利空异动（封跌停板、高台跳水、加速下跌等）。",
+		map[string]*schema.ParameterInfo{
+			"days": {
+				Type:     "integer",
+				Desc:     "查询天数，1=当日，3=近3日，5=近5日，10=近10日，默认1",
+				Required: false,
+			},
+			"topN": {
+				Type:     "integer",
+				Desc:     "返回排名前N个，默认20",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			days := int(gjson.Get(args, "days").Int())
+			if days <= 0 {
+				days = 1
+			}
+			topN := int(gjson.Get(args, "topN").Int())
+			if topN <= 0 {
+				topN = 20
+			}
+			result, err := data.NewStockChangeHistoryService().GetChangeRank(days, topN)
+			if err != nil {
+				return "", err
+			}
+			periodLabel := "当日"
+			if days > 1 {
+				periodLabel = fmt.Sprintf("近%d日", days)
+			}
+			var sb strings.Builder
+			if len(result.TopStocks) > 0 {
+				type row struct {
+					Rank      int    `md:"排名"`
+					StockName string `md:"股票名称"`
+					StockCode string `md:"股票代码"`
+					UpCount   int64  `md:"利好异动"`
+					DownCount int64  `md:"利空异动"`
+					Total     int64  `md:"合计"`
+				}
+				var rows []row
+				for i, d := range result.TopStocks {
+					rows = append(rows, row{Rank: i + 1, StockName: d.Name, StockCode: d.Code, UpCount: d.UpCount, DownCount: d.DownCount, Total: d.Count})
+				}
+				sb.WriteString(util.MarkdownTableWithTitle(periodLabel+"异动次数最多的股票", rows))
+				sb.WriteString("\n\n")
+			}
+			if len(result.TopIndustries) > 0 {
+				type row struct {
+					Rank      int    `md:"排名"`
+					Industry  string `md:"行业"`
+					UpCount   int64  `md:"利好异动"`
+					DownCount int64  `md:"利空异动"`
+					Total     int64  `md:"合计"`
+				}
+				var rows []row
+				for i, d := range result.TopIndustries {
+					rows = append(rows, row{Rank: i + 1, Industry: d.Name, UpCount: d.UpCount, DownCount: d.DownCount, Total: d.Count})
+				}
+				sb.WriteString(util.MarkdownTableWithTitle(periodLabel+"异动次数最多的行业", rows))
+				sb.WriteString("\n\n")
+			}
+			if len(result.TopConcepts) > 0 {
+				type row struct {
+					Rank      int    `md:"排名"`
+					Concept   string `md:"概念"`
+					UpCount   int64  `md:"利好异动"`
+					DownCount int64  `md:"利空异动"`
+					Total     int64  `md:"合计"`
+				}
+				var rows []row
+				for i, d := range result.TopConcepts {
+					rows = append(rows, row{Rank: i + 1, Concept: d.Name, UpCount: d.UpCount, DownCount: d.DownCount, Total: d.Count})
+				}
+				sb.WriteString(util.MarkdownTableWithTitle(periodLabel+"异动次数最多的概念", rows))
+			}
+			output := sb.String()
+			if output == "" {
+				return "暂无异动排行数据", nil
+			}
+			return output, nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetDailyDimensionStats",
+		"按维度查询近N日每日异动趋势，支持按股票、行业、概念、异动类型四个维度查询，返回每天的利好异动数、利空异动数和总异动数。用于分析某个股票/行业/概念/异动类型在一段时间内的异动变化趋势。",
+		map[string]*schema.ParameterInfo{
+			"dimension": {
+				Type:     "string",
+				Desc:     "查询维度：stock=按股票，industry=按行业，concept=按概念，type=按异动类型",
+				Required: true,
+			},
+			"name": {
+				Type:     "string",
+				Desc:     "维度名称，如股票名称/代码、行业名称、概念名称、异动类型名称",
+				Required: true,
+			},
+			"days": {
+				Type:     "integer",
+				Desc:     "查询天数，默认30",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			dimension := gjson.Get(args, "dimension").String()
+			name := gjson.Get(args, "name").String()
+			days := int(gjson.Get(args, "days").Int())
+			if dimension == "" || name == "" {
+				return "请提供dimension和name参数", nil
+			}
+			if days <= 0 {
+				days = 30
+			}
+			result, err := data.NewStockChangeHistoryService().GetDailyDimensionStats(dimension, name, days)
+			if err != nil {
+				return "", err
+			}
+			if len(result) == 0 {
+				return fmt.Sprintf("未找到%s[%s]的异动趋势数据", dimension, name), nil
+			}
+			type row struct {
+				ChangeDate string `md:"日期"`
+				UpCount    int64  `md:"利好异动"`
+				DownCount  int64  `md:"利空异动"`
+				TotalCount int64  `md:"总异动数"`
+			}
+			var rows []row
+			for _, d := range result {
+				rows = append(rows, row{
+					ChangeDate: d.ChangeDate,
+					UpCount:    d.UpCount,
+					DownCount:  d.DownCount,
+					TotalCount: d.TotalCount,
+				})
+			}
+			dimLabels := map[string]string{"stock": "股票", "industry": "行业", "concept": "概念", "type": "异动类型"}
+			title := fmt.Sprintf("%s[%s]近%d日异动趋势", dimLabels[dimension], name, days)
+			return util.MarkdownTableWithTitle(title, rows), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetTypeStatsByDate",
+		"查询某一天的异动类型分布统计，返回该天每种异动类型的利好/利空次数和总次数。用于分析某天的市场异动结构。",
+		map[string]*schema.ParameterInfo{
+			"date": {
+				Type:     "string",
+				Desc:     "查询日期，格式：YYYY-MM-DD，如2025-04-13",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			date := gjson.Get(args, "date").String()
+			if date == "" {
+				return "请提供date参数", nil
+			}
+			result, err := data.NewStockChangeHistoryService().GetTypeStatsByDate(date)
+			if err != nil {
+				return "", err
+			}
+			if len(result) == 0 {
+				return fmt.Sprintf("未找到%s的异动类型分布数据", date), nil
+			}
+			type row struct {
+				TypeName   string `md:"异动类型"`
+				UpCount    int64  `md:"利好异动"`
+				DownCount  int64  `md:"利空异动"`
+				TotalCount int64  `md:"总次数"`
+			}
+			var rows []row
+			for _, d := range result {
+				rows = append(rows, row{
+					TypeName:   d.TypeName,
+					UpCount:    d.UpCount,
+					DownCount:  d.DownCount,
+					TotalCount: d.TotalCount,
+				})
+			}
+			return util.MarkdownTableWithTitle(fmt.Sprintf("%s异动类型分布", date), rows), nil
+		},
+	))
+
 	return tools
 }
 

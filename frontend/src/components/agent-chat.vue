@@ -25,6 +25,15 @@
           <t-chat-loading v-if="isStreamLoad" text="思考中..." />
           <t-chat-content v-if="item.reasoning.length > 0" :content="item.reasoning" />
         </t-chat-reasoning>
+        <div v-if="item.role === 'assistant' && item.jsonMarkdown" class="agent-json-md">
+          <div class="agent-json-md-header" @click="toggleJsonMd(index)">
+            <svg :class="['agent-json-md-arrow', { 'agent-json-md-arrow-expanded': jsonMdExpandedMap[index] }]" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M9 6l6 6-6 6z"/></svg>
+            <span class="agent-json-md-title">📊 分析报告</span>
+          </div>
+          <div v-show="jsonMdExpandedMap[index]" class="agent-json-md-content">
+            <t-chat-content :content="item.jsonMarkdown" />
+          </div>
+        </div>
         <t-chat-content v-if="item.content.length > 0" :content="item.content" />
       </template>
       <template #actions="{ item, index }">
@@ -111,6 +120,14 @@ const agentModeOptions = [
   { label: '⚡ 快速', value: 'react' },
   { label: '🧠 规划', value: 'plan_execute' },
 ]
+const jsonMdExpandedMap = ref({})
+
+function toggleJsonMd(index) {
+  jsonMdExpandedMap.value = {
+    ...jsonMdExpandedMap.value,
+    [index]: !jsonMdExpandedMap.value[index]
+  }
+}
 
 // 定义事件处理函数，方便在挂载和卸载时管理
 function getStepDotClass(step) {
@@ -126,10 +143,13 @@ function startFormatTimer() {
     const lastItem = chatList.value[0]
     if (lastItem && lastItem.role === 'assistant') {
       if (lastItem.rawContent) {
-        lastItem.content = formatMarkdown(lastItem.rawContent)
+        const fmt = formatMarkdown(lastItem.rawContent)
+        lastItem.content = fmt.content
+        if (fmt.jsonMarkdown) lastItem.jsonMarkdown = fmt.jsonMarkdown
       }
       if (lastItem.rawReasoning) {
-        lastItem.reasoning = formatMarkdown(lastItem.rawReasoning)
+        const fmt = formatMarkdown(lastItem.rawReasoning)
+        lastItem.reasoning = fmt.content
       }
     }
   }, 1500)
@@ -143,12 +163,12 @@ function stopFormatTimer() {
 }
 
 function formatMarkdown(content) {
-  if (!content) return content
+  if (!content) return { content: '', jsonMarkdown: '' }
 
-  content = wrapInlineJson(content)
+  const { content: cleaned, jsonMarkdown } = wrapInlineJson(content)
 
   let inCodeBlock = false
-  const lines = content.split('\n')
+  const lines = cleaned.split('\n')
   const result = []
 
   for (let i = 0; i < lines.length; i++) {
@@ -184,7 +204,10 @@ function formatMarkdown(content) {
     result.push(line)
   }
 
-  return result.join('\n')
+  return {
+    content: result.join('\n'),
+    jsonMarkdown
+  }
 }
 
 function hasMarkdownContent(str) {
@@ -223,7 +246,9 @@ function extractMarkdownFromJson(obj) {
 }
 
 function wrapInlineJson(content) {
-  const result = []
+  if (!content) return { content: '', jsonMarkdown: '' }
+  const cleaned = []
+  const jsonParts = []
   let i = 0
   const len = content.length
   let inCodeBlock = false
@@ -231,13 +256,13 @@ function wrapInlineJson(content) {
   while (i < len) {
     if (content.substring(i, i + 3) === '```') {
       inCodeBlock = !inCodeBlock
-      result.push('```')
+      cleaned.push('```')
       i += 3
       continue
     }
 
     if (inCodeBlock) {
-      result.push(content[i])
+      cleaned.push(content[i])
       i++
       continue
     }
@@ -250,20 +275,23 @@ function wrapInlineJson(content) {
           const obj = JSON.parse(jsonStr)
           const md = extractMarkdownFromJson(obj)
           if (md) {
-            result.push('\n\n' + md + '\n\n')
+            jsonParts.push(md)
           } else {
-            result.push('\n\n```json\n' + jsonStr + '\n```\n\n')
+            cleaned.push('\n\n```json\n' + jsonStr + '\n```\n\n')
           }
           i = end + 1
           continue
         } catch {}
       }
     }
-    result.push(content[i])
+    cleaned.push(content[i])
     i++
   }
 
-  return result.join('')
+  return {
+    content: cleaned.join(''),
+    jsonMarkdown: jsonParts.join('\n\n---\n\n')
+  }
 }
 
 function findJsonEnd(content, start) {
@@ -374,10 +402,13 @@ const handleAgentMessage = (data) => {
     const lastItem = chatList.value[0];
     if (lastItem) {
       if (lastItem.rawContent) {
-        lastItem.content = formatMarkdown(lastItem.rawContent)
+        const fmt = formatMarkdown(lastItem.rawContent)
+        lastItem.content = fmt.content
+        if (fmt.jsonMarkdown) lastItem.jsonMarkdown = fmt.jsonMarkdown
       }
       if (lastItem.rawReasoning) {
-        lastItem.reasoning = formatMarkdown(lastItem.rawReasoning)
+        const fmt = formatMarkdown(lastItem.rawReasoning)
+        lastItem.reasoning = fmt.content
       }
     }
   }
@@ -467,8 +498,15 @@ const onStop = function () {
   stopFormatTimer()
   const lastItem = chatList.value[0]
   if (lastItem && lastItem.role === 'assistant') {
-    if (lastItem.rawContent) lastItem.content = formatMarkdown(lastItem.rawContent)
-    if (lastItem.rawReasoning) lastItem.reasoning = formatMarkdown(lastItem.rawReasoning)
+    if (lastItem.rawContent) {
+      const fmt = formatMarkdown(lastItem.rawContent)
+      lastItem.content = fmt.content
+      if (fmt.jsonMarkdown) lastItem.jsonMarkdown = fmt.jsonMarkdown
+    }
+    if (lastItem.rawReasoning) {
+      const fmt = formatMarkdown(lastItem.rawReasoning)
+      lastItem.reasoning = fmt.content
+    }
   }
 };
 
@@ -494,12 +532,14 @@ const inputEnter = function () {
     rawContent: '',
     reasoning: '',
     rawReasoning: '',
+    jsonMarkdown: '',
     role: 'assistant',
   };
   chatList.value.unshift(params2);
   loading.value = true;
   isStreamLoad.value = true;
   startFormatTimer()
+  jsonMdExpandedMap.value = { ...jsonMdExpandedMap.value, [0]: true }
   ChatWithAgent(inputValue.value,selectValue.value,0,false,0,false,agentMode.value === 'auto' ? '' : agentMode.value)
 };
 </script>
@@ -721,6 +761,48 @@ const inputEnter = function () {
   flex: 1;
   min-width: 0;
   word-break: break-all;
+  text-align: left;
+}
+
+.agent-json-md {
+  margin-bottom: 8px;
+  border: 1px solid var(--td-component-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--td-bg-color-container-hover);
+}
+.agent-json-md-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--td-text-color-secondary);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(5, 150, 105, 0.06) 100%);
+  border-bottom: 1px solid var(--td-component-border);
+  transition: background 0.2s;
+}
+.agent-json-md-header:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.12) 100%);
+}
+.agent-json-md-arrow {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.agent-json-md-arrow-expanded {
+  transform: rotate(90deg);
+}
+.agent-json-md-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.agent-json-md-content {
+  padding: 10px;
+  max-height: 500px;
+  overflow-y: auto;
   text-align: left;
 }
 

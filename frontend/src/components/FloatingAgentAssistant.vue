@@ -123,6 +123,22 @@
                               />
                             </div>
                           </div>
+                          <div v-if="group.assistantMsg.jsonMarkdown" class="msg-json-md-wrapper">
+                            <div class="msg-json-md-header" @click="toggleReasoning('j-' + group.assistantIndex)">
+                              <NIcon :component="reasoningExpandedMap['j-' + group.assistantIndex] ? ChevronDownOutline : ChevronForwardOutline" size="14" />
+                              <span class="msg-json-md-title">📊 分析报告</span>
+                            </div>
+                            <div v-show="reasoningExpandedMap['j-' + group.assistantIndex]" class="msg-json-md-content">
+                              <MdPreview
+                                :theme="theme"
+                                :style="{ textAlign: 'left' }"
+                                :model-value="group.assistantMsg.jsonMarkdown"
+                                :editor-id="'agent-json-md-' + group.assistantIndex"
+                                class="msg-markdown"
+                                @onHtmlChanged="onMdHtmlChanged"
+                              />
+                            </div>
+                          </div>
                           <MdPreview
                             :theme="theme"
                             :style="{ textAlign: 'left' }"
@@ -657,8 +673,15 @@ function abortStream(showTip = true) {
   stopFormatTimer()
   const last = messages.value[messages.value.length - 1]
   if (last && last.role === 'assistant') {
-    if (last.rawContent) last.content = formatMarkdown(last.rawContent)
-    if (last.rawReasoning) last.reasoning = formatMarkdown(last.rawReasoning)
+    if (last.rawContent) {
+      const fmt = formatMarkdown(last.rawContent)
+      last.content = fmt.content
+      if (fmt.jsonMarkdown) last.jsonMarkdown = fmt.jsonMarkdown
+    }
+    if (last.rawReasoning) {
+      const fmt = formatMarkdown(last.rawReasoning)
+      last.reasoning = fmt.content
+    }
   }
   if (showTip) {
     shareTipText.value = '已中断本次 AI 回答'
@@ -683,7 +706,8 @@ async function loadHistory() {
         time: m.time ?? '',
         modelName: m.modelName ?? '',
         reasoning: m.reasoning ?? '',
-        steps: m.steps ?? []
+        steps: m.steps ?? [],
+        jsonMarkdown: m.jsonMarkdown ?? ''
       }))
       nextTick(() => {
         initDefaultExpanded()
@@ -701,7 +725,8 @@ function saveHistory() {
     time: m.time ?? '',
     modelName: m.modelName ?? '',
     reasoning: m.reasoning ?? '',
-    steps: m.steps ?? []
+    steps: m.steps ?? [],
+    jsonMarkdown: m.jsonMarkdown ?? ''
   }))
   SaveAiAssistantSession(sessionId.value, list).catch(() => {})
 }
@@ -794,7 +819,8 @@ function sendMessage() {
     modelName,
     reasoning: '',
     rawReasoning: '',
-    steps: []
+    steps: [],
+    jsonMarkdown: ''
   })
   inputValue.value = ''
   isStreamLoad.value = true
@@ -808,7 +834,8 @@ function sendMessage() {
     if (lastGroup) {
       reasoningExpandedMap.value = {
         ...reasoningExpandedMap.value,
-        [lastGroup.assistantIndex]: true
+        [lastGroup.assistantIndex]: true,
+        ['j-' + lastGroup.assistantIndex]: true
       }
     }
     scrollToBottom()
@@ -831,10 +858,13 @@ function startFormatTimer() {
     const last = messages.value[messages.value.length - 1]
     if (last && last.role === 'assistant') {
       if (last.rawContent) {
-        last.content = formatMarkdown(last.rawContent)
+        const fmt = formatMarkdown(last.rawContent)
+        last.content = fmt.content
+        if (fmt.jsonMarkdown) last.jsonMarkdown = fmt.jsonMarkdown
       }
       if (last.rawReasoning) {
-        last.reasoning = formatMarkdown(last.rawReasoning)
+        const fmt = formatMarkdown(last.rawReasoning)
+        last.reasoning = fmt.content
       }
     }
   }, 1500)
@@ -848,12 +878,12 @@ function stopFormatTimer() {
 }
 
 function formatMarkdown(content) {
-  if (!content) return content
+  if (!content) return { content: '', jsonMarkdown: '' }
 
-  content = wrapInlineJson(content)
+  const { content: cleaned, jsonMarkdown } = extractJsonMarkdown(content)
 
   let inCodeBlock = false
-  const lines = content.split('\n')
+  const lines = cleaned.split('\n')
   const result = []
 
   for (let i = 0; i < lines.length; i++) {
@@ -889,7 +919,10 @@ function formatMarkdown(content) {
     result.push(line)
   }
 
-  return result.join('\n')
+  return {
+    content: result.join('\n'),
+    jsonMarkdown
+  }
 }
 
 function hasMarkdownContent(str) {
@@ -927,8 +960,10 @@ function extractMarkdownFromJson(obj) {
   return null
 }
 
-function wrapInlineJson(content) {
-  const result = []
+function extractJsonMarkdown(content) {
+  if (!content) return { content: '', jsonMarkdown: '' }
+  const cleaned = []
+  const jsonParts = []
   let i = 0
   const len = content.length
   let inCodeBlock = false
@@ -936,13 +971,13 @@ function wrapInlineJson(content) {
   while (i < len) {
     if (content.substring(i, i + 3) === '```') {
       inCodeBlock = !inCodeBlock
-      result.push('```')
+      cleaned.push('```')
       i += 3
       continue
     }
 
     if (inCodeBlock) {
-      result.push(content[i])
+      cleaned.push(content[i])
       i++
       continue
     }
@@ -955,20 +990,23 @@ function wrapInlineJson(content) {
           const obj = JSON.parse(jsonStr)
           const md = extractMarkdownFromJson(obj)
           if (md) {
-            result.push('\n\n' + md + '\n\n')
+            jsonParts.push(md)
           } else {
-            result.push('\n\n```json\n' + jsonStr + '\n```\n\n')
+            cleaned.push('\n\n```json\n' + jsonStr + '\n```\n\n')
           }
           i = end + 1
           continue
         } catch {}
       }
     }
-    result.push(content[i])
+    cleaned.push(content[i])
     i++
   }
 
-  return result.join('')
+  return {
+    content: cleaned.join(''),
+    jsonMarkdown: jsonParts.join('\n\n---\n\n')
+  }
 }
 
 function findJsonEnd(content, start) {
@@ -1051,10 +1089,13 @@ function onAgentMessage(msg) {
     const last = messages.value[messages.value.length - 1]
     if (last && last.role === 'assistant') {
       if (last.rawContent) {
-        last.content = formatMarkdown(last.rawContent)
+        const fmt = formatMarkdown(last.rawContent)
+        last.content = fmt.content
+        if (fmt.jsonMarkdown) last.jsonMarkdown = fmt.jsonMarkdown
       }
       if (last.rawReasoning) {
-        last.reasoning = formatMarkdown(last.rawReasoning)
+        const fmt = formatMarkdown(last.rawReasoning)
+        last.reasoning = fmt.content
       }
     }
     saveHistory()
@@ -1540,6 +1581,38 @@ onBeforeUnmount(() => {
   padding: 12px;
   line-height: 1.6;
   max-height: 300px;
+  overflow-y: auto;
+  text-align: left;
+}
+.msg-json-md-wrapper {
+  margin-bottom: 12px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--n-color-hover);
+}
+.msg-json-md-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%);
+  border-bottom: 1px solid var(--n-border-color);
+  transition: background 0.2s;
+}
+.msg-json-md-header:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.14) 100%);
+}
+.msg-json-md-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-text-color-2);
+}
+.msg-json-md-content {
+  padding: 12px;
+  max-height: 500px;
   overflow-y: auto;
   text-align: left;
 }
