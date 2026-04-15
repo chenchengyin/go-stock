@@ -23,6 +23,7 @@ const formRef = ref(null)
 const formValue = ref({
   ID: 1,
   tushareToken: '',
+  iwencaiApiKey: '',
   dingPush: {
     enable: false,
     dingRobot: ''
@@ -188,6 +189,7 @@ onMounted(() => {
   GetConfig().then(res => {
     formValue.value.ID = res.ID
     formValue.value.tushareToken = res.tushareToken
+    formValue.value.iwencaiApiKey = res.iwencaiApiKey || ''
     formValue.value.dingPush = {
       enable: res.dingPushEnable,
       dingRobot: res.dingRobot
@@ -247,6 +249,7 @@ function saveConfig() {
     aiConfigs: formValue.value.openAI.aiConfigs,
     // 序列化aiConfigs列表以传递给后端
     tushareToken: formValue.value.tushareToken,
+    iwencaiApiKey: formValue.value.iwencaiApiKey,
     prompt: formValue.value.openAI.prompt,
     questionTemplate: formValue.value.openAI.questionTemplate,
     crawlTimeOut: formValue.value.openAI.crawlTimeOut,
@@ -324,6 +327,7 @@ function importConfig() {
       let config = JSON.parse(e.target.result);
       formValue.value.ID = config.ID
       formValue.value.tushareToken = config.tushareToken
+      formValue.value.iwencaiApiKey = config.iwencaiApiKey || ''
       formValue.value.dingPush = {
         enable: config.dingPushEnable,
         dingRobot: config.dingRobot
@@ -462,6 +466,28 @@ function deletePrompt(ID) {
                     打开浏览器,访问东财网站，<br>
                     按F12打开开发人员工具-》网络面板，<br>
                     随便点开一个请求，复制请求cookie中qgqp_b_id对应的值。
+                  </div>
+                  </n-gradient-text>
+                </template>
+              </n-tooltip>
+            </n-form-item-gi>
+
+            <n-form-item-gi :span="11" label="问财API密钥：" path="iwencaiApiKey">
+              <n-input type="password" placeholder="同花顺问财开放平台API Key" v-model:value="formValue.iwencaiApiKey" clearable show-password-on="click"/>
+              <n-tooltip placement="top">
+                <template #trigger>
+                  <n-icon color="#0e7a0d" size="20">
+                    <HelpCircleFilledIcon />
+                  </n-icon>
+                </template>
+                <template #default>
+                  <n-gradient-text :type="'warning'">
+                  <div style="max-width: 400px;text-align: left">
+                    获取方法：<br>
+                    访问同花顺问财开放平台：<br>
+                    <a href="https://open.iwencai.com" target="_blank" style="color: #63e2b7">https://open.iwencai.com</a><br>
+                    注册并登录后，在控制台获取API Key。<br>
+                    配置后可使用问财智能选股、行情查询、研报搜索等功能。
                   </div>
                   </n-gradient-text>
                 </template>

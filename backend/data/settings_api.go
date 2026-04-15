@@ -38,9 +38,9 @@ type Settings struct {
 	HttpProxyEnabled       bool   `json:"httpProxyEnabled"`
 	EnableAgent            bool   `json:"enableAgent"`
 	QgqpBId                string `json:"qgqpBId" gorm:"column:qgqp_b_id"`
-	// 记录上一次窗口大小（用户拖动调整后保存），为 0 表示未设置，使用自适应默认值
-	WindowWidth  int `json:"windowWidth"`
-	WindowHeight int `json:"windowHeight"`
+	IwencaiApiKey          string `json:"iwencaiApiKey" gorm:"column:iwencai_api_key"`
+	WindowWidth            int    `json:"windowWidth"`
+	WindowHeight           int    `json:"windowHeight"`
 }
 
 func (receiver Settings) TableName() string {
@@ -117,6 +117,7 @@ func UpdateConfig(s *SettingConfig) string {
 			"http_proxy_enabled":         s.HttpProxyEnabled,
 			"enable_agent":               s.EnableAgent,
 			"qgqp_b_id":                  s.QgqpBId,
+			"iwencai_api_key":            s.IwencaiApiKey,
 			"window_width":               s.WindowWidth,
 			"window_height":              s.WindowHeight,
 		})

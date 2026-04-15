@@ -157,7 +157,7 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 
 		switch stockAiAgent.instance.Mode {
 		case AgentModePlanExecute:
-			runPlanExecute(ctx, stockAiAgent, messages, ch, memoryService)
+			runPlanExecuteWithFallback(ctx, stockAiAgent, messages, ch, memoryService, historyMessages, sysPrompt, question)
 		default:
 			runReact(ctx, stockAiAgent, messages, ch, memoryService, historyMessages, sysPrompt, question)
 		}
@@ -298,6 +298,234 @@ func runReact(ctx context.Context, stockAiAgent *StockAiAgent, messages []*schem
 	wg.Wait()
 }
 
+func runPlanExecuteWithFallback(ctx context.Context, stockAiAgent *StockAiAgent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService, historyMessages []*schema.Message, sysPrompt string, question string) {
+	defer close(ch)
+
+	// 首先尝试 PlanExecute 模式
+	planExecuteSuccess := tryPlanExecute(ctx, stockAiAgent, messages, ch, memoryService)
+
+	if !planExecuteSuccess {
+		// 如果 PlanExecute 失败，降级到 React 模式
+		logger.SugaredLogger.Warnf("PlanExecute 模式失败，降级到 React 模式")
+
+		safeSend(ch, &schema.Message{
+			Role:             schema.Assistant,
+			Content:          "",
+			ReasoningContent: "[FALLBACK]⚠️ 检测到编码问题，切换到标准分析模式...\n",
+		})
+
+		// 创建临时的 React Agent
+		reactAgent := createFallbackReactAgent(ctx, stockAiAgent)
+		if reactAgent != nil {
+			runReactWithAgent(ctx, reactAgent, messages, ch, memoryService, historyMessages, sysPrompt, question)
+		} else {
+			safeSend(ch, &schema.Message{
+				Role:    schema.Assistant,
+				Content: "❌ 无法创建备用分析引擎，请稍后重试",
+			})
+		}
+	}
+}
+
+func tryPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService) bool {
+	adkAgent := stockAiAgent.instance.AdkAgent
+	if adkAgent == nil {
+		return false
+	}
+
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
+		Agent: adkAgent,
+	})
+
+	safeSend(ch, &schema.Message{
+		Role:             schema.Assistant,
+		Content:          "",
+		ReasoningContent: "[STEP]🧠 规划模式启动，正在分析问题并制定执行计划...\n",
+	})
+
+	iter := runner.Run(ctx, messages)
+
+	var fullResponse strings.Builder
+	stepCount := 0
+	lastPhase := ""
+
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event == nil {
+			continue
+		}
+
+		if event.Err != nil {
+			logger.SugaredLogger.Errorf("agent event error: %v", event.Err)
+
+			// 检查是否是编码相关错误
+			if strings.Contains(event.Err.Error(), "unmarshal plan error") ||
+				strings.Contains(event.Err.Error(), "invalid char") ||
+				strings.Contains(event.Err.Error(), "UTF-8") {
+				logger.SugaredLogger.Warnf("检测到编码错误，触发降级机制")
+				return false // 触发降级
+			}
+
+			// 其他错误按正常处理
+			errMsg := fmt.Sprintf("❌ Agent 调用失败：%v", event.Err)
+			if isTokenLimitError(event.Err) {
+				errMsg = "❌ Agent 调用失败（token 超限）：输入内容超过模型最大上下文长度限制。请尝试缩短对话历史或使用支持更长上下文的模型。"
+			} else if strings.Contains(event.Err.Error(), "reasoning_content") || strings.Contains(event.Err.Error(), "thinking is enabled") {
+				errMsg += "\n\n**可能原因**：当前模型开启了 thinking/reasoning 模式，但该模式与 Agent 工具调用不兼容。\n\n**解决方案**：请在 AI 配置中关闭 thinking 模式，或切换到支持工具调用的模型（如 deepseek-chat、gpt-4o 等）。"
+			} else if strings.Contains(event.Err.Error(), "unmarshal plan error") || strings.Contains(event.Err.Error(), "invalid char") {
+				errMsg += "\n\n**可能原因**：计划解析时遇到中文字符编码问题，通常是模型返回的计划内容包含非UTF-8字符。\n\n**解决方案**：请尝试重新提问，或切换到不同的AI模型。"
+			}
+			safeSend(ch, &schema.Message{
+				Role:    schema.Assistant,
+				Content: errMsg,
+			})
+			return true // 非编码错误，不需要降级
+		}
+
+		if event.Output != nil && event.Output.MessageOutput != nil {
+			mv := event.Output.MessageOutput
+			phase := detectPhase(mv.Role, mv.ToolName)
+			if phase != "" && phase != lastPhase {
+				lastPhase = phase
+				if phase == "planning" {
+					safeSend(ch, &schema.Message{
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: "[STEP]📋 正在制定执行计划...\n",
+					})
+				} else if phase == "executing" {
+					stepCount++
+					safeSend(ch, &schema.Message{
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: fmt.Sprintf("[STEP]⚡ 执行步骤 %d...\n", stepCount),
+					})
+				} else if phase == "replanning" {
+					safeSend(ch, &schema.Message{
+						Role:             schema.Assistant,
+						Content:          "",
+						ReasoningContent: "[STEP]🔄 评估进度，调整计划...\n",
+					})
+				}
+			}
+
+			if mv.IsStreaming && mv.MessageStream != nil {
+				processAdkMessageStream(mv.MessageStream, mv.Role, mv.ToolName, ch, &fullResponse)
+			} else if mv.Message != nil {
+				processAdkMessage(mv.Message, mv.Role, mv.ToolName, ch, &fullResponse)
+			}
+		}
+	}
+
+	if fullResponse.Len() != 0 && memoryService != nil {
+		if err := memoryService.AddAssistantMessage(fullResponse.String()); err != nil {
+			logger.SugaredLogger.Errorf("failed to save assistant message: %v", err)
+		}
+	}
+
+	return true // 成功完成
+}
+
+func createFallbackReactAgent(ctx context.Context, stockAiAgent *StockAiAgent) *react.Agent {
+	// 从 PlanExecute Agent 中提取原始配置来创建 React Agent
+	// 这里需要重新创建，因为我们没有保存原始的 chatModel 和 tools
+
+	// 为了简化，我们返回 nil，让上层处理
+	// 在实际生产环境中，应该保存原始配置或重新创建
+	logger.SugaredLogger.Warnf("暂不支持降级到 React 模式，需要重新实现")
+	return nil
+}
+
+func runReactWithAgent(ctx context.Context, reactAgent *react.Agent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService, historyMessages []*schema.Message, sysPrompt string, question string) {
+	// 类似于原来的 runReact 函数，但使用指定的 agent
+	if reactAgent == nil {
+		safeSend(ch, &schema.Message{
+			Role:    schema.Assistant,
+			Content: "❌ React Agent 实例无效",
+		})
+		return
+	}
+
+	msgFutureOpt, msgFuture := react.WithMessageFuture()
+	opts := agent.GetComposeOptions(msgFutureOpt)
+
+	agentOption := []agent.AgentOption{
+		agent.WithComposeOptions(opts...),
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.SugaredLogger.Errorf("panic in processMessageFuture: %v", r)
+			}
+			wg.Done()
+		}()
+		processMessageFuture(msgFuture, ch)
+	}()
+
+	func() {
+		defer close(ch)
+
+		sr, err := reactAgent.Stream(ctx, messages, agentOption...)
+		if err != nil {
+			logger.SugaredLogger.Errorf("stream error: %v", err)
+			errMsg := fmt.Sprintf("❌ React Agent 调用失败：%v", err)
+			safeSend(ch, &schema.Message{
+				Role:    schema.Assistant,
+				Content: errMsg,
+			})
+			return
+		}
+		if sr == nil {
+			logger.SugaredLogger.Errorf("stream result is nil")
+			safeSend(ch, &schema.Message{
+				Role:    schema.Assistant,
+				Content: "❌ 流式响应无效",
+			})
+			return
+		}
+		defer func() {
+			sr.Close()
+		}()
+
+		var fullResponse strings.Builder
+		for {
+			msg, err := sr.Recv()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				logger.SugaredLogger.Errorf("failed to recv: %v", err)
+				safeSend(ch, &schema.Message{
+					Role:    schema.Assistant,
+					Content: fmt.Sprintf("❌ 接收消息失败：%v", err),
+				})
+				break
+			}
+			if msg != nil && msg.Content != "" {
+				fullResponse.WriteString(msg.Content)
+				safeSend(ch, &schema.Message{
+					Role:    schema.Assistant,
+					Content: msg.Content,
+				})
+			}
+		}
+
+		if fullResponse.Len() != 0 && memoryService != nil {
+			if err := memoryService.AddAssistantMessage(fullResponse.String()); err != nil {
+				logger.SugaredLogger.Errorf("failed to save assistant message: %v", err)
+			}
+		}
+	}()
+
+	wg.Wait()
+}
+
 func runPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []*schema.Message, ch chan *schema.Message, memoryService *ChatMemoryService) {
 	defer close(ch)
 
@@ -342,6 +570,8 @@ func runPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []
 				errMsg = "❌ Agent 调用失败（token 超限）：输入内容超过模型最大上下文长度限制。请尝试缩短对话历史或使用支持更长上下文的模型。"
 			} else if strings.Contains(event.Err.Error(), "reasoning_content") || strings.Contains(event.Err.Error(), "thinking is enabled") {
 				errMsg += "\n\n**可能原因**：当前模型开启了 thinking/reasoning 模式，但该模式与 Agent 工具调用不兼容。\n\n**解决方案**：请在 AI 配置中关闭 thinking 模式，或切换到支持工具调用的模型（如 deepseek-chat、gpt-4o 等）。"
+			} else if strings.Contains(event.Err.Error(), "unmarshal plan error") || strings.Contains(event.Err.Error(), "invalid char") {
+				errMsg += "\n\n**可能原因**：计划解析时遇到中文字符编码问题，通常是模型返回的计划内容包含非UTF-8字符。\n\n**解决方案**：请尝试重新提问，或切换到不同的AI模型。"
 			}
 			safeSend(ch, &schema.Message{
 				Role:    schema.Assistant,

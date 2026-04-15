@@ -571,6 +571,7 @@ export namespace data {
 	    httpProxyEnabled: boolean;
 	    enableAgent: boolean;
 	    qgqpBId: string;
+	    iwencaiApiKey: string;
 	    windowWidth: number;
 	    windowHeight: number;
 	    aiConfigs: AIConfig[];
@@ -610,6 +611,7 @@ export namespace data {
 	        this.httpProxyEnabled = source["httpProxyEnabled"];
 	        this.enableAgent = source["enableAgent"];
 	        this.qgqpBId = source["qgqpBId"];
+	        this.iwencaiApiKey = source["iwencaiApiKey"];
 	        this.windowWidth = source["windowWidth"];
 	        this.windowHeight = source["windowHeight"];
 	        this.aiConfigs = this.convertValues(source["aiConfigs"], AIConfig);

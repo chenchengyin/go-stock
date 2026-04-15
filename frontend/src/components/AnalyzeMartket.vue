@@ -45,6 +45,14 @@ const showDailyChart = ref(false);
 const showChangeStats = ref(false);
 const showChangeRank = ref(false);
 const changeRankDays = ref(1);
+const showBullBearRank = ref(false);
+const bullBearDays = ref(1);
+const bullBearStockUpRef = ref(null);
+const bullBearStockDownRef = ref(null);
+const bullBearIndustryUpRef = ref(null);
+const bullBearIndustryDownRef = ref(null);
+const bullBearConceptUpRef = ref(null);
+const bullBearConceptDownRef = ref(null);
 const showDimensionModal = ref(false);
 const dimensionModalTitle = ref('');
 const dimensionDetailChartRef = ref(null);
@@ -108,6 +116,18 @@ watch(showChangeRank, (newVal) => {
 
 watch(changeRankDays, () => {
   handleChangeRank()
+})
+
+watch(showBullBearRank, (newVal) => {
+  if (newVal) {
+    nextTick(() => {
+      handleBullBearRank()
+    })
+  }
+})
+
+watch(bullBearDays, () => {
+  handleBullBearRank()
 })
 
 watch(showDimensionModal, (newVal) => {
@@ -1587,6 +1607,171 @@ function renderRankChart(chartRef, title, items, dimension) {
   })
 }
 
+async function handleBullBearRank() {
+  try {
+    const days = bullBearDays.value
+    const result = await GetChangeRank(days, 20)
+    if (result) {
+      if (result.topStocks && result.topStocks.length > 0) {
+        const upStocks = [...result.topStocks].sort((a, b) => b.upCount - a.upCount).slice(0, 15)
+        const downStocks = [...result.topStocks].sort((a, b) => b.downCount - a.downCount).slice(0, 15)
+        renderBullBearChart(bullBearStockUpRef, '利好异动最多的股票', upStocks, 'up', 'stock')
+        renderBullBearChart(bullBearStockDownRef, '利空异动最多的股票', downStocks, 'down', 'stock')
+      }
+      if (result.topIndustries && result.topIndustries.length > 0) {
+        const upIndustries = [...result.topIndustries].sort((a, b) => b.upCount - a.upCount).slice(0, 15)
+        const downIndustries = [...result.topIndustries].sort((a, b) => b.downCount - a.downCount).slice(0, 15)
+        renderBullBearChart(bullBearIndustryUpRef, '利好异动最多的行业', upIndustries, 'up', 'industry')
+        renderBullBearChart(bullBearIndustryDownRef, '利空异动最多的行业', downIndustries, 'down', 'industry')
+      }
+      if (result.topConcepts && result.topConcepts.length > 0) {
+        const upConcepts = [...result.topConcepts].sort((a, b) => b.upCount - a.upCount).slice(0, 15)
+        const downConcepts = [...result.topConcepts].sort((a, b) => b.downCount - a.downCount).slice(0, 15)
+        renderBullBearChart(bullBearConceptUpRef, '利好异动最多的概念', upConcepts, 'up', 'concept')
+        renderBullBearChart(bullBearConceptDownRef, '利空异动最多的概念', downConcepts, 'down', 'concept')
+      }
+    }
+  } catch (error) {
+    console.error('获取利好利空排行数据失败:', error)
+  }
+}
+
+function renderBullBearChart(chartRefVal, title, items, direction, dimension) {
+  if (!chartRefVal.value || !items || items.length === 0) return
+
+  const chart = echarts.init(chartRefVal.value)
+
+  const names = items.map(d => d.name).reverse()
+  const mainValues = direction === 'up'
+    ? items.map(d => d.upCount).reverse()
+    : items.map(d => d.downCount).reverse()
+  const subValues = direction === 'up'
+    ? items.map(d => d.downCount).reverse()
+    : items.map(d => d.upCount).reverse()
+
+  const mainColor = direction === 'up' ? '#ef4444' : '#22c55e'
+  const subColor = direction === 'up' ? '#22c55e' : '#ef4444'
+  const mainLabel = direction === 'up' ? '利好次数' : '利空次数'
+  const subLabel = direction === 'up' ? '利空次数' : '利好次数'
+
+  const option = {
+    darkMode: darkTheme,
+    title: {
+      text: title,
+      left: 'center',
+      textStyle: {
+        color: darkTheme ? '#ccc' : '#333',
+        fontSize: 14
+      }
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      },
+      formatter: function(params) {
+        let result = params[0].axisValue + '<br/>'
+        params.forEach(param => {
+          result += param.marker + ' ' + param.seriesName + ': ' + param.value + '<br/>'
+        })
+        const idx = params[0].dataIndex
+        const d = items[items.length - 1 - idx]
+        if (d) {
+          result += `<b>利好: ${d.upCount} 利空: ${d.downCount} 合计: ${d.count}</b><br/>`
+          result += '<span style="color:#888">点击查看按天趋势</span>'
+        }
+        return result
+      }
+    },
+    legend: {
+      data: [mainLabel, subLabel],
+      top: 25,
+      textStyle: {
+        color: darkTheme ? '#ccc' : '#333'
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '8%',
+      bottom: '3%',
+      top: 55,
+      containLabel: true
+    },
+    xAxis: {
+      type: 'value',
+      name: '次数',
+      axisLabel: {
+        color: darkTheme ? '#999' : '#666'
+      },
+      axisLine: {
+        lineStyle: {
+          color: darkTheme ? '#444' : '#ccc'
+        }
+      },
+      splitLine: {
+        lineStyle: {
+          color: darkTheme ? '#333' : '#eee'
+        }
+      }
+    },
+    yAxis: {
+      type: 'category',
+      data: names,
+      axisLabel: {
+        color: darkTheme ? '#999' : '#666',
+        fontSize: 11,
+        width: 80,
+        overflow: 'truncate'
+      },
+      axisLine: {
+        lineStyle: {
+          color: darkTheme ? '#444' : '#ccc'
+        }
+      }
+    },
+    series: [
+      {
+        name: mainLabel,
+        type: 'bar',
+        data: mainValues,
+        itemStyle: {
+          color: mainColor,
+          borderRadius: direction === 'up' ? [0, 4, 4, 0] : [0, 4, 4, 0]
+        },
+        label: {
+          show: true,
+          position: 'right',
+          color: darkTheme ? '#ccc' : '#333',
+          fontSize: 10,
+          formatter: function(params) {
+            return params.value > 0 ? params.value : ''
+          }
+        }
+      },
+      {
+        name: subLabel,
+        type: 'bar',
+        data: subValues,
+        itemStyle: {
+          color: subColor,
+          opacity: 0.4
+        }
+      }
+    ]
+  }
+
+  chart.setOption(option)
+  chart.off('click')
+  chart.on('click', function(params) {
+    if (params.componentType === 'series') {
+      const clickedName = names[params.dataIndex]
+      if (clickedName) {
+        openDimensionDetail(dimension, clickedName)
+      }
+    }
+  })
+}
+
 function handleTreemap() {
   const formatUtil = echarts.format;
   AnalyzeSentimentWithFreqWeight("").then((res) => {
@@ -1744,6 +1929,10 @@ function handleTreemap() {
         <n-button text @click="showChangeRank = !showChangeRank" :type="showChangeRank?'primary':''">
           {{ showChangeRank ? '隐藏异动排行' : '异动排行' }}
         </n-button>
+        <n-divider vertical />
+        <n-button text @click="showBullBearRank = !showBullBearRank" :type="showBullBearRank?'primary':''">
+          {{ showBullBearRank ? '隐藏利好/利空排行' : '利好/利空排行' }}
+        </n-button>
       </n-flex>
       <n-collapse-transition :show="showTreemap">
         <div ref="treemapRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
@@ -1775,6 +1964,39 @@ function handleTreemap() {
           </n-gi>
           <n-gi span="12">
             <div ref="changeRankIndustryRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+          </n-gi>
+        </n-grid>
+      </n-collapse-transition>
+      <n-collapse-transition :show="showBullBearRank">
+        <n-flex justify="end" style="margin-bottom: 4px">
+          <n-button-group size="tiny">
+            <n-button :type="bullBearDays===1?'primary':'default'" @click="bullBearDays=1">当日</n-button>
+            <n-button :type="bullBearDays===3?'primary':'default'" @click="bullBearDays=3">近3日</n-button>
+            <n-button :type="bullBearDays===5?'primary':'default'" @click="bullBearDays=5">近5日</n-button>
+            <n-button :type="bullBearDays===10?'primary':'default'" @click="bullBearDays=10">近10日</n-button>
+            <n-button :type="bullBearDays===30?'primary':'default'" @click="bullBearDays=30">近30日</n-button>
+          </n-button-group>
+        </n-flex>
+        <n-grid :cols="24" :y-gap="0">
+          <n-gi span="8">
+            <div ref="bullBearStockUpRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+          </n-gi>
+          <n-gi span="8">
+            <div ref="bullBearIndustryUpRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+          </n-gi>
+          <n-gi span="8">
+            <div ref="bullBearConceptUpRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+          </n-gi>
+        </n-grid>
+        <n-grid :cols="24" :y-gap="0">
+          <n-gi span="8">
+            <div ref="bullBearStockDownRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+          </n-gi>
+          <n-gi span="8">
+            <div ref="bullBearIndustryDownRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
+          </n-gi>
+          <n-gi span="8">
+            <div ref="bullBearConceptDownRef" style="width: 100%;height: auto;--wails-draggable:no-drag" :style="{height:chartHeight+'px'}" ></div>
           </n-gi>
         </n-grid>
       </n-collapse-transition>
