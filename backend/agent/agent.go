@@ -191,7 +191,7 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 				},
 			},
 		},
-		MaxIterations: 15,
+		MaxIterations: 25,
 		GenInputFn:    genExecutorInput,
 	})
 	if err != nil {
@@ -212,7 +212,7 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 		Planner:       planner,
 		Executor:      executor,
 		Replanner:     replanner,
-		MaxIterations: 5,
+		MaxIterations: 7,
 	})
 	if err != nil {
 		logger.SugaredLogger.Errorf("创建PlanExecute Agent失败: %v", err)
@@ -365,7 +365,7 @@ func getAllTools() []tool.BaseTool {
 	var allTools []tool.BaseTool
 	allTools = append(allTools, tools.GetQueryStockCodeInfoTool())
 	allTools = append(allTools, tools.GetQueryStockNewsTool())
-	allTools = append(allTools, tools.GetIndustryResearchReportTool())
+	//allTools = append(allTools, tools.GetIndustryResearchReportTool())
 	allTools = append(allTools, tools.GetQueryBKDictTool())
 
 	allTools = append(allTools, tools.GetAllDataTools()...)
@@ -388,7 +388,7 @@ func getToolsByQuestion(question string) []tool.BaseTool {
 
 	allTools = append(allTools, tools.GetQueryStockCodeInfoTool())
 	allTools = append(allTools, tools.GetQueryStockNewsTool())
-	allTools = append(allTools, tools.GetIndustryResearchReportTool())
+	//allTools = append(allTools, tools.GetIndustryResearchReportTool())
 	allTools = append(allTools, tools.GetQueryBKDictTool())
 
 	allTools = append(allTools, tools.GetAllDataTools()...)
@@ -511,29 +511,30 @@ func getSkillMCPServerIDs() []uint {
 	return ids
 }
 
-func genPlannerInput(ctx context.Context, userInput []adk.Message) ([]adk.Message, error) {
-	var userContent strings.Builder
-	for _, msg := range userInput {
-		if msg.Content != "" {
-			// 清理和规范化用户输入，确保编码正确
-			cleanedContent := cleanUserInput(msg.Content)
-			userContent.WriteString(cleanedContent)
-			userContent.WriteString("\n")
+func extractUserQuestion(messages []adk.Message) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == schema.User && messages[i].Content != "" {
+			return cleanUserInput(messages[i].Content)
 		}
 	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Content != "" {
+			return cleanUserInput(messages[i].Content)
+		}
+	}
+	return ""
+}
 
-	systemMsg := schema.SystemMessage(`你是一个专业的股票分析规划师。根据用户目标，制定简洁的执行计划。
+func genPlannerInput(ctx context.Context, userInput []adk.Message) ([]adk.Message, error) {
+	question := extractUserQuestion(userInput)
+	if question == "" {
+		return userInput, nil
+	}
 
-要求：
-- 每步必须具体、可执行、独立
-- 步骤按最优顺序排列
-- 去除冗余步骤
-- 最后一步必须产出完整答案
-- 步骤数量控制在3-4步
+	systemMsg := schema.SystemMessage(`你是股票分析规划师。将用户目标拆解为3-4步执行计划。
+规则：步骤具体独立、按最优顺序、无冗余，末步须产出完整答案。`)
 
-注意：请确保返回的计划内容使用标准UTF-8编码，避免特殊字符。`)
-
-	userMsg := schema.UserMessage(userContent.String())
+	userMsg := schema.UserMessage(question)
 
 	return []adk.Message{systemMsg, userMsg}, nil
 }
@@ -760,24 +761,16 @@ func genExecutorInput(ctx context.Context, in *planexecute.ExecutionContext) ([]
 
 	var stepsContent strings.Builder
 	for _, s := range in.ExecutedSteps {
-		result := s.Result
-		// 使用智能压缩，根据内容重要性保留信息
-		result = smartContentCompress(result, 1500)
+		result := smartContentCompress(s.Result, 1000)
 		stepsContent.WriteString(fmt.Sprintf("步骤: %s\n结果: %s\n\n", s.Step, result))
 	}
 
-	var inputContent strings.Builder
-	for _, msg := range in.UserInput {
-		if msg.Content != "" {
-			inputContent.WriteString(msg.Content)
-			inputContent.WriteString("\n")
-		}
-	}
+	question := extractUserQuestion(in.UserInput)
 
-	systemMsg := schema.SystemMessage(`你是股票分析执行者。严格按照计划执行当前步骤，调用合适的工具获取数据，然后给出分析结果。结果要简洁精准。`)
+	systemMsg := schema.SystemMessage(`按计划执行当前步骤，调用工具获取数据，给出简洁精准的分析结果。`)
 
 	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n当前计划: %s\n\n已完成步骤:\n%s\n\n请执行当前步骤: %s",
-		inputContent.String(), string(planContent), stepsContent.String(), in.Plan.FirstStep()))
+		question, string(planContent), stepsContent.String(), in.Plan.FirstStep()))
 
 	return []adk.Message{systemMsg, userMsg}, nil
 }
@@ -791,29 +784,16 @@ func genReplannerInput(ctx context.Context, in *planexecute.ExecutionContext) ([
 
 	var stepsContent strings.Builder
 	for _, s := range in.ExecutedSteps {
-		result := s.Result
-		// 使用智能压缩，根据内容重要性保留信息
-		result = smartContentCompress(result, 1500)
+		result := smartContentCompress(s.Result, 1000)
 		stepsContent.WriteString(fmt.Sprintf("步骤: %s\n结果: %s\n\n", s.Step, result))
 	}
 
-	var inputContent strings.Builder
-	for _, msg := range in.UserInput {
-		if msg.Content != "" {
-			inputContent.WriteString(msg.Content)
-			inputContent.WriteString("\n")
-		}
-	}
+	question := extractUserQuestion(in.UserInput)
 
-	systemMsg := schema.SystemMessage(`你是进度审核员。根据已完成步骤判断下一步行动：
-
-- 如果目标已达成，调用 respond 工具给出最终答案
-- 如果还需继续，调用 plan 工具给出剩余步骤（不含已完成步骤）
-
-判断标准：原始目标是否已完全满足？`)
+	systemMsg := schema.SystemMessage(`审核进度：目标达成则调用respond给最终答案，否则调用plan给剩余步骤（不含已完成）。`)
 
 	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n原始计划: %s\n\n已完成步骤:\n%s",
-		inputContent.String(), string(planContent), stepsContent.String()))
+		question, string(planContent), stepsContent.String()))
 
 	return []adk.Message{systemMsg, userMsg}, nil
 }

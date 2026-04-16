@@ -20,15 +20,17 @@ const (
 )
 
 var toolGroupMap = map[string]ToolGroup{
-	"QueryStockCodeInfo": GroupBase,
-	"QueryBKDictInfo":    GroupBase,
-	"GetCurrentTime":     GroupBase,
-	"GetFollowedStocks":  GroupBase,
-	"GetHolidayInfo":     GroupBase,
-	"GetHolidayYear":     GroupBase,
-	"GetHolidayBatch":    GroupBase,
-	"IsTradingDay":       GroupBase,
-	"GetNextTradingDay":  GroupBase,
+	"QueryStockCodeInfo":           GroupBase,
+	"QueryBKDictInfo":              GroupBase,
+	"GetCurrentTime":               GroupBase,
+	"GetFollowedStocks":            GroupBase,
+	"GetHolidayInfo":               GroupBase,
+	"GetHolidayYear":               GroupBase,
+	"GetHolidayBatch":              GroupBase,
+	"IsTradingDay":                 GroupBase,
+	"GetNextTradingDay":            GroupBase,
+	"CreateAiRecommendStocks":      GroupBase,
+	"BatchCreateAiRecommendStocks": GroupBase,
 
 	"GetStockInfo":            GroupStockAnalysis,
 	"GetStockKLine":           GroupStockAnalysis,
@@ -131,12 +133,10 @@ var toolGroupMap = map[string]ToolGroup{
 	"GetHotStockList":             GroupNewsResearch,
 	"GetHotEventList":             GroupNewsResearch,
 
-	"AiRecommendStocks":            GroupAIAnalysis,
-	"GetAIAnalysisHistory":         GroupAIAnalysis,
-	"GetAIAnalysisDetail":          GroupAIAnalysis,
-	"GetAIAnalysisContent":         GroupAIAnalysis,
-	"CreateAiRecommendStocks":      GroupAIAnalysis,
-	"BatchCreateAiRecommendStocks": GroupAIAnalysis,
+	"AiRecommendStocks":    GroupAIAnalysis,
+	"GetAIAnalysisHistory": GroupAIAnalysis,
+	"GetAIAnalysisDetail":  GroupAIAnalysis,
+	"GetAIAnalysisContent": GroupAIAnalysis,
 
 	"SetTradingPrice":     GroupOperations,
 	"SendDingDingMessage": GroupOperations,
