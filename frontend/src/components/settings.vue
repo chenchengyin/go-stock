@@ -24,6 +24,7 @@ const formValue = ref({
   ID: 1,
   tushareToken: '',
   iwencaiApiKey: '',
+  emApiKey: '',
   dingPush: {
     enable: false,
     dingRobot: ''
@@ -190,6 +191,7 @@ onMounted(() => {
     formValue.value.ID = res.ID
     formValue.value.tushareToken = res.tushareToken
     formValue.value.iwencaiApiKey = res.iwencaiApiKey || ''
+    formValue.value.emApiKey = res.emApiKey || ''
     formValue.value.dingPush = {
       enable: res.dingPushEnable,
       dingRobot: res.dingRobot
@@ -250,6 +252,7 @@ function saveConfig() {
     // 序列化aiConfigs列表以传递给后端
     tushareToken: formValue.value.tushareToken,
     iwencaiApiKey: formValue.value.iwencaiApiKey,
+    emApiKey: formValue.value.emApiKey,
     prompt: formValue.value.openAI.prompt,
     questionTemplate: formValue.value.openAI.questionTemplate,
     crawlTimeOut: formValue.value.openAI.crawlTimeOut,
@@ -328,6 +331,7 @@ function importConfig() {
       formValue.value.ID = config.ID
       formValue.value.tushareToken = config.tushareToken
       formValue.value.iwencaiApiKey = config.iwencaiApiKey || ''
+      formValue.value.emApiKey = config.emApiKey || ''
       formValue.value.dingPush = {
         enable: config.dingPushEnable,
         dingRobot: config.dingRobot
@@ -488,6 +492,26 @@ function deletePrompt(ID) {
                     <a href="https://open.iwencai.com" target="_blank" style="color: #63e2b7">https://open.iwencai.com</a><br>
                     注册并登录后，在控制台获取API Key。<br>
                     配置后可使用问财智能选股、行情查询、研报搜索等功能。
+                  </div>
+                  </n-gradient-text>
+                </template>
+              </n-tooltip>
+            </n-form-item-gi>
+
+            <n-form-item-gi :span="11" label="东财AI密钥：" path="emApiKey">
+              <n-input type="password" placeholder="东方财富AI SaaS API Key" v-model:value="formValue.emApiKey" clearable show-password-on="click"/>
+              <n-tooltip placement="top">
+                <template #trigger>
+                  <n-icon color="#0e7a0d" size="20">
+                    <HelpCircleFilledIcon />
+                  </n-icon>
+                </template>
+                <template #default>
+                  <n-gradient-text :type="'warning'">
+                  <div style="max-width: 400px;text-align: left">
+                    获取方法：<br>
+                    访问东方财富妙想AI平台获取API Key。<br>
+                    配置后可使用个股业绩点评功能。
                   </div>
                   </n-gradient-text>
                 </template>

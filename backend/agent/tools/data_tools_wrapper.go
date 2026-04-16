@@ -3760,6 +3760,138 @@ func GetAllDataTools() []tool.BaseTool {
 		},
 	))
 
+	tools = append(tools, NewDataToolWrapper(
+		"StockEarningsReview",
+		"个股业绩点评。获取上市公司业绩点评报告，包含营收分析、利润分析、财务指标解读等深度内容。支持沪深京港美市场股票。当用户询问个股业绩点评、财报分析、业绩报告、营收利润分析等问题时使用此工具。数据来源于东方财富AI。",
+		map[string]*schema.ParameterInfo{
+			"query": {
+				Type:     "string",
+				Desc:     "股票名称或代码，如：贵州茅台、600519、宁德时代等",
+				Required: true,
+			},
+			"reportDate": {
+				Type:     "string",
+				Desc:     "报告期，格式YYYY-MM-DD，如：2024-12-31。不填则使用最新报告期",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			query := gjson.Get(args, "query").String()
+			reportDate := gjson.Get(args, "reportDate").String()
+			if query == "" {
+				return "请输入股票名称或代码", nil
+			}
+			result := data.NewEmAPI().EarningsReviewToMarkdown(query, reportDate)
+			return result, nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"FinancialQA",
+		"金融智能问答。基于东方财富权威金融数据库，覆盖数据查询、资讯搜索、宏观分析、选股选基、金融百科、市场分析、热点解读等全链条智能问答服务。支持标准模式和深度思考模式。当用户提出自然语言金融问题，如'帮我查一下'、'分析一下'、'选股'、'XX怎么样'、'XX是什么'、'最新政策'、'宏观数据'等问答类请求时使用此工具。数据来源于东方财富AI。",
+		map[string]*schema.ParameterInfo{
+			"question": {
+				Type:     "string",
+				Desc:     "用户自然语言问题，如：今天A股市场表现如何、贵州茅台最新估值、近三年ROE最高的消费股有哪些等",
+				Required: true,
+			},
+			"deepThink": {
+				Type:     "boolean",
+				Desc:     "是否开启深度思考模式，当用户明确要求深度分析、详细分析、仔细想想时设为true",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			question := gjson.Get(args, "question").String()
+			deepThink := gjson.Get(args, "deepThink").Bool()
+			if question == "" {
+				return "请输入您想问的问题", nil
+			}
+			result := data.NewEmAPI().FinancialQAToMarkdown(question, deepThink)
+			return result, nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"IndustryResearch",
+		"行业研究报告生成。根据行业关键词生成深度行业研究报告，包含行业概况、市场规模、竞争格局、发展趋势、投资建议等内容。当用户要求生成行业研究报告、行业深度分析、产业分析、行业趋势分析等时使用此工具。数据来源于东方财富AI。",
+		map[string]*schema.ParameterInfo{
+			"query": {
+				Type:     "string",
+				Desc:     "行业关键词，如：半导体、新能源汽车、AI芯片、消费电子等",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			query := gjson.Get(args, "query").String()
+			if query == "" {
+				return "请输入行业关键词", nil
+			}
+			result := data.NewEmAPI().IndustryResearchToMarkdown(query)
+			return result, nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"TrackingReport",
+		"个股/行业跟踪报告。根据用户输入的股票或行业关键词，生成跟踪报告，包含最新动态、核心观点、关键指标变化、重要事件梳理等内容。支持A股、港股、美股及行业板块。当用户要求生成跟踪报告、最新动态跟踪、个股跟踪、行业跟踪等时使用此工具。数据来源于东方财富AI。",
+		map[string]*schema.ParameterInfo{
+			"query": {
+				Type:     "string",
+				Desc:     "股票名称/代码或行业关键词，如：贵州茅台、600519、半导体行业等",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			query := gjson.Get(args, "query").String()
+			if query == "" {
+				return "请输入股票名称/代码或行业关键词", nil
+			}
+			result := data.NewEmAPI().TrackingReportToMarkdown(query)
+			return result, nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"FinanceDataQuery",
+		"金融数据查询。基于东方财富数据库，支持自然语言查询金融结构化数据，覆盖A股、港股、美股、基金、债券等多种资产，包含实时行情、公司信息、估值指标、财务报表等。单次查询最多支持5个实体。当用户需要查询具体的金融数据、指标数值、财务数据、行情数据等结构化数据时使用此工具。数据来源于东方财富妙想。",
+		map[string]*schema.ParameterInfo{
+			"query": {
+				Type:     "string",
+				Desc:     "自然语言查询，如：贵州茅台最近一年的营业收入和净利润、沪深300当前点位和成交额、东方财富和拼多多最近一年的营收等",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			query := gjson.Get(args, "query").String()
+			if query == "" {
+				return "请输入查询内容", nil
+			}
+			result := data.NewEmAPI().FinanceDataQueryToMarkdown(query)
+			return result, nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"FinanceSearch",
+		"金融资讯搜索。基于东方财富数据库，支持自然语言搜索全网最新公告、研报、财经新闻、交易所动态及官方政策等，覆盖全球市场标的。适用于热点捕捉、舆情监控、研报速览、公告精读及投资决策等场景。当用户需要搜索最新金融资讯、新闻、公告、研报等文本类信息时使用此工具。数据来源于东方财富妙想。",
+		map[string]*schema.ParameterInfo{
+			"query": {
+				Type:     "string",
+				Desc:     "自然语言搜索查询，如：格力电器最新研报与公告、商业航天板块近期新闻、美联储加息对A股影响等",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			query := gjson.Get(args, "query").String()
+			if query == "" {
+				return "请输入搜索内容", nil
+			}
+			result := data.NewEmAPI().FinanceSearchToMarkdown(query)
+			return result, nil
+		},
+	))
+
 	return tools
 }
 

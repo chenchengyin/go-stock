@@ -71,6 +71,18 @@ var toolGroupMap = map[string]ToolGroup{
 
 	"QueryStockConnect": GroupMarket,
 
+	"StockEarningsReview": GroupStockAnalysis,
+
+	"FinancialQA": GroupAIAnalysis,
+
+	"IndustryResearch": GroupStockAnalysis,
+
+	"TrackingReport": GroupStockAnalysis,
+
+	"FinanceDataQuery": GroupStockAnalysis,
+
+	"FinanceSearch": GroupNewsResearch,
+
 	"SearchReport": GroupNewsResearch,
 
 	"QueryInsResearch": GroupNewsResearch,
@@ -153,6 +165,10 @@ var groupKeywordsList = []groupKeywords{
 		"基本资料", "上市日期", "基金资料", "费率", "合约信息",
 		"主营业务", "主要客户", "供应商", "参控股", "股权投资", "重大合同",
 		"基金业绩", "基金持仓", "基金风险", "基金评级", "基金获奖",
+		"业绩点评", "财报分析", "业绩报告", "营收分析", "利润分析", "季报", "年报", "中报",
+		"行业研究", "行业报告", "产业分析", "行业深度", "行业趋势", "市场分析",
+		"跟踪报告", "个股跟踪", "行业跟踪", "动态跟踪", "最新动态跟踪",
+		"查数", "金融数据查询", "数据查询", "指标查询", "估值数据", "行情数据查询",
 		"分析", "诊断", "评估", "估值",
 		"技术面", "基本面", "MACD", "KDJ", "RSI", "布林", "BOLL",
 		"均线", "MA5", "MA10", "MA20", "MA60", "MA120",
@@ -204,6 +220,7 @@ var groupKeywordsList = []groupKeywords{
 		"互动", "问答", "投资者互动",
 		"投资者关系", "业绩说明会", "路演", "投资者调研", "分析师会议", "投关活动",
 		"公告搜索", "分红公告", "回购公告", "重组公告", "定期报告",
+		"资讯搜索", "金融资讯", "舆情监控", "热点捕捉", "研报速览", "公告精读",
 		"日历", "财报日", "股东大会", "IPO",
 		"龙虎榜", "营业部",
 		"热门话题", "热点事件", "雪球",
@@ -212,6 +229,9 @@ var groupKeywordsList = []groupKeywords{
 		"AI分析", "AI推荐", "历史分析", "分析报告",
 		"推荐股票", "买入评级", "增持", "减持",
 		"止盈", "止损", "买入价", "目标价",
+		"帮我查", "分析一下", "怎么样", "是什么", "解释一下", "总结一下",
+		"深度分析", "深度思考", "详细分析", "仔细想想",
+		"金融问答", "智能问答",
 	}},
 	{GroupOperations, []string{
 		"预警", "价位", "开仓", "止盈价", "止损价", "成本价",
