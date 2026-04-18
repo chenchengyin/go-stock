@@ -302,6 +302,10 @@ export function GetIndustryRank(arg1, arg2) {
   return window['go']['main']['App']['GetIndustryRank'](arg1, arg2);
 }
 
+export function GetLatestTradingDay() {
+  return window['go']['main']['App']['GetLatestTradingDay']();
+}
+
 export function GetMCPServerByID(arg1) {
   return window['go']['main']['App']['GetMCPServerByID'](arg1);
 }
@@ -414,6 +418,10 @@ export function GetTypeStatsByDate(arg1) {
   return window['go']['main']['App']['GetTypeStatsByDate'](arg1);
 }
 
+export function GetUplimitHot(arg1, arg2) {
+  return window['go']['main']['App']['GetUplimitHot'](arg1, arg2);
+}
+
 export function GetVersionInfo() {
   return window['go']['main']['App']['GetVersionInfo']();
 }
@@ -460,6 +468,10 @@ export function InitializeGroupSort() {
 
 export function InvestCalendarTimeLine(arg1) {
   return window['go']['main']['App']['InvestCalendarTimeLine'](arg1);
+}
+
+export function IsTradingTime() {
+  return window['go']['main']['App']['IsTradingTime']();
 }
 
 export function LongTigerRank(arg1) {

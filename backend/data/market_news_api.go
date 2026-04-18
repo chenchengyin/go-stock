@@ -1460,3 +1460,28 @@ func (m MarketNewsApi) GetNewsListData(keyWord string, startTime time.Time, page
 	}
 	return &uniqueNews, total
 }
+
+func (m MarketNewsApi) GetUplimitHot(date string, limit int) map[string]any {
+	if limit <= 0 {
+		limit = 20
+	}
+	if date == "" {
+		loc, _ := time.LoadLocation("Asia/Shanghai")
+		date = time.Now().In(loc).Format("2006-01-02")
+	}
+	apiUrl := fmt.Sprintf("https://api.zizizaizai.com/v3/open/review/uplimit/hot?date1=%s&limit=%d", date, limit)
+	resp, err := resty.New().SetTimeout(15*time.Second).R().
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36").
+		SetHeader("Accept", "application/json").
+		Get(apiUrl)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetUplimitHot error: %v", err)
+		return map[string]any{"code": 50000, "message": "请求失败"}
+	}
+	var result map[string]any
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		logger.SugaredLogger.Errorf("GetUplimitHot unmarshal error: %v", err)
+		return map[string]any{"code": 50000, "message": "数据解析失败"}
+	}
+	return result
+}

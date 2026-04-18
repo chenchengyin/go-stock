@@ -156,6 +156,8 @@ export function GetIndustryMoneyRankSina(arg1:string,arg2:string):Promise<Array<
 
 export function GetIndustryRank(arg1:string,arg2:number):Promise<Array<any>>;
 
+export function GetLatestTradingDay():Promise<string>;
+
 export function GetMCPServerByID(arg1:number):Promise<models.MCPServer>;
 
 export function GetMCPServerList(arg1:models.MCPServerQuery):Promise<models.MCPServerPageResp>;
@@ -212,6 +214,8 @@ export function GetTradingRecordStatistics():Promise<data.TradingRecordStatistic
 
 export function GetTypeStatsByDate(arg1:string):Promise<Array<data.TypeCountStats>>;
 
+export function GetUplimitHot(arg1:string,arg2:number):Promise<Record<string, any>>;
+
 export function GetVersionInfo():Promise<models.VersionInfo>;
 
 export function GetfundList(arg1:string):Promise<Array<data.FundBasic>>;
@@ -235,6 +239,8 @@ export function InitCronTasks():Promise<void>;
 export function InitializeGroupSort():Promise<boolean>;
 
 export function InvestCalendarTimeLine(arg1:string):Promise<Array<any>>;
+
+export function IsTradingTime():Promise<boolean>;
 
 export function LongTigerRank(arg1:string):Promise<any>;
 

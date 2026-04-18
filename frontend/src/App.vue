@@ -548,6 +548,29 @@ const menuOptions = ref([
                     to: {
                       name: 'research',
                       query: {
+                        name:"涨停梯队",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 9, name: '涨停梯队'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '涨停梯队'}
+              ),
+          key: 'uplimitLadder',
+          icon: renderIcon(LocalFireDepartmentRound),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
                         name:"提示词模板",
                       },
                     },

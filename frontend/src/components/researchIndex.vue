@@ -12,6 +12,7 @@ import TradingRecordManager from "./TradingRecordManager.vue";
 import StockChangesMonitor from "./stockChangesMonitor.vue";
 import MCPServiceManager from "./mcp-server-manager.vue";
 import SkillManager from "./skill-manager.vue";
+import UplimitLadder from "./uplimitLadder.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -50,6 +51,9 @@ function updateTab(name) {
       </n-tab-pane>
       <n-tab-pane name="异动监控">
         <StockChangesMonitor/>
+      </n-tab-pane>
+      <n-tab-pane name="涨停梯队">
+        <UplimitLadder/>
       </n-tab-pane>
       <n-tab-pane name="提示词模板">
         <PromptTemplateList/>

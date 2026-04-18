@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -3892,7 +3893,449 @@ func GetAllDataTools() []tool.BaseTool {
 		},
 	))
 
+	tools = append(tools, NewDataToolWrapper(
+		"GetUplimitLadder",
+		"获取连板梯队数据，包括连板统计（各层级数量）和连板梯队详情（最高连板到首板各层级的股票列表，含代码、名称、封单比、成交额、市值、概念板块等）。适用于分析连板高度、市场情绪、龙头股识别等场景。当用户提到连板、梯队、连板高度、最高板等关键词时使用此工具。",
+		map[string]*schema.ParameterInfo{
+			"date": {
+				Type:     "string",
+				Desc:     "查询日期，格式：2026-04-17，默认今天",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			date := gjson.Get(args, "date").String()
+			dataMap, err := fetchUplimitData(date)
+			if err != nil {
+				return err.Error(), nil
+			}
+			loc, _ := time.LoadLocation("Asia/Shanghai")
+			if date == "" {
+				date = time.Now().In(loc).Format("2006-01-02")
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 连板梯队\n\n", date))
+			if today, _ := dataMap["today"].(bool); today {
+				sb.WriteString("> 数据为实时数据\n\n")
+			}
+			stocksStr, _ := dataMap["stocks"].(string)
+			stockList := strings.Split(stocksStr, ",")
+			ztCount := 0
+			for _, s := range stockList {
+				if strings.TrimSpace(s) != "" {
+					ztCount++
+				}
+			}
+			maxCount, _ := dataMap["max_count"].(float64)
+			sb.WriteString(fmt.Sprintf("**涨停总数**: %d只 | **最高连板**: %d\n\n", ztCount, int(maxCount)))
+			banInfo, _ := dataMap["ban_info"].(map[string]any)
+			if len(banInfo) > 0 {
+				sb.WriteString("## 连板统计\n\n")
+				sb.WriteString("| 连板层级 | 数量 |\n|:---:|:---:|\n")
+				for i := int(maxCount); i >= 1; i-- {
+					if info, ok := banInfo[fmt.Sprintf("%d", i)].(map[string]any); ok {
+						cnt, _ := info["count"].(float64)
+						sb.WriteString(fmt.Sprintf("| %d连板 | %d |\n", i, int(cnt)))
+					}
+				}
+				sb.WriteString("\n")
+			}
+			plateStocks, _ := dataMap["plate_stocks"].(map[string]any)
+			stockInfo, _ := dataMap["stock_info"].(map[string]any)
+			if len(banInfo) > 0 && len(plateStocks) > 0 {
+				sb.WriteString("## 连板梯队详情\n\n")
+				for i := int(maxCount); i >= 1; i-- {
+					if info, ok := banInfo[fmt.Sprintf("%d", i)].(map[string]any); ok {
+						cnt, _ := info["count"].(float64)
+						if int(cnt) == 0 {
+							continue
+						}
+						sb.WriteString(fmt.Sprintf("### %d连板（%d只）\n\n", i, int(cnt)))
+						sb.WriteString("| 代码 | 名称 | 类型 | 描述 | 时间 | 封单比 | 收盘封单 | 成交额 | 市值 | 概念板块 |\n|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|\n")
+						seen := make(map[string]bool)
+						for _, pStocks := range plateStocks {
+							for _, s := range pStocks.([]any) {
+								sm, _ := s.(map[string]any)
+								keepTimes, _ := sm["up_limit_keep_times"].(float64)
+								if int(keepTimes) != i {
+									continue
+								}
+								sCode, _ := sm["stock_code"].(string)
+								if seen[sCode] {
+									continue
+								}
+								seen[sCode] = true
+								sName, _ := sm["stock_name"].(string)
+								upType, _ := sm["up_limit_type"].(string)
+								upDesc, _ := sm["up_limit_desc"].(string)
+								upTime, _ := sm["up_limit_time"].(string)
+								fdMax := floatOrDefault(sm["fd_max"])
+								fdClose := floatOrDefault(sm["fd_close"])
+								amount := floatOrDefault(sm["amount"])
+								marketC := floatOrDefault(sm["market_c"])
+								platesStr := getPlatesStr(stockInfo, sCode)
+								sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %.2f%% | %.2f%% | %.2f亿 | %.2f亿 | %s |\n",
+									sCode, sName, upType, upDesc, upTime, fdMax, fdClose, amount, marketC, platesStr))
+							}
+						}
+						sb.WriteString("\n")
+					}
+				}
+			}
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetUplimitHotPlates",
+		"获取涨停热门板块排名和接力主线数据，包括板块热度得分、涨停数、炸板数、接力主线板块等。适用于分析板块轮动、市场热点方向、主线题材等场景。当用户提到热门板块、板块热度、板块轮动、主线题材、接力板块等关键词时使用此工具。",
+		map[string]*schema.ParameterInfo{
+			"date": {
+				Type:     "string",
+				Desc:     "查询日期，格式：2026-04-17，默认今天",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			date := gjson.Get(args, "date").String()
+			dataMap, err := fetchUplimitData(date)
+			if err != nil {
+				return err.Error(), nil
+			}
+			loc, _ := time.LoadLocation("Asia/Shanghai")
+			if date == "" {
+				date = time.Now().In(loc).Format("2006-01-02")
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 热门板块\n\n", date))
+			if today, _ := dataMap["today"].(bool); today {
+				sb.WriteString("> 数据为实时数据\n\n")
+			}
+			plateStocks, _ := dataMap["plate_stocks"].(map[string]any)
+			plateStocksZb, _ := dataMap["plate_stocks_zb"].(map[string]any)
+			plateArr, _ := dataMap["plate"].([]any)
+			if len(plateArr) > 0 {
+				sb.WriteString("## 热门板块TOP20\n\n")
+				sb.WriteString("| 排名 | 板块 | 热度得分 | 涨停数 | 炸板数 |\n|:---:|:---:|:---:|:---:|:---:|\n")
+				for idx, p := range plateArr {
+					if arr, ok := p.([]any); ok && len(arr) >= 3 {
+						name, _ := arr[0].(string)
+						pCode, _ := arr[1].(string)
+						score, _ := arr[2].(float64)
+						ztN := 0
+						if ps, ok := plateStocks[pCode].([]any); ok {
+							ztN = len(ps)
+						}
+						zbN := 0
+						if ps, ok := plateStocksZb[pCode].([]any); ok {
+							zbN = len(ps)
+						}
+						sb.WriteString(fmt.Sprintf("| %d | %s | %d | %d | %d |\n", idx+1, name, int(score), ztN, zbN))
+					}
+				}
+				sb.WriteString("\n")
+			}
+			plateInfo, _ := dataMap["plate_info"].(map[string]any)
+			relay, _ := dataMap["relay"].(map[string]any)
+			if area, ok := relay["area"].([]any); ok && len(area) > 0 {
+				sb.WriteString("## 接力主线\n\n")
+				sb.WriteString("| 板块 | 热度 | 涨停数 |\n|:---:|:---:|:---:|\n")
+				for _, a := range area {
+					am, _ := a.(map[string]any)
+					pCode, _ := am["p_code"].(string)
+					pScore, _ := am["p_score"].(float64)
+					count, _ := am["count"].(float64)
+					pName := pCode
+					if pi, ok := plateInfo[pCode].(map[string]any); ok {
+						pName, _ = pi["name"].(string)
+					}
+					sb.WriteString(fmt.Sprintf("| %s | %d | %d |\n", pName, int(pScore), int(count)))
+				}
+				sb.WriteString("\n")
+			}
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetUplimitHotStocks",
+		"获取涨停个股热度排行数据，包括股票代码、名称、热度得分、概念板块等。适用于分析个股受关注程度、市场人气股、热门标的等场景。当用户提到个股热度、热门个股、人气股、关注度等关键词时使用此工具。",
+		map[string]*schema.ParameterInfo{
+			"date": {
+				Type:     "string",
+				Desc:     "查询日期，格式：2026-04-17，默认今天",
+				Required: false,
+			},
+			"limit": {
+				Type:     "number",
+				Desc:     "返回数量，默认30",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			date := gjson.Get(args, "date").String()
+			limit := int(gjson.Get(args, "limit").Int())
+			if limit <= 0 {
+				limit = 30
+			}
+			dataMap, err := fetchUplimitData(date)
+			if err != nil {
+				return err.Error(), nil
+			}
+			loc, _ := time.LoadLocation("Asia/Shanghai")
+			if date == "" {
+				date = time.Now().In(loc).Format("2006-01-02")
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 个股热度排行\n\n", date))
+			if today, _ := dataMap["today"].(bool); today {
+				sb.WriteString("> 数据为实时数据\n\n")
+			}
+			stocksHot, _ := dataMap["stocks_hot"].(map[string]any)
+			hotN, _ := dataMap["stocks_hot_n"].(float64)
+			if len(stocksHot) == 0 {
+				sb.WriteString("暂无个股热度数据\n")
+				return sb.String(), nil
+			}
+			sb.WriteString(fmt.Sprintf("热度≥%d为超级热门\n\n", int(hotN)))
+			type hotItem struct {
+				code  string
+				score float64
+			}
+			var hotList []hotItem
+			for code, score := range stocksHot {
+				s, _ := score.(float64)
+				hotList = append(hotList, hotItem{code, s})
+			}
+			sort.Slice(hotList, func(i, j int) bool {
+				return hotList[i].score > hotList[j].score
+			})
+			plateStocks, _ := dataMap["plate_stocks"].(map[string]any)
+			stockInfo, _ := dataMap["stock_info"].(map[string]any)
+			sb.WriteString("| 排名 | 代码 | 名称 | 热度 | 概念板块 |\n|:---:|:---:|:---:|:---:|:---:|\n")
+			for idx, item := range hotList {
+				if idx >= limit {
+					break
+				}
+				platesStr := getPlatesStr(stockInfo, item.code)
+				sName := getStockNameFromPlateStocks(plateStocks, item.code)
+				sb.WriteString(fmt.Sprintf("| %d | %s | %s | %d | %s |\n", idx+1, item.code, sName, int(item.score), platesStr))
+			}
+			sb.WriteString("\n")
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetUplimitExplodedStocks",
+		"获取炸板股数据，即曾经涨停但未能封住的股票列表，包括代码、名称、炸板时间、概念板块等。适用于分析封板失败、市场分歧、抛压较重等场景。当用户提到炸板、封板失败、开板、破板等关键词时使用此工具。",
+		map[string]*schema.ParameterInfo{
+			"date": {
+				Type:     "string",
+				Desc:     "查询日期，格式：2026-04-17，默认今天",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			date := gjson.Get(args, "date").String()
+			dataMap, err := fetchUplimitData(date)
+			if err != nil {
+				return err.Error(), nil
+			}
+			loc, _ := time.LoadLocation("Asia/Shanghai")
+			if date == "" {
+				date = time.Now().In(loc).Format("2006-01-02")
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 炸板股\n\n", date))
+			if today, _ := dataMap["today"].(bool); today {
+				sb.WriteString("> 数据为实时数据\n\n")
+			}
+			plateStocksZb, _ := dataMap["plate_stocks_zb"].(map[string]any)
+			stockInfo, _ := dataMap["stock_info"].(map[string]any)
+			var zbTotal []map[string]any
+			for _, stocks := range plateStocksZb {
+				if arr, ok := stocks.([]any); ok {
+					for _, s := range arr {
+						if sm, ok := s.(map[string]any); ok {
+							zbTotal = append(zbTotal, sm)
+						}
+					}
+				}
+			}
+			if len(zbTotal) == 0 {
+				sb.WriteString("今日无炸板股\n")
+				return sb.String(), nil
+			}
+			sb.WriteString(fmt.Sprintf("共%d只炸板股\n\n", len(zbTotal)))
+			sb.WriteString("| 代码 | 名称 | 时间 | 概念板块 |\n|:---:|:---:|:---:|:---:|\n")
+			zbSeen := make(map[string]bool)
+			for _, sm := range zbTotal {
+				sCode, _ := sm["stock_code"].(string)
+				if zbSeen[sCode] {
+					continue
+				}
+				zbSeen[sCode] = true
+				sName, _ := sm["stock_name"].(string)
+				upTime, _ := sm["up_limit_time"].(string)
+				platesStr := getPlatesStr(stockInfo, sCode)
+				sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s |\n", sCode, sName, upTime, platesStr))
+			}
+			sb.WriteString("\n")
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetUplimitPlateStocks",
+		"获取指定板块的涨停股详情，包括板块内所有涨停股票的代码、名称、连板数、封单比、成交额、市值、概念板块等。适用于深入分析某个板块的涨停个股情况。当用户想查看某个板块的涨停股明细时使用此工具，必须提供板块名称参数。",
+		map[string]*schema.ParameterInfo{
+			"plate_name": {
+				Type:     "string",
+				Desc:     "板块名称，如：人工智能、机器人、芯片等",
+				Required: true,
+			},
+			"date": {
+				Type:     "string",
+				Desc:     "查询日期，格式：2026-04-17，默认今天",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			plateName := gjson.Get(args, "plate_name").String()
+			if plateName == "" {
+				return "请提供板块名称参数 plate_name", nil
+			}
+			date := gjson.Get(args, "date").String()
+			dataMap, err := fetchUplimitData(date)
+			if err != nil {
+				return err.Error(), nil
+			}
+			loc, _ := time.LoadLocation("Asia/Shanghai")
+			if date == "" {
+				date = time.Now().In(loc).Format("2006-01-02")
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 板块【%s】涨停股详情\n\n", date, plateName))
+			if today, _ := dataMap["today"].(bool); today {
+				sb.WriteString("> 数据为实时数据\n\n")
+			}
+			plateInfo, _ := dataMap["plate_info"].(map[string]any)
+			plateStocks, _ := dataMap["plate_stocks"].(map[string]any)
+			stockInfo, _ := dataMap["stock_info"].(map[string]any)
+			var targetCode string
+			for pCode, pi := range plateInfo {
+				if piMap, ok := pi.(map[string]any); ok {
+					name, _ := piMap["name"].(string)
+					if name == plateName {
+						targetCode = pCode
+						break
+					}
+				}
+			}
+			if targetCode == "" {
+				plateArr, _ := dataMap["plate"].([]any)
+				for _, p := range plateArr {
+					if arr, ok := p.([]any); ok && len(arr) >= 3 {
+						name, _ := arr[0].(string)
+						pCode, _ := arr[1].(string)
+						if name == plateName {
+							targetCode = pCode
+							break
+						}
+					}
+				}
+			}
+			if targetCode == "" {
+				sb.WriteString(fmt.Sprintf("未找到板块【%s】，请检查板块名称是否正确\n", plateName))
+				return sb.String(), nil
+			}
+			stocks, ok := plateStocks[targetCode].([]any)
+			if !ok || len(stocks) == 0 {
+				sb.WriteString(fmt.Sprintf("板块【%s】暂无涨停股\n", plateName))
+				return sb.String(), nil
+			}
+			sb.WriteString(fmt.Sprintf("共%d只涨停股\n\n", len(stocks)))
+			sb.WriteString("| 代码 | 名称 | 连板 | 类型 | 描述 | 时间 | 封单比 | 收盘封单 | 成交额 | 市值 | 概念板块 |\n|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|\n")
+			for _, s := range stocks {
+				sm, _ := s.(map[string]any)
+				sCode, _ := sm["stock_code"].(string)
+				sName, _ := sm["stock_name"].(string)
+				keepTimes, _ := sm["up_limit_keep_times"].(float64)
+				upType, _ := sm["up_limit_type"].(string)
+				upDesc, _ := sm["up_limit_desc"].(string)
+				upTime, _ := sm["up_limit_time"].(string)
+				fdMax := floatOrDefault(sm["fd_max"])
+				fdClose := floatOrDefault(sm["fd_close"])
+				amount := floatOrDefault(sm["amount"])
+				marketC := floatOrDefault(sm["market_c"])
+				platesStr := getPlatesStr(stockInfo, sCode)
+				sb.WriteString(fmt.Sprintf("| %s | %s | %d | %s | %s | %s | %.2f%% | %.2f%% | %.2f亿 | %.2f亿 | %s |\n",
+					sCode, sName, int(keepTimes), upType, upDesc, upTime, fdMax, fdClose, amount, marketC, platesStr))
+			}
+			sb.WriteString("\n")
+			return sb.String(), nil
+		},
+	))
+
 	return tools
+}
+
+func fetchUplimitData(date string) (map[string]any, error) {
+	if date == "" {
+		loc, _ := time.LoadLocation("Asia/Shanghai")
+		date = time.Now().In(loc).Format("2006-01-02")
+	}
+	result := data.NewMarketNewsApi().GetUplimitHot(date, 20)
+	if result == nil || result["code"] == nil {
+		return nil, fmt.Errorf("获取涨停梯队数据失败")
+	}
+	code, _ := result["code"].(float64)
+	if int(code) != 20000 {
+		msg, _ := result["message"].(string)
+		return nil, fmt.Errorf("获取涨停梯队数据失败: %s", msg)
+	}
+	dataMap, ok := result["data"].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("涨停梯队数据格式异常")
+	}
+	return dataMap, nil
+}
+
+func floatOrDefault(val any) float64 {
+	if f, ok := val.(float64); ok {
+		return f
+	}
+	return 0
+}
+
+func getPlatesStr(stockInfo map[string]any, code string) string {
+	if si, ok := stockInfo[code].(map[string]any); ok {
+		if pa, ok := si["plates"].([]any); ok {
+			var ps []string
+			for _, p := range pa {
+				ps = append(ps, fmt.Sprintf("%v", p))
+			}
+			return strings.Join(ps, ",")
+		}
+	}
+	return ""
+}
+
+func getStockNameFromPlateStocks(plateStocks map[string]any, code string) string {
+	for _, pStocks := range plateStocks {
+		if arr, ok := pStocks.([]any); ok {
+			for _, s := range arr {
+				if sm, ok := s.(map[string]any); ok {
+					if sm["stock_code"] == code {
+						name, _ := sm["stock_name"].(string)
+						return name
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func marketSentiment(upCount, downCount int) string {

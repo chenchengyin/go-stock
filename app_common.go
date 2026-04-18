@@ -83,6 +83,34 @@ func (a *App) ClsCalendar() []any {
 	return data.NewMarketNewsApi().ClsCalendar()
 }
 
+func (a *App) GetUplimitHot(date string, limit int) map[string]any {
+	return data.NewMarketNewsApi().GetUplimitHot(date, limit)
+}
+
+func (a *App) IsTradingTime() bool {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	return isTradingTime(time.Now().In(loc))
+}
+
+func (a *App) GetLatestTradingDay() string {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Now().In(loc)
+	if isTradingDay(now) {
+		hour, minute, _ := now.Clock()
+		if hour < 15 || (hour == 15 && minute == 0) {
+			return now.AddDate(0, 0, -1).Format("2006-01-02")
+		}
+		return now.Format("2006-01-02")
+	}
+	for i := 1; i <= 7; i++ {
+		d := now.AddDate(0, 0, -i)
+		if isTradingDay(d) {
+			return d.Format("2006-01-02")
+		}
+	}
+	return now.Format("2006-01-02")
+}
+
 func (a *App) SearchStock(words string) map[string]any {
 	return data.NewSearchStockApi(words).SearchStock(5000)
 }

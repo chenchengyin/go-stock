@@ -132,6 +132,11 @@ var toolGroupMap = map[string]ToolGroup{
 	"GetLongTigerList":            GroupNewsResearch,
 	"GetHotStockList":             GroupNewsResearch,
 	"GetHotEventList":             GroupNewsResearch,
+	"GetUplimitLadder":            GroupNewsResearch,
+	"GetUplimitHotPlates":         GroupNewsResearch,
+	"GetUplimitHotStocks":         GroupNewsResearch,
+	"GetUplimitExplodedStocks":    GroupNewsResearch,
+	"GetUplimitPlateStocks":       GroupNewsResearch,
 
 	"AiRecommendStocks":    GroupAIAnalysis,
 	"GetAIAnalysisHistory": GroupAIAnalysis,
@@ -223,6 +228,10 @@ var groupKeywordsList = []groupKeywords{
 		"资讯搜索", "金融资讯", "舆情监控", "热点捕捉", "研报速览", "公告精读",
 		"日历", "财报日", "股东大会", "IPO",
 		"龙虎榜", "营业部",
+		"涨停", "连板", "梯队", "涨停复盘", "涨停板块", "炸板", "封板",
+		"热门板块", "板块热度", "板块轮动", "主线题材", "接力板块",
+		"个股热度", "热门个股", "人气股", "关注度",
+		"封板失败", "开板", "破板",
 		"热门话题", "热点事件", "雪球",
 	}},
 	{GroupAIAnalysis, []string{

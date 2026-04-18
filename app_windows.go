@@ -40,6 +40,8 @@ func (a *App) startup(ctx context.Context) {
 	// 应用启动时自动创建已启用的定时任务
 	a.InitCronTasks()
 
+	preCacheTradingDays()
+
 	// 创建系统托盘
 	//systray.RunWithExternalLoop(func() {
 	//	onReady(a)

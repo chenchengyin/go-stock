@@ -8,7 +8,9 @@ import {
   UpdatePromptTemplate
 } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime";
-import {NButton, NInput, NTag, NText, useMessage, useNotification,useDialog, NModal, NCard, NForm, NFormItem, NSpace} from "naive-ui";
+import {NButton, NInput, NTag, NText, useMessage, useNotification,useDialog, NModal, NCard, NForm, NFormItem, NSpace, NPopover} from "naive-ui";
+import { MdEditor, MdPreview } from 'md-editor-v3'
+import 'md-editor-v3/lib/style.css'
 
 const notify = useNotification()
 const message = useMessage()
@@ -16,11 +18,13 @@ const dialog = useDialog()
 const editorDataRef = reactive({
   darkTheme: false
 })
+const editorTheme = ref('light')
 
 onBeforeMount(() => {
   GetConfig().then(result => {
     if (result.darkTheme) {
       editorDataRef.darkTheme = true
+      editorTheme.value = 'dark'
     }
   })
 })
@@ -81,8 +85,24 @@ const columnsRef = ref([
   {
     title: '模板内容',
     key: 'content',
-    ellipsis: {
-      tooltip: true
+    width: 200,
+    render(row) {
+      return h(NPopover, {
+        trigger: 'hover',
+        placement: 'left',
+        showArrow: true,
+        style: 'max-width: 800px; max-height: 400px; overflow: hidden',
+        scrollable: true
+      }, {
+        trigger: () => h('span', {
+          style: 'display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;'
+        }, row.content),
+        default: () => h(MdPreview, {
+          style:'text-align: left;',
+          modelValue: row.content,
+          theme: editorTheme.value
+        })
+      })
     }
   },
   {
@@ -282,7 +302,7 @@ function deletePromptTemplate(id) {
     />
 
     <!-- 编辑/新增模态框 -->
-    <n-modal v-model:show="modalDataRef.visible" preset="card" style="width: 800px;text-align: left" :title="modalDataRef.formData.ID>0?'修改':'新增'+'Prompt模板'">
+    <n-modal v-model:show="modalDataRef.visible" preset="card" style="width: 1100px;text-align: left" :title="modalDataRef.formData.ID>0?'修改':'新增'+'Prompt模板'">
       <n-form :model="modalDataRef.formData" label-placement="left" label-width="80">
         <n-form-item label="模板名称" required>
           <n-input v-model:value="modalDataRef.formData.name" placeholder="请输入模板名称" />
@@ -291,10 +311,12 @@ function deletePromptTemplate(id) {
           <n-select v-model:value="modalDataRef.formData.type" :options="promptTypeOptions" placeholder="请选择提示词类型"/>
         </n-form-item>
         <n-form-item label="模板内容" required>
-          <n-input 
-            v-model:value="modalDataRef.formData.content" 
-            type="textarea"
-            :autosize="{ minRows: 12, maxRows: 12, }"
+          <MdEditor
+            v-model="modalDataRef.formData.content"
+            style="height: 400px"
+            :theme="editorTheme"
+            :preview="true"
+            :toolbarsExclude="['github', 'htmlPreview', 'catalog', 'save']"
             placeholder="请输入模板内容"
           />
         </n-form-item>
@@ -310,4 +332,13 @@ function deletePromptTemplate(id) {
 </template>
 
 <style scoped>
+:deep(.md-editor) {
+  text-align: left;
+}
+:deep(.n-popover .md-editor-preview) {
+  padding: 8px 12px;
+}
+:deep(.n-popover .md-editor-preview-wrapper) {
+  padding: 0;
+}
 </style>
