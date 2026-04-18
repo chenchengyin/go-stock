@@ -250,7 +250,9 @@ func (a *CronTaskApi) executeStockAnalysis(ctx context.Context, task *models.Cro
 	msgs := data.NewDeepSeekOpenAi(ctx, params.AiConfigId).NewChatStream(params.StockName, data.ConvertTushareCodeToStockCode(params.StockCode), prompt, &params.SysPromptId, tools, params.Thinking)
 	content := &strings.Builder{}
 	for msg := range msgs {
-		content.WriteString(msg["content"].(string))
+		if v, ok := msg["content"].(string); ok {
+			content.WriteString(v)
+		}
 	}
 	logger.SugaredLogger.Infof("content:%s", content.String())
 	data.NewDeepSeekOpenAi(ctx, params.AiConfigId).SaveAIResponseResult(params.StockCode, params.StockName, content.String(), "", prompt)
