@@ -56,23 +56,34 @@ onBeforeUnmount(() => {
   stopAutoRefresh()
 })
 
-function fetchData(date) {
+function fetchData(date, retryCount = 0) {
   if (!date) return
   loading.value = true
   const d = typeof date === 'string' ? date : formatDate(date)
   selectedDate.value = d
   GetUplimitHot(d, 20).then(res => {
     if (res && res.code === 20000) {
-      rawData.value = res.data
-      if (res.data?.ban_info && res.data?.max_count) {
-        const expanded = []
-        for (let i = res.data.max_count; i >= 1 && expanded.length < 3; i--) {
-          const info = res.data.ban_info[String(i)]
-          if (info && info.count > 0) {
-            expanded.push(String(i))
+      const data = res.data
+      if (data && (data.plate?.length > 0 || data.ban_info) && retryCount < 10) {
+        rawData.value = data
+        if (data.ban_info && data.max_count) {
+          const expanded = []
+          for (let i = data.max_count; i >= 1 && expanded.length < 3; i--) {
+            const info = data.ban_info[String(i)]
+            if (info && info.count > 0) {
+              expanded.push(String(i))
+            }
           }
+          expandedLadders.value = expanded
         }
-        expandedLadders.value = expanded
+      } else if (retryCount < 10) {
+        const prevDate = new Date(d)
+        prevDate.setDate(prevDate.getDate() - 1)
+        const prevDateStr = formatDate(prevDate)
+        fetchData(prevDateStr, retryCount + 1)
+        return
+      } else {
+        rawData.value = data
       }
     } else {
       message.error(res?.message || '获取数据失败')
@@ -81,7 +92,9 @@ function fetchData(date) {
     message.error('请求失败')
     console.error(err)
   }).finally(() => {
-    loading.value = false
+    if (retryCount === 0 || rawData.value) {
+      loading.value = false
+    }
   })
 }
 
