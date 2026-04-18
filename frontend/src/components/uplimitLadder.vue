@@ -1,5 +1,5 @@
 <script setup>
-import {onBeforeMount, onBeforeUnmount, ref, computed, watch, h} from 'vue'
+import {onBeforeMount, onBeforeUnmount, ref, computed, watch, h, onMounted} from 'vue'
 import {GetConfig, GetUplimitHot, IsTradingTime, GetLatestTradingDay} from "../../wailsjs/go/main/App";
 import {NButton, NText, NTag, NTooltip, NProgress, useMessage} from "naive-ui";
 import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
@@ -65,6 +65,9 @@ onBeforeMount(() => {
   initLoad()
 })
 
+onMounted(() => {
+   fetchData(selectedDate.value)
+})
 onBeforeUnmount(() => {
   stopAutoRefresh()
 })
