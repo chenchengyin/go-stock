@@ -17,7 +17,7 @@ const expandedLadders = ref([])
 const darkTheme = ref(false)
 const today = new Date()
 const fallbackDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-const selectedDate = ref(null)
+const selectedDate = ref(fallbackDate)
 const latestTradingDay = ref('')
 let refreshTimer = null
 
