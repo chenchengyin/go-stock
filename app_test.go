@@ -126,3 +126,8 @@ func TestFetchAiModels(t *testing.T) {
 	t.Log(models)
 
 }
+func TestGetLatestTradingDay(t *testing.T) {
+	app := NewApp()
+	date := app.GetLatestTradingDay()
+	t.Log(date)
+}

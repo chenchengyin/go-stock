@@ -168,13 +168,47 @@ func (a *App) CheckUpdate(flag int) {
 		}
 	}
 
+	updateChannel := a.GetConfig().UpdateChannel
+	if updateChannel == "" {
+		updateChannel = "release"
+	}
+
 	releaseVersion := &models.GitHubReleaseVersion{}
-	_, err := resty.New().R().
-		SetResult(releaseVersion).
-		Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases/latest")
-	if err != nil {
-		logger.SugaredLogger.Errorf("get github release version error:%s", err.Error())
-		return
+	var err error
+	if updateChannel == "release" {
+		_, err = resty.New().R().
+			SetResult(releaseVersion).
+			Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases/latest")
+		if err != nil {
+			logger.SugaredLogger.Errorf("get github release version error:%s", err.Error())
+			return
+		}
+	} else {
+		var releases []models.GitHubReleaseVersion
+		_, err = resty.New().R().
+			SetResult(&releases).
+			Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases")
+		if err != nil {
+			logger.SugaredLogger.Errorf("get github releases error:%s", err.Error())
+			return
+		}
+		if len(releases) == 0 {
+			logger.SugaredLogger.Errorf("no releases found")
+			return
+		}
+		if updateChannel == "pre" {
+			for _, r := range releases {
+				if !r.Draft {
+					releaseVersion = &r
+					break
+				}
+			}
+			if releaseVersion.TagName == "" {
+				releaseVersion = &releases[0]
+			}
+		} else {
+			releaseVersion = &releases[0]
+		}
 	}
 	//logger.SugaredLogger.Infof("releaseVersion:%+v", releaseVersion.TagName)
 

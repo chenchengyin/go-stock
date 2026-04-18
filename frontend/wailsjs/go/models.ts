@@ -555,6 +555,7 @@ export namespace data {
 	    openAiEnable: boolean;
 	    prompt: string;
 	    checkUpdate: boolean;
+	    updateChannel: string;
 	    questionTemplate: string;
 	    crawlTimeOut: number;
 	    kDays: number;
@@ -596,6 +597,7 @@ export namespace data {
 	        this.openAiEnable = source["openAiEnable"];
 	        this.prompt = source["prompt"];
 	        this.checkUpdate = source["checkUpdate"];
+	        this.updateChannel = source["updateChannel"];
 	        this.questionTemplate = source["questionTemplate"];
 	        this.crawlTimeOut = source["crawlTimeOut"];
 	        this.kDays = source["kDays"];

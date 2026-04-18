@@ -15,6 +15,8 @@ const klineName = ref('')
 const activeView = ref('ladder')
 const expandedLadders = ref([])
 const darkTheme = ref(false)
+const today = new Date()
+const fallbackDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 const selectedDate = ref(null)
 const latestTradingDay = ref('')
 let refreshTimer = null
@@ -27,7 +29,7 @@ function startAutoRefresh() {
       if (trading) {
         fetchData(selectedDate.value)
       }
-    })
+    }).catch(() => {})
   }, 60000)
 }
 
@@ -38,18 +40,29 @@ function stopAutoRefresh() {
   }
 }
 
+function initLoad() {
+  GetLatestTradingDay().then(date => {
+    if (date) {
+      latestTradingDay.value = date
+      selectedDate.value = date
+      fetchData(date)
+    }
+  }).catch(() => {
+    latestTradingDay.value = fallbackDate
+    selectedDate.value = fallbackDate
+    fetchData(fallbackDate)
+  }).finally(() => {
+    startAutoRefresh()
+  })
+}
+
 onBeforeMount(() => {
   GetConfig().then(result => {
     if (result.darkTheme) {
       darkTheme.value = true
     }
   })
-  GetLatestTradingDay().then(date => {
-    latestTradingDay.value = date
-    selectedDate.value = date
-    fetchData(date)
-    startAutoRefresh()
-  })
+  initLoad()
 })
 
 onBeforeUnmount(() => {
@@ -64,7 +77,8 @@ function fetchData(date, retryCount = 0) {
   GetUplimitHot(d, 20).then(res => {
     if (res && res.code === 20000) {
       const data = res.data
-      if (data && (data.plate?.length > 0 || data.ban_info) && retryCount < 10) {
+      const hasData = data && (data.plate?.length > 0 || (data.ban_info && Object.keys(data.ban_info).length > 0))
+      if (hasData) {
         rawData.value = data
         if (data.ban_info && data.max_count) {
           const expanded = []

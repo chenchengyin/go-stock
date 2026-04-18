@@ -56,6 +56,7 @@ const formValue = ref({
   httpProxyEnabled:false,
   enableAgent: false,
   qgqpBId: '',
+  updateChannel: 'release',
 })
 
 // 添加一个新的AI配置到列表
@@ -80,7 +81,12 @@ function removeAiConfig(index) {
   formValue.value.openAI.aiConfigs = formValue.value.openAI.aiConfigs.filter((_, i) => i !== index);
 }
 
-// 根据接口地址与 apiKey 自动获取模型列表，并填充到当前 aiConfig
+const updateChannelOptions = [
+  { label: 'Release（稳定版）', value: 'release' },
+  { label: 'Pre-release（预发布版）', value: 'pre' },
+  { label: 'Dev（开发版）', value: 'dev' },
+]
+
 async function fetchAiModels(aiConfig) {
   if (!aiConfig.baseUrl || !aiConfig.apiKey) {
     message.warning('请先填写接口地址和 apiKey')
@@ -226,6 +232,7 @@ onMounted(() => {
     formValue.value.httpProxyEnabled=res.httpProxyEnabled;
     formValue.value.enableAgent = res.enableAgent;
     formValue.value.qgqpBId = res.qgqpBId;
+    formValue.value.updateChannel = res.updateChannel || 'release';
 
   })
 
@@ -268,7 +275,8 @@ function saveConfig() {
     httpProxy:formValue.value.httpProxy,
     httpProxyEnabled:formValue.value.httpProxyEnabled,
     enableAgent: formValue.value.enableAgent,
-    qgqpBId: formValue.value.qgqpBId
+    qgqpBId: formValue.value.qgqpBId,
+    updateChannel: formValue.value.updateChannel
   })
 
   if (config.sponsorCode) {
@@ -362,6 +370,7 @@ function importConfig() {
       formValue.value.httpProxyEnabled=config.httpProxyEnabled
       formValue.value.enableAgent = config.enableAgent
       formValue.value.qgqpBId = config.qgqpBId
+      formValue.value.updateChannel = config.updateChannel || 'release'
     };
     reader.readAsText(file);
   };
@@ -445,6 +454,26 @@ function deletePrompt(ID) {
             </n-form-item-gi>
             <n-form-item-gi :span="6" label="暗黑主题：" path="darkTheme">
               <n-switch v-model:value="formValue.darkTheme"/>
+            </n-form-item-gi>
+            <n-form-item-gi :span="8" label="更新通道：" path="updateChannel">
+              <n-select v-model:value="formValue.updateChannel" :options="updateChannelOptions" />
+              <n-tooltip placement="top">
+                <template #trigger>
+                  <n-icon color="#0e7a0d" size="20">
+                    <HelpCircleFilledIcon />
+                  </n-icon>
+                </template>
+                <template #default>
+                  <n-gradient-text :type="'warning'">
+                  <div style="max-width: 400px;text-align: left">
+                    更新通道说明：<br>
+                    <b>Release（稳定版）</b>：仅接收正式发布版本，稳定性最高<br>
+                    <b>Pre-release（预发布版）</b>：包含预发布版本，可提前体验新功能<br>
+                    <b>Dev（开发版）</b>：包含所有可用版本，获取最新开发进度
+                  </div>
+                  </n-gradient-text>
+                </template>
+              </n-tooltip>
             </n-form-item-gi>
             <n-form-item-gi :span="10" label="浏览器安装路径：" path="browserPath">
               <n-input type="text" placeholder="浏览器安装路径" v-model:value="formValue.browserPath" clearable/>
