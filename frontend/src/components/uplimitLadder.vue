@@ -348,7 +348,6 @@ function showKline(code, name) {
                 type="date"
                 size="small"
                 style="width: 150px"
-                :disabled="!selectedDate"
                 :on-update:formatted-value="(v) => { if(v) fetchData(v) }"
               />
               <n-tag type="success" size="small" round>涨停 {{ totalZtCount }} 只</n-tag>
@@ -356,7 +355,7 @@ function showKline(code, name) {
               <n-tag v-if="rawData?.today" type="info" size="small" round>实时数据</n-tag>
             </n-space>
             <n-space>
-              <n-button :type="activeView==='ladder'?'primary':'default'" size="small" @click="activeView='ladder'">连板梯队</n-button>
+              <n-button :type="activeView==='ladder'?'primary':'default'" size="small" @click="activeView='ladder'">涨停高度</n-button>
               <n-button :type="activeView==='plate'?'primary':'default'" size="small" @click="activeView='plate'">板块热度</n-button>
               <n-button :type="activeView==='hot'?'primary':'default'" size="small" @click="activeView='hot'">个股热度</n-button>
               <n-button :type="activeView==='exploded'?'primary':'default'" size="small" @click="activeView='exploded'">炸板股</n-button>
@@ -370,7 +369,7 @@ function showKline(code, name) {
               <template #header>
                 <n-space align="center" :size="8">
                   <n-tag :type="level.level>=5?'error':level.level>=3?'warning':'info'" round size="small" style="font-weight:bold;">
-                    {{ level.level }}连板
+                    {{ level.level }} 板
                   </n-tag>
                   <n-text depth="3" style="font-size:12px;">{{ level.count }}只</n-text>
                 </n-space>
