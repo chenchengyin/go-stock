@@ -538,6 +538,72 @@ export namespace data {
 	
 	
 	
+	export class KLineData {
+	    day: string;
+	    open: string;
+	    close: string;
+	    high: string;
+	    low: string;
+	    volume: string;
+	    amount: string;
+	    changePercent: string;
+	    changeValue: string;
+	    amplitude: string;
+	    turnoverRate: string;
+	    ma?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new KLineData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.open = source["open"];
+	        this.close = source["close"];
+	        this.high = source["high"];
+	        this.low = source["low"];
+	        this.volume = source["volume"];
+	        this.amount = source["amount"];
+	        this.changePercent = source["changePercent"];
+	        this.changeValue = source["changeValue"];
+	        this.amplitude = source["amplitude"];
+	        this.turnoverRate = source["turnoverRate"];
+	        this.ma = source["ma"];
+	    }
+	}
+	export class KLineSourceResult {
+	    data?: KLineData[];
+	    source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new KLineSourceResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = this.convertValues(source["data"], KLineData);
+	        this.source = source["source"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SettingConfig {
 	    ID: number;
 	    // Go type: time

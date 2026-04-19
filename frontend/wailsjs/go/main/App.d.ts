@@ -192,6 +192,10 @@ export function GetStockEastMoneyKLinePage(arg1:string,arg2:string,arg3:string,a
 
 export function GetStockKLine(arg1:string,arg2:string,arg3:number):Promise<any>;
 
+export function GetStockKLinePageWithFallback(arg1:string,arg2:string,arg3:string,arg4:number,arg5:string):Promise<data.KLineSourceResult>;
+
+export function GetStockKLineWithFallback(arg1:string,arg2:string,arg3:string,arg4:number):Promise<data.KLineSourceResult>;
+
 export function GetStockList(arg1:string):Promise<Array<data.StockBasic>>;
 
 export function GetStockMinutePriceLineData(arg1:string,arg2:string):Promise<Record<string, any>>;

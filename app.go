@@ -2021,6 +2021,39 @@ func (a *App) GetStockEastMoneyKLinePage(stockCode, stockName string, klt string
 	return api.GetKLineDataBefore(stockCode, klt, "", limit, end)
 }
 
+// GetStockKLineWithFallback 多数据源自动切换 K 线：优先东方财富，不可用时自动切换新浪财经。
+// 返回 KLineSourceResult，包含 data（K 线数组）和 source（实际使用的数据源标识：eastmoney / sina）。
+func (a *App) GetStockKLineWithFallback(stockCode, stockName string, klt string, limit int) *data.KLineSourceResult {
+	if limit <= 0 {
+		limit = 500
+	}
+	if limit > 5000 {
+		limit = 5000
+	}
+	klt = strings.TrimSpace(klt)
+	if klt == "" {
+		klt = "101"
+	}
+	return data.FetchKLineWithFallback(stockCode, stockName, klt, limit, "")
+}
+
+// GetStockKLinePageWithFallback 多数据源自动切换 K 线（分页）：优先东方财富，不可用时自动切换新浪财经。
+// end 参数仅对东方财富有效；新浪数据源不支持分页，将返回最新一段数据。
+func (a *App) GetStockKLinePageWithFallback(stockCode, stockName string, klt string, limit int, end string) *data.KLineSourceResult {
+	if limit <= 0 {
+		limit = 500
+	}
+	if limit > 5000 {
+		limit = 5000
+	}
+	klt = strings.TrimSpace(klt)
+	if klt == "" {
+		klt = "101"
+	}
+	end = strings.TrimSpace(end)
+	return data.FetchKLineWithFallback(stockCode, stockName, klt, limit, end)
+}
+
 func (a *App) GetTelegraphList(source string) *[]*models.Telegraph {
 	telegraphs := data.NewMarketNewsApi().GetTelegraphList(source)
 	return telegraphs
