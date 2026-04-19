@@ -1,6 +1,6 @@
 <script setup>
 
-import {AnalyzeSentimentWithFreqWeight,GlobalStockIndexes,GetTodayMarketStatistic,GetRecentDaysMarketStatistic,GetDailyChangeStats,GetChangeTypeDailyStats,GetChangeRank,GetDailyDimensionStats,GetTypeStatsByDate} from "../../wailsjs/go/main/App";
+import {AnalyzeSentimentWithFreqWeight,GlobalStockIndexes,GetTodayMarketStatistic,GetRecentDaysMarketStatistic,GetDailyChangeStats,GetChangeTypeDailyStats,GetChangeRank,GetDailyDimensionStats,GetTypeStatsByDate,IsTradingTime} from "../../wailsjs/go/main/App";
 import * as echarts from "echarts";
 import {onMounted,onUnmounted, ref, watch, nextTick} from "vue";
 import _ from "lodash";
@@ -1455,6 +1455,16 @@ async function handleChangeRank() {
     const days = changeRankDays.value
     const result = await GetChangeRank(days, 20)
     if (result) {
+      const hasData = (result.topStocks && result.topStocks.length > 0) ||
+        (result.topIndustries && result.topIndustries.length > 0) ||
+        (result.topConcepts && result.topConcepts.length > 0)
+      if (days === 1 && !hasData) {
+        const isTrading = await IsTradingTime()
+        if (!isTrading) {
+          changeRankDays.value = 3
+          return
+        }
+      }
       const periodLabel = days === 1 ? '当日' : `近${days}日`
       if (result.topStocks && result.topStocks.length > 0) {
         renderRankChart(changeRankStockRef, `${periodLabel}异动次数最多的股票`, result.topStocks, 'stock')
@@ -1612,6 +1622,16 @@ async function handleBullBearRank() {
     const days = bullBearDays.value
     const result = await GetChangeRank(days, 20)
     if (result) {
+      const hasData = (result.topStocks && result.topStocks.length > 0) ||
+        (result.topIndustries && result.topIndustries.length > 0) ||
+        (result.topConcepts && result.topConcepts.length > 0)
+      if (days === 1 && !hasData) {
+        const isTrading = await IsTradingTime()
+        if (!isTrading) {
+          bullBearDays.value = 3
+          return
+        }
+      }
       if (result.topStocks && result.topStocks.length > 0) {
         const upStocks = [...result.topStocks].sort((a, b) => b.upCount - a.upCount).slice(0, 15)
         const downStocks = [...result.topStocks].sort((a, b) => b.downCount - a.downCount).slice(0, 15)

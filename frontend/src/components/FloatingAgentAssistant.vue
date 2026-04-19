@@ -45,6 +45,9 @@
           </template>
 
           <div class="chat-body">
+            <Transition name="hint-fade">
+              <div v-if="hintVisible" class="hint-bar">{{ hintText }}</div>
+            </Transition>
             <div v-if="shareTipVisible" class="share-tip">
               <div class="share-tip-text">{{ shareTipText }}</div>
               <NButton size="tiny" quaternary class="share-tip-close" @click="shareTipVisible = false">关闭</NButton>
@@ -390,6 +393,17 @@ const agentModeOptions = [
   { label: '🧠 规划模式', value: 'plan_execute' },
 ]
 
+watch(agentMode, (val) => {
+  if (val === 'react') showHint('⚡ 快速模式推荐使用DeepSeek最新版')
+  else if (val === 'plan_execute') showHint('🧠 规划模式推荐使用GLM最新版')
+})
+
+watch(aiConfigId, (val) => {
+  const label = modelLabelForConfig(val).toLowerCase()
+  if (label.includes('deepseek')) showHint('⚡ DeepSeek模型推荐使用快速模式')
+  else if (label.includes('glm')) showHint('🧠 GLM模型推荐使用规划模式')
+})
+
 function onUserPromptChange(id) {
   if (!id) return
   const t = userPromptTemplates.value.find(x => (x.ID ?? x.id) === id)
@@ -403,6 +417,16 @@ const shareLoading = ref(false)
 const exportImageKey = ref('')
 const shareTipVisible = ref(false)
 const shareTipText = ref('')
+const hintVisible = ref(false)
+const hintText = ref('')
+let hintTimer = null
+
+function showHint(text) {
+  hintText.value = text
+  hintVisible.value = true
+  if (hintTimer) clearTimeout(hintTimer)
+  hintTimer = setTimeout(() => { hintVisible.value = false }, 3000)
+}
 const vipLevel = ref(0)
 const vipLoaded = ref(false)
 const vipLoading = ref(false)
@@ -1315,6 +1339,28 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+}
+.hint-bar {
+  flex-shrink: 0;
+  margin: 10px 16px 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  font-size: 13px;
+  color: var(--n-text-color-2);
+  text-align: center;
+  line-height: 1.5;
+}
+.hint-fade-enter-active,
+.hint-fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+.hint-fade-enter-from,
+.hint-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 .share-tip {
   flex-shrink: 0;
