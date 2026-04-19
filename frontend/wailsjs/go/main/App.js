@@ -398,6 +398,30 @@ export function GetStockRealTimePrice(arg1) {
   return window['go']['main']['App']['GetStockRealTimePrice'](arg1);
 }
 
+export function GetTdxCallAuction(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetTdxCallAuction'](arg1, arg2, arg3);
+}
+
+export function GetTdxCompanyCategoryContent(arg1, arg2) {
+  return window['go']['main']['App']['GetTdxCompanyCategoryContent'](arg1, arg2);
+}
+
+export function GetTdxCompanyCategoryList(arg1) {
+  return window['go']['main']['App']['GetTdxCompanyCategoryList'](arg1);
+}
+
+export function GetTdxCompanyInfo(arg1) {
+  return window['go']['main']['App']['GetTdxCompanyInfo'](arg1);
+}
+
+export function GetTdxFinanceInfo(arg1) {
+  return window['go']['main']['App']['GetTdxFinanceInfo'](arg1);
+}
+
+export function GetTdxXDXRInfo(arg1) {
+  return window['go']['main']['App']['GetTdxXDXRInfo'](arg1);
+}
+
 export function GetTelegraphList(arg1) {
   return window['go']['main']['App']['GetTelegraphList'](arg1);
 }

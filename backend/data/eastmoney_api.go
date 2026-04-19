@@ -726,7 +726,7 @@ func (api *EmAPI) FinanceDataQuery(query string) (*EmSearchDataResult, error) {
 
 	code, _ := raw["code"].(float64)
 	status, _ := raw["status"].(float64)
-	if (code != 0 && code != 200) || (status != 0 && status != 200 && status != 0) {
+	if (code != 0 && code != 200) || (status != 0 && status != 200) {
 		msg, _ := raw["message"].(string)
 		if msg == "" {
 			if data, ok := raw["data"].(map[string]any); ok {
@@ -1083,7 +1083,7 @@ func (api *EmAPI) FinanceSearch(query string) (*EmSearchNewsResult, error) {
 
 	code, _ := raw["code"].(float64)
 	status, _ := raw["status"].(float64)
-	if (code != 0 && code != 200) || (status != 0 && status != 200 && status != 0) {
+	if (code != 0 && code != 200) || (status != 0 && status != 200) {
 		msg, _ := raw["message"].(string)
 		return nil, fmt.Errorf("金融资讯搜索接口返回异常: code=%.0f, status=%.0f, message=%s", code, status, msg)
 	}

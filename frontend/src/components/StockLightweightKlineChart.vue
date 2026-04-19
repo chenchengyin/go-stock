@@ -2069,7 +2069,7 @@ watch(showLongPosition, (newVal) => {
                 }}
                 · 按住拖动查看左侧历史时会自动加载更早 K 线
                 <span v-if="activeDataSource" class="lw-kline-source-tag" :class="{ 'lw-kline-source-tag--fallback': activeDataSource !== 'eastmoney' }">
-                  {{ activeDataSource === 'eastmoney' ? '东方财富' : activeDataSource === 'sina' ? '新浪财经' : activeDataSource === 'tencent' ? '腾讯财经' : activeDataSource }}
+                  {{ activeDataSource === 'eastmoney' ? '东方财富' : activeDataSource === 'sina' ? '新浪财经' : activeDataSource === 'tencent' ? '腾讯财经' : activeDataSource === 'tdx' ? '通达信' : activeDataSource }}
                 </span>
               </NText>
               <NSpin v-if="loading || loadingHistory" size="small" />

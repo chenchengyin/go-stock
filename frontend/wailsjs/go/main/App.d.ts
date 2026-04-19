@@ -204,6 +204,18 @@ export function GetStockMoneyTrendByDay(arg1:string,arg2:number):Promise<Array<R
 
 export function GetStockRealTimePrice(arg1:string):Promise<Record<string, any>>;
 
+export function GetTdxCallAuction(arg1:string,arg2:number,arg3:number):Promise<any>;
+
+export function GetTdxCompanyCategoryContent(arg1:string,arg2:string):Promise<data.TdxCompanyInfoSection>;
+
+export function GetTdxCompanyCategoryList(arg1:string):Promise<any>;
+
+export function GetTdxCompanyInfo(arg1:string):Promise<data.TdxCompanyInfoBundle>;
+
+export function GetTdxFinanceInfo(arg1:string):Promise<data.TdxFinanceInfo>;
+
+export function GetTdxXDXRInfo(arg1:string):Promise<any>;
+
 export function GetTelegraphList(arg1:string):Promise<any>;
 
 export function GetTimezone():Promise<Record<string, any>>;

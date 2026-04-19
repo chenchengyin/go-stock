@@ -844,12 +844,13 @@ func GetAllDataTools() []tool.BaseTool {
 
 	tools = append(tools, NewDataToolWrapper(
 		"GetCurrentTime",
-		"获取当前本地时间及全球市场开盘状态",
+		"获取当前本地时间（含星期几）及全球市场开盘状态",
 		map[string]*schema.ParameterInfo{},
 		func(args string) (string, error) {
-			now := time.Now().Format("2006-01-02 15:04:05")
+			now := time.Now()
+			weekday := data.WeekdayCN(now.Weekday())
 			marketStatus := data.NewMarketNewsApi().GlobalStockIndexesReadable(30)
-			return "当前本地时间是：" + now + "\n\n" + marketStatus, nil
+			return "当前本地时间是：" + now.Format("2006-01-02 15:04:05") + " " + weekday + "\n\n" + marketStatus, nil
 		},
 	))
 
@@ -4280,6 +4281,217 @@ func GetAllDataTools() []tool.BaseTool {
 					sCode, sName, int(keepTimes), upType, upDesc, upTime, fdMax, fdClose, amount, marketC, platesStr))
 			}
 			sb.WriteString("\n")
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetTdxCompanyInfo",
+		"通过通达信协议获取股票F10公司资料，包括公司简介、股本结构、财务摘要、除权除息等完整信息。当东方财富F10接口不可用或需要补充数据时可使用此工具。",
+		map[string]*schema.ParameterInfo{
+			"stockCode": {
+				Type:     "string",
+				Desc:     "股票代码,如：600519.SH。上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			stockCode := gjson.Get(args, "stockCode").String()
+			if stockCode == "" {
+				return "请提供股票代码参数 stockCode", nil
+			}
+			api := data.NewTdxKLineApi()
+			bundle := api.GetF10Data(stockCode)
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s F10公司资料（通达信）\n\n", stockCode))
+			for _, s := range bundle.Sections {
+				sb.WriteString(fmt.Sprintf("## %s\n\n%s\n\n", s.Name, s.Content))
+			}
+			if bundle.Finance != nil {
+				f := bundle.Finance
+				sb.WriteString("## 财务摘要\n\n")
+				sb.WriteString("| 指标 | 值 |\n|---|---|\n")
+				sb.WriteString(fmt.Sprintf("| 股票代码 | %s |\n", f.Code))
+				if f.IPODate != "" {
+					sb.WriteString(fmt.Sprintf("| 上市日期 | %s |\n", f.IPODate))
+				}
+				sb.WriteString(fmt.Sprintf("| 每股收益 | %.4f |\n", f.EPS))
+				sb.WriteString(fmt.Sprintf("| 每股净资产 | %.4f |\n", f.NetAssetsPerShare))
+				sb.WriteString(fmt.Sprintf("| 流通股本(万股) | %.2f |\n", f.FloatShares))
+				sb.WriteString(fmt.Sprintf("| 总股本(万股) | %.2f |\n", f.TotalShares))
+				sb.WriteString(fmt.Sprintf("| 总资产(万元) | %.2f |\n", f.TotalAssets))
+				sb.WriteString(fmt.Sprintf("| 净资产(万元) | %.2f |\n", f.TotalEquity))
+				sb.WriteString(fmt.Sprintf("| 营业收入(万元) | %.2f |\n", f.OperatingRevenue))
+				sb.WriteString(fmt.Sprintf("| 净利润(万元) | %.2f |\n", f.NetProfit))
+				sb.WriteString(fmt.Sprintf("| 股东人数 | %.0f |\n", f.ShareholderCount))
+				sb.WriteString("\n")
+			}
+			if len(bundle.XDXR) > 0 {
+				sb.WriteString("## 除权除息\n\n")
+				sb.WriteString("| 日期 | 类别 | 分红(每股) | 送转股 | 配股价 | 配股 |\n|---|---|---|---|---|---|\n")
+				for _, x := range bundle.XDXR {
+					fh := "-"
+					if x.Fenhong != nil {
+						fh = fmt.Sprintf("%.4f", *x.Fenhong)
+					}
+					szg := "-"
+					if x.Songzhuangu != nil {
+						szg = fmt.Sprintf("%.4f", *x.Songzhuangu)
+					}
+					pgj := "-"
+					if x.Peigujia != nil {
+						pgj = fmt.Sprintf("%.2f", *x.Peigujia)
+					}
+					pg := "-"
+					if x.Peigu != nil {
+						pg = fmt.Sprintf("%.4f", *x.Peigu)
+					}
+					sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n", x.Date, x.Name, fh, szg, pgj, pg))
+				}
+				sb.WriteString("\n")
+			}
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetTdxFinanceInfo",
+		"通过通达信协议获取股票财务信息，包括每股收益、总资产、净资产、营业收入、净利润、股东人数等核心财务指标。",
+		map[string]*schema.ParameterInfo{
+			"stockCode": {
+				Type:     "string",
+				Desc:     "股票代码,如：600519.SH。上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			stockCode := gjson.Get(args, "stockCode").String()
+			if stockCode == "" {
+				return "请提供股票代码参数 stockCode", nil
+			}
+			api := data.NewTdxKLineApi()
+			f := api.GetFinanceInfo(stockCode)
+			if f == nil {
+				return fmt.Sprintf("%s：获取财务信息失败", stockCode), nil
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 财务信息（通达信）\n\n", stockCode))
+			sb.WriteString("| 指标 | 值 |\n|---|---|\n")
+			sb.WriteString(fmt.Sprintf("| 股票代码 | %s |\n", f.Code))
+			if f.IPODate != "" {
+				sb.WriteString(fmt.Sprintf("| 上市日期 | %s |\n", f.IPODate))
+			}
+			if f.UpdatedDate != "" {
+				sb.WriteString(fmt.Sprintf("| 更新日期 | %s |\n", f.UpdatedDate))
+			}
+			sb.WriteString(fmt.Sprintf("| 每股收益 | %.4f |\n", f.EPS))
+			sb.WriteString(fmt.Sprintf("| 每股净资产 | %.4f |\n", f.NetAssetsPerShare))
+			sb.WriteString(fmt.Sprintf("| 流通股本(万股) | %.2f |\n", f.FloatShares))
+			sb.WriteString(fmt.Sprintf("| 总股本(万股) | %.2f |\n", f.TotalShares))
+			sb.WriteString(fmt.Sprintf("| 总资产(万元) | %.2f |\n", f.TotalAssets))
+			sb.WriteString(fmt.Sprintf("| 净资产(万元) | %.2f |\n", f.TotalEquity))
+			sb.WriteString(fmt.Sprintf("| 营业收入(万元) | %.2f |\n", f.OperatingRevenue))
+			sb.WriteString(fmt.Sprintf("| 营业成本(万元) | %.2f |\n", f.OperatingCost))
+			sb.WriteString(fmt.Sprintf("| 营业利润(万元) | %.2f |\n", f.OperatingProfit))
+			sb.WriteString(fmt.Sprintf("| 净利润(万元) | %.2f |\n", f.NetProfit))
+			sb.WriteString(fmt.Sprintf("| 股东人数 | %.0f |\n", f.ShareholderCount))
+			sb.WriteString(fmt.Sprintf("| 资本公积金(万元) | %.2f |\n", f.CapitalReserve))
+			sb.WriteString(fmt.Sprintf("| 未分配利润(万元) | %.2f |\n", f.UndistributedProfit))
+			sb.WriteString("\n")
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetTdxXDXRInfo",
+		"通过通达信协议获取股票除权除息信息，包括分红、配股、送转股等历史记录及股本变动情况。",
+		map[string]*schema.ParameterInfo{
+			"stockCode": {
+				Type:     "string",
+				Desc:     "股票代码,如：600519.SH。上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
+				Required: true,
+			},
+		},
+		func(args string) (string, error) {
+			stockCode := gjson.Get(args, "stockCode").String()
+			if stockCode == "" {
+				return "请提供股票代码参数 stockCode", nil
+			}
+			api := data.NewTdxKLineApi()
+			items := api.GetXDXRInfo(stockCode)
+			if items == nil || len(*items) == 0 {
+				return fmt.Sprintf("%s：暂无除权除息数据", stockCode), nil
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s 除权除息信息（通达信）\n\n", stockCode))
+			sb.WriteString("| 日期 | 类别 | 分红(每股) | 送转股 | 配股价 | 配股 |\n|---|---|---|---|---|---|\n")
+			for _, x := range *items {
+				fh := "-"
+				if x.Fenhong != nil {
+					fh = fmt.Sprintf("%.4f", *x.Fenhong)
+				}
+				szg := "-"
+				if x.Songzhuangu != nil {
+					szg = fmt.Sprintf("%.4f", *x.Songzhuangu)
+				}
+				pgj := "-"
+				if x.Peigujia != nil {
+					pgj = fmt.Sprintf("%.2f", *x.Peigujia)
+				}
+				pg := "-"
+				if x.Peigu != nil {
+					pg = fmt.Sprintf("%.4f", *x.Peigu)
+				}
+				sb.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n", x.Date, x.Name, fh, szg, pgj, pg))
+			}
+			sb.WriteString("\n")
+			return sb.String(), nil
+		},
+	))
+
+	tools = append(tools, NewDataToolWrapper(
+		"GetTdxCompanyCategory",
+		"通过通达信协议获取股票F10分类信息。不传category参数时返回所有可用分类名称列表；传入category参数时返回该分类的详细内容。可用分类包括：最新提示、公司概况、财务分析、股本结构、股东研究、机构持股、分红融资、高管治理、资金动向、资本运作、热点题材、公司公告、公司报道、经营分析、行业分析、研报评级。",
+		map[string]*schema.ParameterInfo{
+			"stockCode": {
+				Type:     "string",
+				Desc:     "股票代码,如：600519.SH。上海证券交易所股票以.SH结尾，深圳证券交易所股票以.SZ结尾，北交所股票以.BJ结尾。多只时可用英文逗号分隔。",
+				Required: true,
+			},
+			"category": {
+				Type:     "string",
+				Desc:     "F10分类名称，如：公司概况、财务分析、股本结构、股东研究、机构持股、分红融资、高管治理、资金动向、资本运作、热点题材、公司公告、公司报道、经营分析、行业分析、研报评级、最新提示。不传或为空时返回所有可用分类列表。",
+				Required: false,
+			},
+		},
+		func(args string) (string, error) {
+			stockCode := gjson.Get(args, "stockCode").String()
+			category := gjson.Get(args, "category").String()
+			if stockCode == "" {
+				return "请提供股票代码参数 stockCode", nil
+			}
+			api := data.NewTdxKLineApi()
+			if category == "" {
+				cats := api.GetF10CategoryList(stockCode)
+				if cats == nil || len(*cats) == 0 {
+					return fmt.Sprintf("%s：获取分类列表失败", stockCode), nil
+				}
+				var sb strings.Builder
+				sb.WriteString(fmt.Sprintf("# %s F10可用分类列表（通达信）\n\n", stockCode))
+				sb.WriteString("| 序号 | 分类名称 |\n|---|---|\n")
+				for i, c := range *cats {
+					sb.WriteString(fmt.Sprintf("| %d | %s |\n", i+1, c.Name))
+				}
+				sb.WriteString("\n> 提示：传入 category 参数可获取对应分类的详细内容。\n")
+				return sb.String(), nil
+			}
+			section := api.GetF10CategoryContent(stockCode, category)
+			if section == nil || section.Content == "" {
+				return fmt.Sprintf("%s：分类 '%s' 获取失败或内容为空", stockCode, category), nil
+			}
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("# %s - %s（通达信）\n\n", stockCode, section.Name))
+			sb.WriteString(section.Content + "\n")
 			return sb.String(), nil
 		},
 	))

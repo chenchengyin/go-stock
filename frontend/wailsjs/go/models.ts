@@ -987,6 +987,157 @@ export namespace data {
 		    return a;
 		}
 	}
+	export class TdxFinanceInfo {
+	    market: number;
+	    code: string;
+	    floatShares: number;
+	    totalShares: number;
+	    eps: number;
+	    totalAssets: number;
+	    currentAssets: number;
+	    fixedAssets: number;
+	    intangibleAssets: number;
+	    shareholderCount: number;
+	    currentLiabilities: number;
+	    longTermLiabilities: number;
+	    capitalReserve: number;
+	    totalEquity: number;
+	    operatingRevenue: number;
+	    operatingCost: number;
+	    accountsReceivable: number;
+	    operatingProfit: number;
+	    investmentIncome: number;
+	    netCashFlow: number;
+	    inventory: number;
+	    totalProfit: number;
+	    afterTaxProfit: number;
+	    netProfit: number;
+	    undistributedProfit: number;
+	    netAssetsPerShare: number;
+	    ipoDate: string;
+	    updatedDate: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TdxFinanceInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.market = source["market"];
+	        this.code = source["code"];
+	        this.floatShares = source["floatShares"];
+	        this.totalShares = source["totalShares"];
+	        this.eps = source["eps"];
+	        this.totalAssets = source["totalAssets"];
+	        this.currentAssets = source["currentAssets"];
+	        this.fixedAssets = source["fixedAssets"];
+	        this.intangibleAssets = source["intangibleAssets"];
+	        this.shareholderCount = source["shareholderCount"];
+	        this.currentLiabilities = source["currentLiabilities"];
+	        this.longTermLiabilities = source["longTermLiabilities"];
+	        this.capitalReserve = source["capitalReserve"];
+	        this.totalEquity = source["totalEquity"];
+	        this.operatingRevenue = source["operatingRevenue"];
+	        this.operatingCost = source["operatingCost"];
+	        this.accountsReceivable = source["accountsReceivable"];
+	        this.operatingProfit = source["operatingProfit"];
+	        this.investmentIncome = source["investmentIncome"];
+	        this.netCashFlow = source["netCashFlow"];
+	        this.inventory = source["inventory"];
+	        this.totalProfit = source["totalProfit"];
+	        this.afterTaxProfit = source["afterTaxProfit"];
+	        this.netProfit = source["netProfit"];
+	        this.undistributedProfit = source["undistributedProfit"];
+	        this.netAssetsPerShare = source["netAssetsPerShare"];
+	        this.ipoDate = source["ipoDate"];
+	        this.updatedDate = source["updatedDate"];
+	    }
+	}
+	export class TdxXDXRItem {
+	    date: string;
+	    category: number;
+	    name: string;
+	    fenhong?: number;
+	    peigujia?: number;
+	    songzhuangu?: number;
+	    peigu?: number;
+	    suogu?: number;
+	    preFloatShares?: number;
+	    preTotalShares?: number;
+	    postFloatShares?: number;
+	    postTotalShares?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TdxXDXRItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.category = source["category"];
+	        this.name = source["name"];
+	        this.fenhong = source["fenhong"];
+	        this.peigujia = source["peigujia"];
+	        this.songzhuangu = source["songzhuangu"];
+	        this.peigu = source["peigu"];
+	        this.suogu = source["suogu"];
+	        this.preFloatShares = source["preFloatShares"];
+	        this.preTotalShares = source["preTotalShares"];
+	        this.postFloatShares = source["postFloatShares"];
+	        this.postTotalShares = source["postTotalShares"];
+	    }
+	}
+	export class TdxCompanyInfoSection {
+	    name: string;
+	    content: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TdxCompanyInfoSection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.content = source["content"];
+	    }
+	}
+	export class TdxCompanyInfoBundle {
+	    sections: TdxCompanyInfoSection[];
+	    xdxr: TdxXDXRItem[];
+	    finance?: TdxFinanceInfo;
+	
+	    static createFrom(source: any = {}) {
+	        return new TdxCompanyInfoBundle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sections = this.convertValues(source["sections"], TdxCompanyInfoSection);
+	        this.xdxr = this.convertValues(source["xdxr"], TdxXDXRItem);
+	        this.finance = this.convertValues(source["finance"], TdxFinanceInfo);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
 	export class TradingRecord {
 	    ID: number;
 	    StockCode: string;

@@ -1,9 +1,10 @@
 module go-stock
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
+	github.com/bensema/gotdx v0.0.0-20260418040536-4c267b7ce85a
 	github.com/chromedp/cdproto v0.0.0-20250803210736-d308e07a266d
 	github.com/chromedp/chromedp v0.14.2
 	github.com/cloudwego/eino v0.8.8

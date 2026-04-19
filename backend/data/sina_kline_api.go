@@ -455,7 +455,14 @@ func FetchKLineWithFallback(stockCode, stockName, klt string, limit int, end str
 		tencentResult.Source = "tencent"
 		return tencentResult
 	}
-	logger.SugaredLogger.Warnf("腾讯K线数据也为空: code=%s klt=%s", stockCode, klt)
+	logger.SugaredLogger.Warnf("腾讯K线数据也为空，尝试通达信数据源: code=%s klt=%s", stockCode, klt)
+
+	tdxResult := fetchFromTdx(stockCode, klt, limit)
+	if tdxResult != nil && tdxResult.Data != nil && len(*tdxResult.Data) > 0 {
+		tdxResult.Source = "tdx"
+		return tdxResult
+	}
+	logger.SugaredLogger.Warnf("通达信K线数据也为空: code=%s klt=%s", stockCode, klt)
 
 	if eastMoneyResult != nil {
 		eastMoneyResult.Source = "eastmoney"
@@ -483,6 +490,12 @@ func fetchFromSina(stockCode, klt string, limit int) *KLineSourceResult {
 
 func fetchFromTencent(stockCode, klt string, limit int) *KLineSourceResult {
 	api := NewTencentKLineApi(GetSettingConfig())
+	data := api.GetKLineData(stockCode, klt, limit)
+	return &KLineSourceResult{Data: data}
+}
+
+func fetchFromTdx(stockCode, klt string, limit int) *KLineSourceResult {
+	api := NewTdxKLineApi()
 	data := api.GetKLineData(stockCode, klt, limit)
 	return &KLineSourceResult{Data: data}
 }

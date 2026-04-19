@@ -2054,6 +2054,41 @@ func (a *App) GetStockKLinePageWithFallback(stockCode, stockName string, klt str
 	return data.FetchKLineWithFallback(stockCode, stockName, klt, limit, end)
 }
 
+// GetTdxCallAuction 通过通达信协议获取集合竞价数据。
+// stockCode 格式如 600519.SH、000001.SZ、430047.BJ；start 为起始位置（0=最新）；count 为请求数量（最大 500）。
+func (a *App) GetTdxCallAuction(stockCode string, start uint32, count uint32) *[]data.TdxCallAuctionData {
+	if count <= 0 {
+		count = 500
+	}
+	api := data.NewTdxKLineApi()
+	return api.GetCallAuction(stockCode, start, count)
+}
+
+func (a *App) GetTdxCompanyInfo(stockCode string) *data.TdxCompanyInfoBundle {
+	api := data.NewTdxKLineApi()
+	return api.GetF10Data(stockCode)
+}
+
+func (a *App) GetTdxFinanceInfo(stockCode string) *data.TdxFinanceInfo {
+	api := data.NewTdxKLineApi()
+	return api.GetFinanceInfo(stockCode)
+}
+
+func (a *App) GetTdxXDXRInfo(stockCode string) *[]data.TdxXDXRItem {
+	api := data.NewTdxKLineApi()
+	return api.GetXDXRInfo(stockCode)
+}
+
+func (a *App) GetTdxCompanyCategoryList(stockCode string) *[]data.TdxCompanyCategory {
+	api := data.NewTdxKLineApi()
+	return api.GetF10CategoryList(stockCode)
+}
+
+func (a *App) GetTdxCompanyCategoryContent(stockCode string, categoryName string) *data.TdxCompanyInfoSection {
+	api := data.NewTdxKLineApi()
+	return api.GetF10CategoryContent(stockCode, categoryName)
+}
+
 func (a *App) GetTelegraphList(source string) *[]*models.Telegraph {
 	telegraphs := data.NewMarketNewsApi().GetTelegraphList(source)
 	return telegraphs
