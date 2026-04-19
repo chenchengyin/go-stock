@@ -149,13 +149,13 @@ func MonitorStockPrices(a *App) {
 		}
 
 	}
-	if total != 0 {
-		title := "go-stock " + time.Now().Format(time.DateTime) + fmt.Sprintf("  %.2f¥", total)
-		go func() {
-			defer PanicHandler()
-			systray.SetTooltip(title)
-		}()
-	}
+	//if total != 0 {
+	//	title := "go-stock " + time.Now().Format(time.DateTime) + fmt.Sprintf("  %.2f¥", total)
+	//	go func() {
+	//		defer PanicHandler()
+	//		systray.SetTooltip(title)
+	//	}()
+	//}
 
 	go runtime.EventsEmit(a.ctx, "realtime_profit", fmt.Sprintf("  %.2f", total))
 	//runtime.WindowSetTitle(a.ctx, title)
@@ -180,7 +180,7 @@ func onReady(a *App) {
 
 	systray.SetIcon(icon2)
 	systray.SetTitle("go-stock")
-	systray.SetTooltip("go-stock 股票行情实时获取")
+	systray.SetTooltip("go-stock AI赋能股票分析")
 
 	show := systray.AddMenuItem("显示", "显示应用程序")
 	show.Click(func() {
@@ -205,8 +205,9 @@ func onReady(a *App) {
 		}()
 	})
 	systray.SetOnRClick(func(menu systray.IMenu) {
+		defer PanicHandler()
 		menu.ShowMenu()
-		wakeUpSystrayWindow()
+		//wakeUpSystrayWindow()
 	})
 	systray.SetOnClick(func(menu systray.IMenu) {
 		go func() {
