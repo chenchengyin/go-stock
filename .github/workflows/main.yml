@@ -80,7 +80,7 @@ jobs:
           build-commit-message: ${{ steps.get_commit_message.outputs.commit_message }}
           build-statement: ${{ env.OFFICIAL_STATEMENT }}
           build-key: ${{ env.BUILD_KEY }}
-          node-version: '20.x'
+          node-version: '20.19.3'
 
       - name: Update release for channel
         if: steps.channel.outputs.channel != 'release'
