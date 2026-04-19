@@ -151,7 +151,10 @@ func MonitorStockPrices(a *App) {
 	}
 	if total != 0 {
 		title := "go-stock " + time.Now().Format(time.DateTime) + fmt.Sprintf("  %.2f¥", total)
-		systray.SetTooltip(title)
+		go func() {
+			defer PanicHandler()
+			systray.SetTooltip(title)
+		}()
 	}
 
 	go runtime.EventsEmit(a.ctx, "realtime_profit", fmt.Sprintf("  %.2f", total))
@@ -159,41 +162,63 @@ func MonitorStockPrices(a *App) {
 
 }
 
+var (
+	user32DLL     = syscall.NewLazyDLL("User32.dll")
+	pFindWindowW  = user32DLL.NewProc("FindWindowW")
+	pPostMessageW = user32DLL.NewProc("PostMessageW")
+)
+
+func wakeUpSystrayWindow() {
+	className, _ := syscall.UTF16PtrFromString("SystrayClass")
+	hWnd, _, _ := pFindWindowW.Call(uintptr(unsafe.Pointer(className)), 0)
+	if hWnd != 0 {
+		pPostMessageW.Call(hWnd, 0x0000, 0, 0)
+	}
+}
+
 func onReady(a *App) {
 
-	// 初始化操作
-	//logger.SugaredLogger.Infof("systray onReady")
 	systray.SetIcon(icon2)
 	systray.SetTitle("go-stock")
 	systray.SetTooltip("go-stock 股票行情实时获取")
-	// 创建菜单项
+
 	show := systray.AddMenuItem("显示", "显示应用程序")
 	show.Click(func() {
-		//logger.SugaredLogger.Infof("显示应用程序")
-		runtime.WindowShow(a.ctx)
+		go func() {
+			defer PanicHandler()
+			runtime.WindowShow(a.ctx)
+		}()
 	})
 	hide := systray.AddMenuItem("隐藏", "隐藏应用程序")
 	hide.Click(func() {
-		//logger.SugaredLogger.Infof("隐藏应用程序")
-		runtime.WindowHide(a.ctx)
+		go func() {
+			defer PanicHandler()
+			runtime.WindowHide(a.ctx)
+		}()
 	})
 	systray.AddSeparator()
 	mQuitOrig := systray.AddMenuItem("退出", "退出应用程序")
 	mQuitOrig.Click(func() {
-		//logger.SugaredLogger.Infof("退出应用程序")
-		runtime.Quit(a.ctx)
+		go func() {
+			defer PanicHandler()
+			runtime.Quit(a.ctx)
+		}()
 	})
 	systray.SetOnRClick(func(menu systray.IMenu) {
 		menu.ShowMenu()
-		//logger.SugaredLogger.Infof("SetOnRClick")
+		wakeUpSystrayWindow()
 	})
 	systray.SetOnClick(func(menu systray.IMenu) {
-		//logger.SugaredLogger.Infof("SetOnClick")
-		menu.ShowMenu()
+		go func() {
+			defer PanicHandler()
+			runtime.WindowShow(a.ctx)
+		}()
 	})
 	systray.SetOnDClick(func(menu systray.IMenu) {
-		menu.ShowMenu()
-		//logger.SugaredLogger.Infof("SetOnDClick")
+		go func() {
+			defer PanicHandler()
+			runtime.WindowShow(a.ctx)
+		}()
 	})
 }
 
@@ -203,40 +228,19 @@ func onReady(a *App) {
 func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	defer PanicHandler()
 
-	// 记录当前窗口大小，供下次启动时还原
 	if a.ctx != nil {
 		w, h := runtime.WindowGetSize(ctx)
-		//logger.SugaredLogger.Infof(" window size: %dx%d", w, h)
 		if w > 0 && h > 0 {
 			cfg := data.GetSettingConfig()
 			cfg.WindowWidth = w
 			cfg.WindowHeight = h
 			data.UpdateConfig(cfg)
-			//logger.SugaredLogger.Infof("save window size: %dx%d", w, h)
 		}
 	}
 
-	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:         runtime.QuestionDialog,
-		Title:        "go-stock",
-		Message:      "确定关闭吗？",
-		Buttons:      []string{"确定"},
-		Icon:         icon2,
-		CancelButton: "取消",
-	})
-
-	if err != nil {
-		logger.SugaredLogger.Errorf("dialog error:%s", err.Error())
-		return false
-	}
-	logger.SugaredLogger.Debugf("dialog:%s", dialog)
-	if dialog == "No" {
-		return true
-	} else {
-		systray.Quit()
-		a.cron.Stop()
-		return false
-	}
+	systray.Quit()
+	a.cron.Stop()
+	return false
 }
 
 func getFrameless() bool {

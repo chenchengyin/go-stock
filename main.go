@@ -178,7 +178,7 @@ func main() {
 		Fullscreen:               false,
 		Frameless:                false,
 		StartHidden:              false,
-		HideWindowOnClose:        false,
+		HideWindowOnClose:        true,
 		EnableDefaultContextMenu: true,
 		BackgroundColour:         backgroundColour,
 		Assets:                   assets,
