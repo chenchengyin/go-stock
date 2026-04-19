@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import {onBeforeMount, onUnmounted, ref} from 'vue'
-import {HotStock} from "../../wailsjs/go/main/App";
+import {onBeforeMount, onBeforeUnmount, ref} from 'vue'
+import {HotStock, IsTradingTime} from "../../wailsjs/go/main/App";
 import KLineChart from "./KLineChart.vue";
-import {ArrowBack, ArrowDown, ArrowUp} from "@vicons/ionicons5";
+import {ArrowDown, ArrowUp} from "@vicons/ionicons5";
 
 const {marketType}=defineProps(
     {
@@ -13,17 +13,66 @@ const {marketType}=defineProps(
     }
 )
 const task =ref()
-
+const checkTask = ref()
 const list  = ref([])
 
-onBeforeMount(async () => {
+async function fetchHotStock() {
   list.value = await HotStock(marketType)
-  task.value = setInterval(async () => {
-    list.value = await HotStock(marketType)
-  }, 5000)
+}
+
+function startRefresh() {
+  stopRefresh()
+  fetchHotStock()
+  task.value = setInterval(fetchHotStock, 5000)
+  checkTask.value = setInterval(() => {
+    IsTradingTime().then(trading => {
+      if (!trading) {
+        stopRefresh()
+        startCheckLoop()
+      }
+    }).catch(() => {})
+  }, 60000)
+}
+
+function startCheckLoop() {
+  stopCheck()
+  checkTask.value = setInterval(() => {
+    IsTradingTime().then(trading => {
+      if (trading) {
+        stopCheck()
+        startRefresh()
+      }
+    }).catch(() => {})
+  }, 60000)
+}
+
+function stopRefresh() {
+  if (task.value) {
+    clearInterval(task.value)
+    task.value = null
+  }
+}
+
+function stopCheck() {
+  if (checkTask.value) {
+    clearInterval(checkTask.value)
+    checkTask.value = null
+  }
+}
+
+onBeforeMount(async () => {
+  const trading = await IsTradingTime().catch(() => true)
+  if (trading) {
+    startRefresh()
+  } else {
+    fetchHotStock()
+    startCheckLoop()
+  }
 })
-onUnmounted(()=>{
-  clearInterval(task.value)
+
+onBeforeUnmount(()=>{
+  stopRefresh()
+  stopCheck()
 })
 
 function getMarketCode(item) {

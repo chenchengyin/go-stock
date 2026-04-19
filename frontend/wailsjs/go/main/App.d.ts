@@ -240,7 +240,11 @@ export function InitializeGroupSort():Promise<boolean>;
 
 export function InvestCalendarTimeLine(arg1:string):Promise<Array<any>>;
 
+export function IsHKTradingTime():Promise<boolean>;
+
 export function IsTradingTime():Promise<boolean>;
+
+export function IsUSTradingTime():Promise<boolean>;
 
 export function LongTigerRank(arg1:string):Promise<any>;
 

@@ -28,7 +28,7 @@ import {
   StarOutline,
   Wallet, WarningOutline, TimeOutline,
 } from '@vicons/ionicons5'
-import {AnalyzeSentiment, GetConfig, GetGroupList,GetVersionInfo} from "../wailsjs/go/main/App";
+import {AnalyzeSentiment, GetConfig, GetGroupList, GetVersionInfo, IsTradingTime, IsHKTradingTime, IsUSTradingTime} from "../wailsjs/go/main/App";
 import FloatingAiAssistant from "./components/FloatingAiAssistant.vue";
 import FloatingAgentAssistant from "./components/FloatingAgentAssistant.vue";
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
@@ -56,6 +56,51 @@ const realtimeProfit = ref(0)
 const telegraph = ref([])
 const groupList = ref([])
 const officialStatement= ref("")
+const marketStatus = ref('')
+let marketStatusTimer = null
+
+const investmentMottos = [
+  "投资有风险，入市需谨慎",
+  "别人贪婪我恐惧，别人恐惧我贪婪",
+  "股市有风险，投资需谨慎",
+  "不要把所有鸡蛋放在一个篮子里",
+  "时间是优秀企业的朋友",
+  "买股票就是买公司",
+  "市场短期是投票机，长期是称重机",
+  "保住本金是投资的第一要务",
+  "在别人恐慌时贪婪，在别人贪婪时恐慌",
+  "风险来自于你不知道自己在做什么",
+  "价格是你付出的，价值是你得到的",
+  "投资最重要的品质是耐心",
+  "机会总是留给有准备的人",
+  "知行合一，方能致远",
+  "顺势而为，逆势而思",
+  "投资是一场马拉松，不是百米冲刺",
+  "独立思考是投资成功的关键",
+  "市场永远在波动，但价值终将回归",
+  "控制风险比追求收益更重要",
+  "学习是最好的投资",
+]
+const currentMotto = ref(investmentMottos[Math.floor(Math.random() * investmentMottos.length)])
+
+function refreshMotto() {
+  currentMotto.value = investmentMottos[Math.floor(Math.random() * investmentMottos.length)]
+}
+
+function updateMarketStatus() {
+  Promise.all([
+    IsTradingTime().catch(() => false),
+    IsHKTradingTime().catch(() => false),
+    IsUSTradingTime().catch(() => false)
+  ]).then(([cn, hk, us]) => {
+    const parts = []
+    parts.push(cn ? 'A股交易中' : 'A股休市')
+    parts.push(hk ? '港股交易中' : '港股休市')
+    parts.push(us ? '美股交易中' : '美股休市')
+    marketStatus.value = parts.join(' | ')
+    WindowSetTitle("go-stock " + marketStatus.value + " " + officialStatement.value + "  「" + currentMotto.value + "」  [数据来源于网络，仅供参考；投资有风险，入市需谨慎]")
+  })
+}
 const menuOptions = ref([
   {
     label: () =>
@@ -829,6 +874,10 @@ EventsOn("loadingMsg", (data) => {
 })
 
 onBeforeUnmount(() => {
+  if (marketStatusTimer) {
+    clearInterval(marketStatusTimer)
+    marketStatusTimer = null
+  }
   EventsOff("realtime_profit")
   EventsOff("loadingMsg")
   EventsOff("telegraph")
@@ -853,6 +902,7 @@ onBeforeMount(() => {
     if(result.officialStatement){
       content.value = result.officialStatement+"\n\n"+content.value
       officialStatement.value = result.officialStatement
+      updateMarketStatus()
     }
   })
 
@@ -923,7 +973,11 @@ onBeforeMount(() => {
 })
 
 onMounted(() => {
-  WindowSetTitle("go-stock：AI赋能股票分析✨ "+officialStatement.value+"  未经授权,禁止商业目的！ [数据来源于网络,仅供参考;投资有风险,入市需谨慎]")
+  updateMarketStatus()
+  marketStatusTimer = setInterval(() => {
+    refreshMotto()
+    updateMarketStatus()
+  }, 60000)
   contentStyle.value = "max-height: calc(92vh);overflow: hidden"
   GetConfig().then((res) => {
     if (res.enableNews) {

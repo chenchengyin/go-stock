@@ -8,6 +8,9 @@ import {
   GetPromptTemplates,
   GetTelegraphList,
   GlobalStockIndexes,
+  IsTradingTime,
+  IsHKTradingTime,
+  IsUSTradingTime,
   ReFleshTelegraphList,
   SaveAIResponseResult,
   SaveAsMarkdown,
@@ -77,6 +80,7 @@ const sort = ref("0")
 const nowTab = ref("市场快讯")
 const indexInterval = ref(null)
 const indexIndustryRank = ref(null)
+const tradingCheckInterval = ref(null)
 const mdPreviewRef = ref(null)
 const stockCode= ref('')
 const enableTools= ref(true)
@@ -124,20 +128,21 @@ onBeforeMount(() => {
   })
   getIndex();
   industryRank();
-  indexInterval.value = setInterval(() => {
-    getIndex()
-  }, 3000)
+  startTradingTimers();
 
-  indexIndustryRank.value = setInterval(() => {
-    industryRank()
-    ReFlesh("财联社电报")
-    ReFlesh("新浪财经")
-    ReFlesh("外媒")
-  }, 1000 * 10)
-
-
-})
-onMounted(() => {
+  tradingCheckInterval.value = setInterval(async () => {
+    const [cn, hk, us] = await Promise.all([
+      IsTradingTime().catch(() => false),
+      IsHKTradingTime().catch(() => false),
+      IsUSTradingTime().catch(() => false)
+    ])
+    const anyTrading = cn || hk || us
+    if (anyTrading && !indexInterval.value) {
+      startTradingTimers()
+    } else if (!anyTrading && indexInterval.value) {
+      stopTradingTimers()
+    }
+  }, 60000)
 })
 
 
@@ -146,9 +151,35 @@ onBeforeUnmount(() => {
   EventsOff("newTelegraph")
   EventsOff("newSinaNews")
   EventsOff("summaryStockNews")
-  clearInterval(indexInterval.value)
-  clearInterval(indexIndustryRank.value)
+  stopTradingTimers()
+  if (tradingCheckInterval.value) {
+    clearInterval(tradingCheckInterval.value)
+  }
 })
+
+function startTradingTimers() {
+  stopTradingTimers()
+  indexInterval.value = setInterval(() => {
+    getIndex()
+  }, 3000)
+  indexIndustryRank.value = setInterval(() => {
+    industryRank()
+    ReFlesh("财联社电报")
+    ReFlesh("新浪财经")
+    ReFlesh("外媒")
+  }, 1000 * 10)
+}
+
+function stopTradingTimers() {
+  if (indexInterval.value) {
+    clearInterval(indexInterval.value)
+    indexInterval.value = null
+  }
+  if (indexIndustryRank.value) {
+    clearInterval(indexIndustryRank.value)
+    indexIndustryRank.value = null
+  }
+}
 
 onUnmounted(() => {
 

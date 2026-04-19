@@ -470,8 +470,16 @@ export function InvestCalendarTimeLine(arg1) {
   return window['go']['main']['App']['InvestCalendarTimeLine'](arg1);
 }
 
+export function IsHKTradingTime() {
+  return window['go']['main']['App']['IsHKTradingTime']();
+}
+
 export function IsTradingTime() {
   return window['go']['main']['App']['IsTradingTime']();
+}
+
+export function IsUSTradingTime() {
+  return window['go']['main']['App']['IsUSTradingTime']();
 }
 
 export function LongTigerRank(arg1) {

@@ -92,6 +92,15 @@ func (a *App) IsTradingTime() bool {
 	return isTradingTime(time.Now().In(loc))
 }
 
+func (a *App) IsHKTradingTime() bool {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	return IsHKTradingTime(time.Now().In(loc))
+}
+
+func (a *App) IsUSTradingTime() bool {
+	return IsUSTradingTime(time.Now())
+}
+
 func (a *App) GetLatestTradingDay() string {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	now := time.Now().In(loc)

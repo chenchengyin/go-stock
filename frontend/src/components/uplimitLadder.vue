@@ -1,5 +1,5 @@
 <script setup>
-import {onBeforeMount, onBeforeUnmount, ref, computed, watch, h, onMounted} from 'vue'
+import {onBeforeMount, onBeforeUnmount, ref, computed, watch, h} from 'vue'
 import {GetConfig, GetUplimitHot, IsTradingTime, GetLatestTradingDay} from "../../wailsjs/go/main/App";
 import {NButton, NText, NTag, NTooltip, NProgress, useMessage} from "naive-ui";
 import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
@@ -16,15 +16,14 @@ const activeView = ref('ladder')
 const expandedLadders = ref([])
 const darkTheme = ref(false)
 const today = new Date()
-const fallbackDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-const selectedDate = ref(fallbackDate)
-const latestTradingDay = ref('')
+const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+const selectedDate = ref(formattedDate)
 let refreshTimer = null
 
 function startAutoRefresh() {
   stopAutoRefresh()
   refreshTimer = setInterval(() => {
-    if (selectedDate.value !== latestTradingDay.value) return
+    if (selectedDate.value !== formattedDate) return
     IsTradingTime().then(trading => {
       if (trading) {
         fetchData(selectedDate.value)
@@ -40,34 +39,25 @@ function stopAutoRefresh() {
   }
 }
 
-function initLoad() {
-  GetLatestTradingDay().then(date => {
-    if (date) {
-      latestTradingDay.value = date
-      selectedDate.value = date
-      fetchData(date)
-    }
-  }).catch(() => {
-    latestTradingDay.value = fallbackDate
-    selectedDate.value = fallbackDate
-    fetchData(fallbackDate)
-  }).finally(() => {
-    startAutoRefresh()
-  })
-}
-
 onBeforeMount(() => {
   GetConfig().then(result => {
     if (result.darkTheme) {
       darkTheme.value = true
     }
   })
-  initLoad()
+  GetLatestTradingDay().then(date => {
+    if (date) {
+      selectedDate.value = date
+      fetchData(date)
+    } else {
+      fetchData(formattedDate)
+    }
+  }).catch(() => {
+    fetchData(formattedDate)
+  })
+  startAutoRefresh()
 })
 
-onMounted(() => {
-   fetchData(selectedDate.value)
-})
 onBeforeUnmount(() => {
   stopAutoRefresh()
 })
@@ -77,12 +67,14 @@ function fetchData(date, retryCount = 0) {
   loading.value = true
   const d = typeof date === 'string' ? date : formatDate(date)
   selectedDate.value = d
+  const loadingMsg = message.loading('正在获取涨停梯队数据...', { duration: 0 })
   GetUplimitHot(d, 20).then(res => {
     if (res && res.code === 20000) {
       const data = res.data
-      const hasData = data && (data.plate?.length > 0 || (data.ban_info && Object.keys(data.ban_info).length > 0))
+      const hasData = data && data.plate?.length > 0 && data.stocks && data.stocks.trim() !== ''
       if (hasData) {
         rawData.value = data
+        loadingMsg.destroy()
         if (data.ban_info && data.max_count) {
           const expanded = []
           for (let i = data.max_count; i >= 1 && expanded.length < 3; i--) {
@@ -93,19 +85,25 @@ function fetchData(date, retryCount = 0) {
           }
           expandedLadders.value = expanded
         }
-      } else if (retryCount < 10) {
+      } else if (retryCount < 7) {
         const prevDate = new Date(d)
         prevDate.setDate(prevDate.getDate() - 1)
         const prevDateStr = formatDate(prevDate)
+        message.info(`当前日期 ${d} 暂无数据，尝试查询前一日：${prevDateStr}`)
+        loadingMsg.destroy()
         fetchData(prevDateStr, retryCount + 1)
         return
       } else {
         rawData.value = data
+        loadingMsg.destroy()
+        message.info('暂无历史数据')
       }
     } else {
+      loadingMsg.destroy()
       message.error(res?.message || '获取数据失败')
     }
   }).catch(err => {
+    loadingMsg.destroy()
     message.error('请求失败')
     console.error(err)
   }).finally(() => {
