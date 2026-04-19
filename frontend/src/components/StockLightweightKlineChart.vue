@@ -1,5 +1,5 @@
 <script setup>
-import { GetStockEastMoneyKLine, GetStockEastMoneyKLinePage } from '../../wailsjs/go/main/App'
+import { GetStockEastMoneyKLine, GetStockEastMoneyKLinePage, GetStockKLineWithFallback, GetStockKLinePageWithFallback } from '../../wailsjs/go/main/App'
 import {
   CandlestickSeries,
   createChart,
@@ -91,6 +91,7 @@ const suppressLongPriceEmit = ref(false)
 const loading = ref(false)
 const loadingHistory = ref(false)
 const errorText = ref('')
+const activeDataSource = ref('')
 
 let chart = null
 let candleSeries = null
@@ -1532,7 +1533,7 @@ async function loadOlderHistory() {
   const logical = chart.timeScale().getVisibleLogicalRange()
   const beforeCount = mergedRawRows.length
   try {
-    const raw = await GetStockEastMoneyKLinePage(
+    const result = await GetStockKLinePageWithFallback(
       codeSnap,
       props.stockName || '',
       kltSnap,
@@ -1540,6 +1541,9 @@ async function loadOlderHistory() {
       end,
     )
     if (kltSnap !== activeKlt.value || codeSnap !== props.code) return
+    const src = result?.source || ''
+    if (src) activeDataSource.value = src
+    const raw = result?.data
     const inc = Array.isArray(raw) ? raw : []
     if (!inc.length) {
       hasMoreOlder.value = false
@@ -1549,7 +1553,6 @@ async function loadOlderHistory() {
     const merged = mergeKlineRows(mergedRawRows, inc)
     const added = merged.length - beforeCount
     if (added <= 0) {
-      // 接口返回了数据但与本地 key 完全重叠：多为 end 步长与 klt 不匹配；勿直接关闭，避免分钟线拖不动后永不再请求
       if (end === lastOlderHistoryEndTried) {
         hasMoreOlder.value = false
       } else {
@@ -1582,13 +1585,16 @@ async function refreshLatestPoll() {
   const codeSnap = props.code
   try {
     const meta = INTERVALS.find((x) => x.klt === kltSnap) || INTERVALS[0]
-    const raw = await GetStockEastMoneyKLine(
+    const result = await GetStockKLineWithFallback(
       codeSnap,
       props.stockName || '',
       meta.klt,
       meta.limit,
     )
     if (codeSnap !== props.code || activeKlt.value !== kltSnap) return
+    const src = result?.source || ''
+    if (src) activeDataSource.value = src
+    const raw = result?.data
     const list = Array.isArray(raw) ? raw : []
     if (!list.length) return
     mergedRawRows = mergeRefreshWithLatest(mergedRawRows, list)
@@ -1694,12 +1700,15 @@ async function loadData() {
   lastOlderHistoryEndTried = ''
   try {
     const meta = INTERVALS.find((x) => x.klt === activeKlt.value) || INTERVALS[0]
-    const raw = await GetStockEastMoneyKLine(
+    const result = await GetStockKLineWithFallback(
       props.code,
       props.stockName || '',
       meta.klt,
       meta.limit,
     )
+    const src = result?.source || ''
+    activeDataSource.value = src
+    const raw = result?.data
     const list = Array.isArray(raw) ? raw : []
     ensureChart()
     mergedRawRows = mergeKlineRows([], list)
@@ -1707,7 +1716,7 @@ async function loadData() {
     const { candles } = toSeriesData(mergedRawRows)
     if (!candles.length) {
       errorText.value =
-        '暂无 K 线数据（需东方财富支持的代码，如 600519.SH、000001.SZ）'
+        '暂无 K 线数据（需东方财富或新浪支持的代码，如 600519.SH、000001.SZ）'
       candleSeries?.setData([])
       volSeries?.setData([])
       syncIndicators()
@@ -2059,6 +2068,9 @@ watch(showLongPosition, (newVal) => {
                     : '切换周期后加载'
                 }}
                 · 按住拖动查看左侧历史时会自动加载更早 K 线
+                <span v-if="activeDataSource" class="lw-kline-source-tag" :class="{ 'lw-kline-source-tag--fallback': activeDataSource !== 'eastmoney' }">
+                  {{ activeDataSource === 'eastmoney' ? '东方财富' : activeDataSource === 'sina' ? '新浪财经' : activeDataSource === 'tencent' ? '腾讯财经' : activeDataSource }}
+                </span>
               </NText>
               <NSpin v-if="loading || loadingHistory" size="small" />
             </NFlex>
@@ -2287,5 +2299,28 @@ watch(showLongPosition, (newVal) => {
 .lw-kline-root:not(.lw-kline--dark) .lw-kline-chart {
   border-radius: 4px;
   border: 1px solid #e2e8f0;
+}
+.lw-kline-source-tag {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #e0f2fe;
+  color: #0369a1;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.lw-kline--dark .lw-kline-source-tag {
+  background: #1e3a5f;
+  color: #7dd3fc;
+}
+.lw-kline-source-tag--fallback {
+  background: #fef3c7;
+  color: #b45309;
+}
+.lw-kline--dark .lw-kline-source-tag--fallback {
+  background: #422006;
+  color: #fbbf24;
 }
 </style>

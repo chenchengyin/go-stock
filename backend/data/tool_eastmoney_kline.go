@@ -63,6 +63,14 @@ func EastMoneyKLineSection(api *EastMoneyKLineApi, stockCode, kLineType, adjustF
 	} else {
 		list = api.GetKLineData(stockCode, kType, strings.TrimSpace(adjustFlag), int(limit))
 	}
+	var sourceLabel string
+	if list == nil || len(*list) == 0 {
+		fallbackResult := FetchKLineWithFallback(stockCode, "", kType, limit, "")
+		if fallbackResult.Data != nil && len(*fallbackResult.Data) > 0 {
+			list = fallbackResult.Data
+			sourceLabel = fallbackResult.Source
+		}
+	}
 	if list == nil || len(*list) == 0 {
 		return stockCode + "：未获取到 K 线数据，请检查股票代码与类型。"
 	}
@@ -91,7 +99,11 @@ func EastMoneyKLineSection(api *EastMoneyKLineApi, stockCode, kLineType, adjustF
 	if typeLabel == "" {
 		typeLabel = kType
 	}
-	return "\r\n### " + stockCode + " " + typeLabel + " K线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
+	sourceInfo := ""
+	if sourceLabel != "" {
+		sourceInfo = "（数据源：" + sourceLabel + "）"
+	}
+	return "\r\n### " + stockCode + " " + typeLabel + " K线（共 " + convertor.ToString(len(*list)) + " 条）" + sourceInfo + "\r\n" + markdownTable + "\r\n"
 }
 
 func handleGetEastMoneyKLine(o *OpenAi, funcArguments string, ctx *ToolContext) error {
@@ -176,7 +188,15 @@ func EastMoneyKLineWithMASection(api *EastMoneyKLineApi, stockCode, kLineType st
 	kType := normalizeKLineType(kLineType)
 	maPeriods := parseMaPeriods(maPeriodsStr)
 	list, err := api.GetKLineWithMA(stockCode, kType, int(limit), maPeriods...)
+	var sourceLabel string
 	if err != nil || list == nil || len(*list) == 0 {
+		fallbackResult := FetchKLineWithFallback(stockCode, "", kType, limit, "")
+		if fallbackResult.Data != nil && len(*fallbackResult.Data) > 0 {
+			list = fallbackResult.Data
+			sourceLabel = fallbackResult.Source
+		}
+	}
+	if list == nil || len(*list) == 0 {
 		return stockCode + "：未获取到带均线的 K 线数据，请检查股票代码与参数。"
 	}
 	maLabels := make([]string, 0, len(maPeriods))
@@ -222,7 +242,11 @@ func EastMoneyKLineWithMASection(api *EastMoneyKLineApi, stockCode, kLineType st
 	if typeLabel == "" {
 		typeLabel = kType
 	}
-	return "\r\n### " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）\r\n" + markdownTable + "\r\n"
+	sourceInfo := ""
+	if sourceLabel != "" {
+		sourceInfo = "（数据源：" + sourceLabel + "）"
+	}
+	return "\r\n### " + stockCode + " " + typeLabel + " K线+均线（共 " + convertor.ToString(len(*list)) + " 条）" + sourceInfo + "\r\n" + markdownTable + "\r\n"
 }
 
 func handleGetEastMoneyKLineWithMA(o *OpenAi, funcArguments string, ctx *ToolContext) error {

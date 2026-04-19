@@ -1200,6 +1200,12 @@ func GetAllDataTools() []tool.BaseTool {
 				} else if strings.HasPrefix(code, "hk") || strings.HasPrefix(code, "us") || strings.HasPrefix(code, "gb_") {
 					klineData = api.GetHK_KLineData(code, "day", int64(toIntDay))
 				}
+				if klineData == nil || len(*klineData) == 0 {
+					fallbackResult := data.FetchKLineWithFallback(code, "", "101", toIntDay, "")
+					if fallbackResult.Data != nil && len(*fallbackResult.Data) > 0 {
+						klineData = fallbackResult.Data
+					}
+				}
 				if klineData != nil {
 					for _, k := range *klineData {
 						allResults = append(allResults, map[string]any{
