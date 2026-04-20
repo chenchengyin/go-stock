@@ -6,6 +6,7 @@ import (
 	"go-stock/backend/logger"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -142,6 +143,11 @@ func (s *SinaKLineApi) GetKLineData(stockCode, klt string, limit int) *[]KLineDa
 	}
 
 	converted := s.convertToKLineData(items, klt)
+
+	if klt == "101" || klt == "102" || klt == "103" {
+		converted = s.appendTodayKLine(converted, stockCode, klt)
+	}
+
 	return &converted
 }
 
@@ -179,6 +185,124 @@ func truncateStr(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+func (s *SinaKLineApi) appendTodayKLine(data []KLineData, stockCode, klt string) []KLineData {
+	if len(data) == 0 {
+		return data
+	}
+
+	now := time.Now()
+	todayStr := now.Format("2006-01-02")
+
+	lastDay := data[len(data)-1].Day
+	if len(lastDay) >= 10 && lastDay[:10] == todayStr {
+		return data
+	}
+
+	hour, minute := now.Hour(), now.Minute()
+	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
+		return data
+	}
+	if hour < 9 || (hour == 9 && minute < 30) {
+		return data
+	}
+
+	symbol := sinaSymbolFromStockCode(stockCode)
+	sinaCode := symbol
+	if strings.HasPrefix(sinaCode, "bj") {
+		sinaCode = "sb" + sinaCode[2:]
+	}
+
+	url := fmt.Sprintf("http://hq.sinajs.cn/rn=%d&list=%s", now.UnixMilli(), sinaCode)
+	resp, err := s.client.R().
+		SetHeader("Host", "hq.sinajs.cn").
+		SetHeader("Referer", "https://finance.sina.com.cn/").
+		SetHeader("User-Agent", getRandomUA()).
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Warnf("SinaKLine appendTodayKLine hq error: %v", err)
+		return data
+	}
+
+	body := GB18030ToUTF8(resp.Body())
+	parts := strings.SplitN(body, "\"", 3)
+	if len(parts) < 2 {
+		return data
+	}
+	fields := strings.Split(parts[1], ",")
+	if len(fields) < 32 {
+		return data
+	}
+
+	openPrice := strings.TrimSpace(fields[1])
+	prevClose := strings.TrimSpace(fields[2])
+	curPrice := strings.TrimSpace(fields[3])
+	highPrice := strings.TrimSpace(fields[4])
+	lowPrice := strings.TrimSpace(fields[5])
+	volume := strings.TrimSpace(fields[8])
+	amount := strings.TrimSpace(fields[9])
+	tradeDate := strings.TrimSpace(fields[30])
+
+	if tradeDate != todayStr {
+		return data
+	}
+
+	curPriceF, _ := strconv.ParseFloat(curPrice, 64)
+	prevCloseF, _ := strconv.ParseFloat(prevClose, 64)
+	openF, _ := strconv.ParseFloat(openPrice, 64)
+	highF, _ := strconv.ParseFloat(highPrice, 64)
+	lowF, _ := strconv.ParseFloat(lowPrice, 64)
+	volF, _ := strconv.ParseFloat(volume, 64)
+	amountF, _ := strconv.ParseFloat(amount, 64)
+
+	if curPriceF <= 0 || openF <= 0 {
+		return data
+	}
+
+	day := todayStr
+	if klt == "102" {
+		_, isoWeek := now.ISOWeek()
+		day = fmt.Sprintf("%s-W%02d", now.Format("2006"), isoWeek)
+	} else if klt == "103" {
+		day = now.Format("2006-01")
+	}
+
+	todayKd := KLineData{
+		Day:    day,
+		Open:   fmt.Sprintf("%.2f", openF),
+		Close:  fmt.Sprintf("%.2f", curPriceF),
+		High:   fmt.Sprintf("%.2f", highF),
+		Low:    fmt.Sprintf("%.2f", lowF),
+		Volume: fmt.Sprintf("%.0f", volF/100),
+		Amount: fmt.Sprintf("%.2f", amountF),
+	}
+	if prevCloseF > 0 {
+		todayKd.ChangePercent = fmt.Sprintf("%.2f", (curPriceF-prevCloseF)/prevCloseF*100)
+		todayKd.ChangeValue = fmt.Sprintf("%.2f", curPriceF-prevCloseF)
+		todayKd.Amplitude = fmt.Sprintf("%.2f", (highF-lowF)/prevCloseF*100)
+	}
+
+	if klt == "101" {
+		return append(data, todayKd)
+	}
+
+	if klt == "102" || klt == "103" {
+		lastDayStr := data[len(data)-1].Day
+		samePeriod := false
+		if klt == "102" {
+			samePeriod = lastDayStr == day
+		} else if klt == "103" {
+			samePeriod = len(lastDayStr) >= 7 && lastDayStr[:7] == day[:7]
+		}
+		if samePeriod {
+			data[len(data)-1] = todayKd
+		} else {
+			data = append(data, todayKd)
+		}
+	}
+
+	return data
 }
 
 func (s *SinaKLineApi) convertToKLineData(items []SinaKLineItem, klt string) []KLineData {

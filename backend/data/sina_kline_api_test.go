@@ -1,9 +1,11 @@
 package data
 
 import (
+	"fmt"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
 	"testing"
+	"time"
 )
 
 func init() {
@@ -22,6 +24,43 @@ func TestSinaKLineApi_GetDayKLine(t *testing.T) {
 	first := (*kLines)[0]
 	logger.SugaredLogger.Infof("Sina 日K首条: day=%s open=%s close=%s high=%s low=%s vol=%s",
 		first.Day, first.Open, first.Close, first.High, first.Low, first.Volume)
+	last := (*kLines)[len(*kLines)-1]
+	logger.SugaredLogger.Infof("Sina 日K末条: day=%s open=%s close=%s high=%s low=%s vol=%s",
+		last.Day, last.Open, last.Close, last.High, last.Low, last.Volume)
+
+	todayStr := time.Now().Format("2006-01-02")
+	if len(last.Day) >= 10 && last.Day[:10] == todayStr {
+		t.Logf("✅ 末条数据是今天(%s)的实时K线", todayStr)
+	} else {
+		t.Logf("⚠️ 末条数据日期=%s, 今天=%s (可能非交易时段)", last.Day[:10], todayStr)
+	}
+}
+
+func TestSinaKLineApi_TodayKLineAllPeriods(t *testing.T) {
+	config := GetSettingConfig()
+	api := NewSinaKLineApi(config)
+	periods := []struct {
+		klt   string
+		label string
+	}{
+		{"101", "日线"}, {"102", "周线"},
+	}
+	for _, p := range periods {
+		t.Run(p.label, func(t *testing.T) {
+			data := api.GetKLineData("600519.SH", p.klt, 10)
+			if data == nil || len(*data) == 0 {
+				t.Errorf("[%s] 无数据", p.label)
+				return
+			}
+			last := (*data)[len(*data)-1]
+			t.Logf("[%s] klt=%s 末条: day=%s close=%s vol=%s",
+				p.label, p.klt, last.Day, last.Close, last.Volume)
+			todayStr := time.Now().Format("2006-01-02")
+			if len(last.Day) >= 10 && last.Day[:10] == todayStr {
+				fmt.Printf("  ✅ %s 包含今日数据\n", p.label)
+			}
+		})
+	}
 }
 
 func TestSinaKLineApi_Get5MinKLine(t *testing.T) {
