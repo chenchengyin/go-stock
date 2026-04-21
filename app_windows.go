@@ -192,11 +192,26 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 			data.UpdateConfig(cfg)
 		}
 
-		runtime.WindowHide(ctx)
+		dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+			Type:         runtime.QuestionDialog,
+			Title:        "go-stock",
+			Message:      "确定关闭吗？",
+			Buttons:      []string{"确定", "取消"},
+			Icon:         icon2,
+			CancelButton: "取消",
+		})
+		if err != nil {
+			return true
+		}
+		logger.SugaredLogger.Debugf("dialog:%s", dialog)
+		if dialog == "确定" || dialog == "Yes" {
+			if a.cron != nil {
+				a.cron.Stop() // 停止定时任务
+			}
+			return false
+		}
 		return true
 	}
-
-	a.cron.Stop()
 	return false
 }
 

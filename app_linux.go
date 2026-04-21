@@ -125,7 +125,7 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	}
 
 	logger.SugaredLogger.Debugf("dialog:%s", dialog)
-	if dialog == "取消" {
+	if dialog == "取消" || dialog == "No" {
 		return true // 如果选择了取消，不关闭应用
 	} else {
 		// 在 Linux 上应用退出时执行清理工作

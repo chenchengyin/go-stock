@@ -3,7 +3,7 @@ import {
   EventsEmit,
   EventsOff,
   EventsOn,
-  Quit,
+  Quit,Hide ,
   WindowFullscreen,
   WindowUnfullscreen,
   WindowSetTitle
@@ -33,7 +33,7 @@ import FloatingAgentAssistant from "./components/FloatingAgentAssistant.vue";
 import {Dragon, Fire, FirefoxBrowser, Gripfire, Robot} from "@vicons/fa";
 import {Prompt, ReportAnalytics, ReportMoney, ReportSearch, TrendingUp} from "@vicons/tabler";
 import {LocalFireDepartmentRound} from "@vicons/material";
-import {AppsList20Regular, BoxSearch20Regular, CommentNote20Filled} from "@vicons/fluent";
+import {AppsList20Regular, BoxSearch20Regular,SlideHide24Filled, CommentNote20Filled} from "@vicons/fluent";
 import {FireFilled, MoneyCollectOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
 
 
@@ -801,6 +801,14 @@ const menuOptions = ref([
   //   key: 'move',
   //   icon: renderIcon(MoveOutline),
   // },
+  {
+    label: () => h("a", {
+      href: '#',
+      onClick: Hide,
+    }, {default: () => '隐藏至托盘区'}),
+    key: 'hide',
+    icon: renderIcon(SlideHide24Filled),
+  },
   {
     label: () => h("a", {
       href: '#',
