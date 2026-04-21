@@ -5,7 +5,6 @@ import {
   EventsOn,
   Quit,
   WindowFullscreen,
-  WindowHide,
   WindowUnfullscreen,
   WindowSetTitle
 } from '../wailsjs/runtime'
@@ -792,15 +791,6 @@ const menuOptions = ref([
     }, {default: () => isFullscreen.value ? '取消全屏' : '全屏'}),
     key: 'full',
     icon: renderIcon(ExpandOutline),
-  },
-  {
-    label: () => h("a", {
-      href: '#',
-      onClick: WindowHide,
-      title: '隐藏到托盘区 Ctrl+Z',
-    }, {default: () => '隐藏到托盘区'}),
-    key: 'hide',
-    icon: renderIcon(ReorderTwoOutline),
   },
   // {
   //   label: ()=> h("a", {
