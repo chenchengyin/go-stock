@@ -13,8 +13,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/cloudwego/eino-ext/components/model/ark"
-	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
 	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/adk/prebuilt/planexecute"
@@ -223,42 +221,6 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 		Mode:     AgentModePlanExecute,
 		AdkAgent: peAgent,
 	}
-}
-
-func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCallingChatModel, error) {
-	temperature := float32(aiConfig.Temperature)
-	if aiConfig.BaseUrl == "https://ark.cn-beijing.volces.com/api/v3" {
-		var thinking *ark.Thinking
-		if aiConfig.Thinking {
-			thinking = &ark.Thinking{
-				Type: "enabled",
-			}
-		}
-		return ark.NewChatModel(context.Background(), &ark.ChatModelConfig{
-			BaseURL:     aiConfig.BaseUrl,
-			Model:       aiConfig.ModelName,
-			APIKey:      aiConfig.ApiKey,
-			MaxTokens:   &aiConfig.MaxTokens,
-			Temperature: &temperature,
-			Thinking:    thinking,
-		})
-	}
-
-	extraFields := make(map[string]any)
-	if aiConfig.Thinking {
-		extraFields["thinking"] = map[string]any{
-			"type": "enabled",
-		}
-	}
-	return einoopenai.NewChatModel(ctx, &einoopenai.ChatModelConfig{
-		BaseURL:     aiConfig.BaseUrl,
-		Model:       aiConfig.ModelName,
-		APIKey:      aiConfig.ApiKey,
-		Timeout:     time.Duration(aiConfig.TimeOut) * time.Second,
-		MaxTokens:   &aiConfig.MaxTokens,
-		Temperature: &temperature,
-		ExtraFields: extraFields,
-	})
 }
 
 func errorRecoveryMiddleware() compose.ToolMiddleware {

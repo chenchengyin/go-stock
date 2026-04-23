@@ -400,8 +400,20 @@ watch(agentMode, (val) => {
 
 watch(aiConfigId, (val) => {
   const label = modelLabelForConfig(val).toLowerCase()
-  if (label.includes('deepseek')) showHint('⚡ DeepSeek模型推荐使用快速模式')
-  else if (label.includes('glm')) showHint('🧠 GLM模型推荐使用规划模式')
+  const labelCompact = label.replace(/[\s_-]/g, '')
+  if (label.includes('deepseek-chat')) {
+    agentMode.value = 'plan_execute'
+    thinkingMode.value = false
+    showHint('deepseek-chat 已使用规划模式并关闭思考模式')
+  } else if (label.includes('deepseek')) {
+    showHint('⚡ DeepSeek模型推荐使用快速模式')
+  } else if (labelCompact.includes('glm5.1')) {
+    agentMode.value = 'plan_execute'
+    thinkingMode.value = true
+    showHint('GLM 5.1 已使用规划模式并开启思考模式')
+  } else if (label.includes('glm')) {
+    showHint('🧠 GLM模型推荐使用规划模式')
+  }
 })
 
 function onUserPromptChange(id) {

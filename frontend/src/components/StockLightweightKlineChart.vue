@@ -26,6 +26,8 @@ const BARS_BEFORE_LOAD_MORE = 45
 const DEFAULT_VISIBLE_BARS = 180
 /** 逻辑坐标上右侧多留的「空档」，最新 K 不靠最右边（与左拖分页后的 range 平移兼容） */
 const DEFAULT_RIGHT_LOGICAL_GAP = 18
+/** 为 false 时不在 K 线工具栏显示「筹码分布」按钮（计算与面板逻辑仍保留） */
+const SHOW_CHIP_TOOLBAR_BUTTON = false
 
 const INTERVALS = [
   { klt: '1', label: '1分', limit: 1000 },
@@ -75,6 +77,11 @@ const showOBV = ref(false)
 const showMACD = ref(false)
 const showKDJ = ref(false)
 const showRSI = ref(false)
+const showChip = ref(false)
+const chipBins = ref(80)
+const chipCanvasRef = ref(null)
+const chipItems = ref([])
+const chipMeta = ref({ avgCost: 0, profitRatio: 0, current: 0, hoverDate: '', minPrice: 0, maxPrice: 0 })
 /** TradingView 风格「多单」：开仓 / 止损 / 止盈 价位线 */
 const showLongPosition = ref(false)
 const longEntryStr = ref('')
@@ -245,6 +252,175 @@ function toLineData(times, values) {
     if (v != null && Number.isFinite(v)) arr.push({ time: times[i], value: v })
   }
   return arr
+}
+
+/** 单根 K 的近似「成本中枢」：优先日 VWAP（成交额/量），否则典型价，夹在 [L,H] */
+function chipBarCostCenter(r) {
+  const h = Number(r.high)
+  const l = Number(r.low)
+  const c = Number(r.close)
+  const o = Number(r.open)
+  const vol = Number(r.volume)
+  const amt = Number(r.amount)
+  const hlOk = Number.isFinite(h) && Number.isFinite(l) && h > 0 && l > 0 && h >= l
+  if (!hlOk) return null
+  if (Number.isFinite(amt) && amt > 0 && Number.isFinite(vol) && vol > 0) {
+    const vwap = amt / vol
+    if (Number.isFinite(vwap) && vwap > 0) return Math.min(h, Math.max(l, vwap))
+  }
+  if ([h, l, c].every(Number.isFinite) && c > 0) {
+    const tp = (h + l + c) / 3
+    if (Number.isFinite(tp)) return Math.min(h, Math.max(l, tp))
+  }
+  if ([h, l, o, c].every(Number.isFinite) && o > 0 && c > 0) {
+    const tp = (h + l + o + c) / 4
+    if (Number.isFinite(tp)) return Math.min(h, Math.max(l, tp))
+  }
+  return (h + l) / 2
+}
+
+/**
+ * 将成交量按高斯核落在 [low,high] 与各 bin 的交集上（核中心为成本中枢），
+ * 比均匀铺满当日高低区间更接近「筹码集中在成交密集价」的经验事实。
+ */
+function addChipVolumeKernel(dist, bins, minP, width, low, high, vol, center) {
+  if (vol <= 0 || low <= 0 || high <= 0) return
+  let lo = low
+  let hi = high
+  if (hi < lo) [lo, hi] = [hi, lo]
+  const span = hi - lo
+  const loIdx = Math.max(0, Math.min(bins - 1, Math.floor((lo - minP) / width)))
+  const hiIdx = Math.max(0, Math.min(bins - 1, Math.floor((hi - minP) / width)))
+  if (hiIdx < loIdx) return
+  if (span < 1e-9 * Math.max(1, hi)) {
+    const i = Math.max(0, Math.min(bins - 1, Math.floor(((lo + hi) / 2 - minP) / width)))
+    dist[i] += vol
+    return
+  }
+  let m = center
+  if (!Number.isFinite(m)) m = (lo + hi) / 2
+  m = Math.min(hi, Math.max(lo, m))
+  const sigma = Math.max(span * 0.18, hi * 1e-6, 1e-6)
+  let wsum = 0
+  for (let i = loIdx; i <= hiIdx; i++) {
+    const bc = minP + (i + 0.5) * width
+    if (bc < lo || bc > hi) continue
+    const d = (bc - m) / sigma
+    wsum += Math.exp(-0.5 * d * d)
+  }
+  if (wsum <= 0) {
+    const cnt = hiIdx - loIdx + 1
+    const add = vol / cnt
+    for (let i = loIdx; i <= hiIdx; i++) dist[i] += add
+    return
+  }
+  for (let i = loIdx; i <= hiIdx; i++) {
+    const bc = minP + (i + 0.5) * width
+    if (bc < lo || bc > hi) continue
+    const d = (bc - m) / sigma
+    const w = Math.exp(-0.5 * d * d)
+    dist[i] += (vol * w) / wsum
+  }
+}
+
+function calcChipDistribution(rows, bins) {
+  if (!rows?.length || bins <= 0) return { items: [], avgCost: 0, profitRatio: 0, current: 0 }
+  let minP = Infinity, maxP = 0
+  for (const r of rows) {
+    const lo = Number(r.low) || 0
+    const hi = Number(r.high) || 0
+    if (lo > 0 && lo < minP) minP = lo
+    if (hi > 0 && hi > maxP) maxP = hi
+  }
+  if (minP <= 0 || maxP <= 0 || maxP < minP) return { items: [], avgCost: 0, profitRatio: 0, current: 0 }
+  if (maxP === minP) maxP = minP * 1.001
+  const width = (maxP - minP) / bins
+  if (width <= 0) return { items: [], avgCost: 0, profitRatio: 0, current: 0 }
+  const dist = new Float64Array(bins)
+  for (const r of rows) {
+    let turn = parseFloatPct(r.turnoverRate)
+    if (turn < 0) turn = 0
+    if (turn > 0.98) turn = 0.98
+    const remain = 1.0 - turn
+    for (let i = 0; i < bins; i++) dist[i] *= remain
+    const low = Number(r.low) || 0
+    const high = Number(r.high) || 0
+    const vol = Number(r.volume) || 0
+    if (vol <= 0 || low <= 0 || high <= 0) continue
+    const center = chipBarCostCenter(r)
+    addChipVolumeKernel(dist, bins, minP, width, low, high, vol, center)
+  }
+  let sum = 0
+  for (let i = 0; i < bins; i++) sum += dist[i]
+  const cur = Number(rows[rows.length - 1].close) || Number(rows[rows.length - 1].high) || 0
+  const items = []
+  let avgCost = 0, profitVol = 0
+  for (let i = 0; i < bins; i++) {
+    const center = minP + (i + 0.5) * width
+    const v = dist[i]
+    const ratio = sum > 0 ? v / sum : 0
+    items.push({ price: Math.round(center * 10000) / 10000, vol: Math.round(v * 10000) / 10000, ratio: Math.round(ratio * 1e6) / 1e6 })
+    avgCost += v * center
+    if (center <= cur) profitVol += v
+  }
+  if (sum > 0) avgCost /= sum
+  const profitRatio = sum > 0 ? profitVol / sum : 0
+  return { items, avgCost: Math.round(avgCost * 10000) / 10000, profitRatio: Math.round(profitRatio * 1e6) / 1e6, current: Math.round(cur * 10000) / 10000, minPrice: minP, maxPrice: maxP }
+}
+
+function parseFloatPct(s) {
+  const v = parseFloat(String(s ?? '').replace(/%/g, '').trim())
+  return Number.isFinite(v) ? v / 100 : 0
+}
+
+function drawChipCanvas() {
+  const canvas = chipCanvasRef.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  const rect = canvas.getBoundingClientRect()
+  const w = rect.width
+  const h = rect.height
+  canvas.width = w * dpr
+  canvas.height = h * dpr
+  ctx.scale(dpr, dpr)
+  ctx.clearRect(0, 0, w, h)
+  const isDark = props.darkTheme
+  ctx.fillStyle = isDark ? '#141414' : '#ffffff'
+  ctx.fillRect(0, 0, w, h)
+  const items = chipItems.value
+  if (!items.length) return
+  const maxRatio = Math.max(...items.map((it) => it.ratio || 0), 1e-9)
+  const barMaxW = w - 4
+  const barH = Math.max(1, h / items.length)
+  const cur = chipMeta.value.current || 0
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    const y = i * barH
+    const bw = Math.max(0, (it.ratio / maxRatio) * barMaxW)
+    const isProfit = it.price <= cur
+    if (isProfit) {
+      ctx.fillStyle = isDark ? 'rgba(239, 83, 80, 0.7)' : 'rgba(239, 83, 80, 0.6)'
+    } else {
+      ctx.fillStyle = isDark ? 'rgba(38, 166, 154, 0.7)' : 'rgba(38, 166, 154, 0.6)'
+    }
+    ctx.fillRect(w - bw, y, bw, barH - 0.5)
+  }
+  if (cur > 0) {
+    const minP = chipMeta.value.minPrice || 0
+    const maxP = chipMeta.value.maxPrice || 0
+    if (maxP > minP && cur >= minP && cur <= maxP) {
+      const curY = ((cur - minP) / (maxP - minP)) * h
+      ctx.strokeStyle = isDark ? '#fbbf24' : '#d97706'
+      ctx.lineWidth = 1
+      ctx.setLineDash([4, 3])
+      ctx.beginPath()
+      ctx.moveTo(0, curY)
+      ctx.lineTo(w, curY)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+  }
 }
 
 function emaFinite(values, period) {
@@ -1643,19 +1819,23 @@ function ensureChart() {
     if (param.point === undefined) {
       hoverRawRow.value = null
       clearLongPriceLinePaneCursor()
+      if (showChip.value) updateChipFromHover()
       return
     }
     refreshLongPriceLineCursorFromCrosshair(param)
     if (param.time === undefined) {
       hoverRawRow.value = null
+      if (showChip.value) updateChipFromHover()
       return
     }
     const bar = param.seriesData.get(candleSeries)
     if (!bar) {
       hoverRawRow.value = null
+      if (showChip.value) updateChipFromHover()
       return
     }
     hoverRawRow.value = findRawRowByChartTime(param.time)
+    if (showChip.value) updateChipFromHover()
   }
   chart.subscribeCrosshairMove(crosshairMoveHandler)
   chartClickHandler = (param) => {
@@ -1690,6 +1870,8 @@ async function loadData() {
     candleSeries?.setData([])
     volSeries?.setData([])
     syncLongPositionPriceLines()
+    chipItems.value = []
+    chipMeta.value = { avgCost: 0, profitRatio: 0, current: 0, hoverDate: '', minPrice: 0, maxPrice: 0 }
     return
   }
   loading.value = true
@@ -1727,6 +1909,12 @@ async function loadData() {
       applySeriesFromRaw()
       applyDefaultVisibleRange()
     })
+
+    if (showChip.value) {
+      updateChipFromHover()
+    } else {
+      chipItems.value = []
+    }
   } catch (e) {
     errorText.value = String(e?.message || e)
   } finally {
@@ -1761,6 +1949,59 @@ function toggleKDJ() {
 function toggleRSI() {
   showRSI.value = !showRSI.value
   syncIndicators()
+}
+
+let chipUpdateTimer = null
+
+function toggleChip() {
+  showChip.value = !showChip.value
+  if (showChip.value) {
+    updateChipFromHover()
+  }
+}
+
+function updateChipFromHover() {
+  if (!showChip.value || !mergedRawRows.length) {
+    chipItems.value = []
+    return
+  }
+  if (chipUpdateTimer) return
+  chipUpdateTimer = setTimeout(() => {
+    chipUpdateTimer = null
+    doUpdateChip()
+  }, 30)
+}
+
+function doUpdateChip() {
+  if (!showChip.value || !mergedRawRows.length) {
+    chipItems.value = []
+    return
+  }
+  const r = hoverRawRow.value ?? defaultLatestRawRow.value
+  let rows = mergedRawRows
+  if (r) {
+    const sk = sortKey(r.day)
+    let hi = mergedRawRows.length
+    for (let i = 0; i < mergedRawRows.length; i++) {
+      if (sortKey(mergedRawRows[i].day) > sk) { hi = i; break }
+    }
+    rows = hi > 0 ? mergedRawRows.slice(0, hi) : mergedRawRows
+  }
+  if (!rows.length) {
+    chipItems.value = []
+    return
+  }
+  const result = calcChipDistribution(rows, chipBins.value)
+  chipItems.value = result.items
+  chipMeta.value = {
+    avgCost: result.avgCost,
+    profitRatio: result.profitRatio,
+    current: result.current,
+    hoverDate: r ? extractYmdDatePart(String(r.day || '').replace(/\//g, '-')) : '',
+    minPrice: result.minPrice || 0,
+    maxPrice: result.maxPrice || 0,
+  }
+  nextTick(() => drawChipCanvas())
 }
 
 function pricePropToInputStr(v) {
@@ -1882,6 +2123,7 @@ watch(
   () => props.darkTheme,
   (d) => {
     chart?.applyOptions(chartThemeOptions(d))
+    if (showChip.value) nextTick(() => drawChipCanvas())
   },
 )
 
@@ -1889,6 +2131,7 @@ watch(
   () => props.chartHeight,
   (h) => {
     chart?.applyOptions({ height: h })
+    if (showChip.value) nextTick(() => drawChipCanvas())
   },
 )
 
@@ -1983,6 +2226,15 @@ watch(showLongPosition, (newVal) => {
                 @click="toggleRSI"
               >
                 RSI(14)
+              </NButton>
+              <NButton
+                v-if="SHOW_CHIP_TOOLBAR_BUTTON"
+                size="tiny"
+                :type="showChip ? 'primary' : 'default'"
+                :secondary="!showChip"
+                @click="toggleChip"
+              >
+                筹码分布
               </NButton>
             </NFlex>
             <NFlex :size="6" wrap style="row-gap: 6px; align-items: center">
@@ -2153,11 +2405,38 @@ watch(showLongPosition, (newVal) => {
         </div>
       </div>
       <NText v-if="errorText" type="error" style="font-size: 12px">{{ errorText }}</NText>
-      <div
-        ref="chartContainerRef"
-        class="lw-kline-chart"
-        :style="{ height: chartHeight + 'px', minHeight: chartHeight + 'px' }"
-      />
+      <div class="lw-kline-chart-wrap" :style="{ minHeight: chartHeight + 'px' }">
+        <div
+          ref="chartContainerRef"
+          class="lw-kline-chart"
+          :style="{ height: chartHeight + 'px', minHeight: chartHeight + 'px' }"
+        />
+        <div
+          v-if="showChip"
+          class="lw-chip"
+          :class="{ 'lw-chip--dark': darkTheme }"
+          :style="{ height: chartHeight + 'px', minHeight: chartHeight + 'px' }"
+        >
+          <div class="lw-chip__head">
+            <span class="lw-chip__title">筹码分布</span>
+            <span v-if="chipMeta.hoverDate" class="lw-chip__meta">
+              {{ chipMeta.hoverDate }}
+            </span>
+            <span v-if="chipItems.length" class="lw-chip__meta">
+              均成本 {{ chipMeta.avgCost.toFixed(2) }} · 获利
+              {{ (chipMeta.profitRatio * 100).toFixed(1) }}%
+            </span>
+          </div>
+          <div v-if="!chipItems.length" class="lw-chip__empty">
+            {{ mergedRawRows.length ? '移动鼠标到K线查看' : '暂无K线数据' }}
+          </div>
+          <canvas
+            v-show="chipItems.length"
+            ref="chipCanvasRef"
+            class="lw-chip__canvas"
+          />
+        </div>
+      </div>
     </NFlex>
   </div>
 </template>
@@ -2292,6 +2571,14 @@ watch(showLongPosition, (newVal) => {
   touch-action: none;
   box-sizing: border-box;
 }
+
+.lw-kline-chart-wrap {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  min-width: 0;
+}
 .lw-kline--dark .lw-kline-chart {
   border-radius: 4px;
   border: 1px solid #27272a;
@@ -2299,6 +2586,63 @@ watch(showLongPosition, (newVal) => {
 .lw-kline-root:not(.lw-kline--dark) .lw-kline-chart {
   border-radius: 4px;
   border: 1px solid #e2e8f0;
+}
+
+.lw-chip {
+  width: 160px;
+  flex: 0 0 160px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-sizing: border-box;
+  padding: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.lw-chip--dark {
+  border-color: #27272a;
+  background: #141414;
+}
+.lw-chip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.lw-chip__title {
+  font-weight: 700;
+  font-size: 12px;
+  color: #0f172a;
+  white-space: nowrap;
+}
+.lw-chip--dark .lw-chip__title {
+  color: #f1f5f9;
+}
+.lw-chip__meta {
+  font-size: 11px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lw-chip--dark .lw-chip__meta {
+  color: #94a3b8;
+}
+.lw-chip__empty {
+  font-size: 11px;
+  color: #64748b;
+}
+.lw-chip--dark .lw-chip__empty {
+  color: #94a3b8;
+}
+.lw-chip__canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  display: block;
 }
 .lw-kline-source-tag {
   display: inline-block;

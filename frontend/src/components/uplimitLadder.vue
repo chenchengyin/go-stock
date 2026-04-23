@@ -45,16 +45,16 @@ onBeforeMount(() => {
       darkTheme.value = true
     }
   })
+  
+  fetchData(formattedDate)
+  
   GetLatestTradingDay().then(date => {
-    if (date) {
+    if (date && date !== selectedDate.value) {
       selectedDate.value = date
       fetchData(date)
-    } else {
-      fetchData(formattedDate)
     }
-  }).catch(() => {
-    fetchData(formattedDate)
-  })
+  }).catch(() => {})
+  
   startAutoRefresh()
 })
 

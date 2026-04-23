@@ -246,6 +246,10 @@ export function GetChangeTypeDailyStats(arg1) {
   return window['go']['main']['App']['GetChangeTypeDailyStats'](arg1);
 }
 
+export function GetChipDistribution(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetChipDistribution'](arg1, arg2, arg3, arg4);
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }

@@ -2054,6 +2054,47 @@ func (a *App) GetStockKLinePageWithFallback(stockCode, stockName string, klt str
 	return data.FetchKLineWithFallback(stockCode, stockName, klt, limit, end)
 }
 
+// GetChipDistribution 获取/计算股票筹码分布（筹码图）数据（用于前端绘图）。
+// days：近多少个交易日；bins：分箱数量；adjustFlag：""/qfq/hfq
+func (a *App) GetChipDistribution(stockCode string, days int, bins int, adjustFlag string) (*data.ChipDistributionResult, error) {
+	stockCode = strings.TrimSpace(stockCode)
+	if stockCode == "" {
+		return nil, fmt.Errorf("stockCode 不能为空")
+	}
+	if days <= 0 {
+		days = 120
+	}
+	if bins <= 0 {
+		bins = 80
+	}
+	adjustFlag = strings.TrimSpace(strings.ToLower(adjustFlag))
+	if adjustFlag != "" && adjustFlag != "qfq" && adjustFlag != "hfq" {
+		adjustFlag = "qfq"
+	}
+
+	api := data.NewEastMoneyKLineApi(data.GetSettingConfig())
+	if !api.ValidateStockCode(stockCode) {
+		return nil, fmt.Errorf("股票代码无效：%s", stockCode)
+	}
+
+	var kLines *[]data.KLineData
+
+	if adjustFlag != "" {
+		kLines = api.GetKLineData(stockCode, "101", adjustFlag, days)
+	} else {
+		result := data.FetchKLineWithFallback(stockCode, "", "101", days, "")
+		if result != nil && result.Data != nil {
+			kLines = result.Data
+		}
+	}
+
+	if kLines == nil || len(*kLines) == 0 {
+		return nil, fmt.Errorf("未获取到K线数据")
+	}
+	calculator := data.NewChipDistributionCalculator()
+	return calculator.Calculate(stockCode, *kLines, bins)
+}
+
 // GetTdxCallAuction 通过通达信协议获取集合竞价数据。
 // stockCode 格式如 600519.SH、000001.SZ、430047.BJ；start 为起始位置（0=最新）；count 为请求数量（最大 500）。
 func (a *App) GetTdxCallAuction(stockCode string, start uint32, count uint32) *[]data.TdxCallAuctionData {

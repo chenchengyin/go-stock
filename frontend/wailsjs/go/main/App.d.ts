@@ -128,6 +128,8 @@ export function GetChangeRank(arg1:number,arg2:number):Promise<data.ChangeRankRe
 
 export function GetChangeTypeDailyStats(arg1:number):Promise<Array<data.ChangeTypeDailyStats>>;
 
+export function GetChipDistribution(arg1:string,arg2:number,arg3:number,arg4:string):Promise<data.ChipDistributionResult>;
+
 export function GetConfig():Promise<data.SettingConfig>;
 
 export function GetCronTaskByID(arg1:number):Promise<models.CronTask>;
