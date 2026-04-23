@@ -514,6 +514,10 @@ export function IsHKTradingTime() {
   return window['go']['main']['App']['IsHKTradingTime']();
 }
 
+export function IsTradingDay(arg1) {
+  return window['go']['main']['App']['IsTradingDay'](arg1);
+}
+
 export function IsTradingTime() {
   return window['go']['main']['App']['IsTradingTime']();
 }

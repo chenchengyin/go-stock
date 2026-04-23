@@ -8,6 +8,7 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
@@ -99,6 +100,23 @@ func (a *App) IsHKTradingTime() bool {
 
 func (a *App) IsUSTradingTime() bool {
 	return IsUSTradingTime(time.Now())
+}
+
+// IsTradingDay 判断 yyyy-MM-dd 是否为 A 股交易日（周末、法定节假日为 false）。
+func (a *App) IsTradingDay(date string) bool {
+	date = strings.TrimSpace(date)
+	if date == "" {
+		return false
+	}
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = ShanghaiTimezone
+	}
+	t, err := time.ParseInLocation("2006-01-02", date, loc)
+	if err != nil {
+		return false
+	}
+	return isTradingDay(t)
 }
 
 func (a *App) GetLatestTradingDay() string {

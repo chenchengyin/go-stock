@@ -1,6 +1,6 @@
 <script setup>
-import {onBeforeMount, onBeforeUnmount, ref, computed, watch, h} from 'vue'
-import {GetConfig, GetUplimitHot, IsTradingTime, GetLatestTradingDay} from "../../wailsjs/go/main/App";
+import {onBeforeMount, onBeforeUnmount, ref, computed, h} from 'vue'
+import {GetConfig, GetUplimitHot, IsTradingTime, IsTradingDay, GetLatestTradingDay} from "../../wailsjs/go/main/App";
 import {NButton, NText, NTag, NTooltip, NProgress, useMessage} from "naive-ui";
 import StockLightweightKlineChart from "./StockLightweightKlineChart.vue";
 
@@ -15,15 +15,21 @@ const klineName = ref('')
 const activeView = ref('ladder')
 const expandedLadders = ref([])
 const darkTheme = ref(false)
-const today = new Date()
-const formattedDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-const selectedDate = ref(formattedDate)
+
+function getCalendarTodayStr() {
+  const t = new Date()
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+}
+
+/** 自然日「今天」，用于打开页默认选中日与仅在查看当天时自动刷新 */
+const todayYMD = ref(getCalendarTodayStr())
+const selectedDate = ref(getCalendarTodayStr())
 let refreshTimer = null
 
 function startAutoRefresh() {
   stopAutoRefresh()
   refreshTimer = setInterval(() => {
-    if (selectedDate.value !== formattedDate) return
+    if (selectedDate.value !== todayYMD.value) return
     IsTradingTime().then(trading => {
       if (trading) {
         fetchData(selectedDate.value)
@@ -45,17 +51,28 @@ onBeforeMount(() => {
       darkTheme.value = true
     }
   })
-  
-  fetchData(formattedDate)
-  
-  GetLatestTradingDay().then(date => {
-    if (date && date !== selectedDate.value) {
-      selectedDate.value = date
-      fetchData(date)
-    }
-  }).catch(() => {})
-  
-  startAutoRefresh()
+
+  const cal = getCalendarTodayStr()
+  todayYMD.value = cal
+
+  IsTradingDay(cal)
+    .then(isTd => {
+      if (isTd) {
+        return cal
+      }
+      return GetLatestTradingDay()
+        .then(last => {
+          const s = (last && String(last).trim()) || ''
+          return s || cal
+        })
+        .catch(() => cal)
+    })
+    .catch(() => cal)
+    .then(initial => {
+      selectedDate.value = initial
+      fetchData(initial)
+      startAutoRefresh()
+    })
 })
 
 onBeforeUnmount(() => {

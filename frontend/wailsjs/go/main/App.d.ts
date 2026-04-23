@@ -262,6 +262,8 @@ export function InvestCalendarTimeLine(arg1:string):Promise<Array<any>>;
 
 export function IsHKTradingTime():Promise<boolean>;
 
+export function IsTradingDay(arg1:string):Promise<boolean>;
+
 export function IsTradingTime():Promise<boolean>;
 
 export function IsUSTradingTime():Promise<boolean>;
