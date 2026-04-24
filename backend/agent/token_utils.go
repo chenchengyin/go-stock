@@ -11,10 +11,12 @@ import (
 const (
 	chineseCharsPerToken = 1.5
 	englishCharsPerToken = 4.0
-	toolsTokenReserve    = 8000
-	skillPromptReserve   = 4000
-	reactLoopReserve     = 8000
-	safetyMargin         = 0.85
+	// 以下预留用于 estimateMessagesTokens 之外的系统/工具/ReAct 开销，过大会过早压缩用户上下文。
+	// PlanExecute 中「已完成步骤」另见 agent.go 的 compressExecutedStepResult。
+	toolsTokenReserve  = 8000
+	skillPromptReserve = 4000
+	reactLoopReserve   = 8000
+	safetyMargin       = 0.85
 )
 
 func estimateTokens(text string) int {

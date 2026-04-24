@@ -494,7 +494,10 @@ func genPlannerInput(ctx context.Context, userInput []adk.Message) ([]adk.Messag
 	}
 
 	systemMsg := schema.SystemMessage(`你是股票分析规划师。将用户目标拆解为3-4步执行计划。
-规则：步骤具体独立、按最优顺序、无冗余，末步须产出完整答案。`)
+规则：步骤具体独立、按最优顺序、无冗余，末步须产出完整答案。
+
+【重要】你必须且只能通过内置函数/工具「plan」输出计划：调用 plan，参数为 JSON，字段 steps 为字符串数组。
+禁止仅用自然语言或 Markdown 列出步骤（那样无法被系统解析）；不要输出未包裹在 plan 工具调用里的步骤列表。`)
 
 	userMsg := schema.UserMessage(question)
 
@@ -521,73 +524,287 @@ func safeTruncateString(s string, maxBytes int) string {
 	return s[:maxBytes-10] + "...(已截断)"
 }
 
-// smartContentCompress 智能内容压缩，保留关键信息同时减少tokens消耗
-func smartContentCompress(content string, maxTokens int) string {
-	if len(content) <= maxTokens {
+// normalizeCompressLines 按行切分、去掉空行与装饰行、合并连续重复行（trim 后相同则丢弃），
+// 便于后续分类并减少无意义 tokens。
+func normalizeCompressLines(content string) []string {
+	raw := strings.Split(content, "\n")
+	out := make([]string, 0, len(raw))
+	var last string
+	for _, line := range raw {
+		t := strings.TrimSpace(line)
+		if t == "" || isSkippableNoiseLine(t) {
+			continue
+		}
+		if t == last {
+			continue
+		}
+		last = t
+		out = append(out, t)
+	}
+	return collapseLongMarkdownTableRuns(out)
+}
+
+// isMarkdownTableRow 判断是否为 Markdown 管道表格行（表头或数据行）。
+func isMarkdownTableRow(s string) bool {
+	t := strings.TrimSpace(s)
+	if !strings.HasPrefix(t, "|") {
+		return false
+	}
+	return strings.Count(t, "|") >= 2
+}
+
+// collapseLongMarkdownTableRuns 将超长连续表格行折叠为「前若干行 + 占位 + 后若干行」，显著省 tokens。
+func collapseLongMarkdownTableRuns(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	const head, tail = 5, 5
+	const minRun = 16
+	res := make([]string, 0, len(lines))
+	i := 0
+	for i < len(lines) {
+		if !isMarkdownTableRow(lines[i]) {
+			res = append(res, lines[i])
+			i++
+			continue
+		}
+		start := i
+		for i < len(lines) && isMarkdownTableRow(lines[i]) {
+			i++
+		}
+		run := lines[start:i]
+		if len(run) < minRun || len(run) <= head+tail {
+			res = append(res, run...)
+			continue
+		}
+		omit := len(run) - head - tail
+		res = append(res, run[:head]...)
+		res = append(res, fmt.Sprintf("…（省略 %d 行 markdown 表格）…", omit))
+		res = append(res, run[len(run)-tail:]...)
+	}
+	return res
+}
+
+// isSupplementaryFactLine 将未命中 isDataLine 但含日期/证券代码/金额 等事实的行并入数据类，便于尾部保留策略覆盖。
+func isSupplementaryFactLine(s string) bool {
+	if len(s) > 260 {
+		return false
+	}
+	if containsApproxISODate(s) {
+		return true
+	}
+	if maxConsecutiveDigitRun(s) >= 6 {
+		return true
+	}
+	if strings.Contains(s, "元") && containsNumbers(s) {
+		return true
+	}
+	return false
+}
+
+func isASCIIDigit(b byte) bool {
+	return b >= '0' && b <= '9'
+}
+
+// containsApproxISODate 检测 YYYY-MM-DD 形式日期子串。
+func containsApproxISODate(s string) bool {
+	for i := 0; i+10 <= len(s); i++ {
+		if !isASCIIDigit(s[i]) {
+			continue
+		}
+		if isASCIIDigit(s[i+1]) && isASCIIDigit(s[i+2]) && isASCIIDigit(s[i+3]) &&
+			s[i+4] == '-' &&
+			isASCIIDigit(s[i+5]) && isASCIIDigit(s[i+6]) &&
+			s[i+7] == '-' &&
+			isASCIIDigit(s[i+8]) && isASCIIDigit(s[i+9]) {
+			return true
+		}
+	}
+	return false
+}
+
+func maxConsecutiveDigitRun(s string) int {
+	best, cur := 0, 0
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			cur++
+			if cur > best {
+				best = cur
+			}
+		} else {
+			cur = 0
+		}
+	}
+	return best
+}
+
+// isSkippableNoiseLine 过滤对语义贡献极小的行（Markdown 装饰、分隔线等）。
+func isSkippableNoiseLine(s string) bool {
+	if len(s) > 120 {
+		return false
+	}
+	switch {
+	case strings.HasPrefix(s, "```"):
+		return true
+	case strings.HasPrefix(s, "---") && strings.Trim(s, "-") == "":
+		return true
+	case strings.HasPrefix(s, "***") && strings.Trim(s, "*") == "":
+		return true
+	case strings.HasPrefix(s, "___") && strings.Trim(s, "_") == "":
+		return true
+	}
+	// 仅由 | - : 空格构成的 Markdown 表格分隔行
+	allSep := true
+	for _, r := range s {
+		switch r {
+		case '|', '-', ':', ' ', '\t':
+		default:
+			allSep = false
+			break
+		}
+	}
+	// 至少 8 字符，避免把 Markdown 列表项「- x」或短横线误判为表格分隔行
+	return allSep && strings.Contains(s, "-") && len(s) >= 8
+}
+
+// smartContentCompress 按字节预算压缩文本：优先保留标题与摘要，其次数据与其它；
+// 摘要/数据/其它在截断时优先保留尾部（工具输出常见「结论在后」）。
+// 参数 maxBytes 为 UTF-8 字节上限（调用方如 compressExecutedStepResult 按字节给预算）。
+func smartContentCompress(content string, maxBytes int) string {
+	if maxBytes <= 0 {
 		return content
 	}
 
-	// 按行分割内容
-	lines := strings.Split(content, "\n")
+	lines := normalizeCompressLines(content)
+	if len(lines) == 0 {
+		return ""
+	}
 
-	// 识别不同类型的内容并分类
-	var headers []string
-	var dataLines []string
-	var summaryLines []string
-	var otherLines []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
+	var normJoined strings.Builder
+	for i, ln := range lines {
+		if i > 0 {
+			normJoined.WriteByte('\n')
 		}
+		normJoined.WriteString(ln)
+	}
+	nj := normJoined.String()
+	if len(nj) <= maxBytes {
+		return nj
+	}
 
-		// 分类逻辑
-		if isHeaderLine(trimmed) {
+	var headers, dataLines, summaryLines, otherLines []string
+	for _, line := range lines {
+		switch {
+		case isHeaderLine(line):
 			headers = append(headers, line)
-		} else if isDataLine(trimmed) {
+		case isDataLine(line) || isSupplementaryFactLine(line):
 			dataLines = append(dataLines, line)
-		} else if isSummaryLine(trimmed) {
+		case isSummaryLine(line):
 			summaryLines = append(summaryLines, line)
-		} else {
+		default:
 			otherLines = append(otherLines, line)
 		}
 	}
 
-	// 按优先级重组内容，优先保留重要信息
-	var result []string
-
-	// 1. 保留所有标题（通常很重要）
-	result = append(result, headers...)
-
-	// 2. 保留摘要信息（关键结论）
-	summaryBudget := int(float64(maxTokens) * 0.3)
-	if len(strings.Join(summaryLines, "\n")) > summaryBudget {
-		result = append(result, smartTruncateLines(summaryLines, summaryBudget)...)
-	} else {
-		result = append(result, summaryLines...)
+	result := make([]string, 0, len(lines))
+	used := 0
+	tryAdd := func(parts []string) bool {
+		for _, p := range parts {
+			need := len(p)
+			if used > 0 {
+				need++
+			}
+			if used+need > maxBytes {
+				return false
+			}
+			result = append(result, p)
+			used += need
+		}
+		return true
 	}
 
-	// 3. 保留部分数据（按重要性）
-	dataBudget := int(float64(maxTokens)*0.5) - len(strings.Join(result, "\n"))
-	if dataBudget > 0 && len(dataLines) > 0 {
-		result = append(result, smartTruncateLines(dataLines, dataBudget)...)
+	// 1) 标题：保留前缀，且单独设上限，避免大量「#」标题占满预算
+	headerCap := maxBytes / 5
+	if headerCap > 1000 {
+		headerCap = 1000
+	}
+	if headerCap < 120 && len(headers) > 0 {
+		headerCap = min(maxBytes/3, 400)
+	}
+	tryAdd(smartTruncateLines(headers, headerCap))
+
+	remaining := maxBytes - used
+	if remaining < 1 {
+		return strings.Join(result, "\n")
 	}
 
-	// 4. 如果还有空间，保留其他内容
-	otherBudget := maxTokens - len(strings.Join(result, "\n"))
-	if otherBudget > 0 && len(otherLines) > 0 {
-		result = append(result, smartTruncateLines(otherLines, otherBudget)...)
+	// 2) 摘要：约 35% 剩余预算，从尾部取（「综上所述」等常出现在末尾）
+	summaryBudget := max(1, remaining*35/100)
+	if len(summaryLines) > 0 && summaryBudget < 80 {
+		summaryBudget = min(remaining, 240)
+	}
+	tryAdd(smartTruncateLinesFromEnd(summaryLines, summaryBudget))
+
+	remaining = maxBytes - used
+	if remaining < 1 {
+		out := strings.Join(result, "\n")
+		if len(out) > maxBytes {
+			return safeTruncateString(out, maxBytes)
+		}
+		return out
+	}
+
+	// 3) 数据行：约 55% 剩余预算，从尾部取（最新行情/指标常靠后）
+	dataBudget := max(1, remaining*55/100)
+	if len(dataLines) > 0 && dataBudget < 80 {
+		dataBudget = min(remaining, 320)
+	}
+	tryAdd(smartTruncateLinesFromEnd(dataLines, dataBudget))
+
+	remaining = maxBytes - used
+	if remaining > 48 {
+		tryAdd(smartTruncateLinesFromEnd(otherLines, remaining))
 	}
 
 	finalContent := strings.Join(result, "\n")
-
-	// 如果还是太长，进行安全截断
-	if len(finalContent) > maxTokens {
-		finalContent = safeTruncateString(finalContent, maxTokens)
+	if len(finalContent) > maxBytes {
+		finalContent = safeTruncateString(finalContent, maxBytes)
 	}
-
 	return finalContent
+}
+
+// compressExecutedStepResult 将已完成步骤的结果注入 executor/replanner 提示时的分级压缩：
+// 最近 2 步保留更多原文，更早步骤更强压缩，降低多轮 PlanExecute 中重复累计的 prompt tokens，
+// 对当前要执行的步骤影响很小（当前步由 FirstStep() 单独标出，且上一步往往仍在「最近」窗口内）。
+func compressExecutedStepResult(result string, stepIndex, totalSteps int, forReplanner bool) string {
+	const (
+		execRecent    = 1400
+		execOlder     = 750
+		replanRecent  = 800
+		replanOlder   = 480
+		minByteBudget = 400
+		recentTail    = 2
+	)
+	recent := totalSteps <= recentTail || stepIndex >= totalSteps-recentTail
+
+	var budget int
+	if forReplanner {
+		if recent {
+			budget = replanRecent
+		} else {
+			budget = replanOlder
+		}
+	} else {
+		if recent {
+			budget = execRecent
+		} else {
+			budget = execOlder
+		}
+	}
+	if budget < minByteBudget {
+		budget = minByteBudget
+	}
+	return smartContentCompress(result, budget)
 }
 
 // isHeaderLine 判断是否为标题行
@@ -678,6 +895,29 @@ func smartTruncateLines(lines []string, maxBytes int) []string {
 	return result
 }
 
+// smartTruncateLinesFromEnd 从列表尾部向前累加行，直到达到 maxBytes（含行间换行），
+// 适合保留工具输出末尾的结论与最新数据。
+func smartTruncateLinesFromEnd(lines []string, maxBytes int) []string {
+	if maxBytes <= 0 || len(lines) == 0 {
+		return nil
+	}
+	var result []string
+	currentSize := 0
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := lines[i]
+		lineLen := len(line)
+		if len(result) > 0 {
+			lineLen++ // newline before existing block
+		}
+		if currentSize+lineLen > maxBytes {
+			break
+		}
+		result = append([]string{line}, result...)
+		currentSize += lineLen
+	}
+	return result
+}
+
 // cleanUserInput 清理用户输入，确保UTF-8编码正确
 func cleanUserInput(input string) string {
 	// 1. 确保字符串是有效的UTF-8
@@ -721,9 +961,10 @@ func genExecutorInput(ctx context.Context, in *planexecute.ExecutionContext) ([]
 		return nil, err
 	}
 
+	nSteps := len(in.ExecutedSteps)
 	var stepsContent strings.Builder
-	for _, s := range in.ExecutedSteps {
-		result := smartContentCompress(s.Result, 1000)
+	for i, s := range in.ExecutedSteps {
+		result := compressExecutedStepResult(s.Result, i, nSteps, false)
 		stepsContent.WriteString(fmt.Sprintf("步骤: %s\n结果: %s\n\n", s.Step, result))
 	}
 
@@ -744,15 +985,22 @@ func genReplannerInput(ctx context.Context, in *planexecute.ExecutionContext) ([
 		return nil, err
 	}
 
+	nSteps := len(in.ExecutedSteps)
 	var stepsContent strings.Builder
-	for _, s := range in.ExecutedSteps {
-		result := smartContentCompress(s.Result, 1000)
+	for i, s := range in.ExecutedSteps {
+		result := compressExecutedStepResult(s.Result, i, nSteps, true)
 		stepsContent.WriteString(fmt.Sprintf("步骤: %s\n结果: %s\n\n", s.Step, result))
 	}
 
 	question := extractUserQuestion(in.UserInput)
 
-	systemMsg := schema.SystemMessage(`审核进度：目标达成则调用respond给最终答案，否则调用plan给剩余步骤（不含已完成）。`)
+	systemMsg := schema.SystemMessage(`审核执行进度并决定下一步。
+
+【重要】你只能二选一，且必须通过工具调用（function calling）完成，禁止仅用自然语言或 Markdown 作答：
+- 若用户目标已满足：调用工具「respond」，参数 JSON 含字段 response（完整最终答复）。
+- 若仍需继续：调用工具「plan」，参数 JSON 含字段 steps（剩余未完成步骤的字符串数组，不要重复已完成的步骤）。
+
+不要描述「我将调用 plan」；必须实际发出 plan 或 respond 工具调用。`)
 
 	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n原始计划: %s\n\n已完成步骤:\n%s",
 		question, string(planContent), stepsContent.String()))
