@@ -234,6 +234,8 @@ export function GetTypeStatsByDate(arg1:string):Promise<Array<data.TypeCountStat
 
 export function GetUplimitHot(arg1:string,arg2:number):Promise<Record<string, any>>;
 
+export function GetUserManual():Promise<string>;
+
 export function GetVersionInfo():Promise<models.VersionInfo>;
 
 export function GetfundList(arg1:string):Promise<Array<data.FundBasic>>;

@@ -458,6 +458,10 @@ export function GetUplimitHot(arg1, arg2) {
   return window['go']['main']['App']['GetUplimitHot'](arg1, arg2);
 }
 
+export function GetUserManual() {
+  return window['go']['main']['App']['GetUserManual']();
+}
+
 export function GetVersionInfo() {
   return window['go']['main']['App']['GetVersionInfo']();
 }

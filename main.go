@@ -53,6 +53,9 @@ var stocksBinHK []byte
 //go:embed build/stock_base_info_us.json
 var stocksBinUS []byte
 
+//go:embed docs/go-stock使用手册.md
+var userManual []byte
+
 //go:generate cp -R ./data ./build/bin
 
 var Version string

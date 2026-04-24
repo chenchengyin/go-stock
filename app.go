@@ -1675,6 +1675,10 @@ func (a *App) GetVersionInfo() *models.VersionInfo {
 	}
 }
 
+func (a *App) GetUserManual() string {
+	return string(userManual)
+}
+
 //// checkChromeOnWindows 在 Windows 系统上检查谷歌浏览器是否安装
 //func checkChromeOnWindows() bool {
 //	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe`, registry.QUERY_VALUE)
