@@ -629,7 +629,7 @@ function timeAgo(timeStr) {
                 <n-tag v-if="item.category" size="small" type="info">{{ item.category }}</n-tag>
               </template>
               <n-ellipsis :line-clamp="2" :tooltip="false" style="color: var(--n-text-color-3); font-size: 13px; margin-bottom: 8px">
-                {{ item.description || item.content }}
+                {{item.summary|| item.description || item.content }}
               </n-ellipsis>
               <template #footer>
                 <n-space justify="space-between" align="center">
@@ -637,6 +637,9 @@ function timeAgo(timeStr) {
                     {{ item.user?.nickname || item.user?.username || '匿名' }} · {{ timeAgo(item.createdAt) }}
                   </n-text>
                   <n-space :size="12" style="font-size: 12px">
+                    <n-text depth="3">
+                      👁️ {{ item.viewsCount || 0 }}
+                    </n-text>
                     <n-text :type="item.isLiked ? 'error' : 'default'" style="cursor: pointer" @click.stop="handleLike(item)">
                       {{ item.isLiked ? '❤️' : '🤍' }} {{ item.likesCount || 0 }}
                     </n-text>
@@ -701,6 +704,9 @@ function timeAgo(timeStr) {
               @click="handleDeletePrompt(detailModal.data)"
             >
               🗑️ 删除
+            </n-button>
+            <n-button size="tiny" quaternary disabled>
+              👁️ {{ detailModal.data.viewsCount || 0 }}
             </n-button>
             <n-button
               :type="detailModal.data.isLiked ? 'error' : 'default'"
@@ -857,7 +863,7 @@ function timeAgo(timeStr) {
       </n-space>
     </n-modal>
 
-    <n-modal v-model:show="rankingModal.show" preset="card" style="width: 700px; max-width: 95vw" title="🏆 排行榜">
+    <n-modal v-model:show="rankingModal.show" preset="card" style="width: 1100px; max-width: 95vw" title="🏆 排行榜">
       <n-space vertical :size="12">
         <n-space :size="8">
           <n-text depth="3" style="font-size: 13px">类型:</n-text>
