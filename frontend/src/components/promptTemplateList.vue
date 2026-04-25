@@ -8,7 +8,7 @@ import {
   UpdatePromptTemplate
 } from "../../wailsjs/go/main/App";
 import { EventsEmit } from "../../wailsjs/runtime";
-import {NButton, NInput, NTag, NText, useMessage, useNotification,useDialog, NModal, NCard, NForm, NFormItem, NSpace, NPopover} from "naive-ui";
+import {NButton, NInput, NTag, NText, NSwitch, useMessage, useNotification,useDialog, NModal, NCard, NForm, NFormItem, NSpace, NPopover} from "naive-ui";
 import { MdEditor, MdPreview } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 
@@ -107,7 +107,7 @@ const columnsRef = ref([
   },
   {
     title: '操作',
-    width: 200,
+    width: 260,
     render(row) {
       return [
         h(
@@ -119,6 +119,16 @@ const columnsRef = ref([
             onClick: () => showEditModal(row)
           },
           { default: () => '编辑' }
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'info',
+            style: 'margin-right: 5px',
+            onClick: () => showShareModal(row)
+          },
+          { default: () => '分享' }
         ),
         h(
           NButton,
@@ -154,6 +164,19 @@ const modalDataRef = reactive({
     content: ''
   }
 })
+
+const shareDataRef = reactive({
+  visible: false,
+  title: '',
+  content: '',
+  description: '',
+  category: '',
+  tags: '',
+  isPublic: true,
+  loading: false
+})
+
+const promptPlazaApiBase = ref('http://go-stock.sparkmemory.top:1918/api')
 
 function query({ page, pageSize = 10, name = "", type = "", content = "" }) {
   return new Promise((resolve) => {
@@ -272,6 +295,66 @@ function deletePromptTemplate(id) {
     }
   })
 }
+
+function showShareModal(row) {
+  shareDataRef.title = row.name || ''
+  shareDataRef.content = row.content || ''
+  shareDataRef.description = ''
+  shareDataRef.category = row.type || ''
+  shareDataRef.tags = ''
+  shareDataRef.isPublic = true
+  shareDataRef.visible = true
+  GetConfig().then(result => {
+    if (result.promptPlazaApiBase) {
+      promptPlazaApiBase.value = result.promptPlazaApiBase
+    }
+  })
+}
+
+async function handleShare() {
+  if (!shareDataRef.title || !shareDataRef.content) {
+    message.warning('标题和内容不能为空')
+    return
+  }
+  const token = localStorage.getItem('promptPlazaToken')
+  if (!token) {
+    message.warning('请先在"提示词广场"登录后再分享')
+    return
+  }
+  shareDataRef.loading = true
+  try {
+    const resp = await fetch(promptPlazaApiBase.value + '/prompts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        title: shareDataRef.title,
+        content: shareDataRef.content,
+        description: shareDataRef.description,
+        category: shareDataRef.category,
+        tags: shareDataRef.tags,
+        isPublic: shareDataRef.isPublic
+      })
+    })
+    const json = await resp.json()
+    if (json.code !== 0) {
+      if (json.code === 401) {
+        message.error('登录已过期，请先在"提示词广场"重新登录')
+      } else {
+        message.error('分享失败: ' + (json.message || '未知错误'))
+      }
+      return
+    }
+    message.success('分享成功！')
+    shareDataRef.visible = false
+  } catch (e) {
+    message.error('分享失败: ' + e.message)
+  } finally {
+    shareDataRef.loading = false
+  }
+}
 </script>
 
 <template>
@@ -325,6 +408,37 @@ function deletePromptTemplate(id) {
         <n-space justify="end">
           <n-button @click="modalDataRef.visible = false">取消</n-button>
           <n-button type="primary" @click="savePromptTemplate">保存</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
+    <n-modal v-model:show="shareDataRef.visible" preset="card" style="width: 700px;text-align: left" title="分享到提示词广场">
+      <n-form :model="shareDataRef" label-placement="left" label-width="80">
+        <n-form-item label="标题" required>
+          <n-input v-model:value="shareDataRef.title" placeholder="提示词标题" />
+        </n-form-item>
+        <n-space :size="8">
+          <n-form-item label="分类" label-placement="left" style="width: 300px">
+            <n-input v-model:value="shareDataRef.category" placeholder="如: AI编程, 数据分析" />
+          </n-form-item>
+          <n-form-item label="标签" label-placement="left" style="width: 300px">
+            <n-input v-model:value="shareDataRef.tags" placeholder="逗号分隔" />
+          </n-form-item>
+        </n-space>
+        <n-form-item label="描述">
+          <n-input v-model:value="shareDataRef.description" type="textarea" :rows="2" placeholder="简短描述提示词用途" />
+        </n-form-item>
+        <n-form-item label="内容" required>
+          <n-input v-model:value="shareDataRef.content" type="textarea" :rows="6" placeholder="提示词内容" />
+        </n-form-item>
+        <n-form-item label="公开">
+          <n-switch v-model:value="shareDataRef.isPublic" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="shareDataRef.visible = false">取消</n-button>
+          <n-button type="primary" :loading="shareDataRef.loading" @click="handleShare">分享</n-button>
         </n-space>
       </template>
     </n-modal>

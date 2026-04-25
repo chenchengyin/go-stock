@@ -706,6 +706,7 @@ export namespace data {
 	    emApiKey: string;
 	    windowWidth: number;
 	    windowHeight: number;
+	    promptPlazaApiBase: string;
 	    aiConfigs: AIConfig[];
 	
 	    static createFrom(source: any = {}) {
@@ -748,6 +749,7 @@ export namespace data {
 	        this.emApiKey = source["emApiKey"];
 	        this.windowWidth = source["windowWidth"];
 	        this.windowHeight = source["windowHeight"];
+	        this.promptPlazaApiBase = source["promptPlazaApiBase"];
 	        this.aiConfigs = this.convertValues(source["aiConfigs"], AIConfig);
 	    }
 	

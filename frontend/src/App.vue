@@ -16,7 +16,7 @@ import {
   AnalyticsOutline,
   BarChartSharp, Bonfire, BonfireOutline, DiamondOutline, EaselSharp,
   ExpandOutline, Flag,
-  Flame, FlameSharp, FlaskOutline, InformationOutline,
+  Flame, FlameSharp, FlaskOutline, GlobeOutline, InformationOutline,
   LogoGithub,
   NewspaperOutline,
   NewspaperSharp, Notifications,
@@ -629,6 +629,29 @@ const menuOptions = ref([
               ),
           key: 'research3',
           icon: renderIcon(Prompt),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"提示词广场",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 10, name: '提示词广场'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '提示词广场'}
+              ),
+          key: 'promptPlaza',
+          icon: renderIcon(GlobeOutline),
         },
         {
           label: () =>

@@ -43,6 +43,7 @@ type Settings struct {
 	EmApiKey               string `json:"emApiKey" gorm:"column:em_api_key"`
 	WindowWidth            int    `json:"windowWidth"`
 	WindowHeight           int    `json:"windowHeight"`
+	PromptPlazaApiBase     string `json:"promptPlazaApiBase" gorm:"column:prompt_plaza_api_base"`
 }
 
 func (receiver Settings) TableName() string {

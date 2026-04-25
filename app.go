@@ -2578,12 +2578,28 @@ func getBuiltinModelMaxTokens(modelName string) int {
 
 // InitCronTasks 在应用启动时，自动为启用状态的定时任务创建调度
 func (a *App) InitCronTasks() {
-	tasks := agent.NewCronTaskApi().GetAll()
+	cronApi := agent.NewCronTaskApi()
+	if !cronApi.ExistsByTaskType("stock_change_save") {
+		task := &models.CronTask{
+			Name:        "异动数据保存",
+			CronExpr:    "0 */1 * * * *",
+			TaskType:    "stock_change_save",
+			Enable:      true,
+			Status:      "active",
+			Description: "每分钟自动保存A股异动数据（火箭发射、快速反弹、大笔买入、封涨停板等），交易时间外自动跳过",
+		}
+		err := cronApi.Create(task)
+		if err != nil {
+			logger.SugaredLogger.Errorf("自动创建异动数据保存任务失败：%v", err)
+		} else {
+			logger.SugaredLogger.Info("已自动创建异动数据保存定时任务")
+		}
+	}
+	tasks := cronApi.GetAll()
 	if len(tasks) == 0 {
 		return
 	}
 	for _, t := range tasks {
-		// 避免闭包捕获循环变量
 		taskCopy := t
 		entryID, err := a.cron.AddFunc(taskCopy.CronExpr, func() {
 			err := agent.NewCronTaskApi().ExecuteTask(a.ctx, &taskCopy)
@@ -2597,7 +2613,6 @@ func (a *App) InitCronTasks() {
 			continue
 		}
 		a.setCronEntry(convertor.ToString(taskCopy.ID)+"_"+taskCopy.Name, entryID)
-		//logger.SugaredLogger.Infof("自动创建定时任务成功：%s (ID:%d) entryID:%v", taskCopy.Name, taskCopy.ID, entryID)
 	}
 }
 

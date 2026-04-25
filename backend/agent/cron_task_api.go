@@ -108,6 +108,12 @@ func (a *CronTaskApi) GetAll() []models.CronTask {
 	return tasks
 }
 
+func (a *CronTaskApi) ExistsByTaskType(taskType string) bool {
+	var count int64
+	db.Dao.Model(&models.CronTask{}).Where("task_type = ?", taskType).Count(&count)
+	return count > 0
+}
+
 func (a *CronTaskApi) EnableTask(id uint, enable bool) error {
 	return db.Dao.Model(&models.CronTask{}).Where("id = ?", id).Updates(map[string]any{
 		"enable": enable,
