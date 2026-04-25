@@ -18,6 +18,7 @@ import {
   ExpandOutline, Flag,
   Flame, FlameSharp, FlaskOutline, GlobeOutline, InformationOutline,
   LogoGithub,
+  ChatbubblesOutline,
   NewspaperOutline,
   NewspaperSharp, Notifications,
   PowerOutline, Pulse,
@@ -652,6 +653,29 @@ const menuOptions = ref([
               ),
           key: 'promptPlaza',
           icon: renderIcon(GlobeOutline),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"问答广场",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 11, name: '问答广场'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '问答广场'}
+              ),
+          key: 'promptQa',
+          icon: renderIcon(ChatbubblesOutline),
         },
         {
           label: () =>

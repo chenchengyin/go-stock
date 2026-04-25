@@ -34,6 +34,7 @@ declare module 'vue' {
     MoneyTrend: typeof import('./src/components/moneyTrend.vue')['default']
     NewsList: typeof import('./src/components/newsList.vue')['default']
     PromptPlaza: typeof import('./src/components/promptPlaza.vue')['default']
+    PromptQa: typeof import('./src/components/promptQa.vue')['default']
     PromptTemplateList: typeof import('./src/components/promptTemplateList.vue')['default']
     RankTable: typeof import('./src/components/rankTable.vue')['default']
     ResearchIndex: typeof import('./src/components/researchIndex.vue')['default']

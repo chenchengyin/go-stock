@@ -14,6 +14,7 @@ import MCPServiceManager from "./mcp-server-manager.vue";
 import SkillManager from "./skill-manager.vue";
 import UplimitLadder from "./uplimitLadder.vue";
 import PromptPlaza from "./promptPlaza.vue";
+import PromptQa from "./promptQa.vue";
 import {EventsOff, EventsOn} from "../../wailsjs/runtime";
 import {useRoute} from 'vue-router'
 
@@ -61,6 +62,9 @@ function updateTab(name) {
       </n-tab-pane>
       <n-tab-pane name="提示词广场">
         <PromptPlaza/>
+      </n-tab-pane>
+      <n-tab-pane name="问答广场">
+        <PromptQa/>
       </n-tab-pane>
       <n-tab-pane name="股票信息筛选">
         <AllStockList/>
