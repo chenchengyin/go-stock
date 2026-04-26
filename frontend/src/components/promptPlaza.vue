@@ -1,6 +1,6 @@
 <script setup>
 import {computed, h, onBeforeMount, onMounted, ref, reactive} from 'vue'
-import {GetConfig} from "../../wailsjs/go/main/App";
+import {GetConfig, GetSponsorInfo} from "../../wailsjs/go/main/App";
 import {useMessage, useDialog} from "naive-ui";
 import {MdPreview, MdEditor} from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
@@ -194,10 +194,32 @@ async function fetchCurrentUser() {
   try {
     const data = await apiGet('/user/me')
     currentUser.value = data
+    syncVipInfo()
   } catch (e) {
     token.value = ''
     localStorage.removeItem('promptPlazaToken')
     currentUser.value = null
+  }
+}
+
+async function syncVipInfo() {
+  if (!token.value) return
+  try {
+    const sponsorInfo = await GetSponsorInfo()
+    const vipLevel = sponsorInfo?.vipLevel ? Number(sponsorInfo.vipLevel) : 0
+    const vipExpireAt = sponsorInfo?.vipEndTime || ''
+    if (vipLevel > 0 && vipExpireAt) {
+      const d = new Date(vipExpireAt.replace(' ', 'T'))
+      await apiPost('/user/vip', {vipLevel, vipExpireAt: d.toISOString()})
+    } else {
+      await apiPost('/user/vip', {vipLevel, vipExpireAt: ''})
+    }
+    if (currentUser.value) {
+      currentUser.value.vipLevel = vipLevel
+      currentUser.value.vipExpireAt = vipExpireAt
+    }
+  } catch (e) {
+    console.warn('同步VIP信息失败', e)
   }
 }
 
@@ -580,8 +602,9 @@ function timeAgo(timeStr) {
         <n-space>
           <n-button type="success" @click="showCreateModal">✏️ 发布提示词</n-button>
           <template v-if="isLoggedIn">
-            <n-tag type="success" size="medium" round>
+            <n-tag :type="currentUser?.vipLevel >= 1 ? 'warning' : 'success'" size="medium" round>
               {{ currentUser?.nickname || currentUser?.username || '已登录' }}
+              <template v-if="currentUser?.vipLevel >= 1"> · VIP{{ currentUser.vipLevel }}</template>
             </n-tag>
             <n-button size="small" quaternary @click="handleLogout">退出</n-button>
           </template>
@@ -634,7 +657,9 @@ function timeAgo(timeStr) {
               <template #footer>
                 <n-space justify="space-between" align="center">
                   <n-text depth="3" style="font-size: 12px">
-                    {{ item.user?.nickname || item.user?.username || '匿名' }} · {{ timeAgo(item.createdAt) }}
+                    {{ item.user?.nickname || item.user?.username || '匿名' }}
+                    <n-tag v-if="item.user?.vipLevel >= 1" type="warning" size="tiny" round style="margin-left: 2px">VIP{{ item.user.vipLevel }}</n-tag>
+                    · {{ timeAgo(item.createdAt) }}
                   </n-text>
                   <n-space :size="12" style="font-size: 12px">
                     <n-text depth="3">
