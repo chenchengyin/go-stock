@@ -145,6 +145,26 @@ func (a *App) GetHotStrategy() map[string]any {
 	return data.NewSearchStockApi("").HotStrategy()
 }
 
+func (a *App) GetCustomStrategyList(query models.CustomStrategyQuery) *models.CustomStrategyPageData {
+	page, err := data.NewCustomStrategyApi().GetCustomStrategyList(&query)
+	if err != nil {
+		return &models.CustomStrategyPageData{}
+	}
+	return page
+}
+
+func (a *App) GetAllCustomStrategies() *[]models.CustomStrategy {
+	return data.NewCustomStrategyApi().GetAllCustomStrategies()
+}
+
+func (a *App) SaveCustomStrategy(strategy models.CustomStrategy) string {
+	return data.NewCustomStrategyApi().SaveCustomStrategy(strategy)
+}
+
+func (a *App) DeleteCustomStrategy(id uint) string {
+	return data.NewCustomStrategyApi().DeleteCustomStrategy(id)
+}
+
 func (a *App) GetAllStocks(page int, pageSize int, name string, technicalIndicators models.TechnicalIndicators) *models.AllStocksResp {
 	return data.NewStockDataApi().GetAllStocks(page, pageSize, name, technicalIndicators)
 }

@@ -37,7 +37,6 @@ import HotEvents from "./HotEvents.vue";
 import HotTopics from "./HotTopics.vue";
 import InvestCalendarTimeLine from "./InvestCalendarTimeLine.vue";
 import ClsCalendarTimeLine from "./ClsCalendarTimeLine.vue";
-import SelectStock from "./SelectStock.vue";
 import Stockhotmap from "./stockhotmap.vue";
 
 const route = useRoute()
@@ -746,9 +745,6 @@ function ReFlesh(source) {
             <ClsCalendarTimeLine />
           </n-tab-pane>
         </n-tabs>
-      </n-tab-pane>
-      <n-tab-pane name="指标选股" tab="指标选股">
-        <select-stock />
       </n-tab-pane>
       <n-tab-pane name="名站优选" tab="名站优选">
         <Stockhotmap />

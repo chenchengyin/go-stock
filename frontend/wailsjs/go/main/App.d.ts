@@ -64,6 +64,8 @@ export function DeleteAllStockInfo(arg1:number):Promise<string>;
 
 export function DeleteCronTask(arg1:number):Promise<string>;
 
+export function DeleteCustomStrategy(arg1:number):Promise<string>;
+
 export function DeleteMCPServer(arg1:number):Promise<string>;
 
 export function DeletePromptTemplate(arg1:number):Promise<string>;
@@ -108,6 +110,8 @@ export function GetAiRecommendStocksList(arg1:models.AiRecommendStocksQuery):Pro
 
 export function GetAllConcepts():Promise<Array<string>>;
 
+export function GetAllCustomStrategies():Promise<any>;
+
 export function GetAllIndustries():Promise<Array<string>>;
 
 export function GetAllMCPTools():Promise<Array<models.MCPServerTool>>;
@@ -137,6 +141,8 @@ export function GetCronTaskByID(arg1:number):Promise<models.CronTask>;
 export function GetCronTaskList(arg1:models.CronTaskQuery):Promise<models.CronTaskPageResp>;
 
 export function GetCronTaskTypes():Promise<Array<lo.Tuple2_string_string_>>;
+
+export function GetCustomStrategyList(arg1:models.CustomStrategyQuery):Promise<models.CustomStrategyPageData>;
 
 export function GetDailyChangeStats(arg1:number):Promise<Array<data.DailyChangeStats>>;
 
@@ -289,6 +295,8 @@ export function SaveAIResponseResult(arg1:string,arg2:string,arg3:string,arg4:st
 export function SaveAiAssistantSession(arg1:string,arg2:Array<models.AiAssistantMessage>):Promise<void>;
 
 export function SaveAsMarkdown(arg1:string,arg2:string):Promise<string>;
+
+export function SaveCustomStrategy(arg1:models.CustomStrategy):Promise<string>;
 
 export function SaveImage(arg1:string,arg2:string):Promise<string>;
 

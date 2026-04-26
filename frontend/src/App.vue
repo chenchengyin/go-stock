@@ -406,28 +406,6 @@ const menuOptions = ref([
                   to: {
                     name: 'market',
                     query: {
-                      name: "指标选股",
-                    }
-                  },
-                  onClick: () => {
-                    activeKey.value = 'market'
-                    EventsEmit("changeMarketTab", {ID: 0, name: '指标选股'})
-                  },
-                },
-                {default: () => '指标选股',}
-            ),
-        key: 'market11',
-        icon: renderIcon(BoxSearch20Regular),
-      },
-      {
-        label: () =>
-            h(
-                RouterLink,
-                {
-                  href: '#',
-                  to: {
-                    name: 'market',
-                    query: {
                       name: "名站优选",
                     }
                   },
@@ -438,7 +416,7 @@ const menuOptions = ref([
                 },
                 {default: () => '名站优选',}
             ),
-        key: 'market12',
+        key: 'market11',
         icon: renderIcon(FirefoxBrowser),
       },
     ]
@@ -685,20 +663,43 @@ const menuOptions = ref([
                     to: {
                       name: 'research',
                       query: {
-                        name:"股票信息筛选",
+                        name:"形态选股",
                       },
                     },
                     onClick: () => {
                       activeKey.value = 'research'
                       setTimeout(() => {
-                        EventsEmit("changeResearchTab", {ID: 3, name: '股票信息筛选'})
+                        EventsEmit("changeResearchTab", {ID: 3, name: '形态选股'})
                       }, 100)
                     },
                   },
-                  {default: () => '股票信息筛选'}
+                  {default: () => '形态选股'}
               ),
           key: 'research4',
           icon: renderIcon(AppsList20Regular),
+        },
+        {
+          label: () =>
+              h(
+                  RouterLink,
+                  {
+                    to: {
+                      name: 'research',
+                      query: {
+                        name:"指标选股",
+                      },
+                    },
+                    onClick: () => {
+                      activeKey.value = 'research'
+                      setTimeout(() => {
+                        EventsEmit("changeResearchTab", {ID: 0, name: '指标选股'})
+                      }, 100)
+                    },
+                  },
+                  {default: () => '指标选股'}
+              ),
+          key: 'research_select_stock',
+          icon: renderIcon(BoxSearch20Regular),
         },
         {
           label: () =>

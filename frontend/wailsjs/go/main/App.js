@@ -118,6 +118,10 @@ export function DeleteCronTask(arg1) {
   return window['go']['main']['App']['DeleteCronTask'](arg1);
 }
 
+export function DeleteCustomStrategy(arg1) {
+  return window['go']['main']['App']['DeleteCustomStrategy'](arg1);
+}
+
 export function DeleteMCPServer(arg1) {
   return window['go']['main']['App']['DeleteMCPServer'](arg1);
 }
@@ -206,6 +210,10 @@ export function GetAllConcepts() {
   return window['go']['main']['App']['GetAllConcepts']();
 }
 
+export function GetAllCustomStrategies() {
+  return window['go']['main']['App']['GetAllCustomStrategies']();
+}
+
 export function GetAllIndustries() {
   return window['go']['main']['App']['GetAllIndustries']();
 }
@@ -264,6 +272,10 @@ export function GetCronTaskList(arg1) {
 
 export function GetCronTaskTypes() {
   return window['go']['main']['App']['GetCronTaskTypes']();
+}
+
+export function GetCustomStrategyList(arg1) {
+  return window['go']['main']['App']['GetCustomStrategyList'](arg1);
 }
 
 export function GetDailyChangeStats(arg1) {
@@ -568,6 +580,10 @@ export function SaveAiAssistantSession(arg1, arg2) {
 
 export function SaveAsMarkdown(arg1, arg2) {
   return window['go']['main']['App']['SaveAsMarkdown'](arg1, arg2);
+}
+
+export function SaveCustomStrategy(arg1) {
+  return window['go']['main']['App']['SaveCustomStrategy'](arg1);
 }
 
 export function SaveImage(arg1, arg2) {
