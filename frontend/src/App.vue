@@ -24,9 +24,9 @@ import {
   PowerOutline, Pulse,
   ReorderTwoOutline,
   SettingsOutline, ServerOutline, Skull, SkullOutline, SkullSharp,
-  SparklesOutline, FlashOutline,
+  SparklesOutline, FlashOutline, Star,
   StarOutline,
-  Wallet, WarningOutline, TimeOutline,
+  Wallet, WarningOutline, TimeOutline, SearchOutline,
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList, GetVersionInfo, IsTradingTime, IsHKTradingTime, IsUSTradingTime} from "../wailsjs/go/main/App";
 import FloatingAiAssistant from "./components/FloatingAiAssistant.vue";
@@ -538,7 +538,7 @@ const menuOptions = ref([
                   {default: () => '股票推荐记录'}
               ),
           key: 'research2',
-          icon: renderIcon(DiamondOutline),
+          icon: renderIcon(Star),
         },
         {
           label: () =>
@@ -676,7 +676,7 @@ const menuOptions = ref([
                   {default: () => '形态选股'}
               ),
           key: 'research4',
-          icon: renderIcon(AppsList20Regular),
+          icon: renderIcon(SearchOutline),
         },
         {
           label: () =>
