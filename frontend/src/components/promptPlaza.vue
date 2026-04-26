@@ -16,7 +16,7 @@ const token = ref(localStorage.getItem('promptPlazaToken') || '')
 const currentUser = ref(null)
 const categories = ref([])
 const activeCategory = ref(null)
-const activeSort = ref('')
+const activeSort = ref('latest')
 const keyword = ref('')
 const loading = ref(false)
 const prompts = ref([])
@@ -178,7 +178,7 @@ async function loadPrompts() {
     }
     if (activeCategory.value) params.category = activeCategory.value
     if (keyword.value) params.keyword = keyword.value
-    if (activeSort.value) params.sort = activeSort.value
+    params.sort = activeSort.value
     const data = await apiGet('/prompts', params)
     prompts.value = data.list || []
     pagination.itemCount = data.total || 0
@@ -617,23 +617,27 @@ function timeAgo(timeStr) {
       <n-space align="center" :size="8">
         <n-text depth="3" style="font-size: 13px">分类:</n-text>
         <n-button
-          :type="activeCategory === null ? 'primary' : 'default'"
+          type="primary"
+          :ghost="activeCategory !== null"
           size="small"
           @click="handleCategoryFilter(null)"
         >全部</n-button>
         <n-button
           v-for="cat in categories"
           :key="cat"
-          :type="activeCategory === cat ? 'primary' : 'default'"
+          type="primary"
+          :ghost="activeCategory !== cat"
           size="small"
           @click="handleCategoryFilter(cat)"
         >{{ cat }}</n-button>
         <n-divider vertical />
         <n-text depth="3" style="font-size: 13px">排序:</n-text>
-        <n-button :type="activeSort === '' ? 'primary' : 'default'" size="small" @click="handleSortChange('')">最新</n-button>
-        <n-button :type="activeSort === 'likes' ? 'primary' : 'default'" size="small" @click="handleSortChange('likes')">最热</n-button>
-        <n-button :type="activeSort === 'downloads' ? 'primary' : 'default'" size="small" @click="handleSortChange('downloads')">下载</n-button>
-        <n-button :type="activeSort === 'comments' ? 'primary' : 'default'" size="small" @click="handleSortChange('comments')">评论</n-button>
+        <n-button type="primary" :ghost="activeSort !== 'latest'" size="small" @click="handleSortChange('latest')">🕐 最新</n-button>
+        <n-button type="primary" :ghost="activeSort !== 'hot'" size="small" @click="handleSortChange('hot')">🔥 热度</n-button>
+        <n-button type="primary" :ghost="activeSort !== 'likes'" size="small" @click="handleSortChange('likes')">❤️ 点赞</n-button>
+        <n-button type="primary" :ghost="activeSort !== 'favorites'" size="small" @click="handleSortChange('favorites')">⭐ 收藏</n-button>
+        <n-button type="primary" :ghost="activeSort !== 'downloads'" size="small" @click="handleSortChange('downloads')">⬇️ 下载</n-button>
+        <n-button type="primary" :ghost="activeSort !== 'comments'" size="small" @click="handleSortChange('comments')">💬 评论</n-button>
       </n-space>
 
       <n-spin :show="loading">

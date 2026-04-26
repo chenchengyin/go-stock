@@ -7,7 +7,8 @@
       :title="hasBackgroundTask ? 'go-stock AI Agent 助手正在后台分析...' : 'go-stock AI Agent 助手'"
     >
       <div class="edge-trigger-inner">
-        <NIcon :component="SparklesOutline" size="22" />
+        <NIcon :component="SparklesOutline" size="18" />
+        <span class="edge-trigger-text">AI助手</span>
         <div v-if="hasBackgroundTask" class="edge-trigger-badge" />
       </div>
     </div>
@@ -1261,8 +1262,17 @@ onBeforeUnmount(() => {
 .edge-trigger-inner {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+}
+.edge-trigger-text {
+  font-size: 14px;
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+  line-height: 1;
+  white-space: nowrap;
 }
 .edge-trigger-badge {
   position: absolute;
