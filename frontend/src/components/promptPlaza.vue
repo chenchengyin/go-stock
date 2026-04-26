@@ -291,14 +291,12 @@ function handleSearch() {
   loadPrompts()
 }
 
-function handleCategoryFilter(cat) {
-  activeCategory.value = cat || null
+function handleCategoryFilter() {
   pagination.page = 1
   loadPrompts()
 }
 
-function handleSortChange(sort) {
-  activeSort.value = sort
+function onSortChange() {
   pagination.page = 1
   loadPrompts()
 }
@@ -616,28 +614,20 @@ function timeAgo(timeStr) {
 
       <n-space align="center" :size="8">
         <n-text depth="3" style="font-size: 13px">分类:</n-text>
-        <n-button
-          type="primary"
-          :ghost="activeCategory !== null"
-          size="small"
-          @click="handleCategoryFilter(null)"
-        >全部</n-button>
-        <n-button
-          v-for="cat in categories"
-          :key="cat"
-          type="primary"
-          :ghost="activeCategory !== cat"
-          size="small"
-          @click="handleCategoryFilter(cat)"
-        >{{ cat }}</n-button>
+        <n-radio-group v-model:value="activeCategory" size="small" @update:value="handleCategoryFilter">
+          <n-radio-button :value="null">全部</n-radio-button>
+          <n-radio-button v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</n-radio-button>
+        </n-radio-group>
         <n-divider vertical />
         <n-text depth="3" style="font-size: 13px">排序:</n-text>
-        <n-button type="primary" :ghost="activeSort !== 'latest'" size="small" @click="handleSortChange('latest')">🕐 最新</n-button>
-        <n-button type="primary" :ghost="activeSort !== 'hot'" size="small" @click="handleSortChange('hot')">🔥 热度</n-button>
-        <n-button type="primary" :ghost="activeSort !== 'likes'" size="small" @click="handleSortChange('likes')">❤️ 点赞</n-button>
-        <n-button type="primary" :ghost="activeSort !== 'favorites'" size="small" @click="handleSortChange('favorites')">⭐ 收藏</n-button>
-        <n-button type="primary" :ghost="activeSort !== 'downloads'" size="small" @click="handleSortChange('downloads')">⬇️ 下载</n-button>
-        <n-button type="primary" :ghost="activeSort !== 'comments'" size="small" @click="handleSortChange('comments')">💬 评论</n-button>
+        <n-radio-group v-model:value="activeSort" size="small" @update:value="onSortChange">
+          <n-radio-button value="latest">🕐 最新</n-radio-button>
+          <n-radio-button value="hot">🔥 热度</n-radio-button>
+          <n-radio-button value="likes">❤️ 点赞</n-radio-button>
+          <n-radio-button value="favorites">⭐ 收藏</n-radio-button>
+          <n-radio-button value="downloads">⬇️ 下载</n-radio-button>
+          <n-radio-button value="comments">💬 评论</n-radio-button>
+        </n-radio-group>
       </n-space>
 
       <n-spin :show="loading">
