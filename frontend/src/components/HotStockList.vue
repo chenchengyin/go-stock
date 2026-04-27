@@ -17,7 +17,12 @@ const checkTask = ref()
 const list  = ref([])
 
 async function fetchHotStock() {
-  list.value = await HotStock(marketType)
+  try {
+    const res = await HotStock(marketType)
+    list.value = res || []
+  } catch (e) {
+    console.error('fetchHotStock error:', e)
+  }
 }
 
 function startRefresh() {

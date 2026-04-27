@@ -1019,7 +1019,10 @@ func (m MarketNewsApi) XUEQIUHotStock(size int, marketType string) *[]models.Hot
 		logger.SugaredLogger.Errorf("XUEQIUHotStock err:%s", err.Error())
 		return &[]models.HotItem{}
 	}
-	//logger.SugaredLogger.Infof("XUEQIUHotStock:%+v", res)
+	if res.ErrorCode != 0 {
+		logger.SugaredLogger.Errorf("XUEQIUHotStock API error: code=%d, desc=%s", res.ErrorCode, res.ErrorDescription)
+		return &[]models.HotItem{}
+	}
 	return &res.Data.Items
 }
 

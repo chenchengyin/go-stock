@@ -471,10 +471,10 @@ type HotItem struct {
 	RankChange int     `json:"rank_change" md:"排名变化"`
 	//HasExist     interface{} `json:"has_exist" md:"-"`
 	//Symbol       string      `json:"symbol" md:"-"`
-	Percent float64 `json:"percent" md:"涨跌幅(%)"`
-	Current float64 `json:"current" md:"股价"`
-	Chg     float64 `json:"chg" md:"股价变化"`
-	//Exchange     string      `json:"exchange" md:"交易所代码"`
+	Percent  float64 `json:"percent" md:"涨跌幅(%)"`
+	Current  float64 `json:"current" md:"股价"`
+	Chg      float64 `json:"chg" md:"股价变化"`
+	Exchange string  `json:"exchange" md:"交易所代码"`
 	//StockType    int         `json:"stock_type" md:"-"`
 	//SubType      string      `json:"sub_type" md:"-"`
 	//Ad           int         `json:"ad" md:"-"`
