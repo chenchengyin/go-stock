@@ -529,7 +529,7 @@ async function showCreateModal() {
   createModal.category = ''
   createModal.tags = ''
   createModal.isPublic = true
-  createModal.vipOnly = false
+  createModal.vipOnly = !!(currentUser.value && currentUser.value.vipLevel > 0 && currentUser.value.vipExpireAt && new Date(currentUser.value.vipExpireAt) > new Date())
   createModal.show = true
 }
 
