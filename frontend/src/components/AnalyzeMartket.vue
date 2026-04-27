@@ -2022,7 +2022,7 @@ function handleTreemap() {
       </n-collapse-transition>
     </n-collapse-item>
   </n-collapse>
-  <n-modal v-model:show="showDimensionModal" preset="card" :title="dimensionModalTitle" style="width: 800px" :mask-closable="true">
+  <n-modal v-model:show="showDimensionModal" preset="card" :title="dimensionModalTitle" style="width: 800px;max-width: calc(100vw - 32px);" :mask-closable="true">
     <div ref="dimensionDetailChartRef" style="width: 100%;height: 450px;--wails-draggable:no-drag"></div>
   </n-modal>
 </template>

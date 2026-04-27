@@ -2595,7 +2595,7 @@ watch(modalShow6, (newVal) => {
     </n-input-group>
     <!--    </n-card>-->
   </div>
-  <n-modal transform-origin="center" size="small" v-model:show="modalShow" :title="formModel.name" style="width: 800px"
+  <n-modal transform-origin="center" size="small" v-model:show="modalShow" :title="formModel.name" style="width: 800px;max-width: calc(100vw - 32px);"
            :preset="'card'">
     <n-form :model="formModel" :rules="{
               costPrice: { required: true, message: '请输入成本'},
@@ -2711,28 +2711,28 @@ watch(modalShow6, (newVal) => {
       </n-flex>
     </template>
   </n-modal>
-  <n-modal v-model:show="modalShow2" :title="data.name+' '+ data.changePercent+'%'" style="width: 1000px"
+  <n-modal v-model:show="modalShow2" :title="data.name+' '+ data.changePercent+'%'" style="width: 1000px;max-width: calc(100vw - 32px);"
            :preset="'card'" @after-enter="handleFeishi" @after-leave="clearFeishi">
     <!--    <n-image :src="data.fenshiURL" />-->
-    <div ref="kLineChartRef2" style="width: 1000px; height: 500px;"></div>
+    <div ref="kLineChartRef2" style="width: 100%; height: 500px;"></div>
   </n-modal>
-  <n-modal v-model:show="modalShow3" :title="data.name" style="width: 1000px" :preset="'card'"
+  <n-modal v-model:show="modalShow3" :title="data.name" style="width: 1000px;max-width: calc(100vw - 32px);" :preset="'card'"
            @after-enter="handleKLine">
     <!--    <n-image :src="data.kURL" />-->
-    <div ref="kLineChartRef" style="width: 1000px; height: 500px;"></div>
+    <div ref="kLineChartRef" style="width: 100%; height: 500px;"></div>
   </n-modal>
 
-  <n-modal transform-origin="center" v-model:show="modalShow4" preset="card" style="width: 800px;"
+  <n-modal transform-origin="center" v-model:show="modalShow4" preset="card" style="width: 800px;max-width: calc(100vw - 32px);"
            :title="'['+data.name+']AI分析'">
     <n-spin size="small" :show="data.loading">
-      <MdEditor v-if="enableEditor" :toolbars="toolbars" ref="mdEditorRef" style="height: 440px;text-align: left"
+      <MdEditor v-if="enableEditor" :toolbars="toolbars" ref="mdEditorRef" style="height: 440px;max-height: 60vh;text-align: left"
                 :modelValue="data.airesult" :theme="theme">
         <template #defToolbars>
           <ExportPDF :file-name="data.name+'['+data.code+']AI分析报告'" style="text-align: left"
                      :modelValue="data.airesult" @onProgress="handleProgress"/>
         </template>
       </MdEditor>
-      <MdPreview v-if="!enableEditor" ref="mdPreviewRef" style="height: 440px;text-align: left"
+      <MdPreview v-if="!enableEditor" ref="mdPreviewRef" style="height: 440px;max-height: 60vh;text-align: left;overflow-y: auto;"
                  :modelValue="data.airesult" :theme="theme"/>
     </n-spin>
     <template #footer>
@@ -2796,7 +2796,7 @@ watch(modalShow6, (newVal) => {
       </n-flex>
     </template>
   </n-modal>
-  <n-modal v-model:show="modalShow5" :title="data.name+'资金趋势'" style="width: 1000px" :preset="'card'">
+  <n-modal v-model:show="modalShow5" :title="data.name+'资金趋势'" style="width: 1000px;max-width: calc(100vw - 32px);" :preset="'card'">
     <money-trend :code="data.code" :name="data.name" :days="360" :dark-theme="data.darkTheme"
                  :chart-height="500"></money-trend>
   </n-modal>

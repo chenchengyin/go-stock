@@ -751,10 +751,10 @@ function ReFlesh(source) {
       </n-tab-pane>
     </n-tabs>
   </n-card>
-  <n-modal transform-origin="center" v-model:show="summaryModal" preset="card" style="width: 800px;"
+  <n-modal transform-origin="center" v-model:show="summaryModal" preset="card" style="width: 800px;max-width: calc(100vw - 32px);"
            :title="'AI市场资讯总结'">
     <n-spin size="small" :show="loading">
-      <MdPreview ref="mdPreviewRef" style="height: 440px;text-align: left" :modelValue="aiSummary" :theme="theme"/>
+      <MdPreview ref="mdPreviewRef" style="height: 440px;max-height: 60vh;text-align: left;overflow-y: auto;" :modelValue="aiSummary" :theme="theme"/>
     </n-spin>
     <template #footer>
       <n-flex justify="space-between" ref="tipsRef">

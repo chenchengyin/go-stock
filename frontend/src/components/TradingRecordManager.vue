@@ -755,7 +755,7 @@ onUnmounted(() => {
     style="height: calc(100vh - 310px); margin-top: 10px"
   />
 
-  <n-modal v-model:show="showAddModal" preset="card" title="添加交易日志" style="width: 820px">
+  <n-modal v-model:show="showAddModal" preset="card" title="添加交易日志" style="width: 820px;max-width: calc(100vw - 32px);">
     <n-form label-placement="top" size="small">
       <n-grid :cols="3" :x-gap="12" :y-gap="2">
         <n-grid-item>
@@ -845,7 +845,7 @@ onUnmounted(() => {
     </template>
   </n-modal>
 
-  <n-modal v-model:show="showEditModal" preset="card" title="编辑交易日志" style="width: 820px">
+  <n-modal v-model:show="showEditModal" preset="card" title="编辑交易日志" style="width: 820px;max-width: calc(100vw - 32px);">
     <n-form label-placement="top" size="small">
       <n-grid :cols="3" :x-gap="12" :y-gap="2">
         <n-grid-item>

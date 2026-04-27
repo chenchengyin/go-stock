@@ -626,9 +626,9 @@ const toNumber = (value, defaultValue = 0) => {
 <!--      />-->
 <!--    </div>-->
 
-  <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 850px;">
+  <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 850px;max-width: calc(100vw - 32px);">
     <n-card size="small">
-      <KLineChart style="width: 800px" :code="getStockCode(modalDataRef.stockCode)" :chart-height="500" :stock-name="modalDataRef.stockName" :k-days="30" :dark-theme="editorDataRef.darkTheme"></KLineChart>
+      <KLineChart style="width: 100%;max-width: 800px;" :code="getStockCode(modalDataRef.stockCode)" :chart-height="500" :stock-name="modalDataRef.stockName" :k-days="30" :dark-theme="editorDataRef.darkTheme"></KLineChart>
     </n-card>
   </n-modal>
 </template>

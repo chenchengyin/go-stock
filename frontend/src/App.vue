@@ -947,9 +947,9 @@ onBeforeMount(() => {
   GetVersionInfo().then(result => {
     if(result.officialStatement){
       content.value = result.officialStatement+"\n\n"+content.value
-      officialStatement.value = result.officialStatement
-      updateMarketStatus()
     }
+    officialStatement.value = result.officialStatement || ""
+    updateMarketStatus()
   })
 
   GetGroupList().then(result => {

@@ -1200,6 +1200,7 @@ watch(aiConfigId, (newId) => {
 .msg-content .msg-markdown :deep(.md-editor-preview) {
   font-size: 13px;
   line-height: 1.6;
+  padding: 0 8px;
 }
 .message-item.user .msg-content :deep(.md-editor-preview),
 .message-item.user .msg-content :deep(.md-editor-preview-wrapper) {

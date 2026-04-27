@@ -168,7 +168,7 @@ func main() {
 
 	// Create application with options
 	err = wails.Run(&options.App{
-		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT + " " + convertor.ToString(appWidth) + "x" + convertor.ToString(appHeight),
+		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT,
 		// 默认窗口大小：自适应但保留明显边距
 		Width:  appWidth,
 		Height: appHeight,
