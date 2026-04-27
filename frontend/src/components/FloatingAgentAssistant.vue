@@ -71,6 +71,9 @@
                     <div
                       :class="['message-item', group.userMsg.role]"
                     >
+                      <div class="msg-avatar user-avatar">
+                        <NIcon :component="PersonCircleOutline" size="18" />
+                      </div>
                       <div class="msg-bubble">
                         <div class="msg-content">
                           <div v-if="group.userMsg.time" class="msg-meta msg-meta-user-inner">
@@ -85,9 +88,6 @@
                             class="msg-markdown"
                           />
                         </div>
-                      </div>
-                      <div class="msg-avatar user-avatar">
-                        <NIcon :component="PersonCircleOutline" size="20" />
                       </div>
                     </div>
                     <div
@@ -1468,15 +1468,16 @@ onBeforeUnmount(() => {
 }
 .message-item {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   align-items: flex-start;
 }
 .message-item.user {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 .msg-avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1495,11 +1496,9 @@ onBeforeUnmount(() => {
 }
 .msg-bubble {
   max-width: 100%;
-  flex: 1;
-  min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  padding: 4px 4px;
+  padding: 8px 10px;
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.5;
