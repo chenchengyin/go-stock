@@ -17,6 +17,7 @@ const currentUser = ref(null)
 const categories = ref([])
 const activeCategory = ref(null)
 const activeSort = ref('latest')
+const vipOnlyFilter = ref(false)
 const keyword = ref('')
 const loading = ref(false)
 const prompts = ref([])
@@ -54,7 +55,8 @@ const createModal = reactive({
   description: '',
   category: '',
   tags: '',
-  isPublic: true
+  isPublic: true,
+  vipOnly: false
 })
 
 const rankingModal = reactive({
@@ -74,6 +76,7 @@ const editModal = reactive({
   category: '',
   tags: '',
   isPublic: true,
+  vipOnly: false,
   loading: false
 })
 
@@ -179,10 +182,11 @@ async function loadPrompts() {
     if (activeCategory.value) params.category = activeCategory.value
     if (keyword.value) params.keyword = keyword.value
     params.sort = activeSort.value
+    if (vipOnlyFilter.value) params.vipOnly = 'true'
     const data = await apiGet('/prompts', params)
     prompts.value = data.list || []
     pagination.itemCount = data.total || 0
-    pagination.pageCount = data.totalPages || 1
+    pagination.pageCount = Math.ceil((data.total || 0) / (data.pageSize || pagination.pageSize)) || 1
   } catch (e) {
     message.error('加载提示词列表失败: ' + e.message)
   } finally {
@@ -461,6 +465,7 @@ function showEditModal(prompt) {
   editModal.category = prompt.category || ''
   editModal.tags = prompt.tags || ''
   editModal.isPublic = prompt.isPublic !== false
+  editModal.vipOnly = prompt.vipOnly === true
   editModal.show = true
 }
 
@@ -477,7 +482,8 @@ async function handleEdit() {
       description: editModal.description,
       category: editModal.category,
       tags: editModal.tags,
-      isPublic: editModal.isPublic
+      isPublic: editModal.isPublic,
+      vipOnly: editModal.vipOnly
     })
     editModal.show = false
     detailModal.show = false
@@ -523,6 +529,7 @@ async function showCreateModal() {
   createModal.category = ''
   createModal.tags = ''
   createModal.isPublic = true
+  createModal.vipOnly = false
   createModal.show = true
 }
 
@@ -538,7 +545,8 @@ async function handleCreate() {
       description: createModal.description,
       category: createModal.category,
       tags: createModal.tags,
-      isPublic: createModal.isPublic
+      isPublic: createModal.isPublic,
+      vipOnly: createModal.vipOnly
     })
     createModal.show = false
     message.success('发布成功')
@@ -628,6 +636,14 @@ function timeAgo(timeStr) {
           <n-radio-button value="downloads">⬇️ 下载</n-radio-button>
           <n-radio-button value="comments">💬 评论</n-radio-button>
         </n-radio-group>
+        <n-divider vertical />
+        <n-button
+          :type="vipOnlyFilter ? 'warning' : 'default'"
+          size="small"
+          @click="vipOnlyFilter = !vipOnlyFilter; pagination.page = 1; loadPrompts()"
+        >
+          👑 VIP专属
+        </n-button>
       </n-space>
 
       <n-spin :show="loading">
@@ -640,7 +656,10 @@ function timeAgo(timeStr) {
               @click="showDetail(item.id)"
             >
               <template #header>
-                <n-text strong style="font-size: 15px">{{ item.title }}</n-text>
+                <n-space align="center" :size="6">
+                  <n-text strong style="font-size: 15px">{{ item.title }}</n-text>
+                  <n-tag v-if="item.vipOnly" type="warning" size="tiny" round>👑 VIP</n-tag>
+                </n-space>
               </template>
               <template #header-extra>
                 <n-tag v-if="item.category" size="small" type="info">{{ item.category }}</n-tag>
@@ -699,6 +718,7 @@ function timeAgo(timeStr) {
       <template v-if="detailModal.data">
         <n-space align="left" justify="space-between" style="margin-bottom: 12px">
           <n-space align="left" :size="8">
+            <n-tag v-if="detailModal.data.vipOnly" type="warning" size="small" round>👑 VIP专属</n-tag>
             <n-tag v-if="detailModal.data.category" type="info" size="small">{{ detailModal.data.category }}</n-tag>
             <n-text depth="3" style="font-size: 12px">
               {{ detailModal.data.user?.nickname || detailModal.data.user?.username || '匿名' }} · {{ formatTime(detailModal.data.createdAt) }}
@@ -756,12 +776,21 @@ function timeAgo(timeStr) {
               <n-space :size="4" v-if="detailModal.data.tags">
                 <n-tag v-for="tag in detailModal.data.tags.split(',').filter(t=>t)" :key="tag" size="small" round>{{ tag.trim() }}</n-tag>
               </n-space>
-              <div style="max-height: 500px; overflow-y: auto">
+              <div style="max-height: 500px; overflow-y: auto; position: relative">
                 <MdPreview
                   :model-value="detailModal.data.content"
                   :theme="editorTheme"
                   style="text-align: left"
                 />
+                <div
+                  v-if="detailModal.data.needVip"
+                  style="position: absolute; bottom: 0; left: 0; right: 0; height: 120px; background: linear-gradient(to bottom, transparent, var(--n-color)); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 16px"
+                >
+                  <n-space vertical align="center" :size="4">
+                    <n-tag type="warning" size="medium" round>👑 VIP专属提示词</n-tag>
+                    <n-text depth="3" style="font-size: 12px">开通VIP查看完整内容</n-text>
+                  </n-space>
+                </div>
               </div>
             </n-space>
           </div>
@@ -850,6 +879,14 @@ function timeAgo(timeStr) {
           placeholder="提示词内容"
           style="height: 400px"
         />
+        <n-space align="center">
+          <n-text>公开</n-text>
+          <n-switch v-model:value="createModal.isPublic" />
+          <n-divider vertical />
+          <n-text>VIP专属</n-text>
+          <n-switch v-model:value="createModal.vipOnly" />
+          <n-text depth="3" style="font-size: 12px">仅VIP用户可查看完整内容</n-text>
+        </n-space>
         <n-space justify="end">
           <n-button @click="createModal.show = false">取消</n-button>
           <n-button type="primary" @click="handleCreate">发布</n-button>
@@ -874,6 +911,10 @@ function timeAgo(timeStr) {
         <n-space align="center">
           <n-text>公开</n-text>
           <n-switch v-model:value="editModal.isPublic" />
+          <n-divider vertical />
+          <n-text>VIP专属</n-text>
+          <n-switch v-model:value="editModal.vipOnly" />
+          <n-text depth="3" style="font-size: 12px">仅VIP用户可查看完整内容</n-text>
         </n-space>
         <n-space justify="end">
           <n-button @click="editModal.show = false">取消</n-button>
@@ -909,6 +950,7 @@ function timeAgo(timeStr) {
                   style="min-width: 28px; text-align: center"
                 >{{ item.rank }}</n-tag>
                 <n-text strong>{{ item.title }}</n-text>
+                <n-tag v-if="item.vipOnly" type="warning" size="tiny" round>👑 VIP</n-tag>
                 <n-text depth="3" style="font-size: 12px">
                   {{ item.user?.nickname || item.user?.username || '匿名' }}
                 </n-text>
