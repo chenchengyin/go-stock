@@ -1,6 +1,8 @@
 package data
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"go-stock/backend/logger"
 	"strings"
@@ -10,6 +12,25 @@ import (
 
 const iwencaiAPIURL = "https://openapi.iwencai.com/v1/query2data"
 const iwencaiSearchURL = "https://openapi.iwencai.com/v1/comprehensive/search"
+
+func generateTraceID() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func iwencaiCommonHeaders(apiKey, skillID, skillVersion string) map[string]string {
+	return map[string]string{
+		"Authorization":         "Bearer " + apiKey,
+		"Content-Type":          "application/json",
+		"X-Claw-Call-Type":      "normal",
+		"X-Claw-Skill-Id":       skillID,
+		"X-Claw-Skill-Version":  skillVersion,
+		"X-Claw-Plugin-Id":      "none",
+		"X-Claw-Plugin-Version": "none",
+		"X-Claw-Trace-Id":       generateTraceID(),
+	}
+}
 
 type IwencaiAPI struct {
 	client *resty.Client
@@ -62,8 +83,7 @@ func (api *IwencaiAPI) Query(query string, page, limit int) (*IwencaiResponse, e
 
 	var result IwencaiResponse
 	resp, err := api.client.R().
-		SetHeader("Authorization", "Bearer "+apiKey).
-		SetHeader("Content-Type", "application/json").
+		SetHeaders(iwencaiCommonHeaders(apiKey, "query2data", "1.0.0")).
 		SetBody(reqBody).
 		SetResult(&result).
 		Post(iwencaiAPIURL)
@@ -167,8 +187,7 @@ func (api *IwencaiAPI) searchComprehensive(channel string, query string) (*Iwenc
 
 	var result IwencaiSearchResponse
 	resp, err := api.client.R().
-		SetHeader("Authorization", "Bearer "+apiKey).
-		SetHeader("Content-Type", "application/json").
+		SetHeaders(iwencaiCommonHeaders(apiKey, "news-search", "1.0.0")).
 		SetBody(reqBody).
 		SetResult(&result).
 		Post(iwencaiSearchURL)
