@@ -74,7 +74,7 @@ func (receiver StockAiAgent) Chat(question string, aiConfigId int, sysPromptId *
 	return receiver.ChatWithContext(context.Background(), question, aiConfigId, sysPromptId, true, 20, false, "")
 }
 
-func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string) chan *schema.Message {
+func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question string, aiConfigId int, sysPromptId *int, memoryMode bool, memoryCount int, thinkingMode bool, agentMode string, optsOverride ...string) chan *schema.Message {
 	ch := make(chan *schema.Message, 1024)
 
 	go func() {
@@ -89,6 +89,15 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 			}
 		}()
 
+		var sessionIDOverride string
+		var sysPromptOverride string
+		if len(optsOverride) > 0 && optsOverride[0] != "" {
+			sysPromptOverride = optsOverride[0]
+		}
+		if len(optsOverride) > 1 && optsOverride[1] != "" {
+			sessionIDOverride = optsOverride[1]
+		}
+
 		stockAiAgent := receiver.newStockAiAgent(&ctx, aiConfigId, thinkingMode, question, agentMode)
 		if stockAiAgent == nil {
 			logger.SugaredLogger.Errorf("stockAiAgent is nil")
@@ -98,6 +107,10 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 			}
 			close(ch)
 			return
+		}
+
+		if sessionIDOverride != "" {
+			stockAiAgent.sessionID = sessionIDOverride
 		}
 
 		var memoryService *ChatMemoryService
@@ -113,7 +126,9 @@ func (receiver StockAiAgent) ChatWithContext(ctx context.Context, question strin
 		}
 
 		sysPrompt := ""
-		if sysPromptId == nil || *sysPromptId == 0 {
+		if sysPromptOverride != "" {
+			sysPrompt = sysPromptOverride
+		} else if sysPromptId == nil || *sysPromptId == 0 {
 			sysPrompt = `你现在扮演一位拥有20年实战经验的顶级股票投资大师，精通价值投资、趋势交易、量化分析等多种策略。你擅长结合宏观经济、行业周期和企业基本面进行全方位、精准的多维分析，尤其对A股、港股、美股市场有深刻理解，始终秉持"风险控制第一"的原则，善于用通俗易懂的方式传授投资智慧。`
 		} else {
 			sysPrompt = data.NewPromptTemplateApi().GetPromptTemplateByID(*sysPromptId)

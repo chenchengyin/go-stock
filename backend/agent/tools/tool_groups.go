@@ -77,6 +77,19 @@ var toolGroupMap = map[string]ToolGroup{
 
 	"FinancialQA": GroupAIAnalysis,
 
+	"GetStockLatestFinance":       GroupStockAnalysis,
+	"GetStockQtrMainFinance":      GroupStockAnalysis,
+	"GetStockOrgPredict":          GroupStockAnalysis,
+	"GetStockPredictSummary":      GroupStockAnalysis,
+	"GetStockValuationPercentile": GroupStockAnalysis,
+	"GetStockMarginTrading":       GroupStockAnalysis,
+	"GetStockBlockTrade":          GroupStockAnalysis,
+	"GetStockHolderTrend":         GroupStockAnalysis,
+	"GetStockBillboard":           GroupStockAnalysis,
+	"GetStockOperationDeptTrade":  GroupStockAnalysis,
+	"ComparableCompanyAnalysis":   GroupStockAnalysis,
+	"HotspotDiscovery":            GroupMarket,
+
 	"IndustryResearch": GroupStockAnalysis,
 
 	"TrackingReport": GroupStockAnalysis,
@@ -138,6 +151,11 @@ var toolGroupMap = map[string]ToolGroup{
 	"GetUplimitExplodedStocks":    GroupNewsResearch,
 	"GetUplimitPlateStocks":       GroupNewsResearch,
 
+	"GetWallstreetcnLives":      GroupNewsResearch,
+	"GetWallstreetcnMarketReal": GroupMarket,
+	"GetWallstreetcnKline":      GroupMarket,
+	"GetWallstreetcnCalendar":   GroupNewsResearch,
+
 	"AiRecommendStocks":    GroupAIAnalysis,
 	"GetAIAnalysisHistory": GroupAIAnalysis,
 	"GetAIAnalysisDetail":  GroupAIAnalysis,
@@ -178,6 +196,8 @@ var groupKeywordsList = []groupKeywords{
 		"技术面", "基本面", "MACD", "KDJ", "RSI", "布林", "BOLL",
 		"均线", "MA5", "MA10", "MA20", "MA60", "MA120",
 		"前复权", "后复权", "复权",
+		"可比公司", "对标公司", "同行对比", "行业对标",
+		"机构预测", "券商预测", "目标价", "一致性预期",
 	}},
 	{GroupMarket, []string{
 		"大盘", "市场", "指数", "行情", "涨跌分布", "涨停", "跌停",
@@ -188,6 +208,7 @@ var groupKeywordsList = []groupKeywords{
 		"异动统计", "异动趋势", "异动排行", "异动排名", "异动次数",
 		"利好", "利空", "异动类型", "异动分布",
 		"问财", "同花顺", "行情查询", "行情数据",
+		"热点", "题材", "市场热点", "热点发现", "热点板块",
 		"指数行情", "指数点位", "沪深300", "创业板指", "中证500",
 		"宏观", "GDP", "CPI", "PPI", "PMI", "社融", "M2", "LPR",
 		"期货", "期权", "波动率", "持仓", "行权",
@@ -233,6 +254,9 @@ var groupKeywordsList = []groupKeywords{
 		"个股热度", "热门个股", "人气股", "关注度",
 		"封板失败", "开板", "破板",
 		"热门话题", "热点事件", "雪球",
+		"华尔街见闻", "见闻快讯", "全球快讯", "7x24",
+		"美元指数", "非农", "美联储", "降息", "加息", "通胀数据",
+		"财经日历", "经济数据公布", "重要数据",
 	}},
 	{GroupAIAnalysis, []string{
 		"AI分析", "AI推荐", "历史分析", "分析报告",
@@ -244,7 +268,7 @@ var groupKeywordsList = []groupKeywords{
 	}},
 	{GroupOperations, []string{
 		"预警", "价位", "开仓", "止盈价", "止损价", "成本价",
-		"钉钉", "通知", "推送", "发送消息",
+		"钉钉", "QQ", "通知", "推送", "发送消息",
 		"基金", "基金代码", "基金名称", "净值",
 		"GDP", "CPI", "PPI", "PMI", "宏观经济",
 	}},

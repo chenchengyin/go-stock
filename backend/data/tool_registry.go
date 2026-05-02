@@ -13,6 +13,7 @@ type ToolContext struct {
 	Ch                   chan map[string]any
 	StreamResponseID     string
 	Model                string
+	Source               string
 }
 
 // ToolHandler 统一的工具处理函数签名

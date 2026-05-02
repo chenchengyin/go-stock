@@ -76,6 +76,18 @@ type SettingConfig struct {
 	AiConfigs []*AIConfig `json:"aiConfigs"`
 }
 
+func (c *SettingConfig) GetAIConfigThinking(aiConfigId int) bool {
+	if aiConfigId <= 0 && len(c.AiConfigs) > 0 {
+		return c.AiConfigs[0].Thinking
+	}
+	for _, cfg := range c.AiConfigs {
+		if int(cfg.ID) == aiConfigId {
+			return cfg.Thinking
+		}
+	}
+	return false
+}
+
 type SettingsApi struct {
 	Config *SettingConfig
 }

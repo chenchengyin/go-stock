@@ -323,7 +323,7 @@ func buildSkillPrompt(question string) string {
 	return sb.String()
 }
 
-func getAllTools() []tool.BaseTool {
+func GetAllTools() []tool.BaseTool {
 	var allTools []tool.BaseTool
 	allTools = append(allTools, tools.GetQueryStockCodeInfoTool())
 	allTools = append(allTools, tools.GetQueryStockNewsTool())

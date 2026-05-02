@@ -130,7 +130,7 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	} else {
 		// 在 Linux 上应用退出时执行清理工作
 		if a.cron != nil {
-			a.cron.Stop() // 停止定时任务
+			a.cron.Stop()
 		}
 		return false // 如果选择了确定，继续关闭应用
 	}

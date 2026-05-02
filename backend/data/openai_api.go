@@ -26,6 +26,7 @@ type OpenAi struct {
 	BrowserPath      string  `json:"browser_path"`
 	HttpProxy        string  `json:"httpProxy"`
 	HttpProxyEnabled bool    `json:"httpProxyEnabled"`
+	ChatSource       string  `json:"-"`
 }
 
 func (o *OpenAi) Ctx() context.Context     { return o.ctx }

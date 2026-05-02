@@ -206,7 +206,7 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 		logger.SugaredLogger.Debugf("dialog:%s", dialog)
 		if dialog == "确定" || dialog == "Yes" {
 			if a.cron != nil {
-				a.cron.Stop() // 停止定时任务
+				a.cron.Stop()
 			}
 			return false
 		}
