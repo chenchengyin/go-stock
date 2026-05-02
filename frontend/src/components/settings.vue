@@ -132,6 +132,8 @@ const aiPlatformOptions = [
   { label: '讯飞星火 (https://spark-api-open.xf-yun.com/v1)', value: 'https://spark-api-open.xf-yun.com/v1' },
   { label: '零一万物 (https://api.lingyiwanwu.com/v1)', value: 'https://api.lingyiwanwu.com/v1' },
   { label: 'MiniMax (https://api.minimax.chat/v1)', value: 'https://api.minimax.chat/v1' },
+  { label: '小米MiMo TokenPlan (https://token-plan-cn.xiaomimimo.com/v1)', value: 'https://token-plan-cn.xiaomimimo.com/v1' },
+  { label: '小米MiMo (https://api.xiaomimimo.com/v1)', value: 'https://api.xiaomimimo.com/v1' },
   { label: '百川智能 (https://api.baichuan-ai.com/v1)', value: 'https://api.baichuan-ai.com/v1' },
   { label: '百度千帆 (https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop)', value: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop' },
   { label: 'OpenAI (https://api.openai.com/v1)', value: 'https://api.openai.com/v1' },
