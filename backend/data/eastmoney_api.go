@@ -46,12 +46,6 @@ func (api *EmAPI) getApiKey() string {
 	return ""
 }
 
-func (api *EmAPI) authHeaders() map[string]string {
-	return map[string]string{
-		"em_api_key": api.getApiKey(),
-	}
-}
-
 func (api *EmAPI) baseHeaders() map[string]string {
 	emBaseInfo, _ := json.Marshal(map[string]string{"productType": "mx"})
 	return map[string]string{
@@ -88,17 +82,10 @@ func (api *EmAPI) ValidateEntity(query string) (*EmEntityInfo, error) {
 		return nil, fmt.Errorf("东方财富API Key未配置，请在设置中填写em_api_key")
 	}
 
-	headers := map[string]string{
-		"Content-Type": "application/json",
-	}
-	for k, v := range api.authHeaders() {
-		headers[k] = v
-	}
-
 	payload := map[string]string{"content": query}
 
 	resp, err := api.client.R().
-		SetHeaders(headers).
+		SetHeaders(api.baseHeaders()).
 		SetBody(payload).
 		Post(emEntityAPI)
 	if err != nil {
@@ -108,6 +95,13 @@ func (api *EmAPI) ValidateEntity(query string) (*EmEntityInfo, error) {
 	var data map[string]any
 	if err := json.Unmarshal(resp.Body(), &data); err != nil {
 		return nil, fmt.Errorf("实体识别响应解析失败: %v", err)
+	}
+
+	code, _ := data["code"].(float64)
+	status, _ := data["status"].(float64)
+	if (code != 0 && code != 200) || (status != 0 && status != 200) {
+		msg, _ := data["message"].(string)
+		return nil, fmt.Errorf("实体识别接口返回异常: code=%.0f, status=%.0f, message=%s", code, status, msg)
 	}
 
 	var first map[string]any
@@ -148,11 +142,20 @@ func (api *EmAPI) ValidateEntity(query string) (*EmEntityInfo, error) {
 		return nil, fmt.Errorf("实体识别缺少secuCode")
 	}
 
+	secuName := ""
+	if v, ok := first["shortName"].(string); ok && v != "" {
+		secuName = v
+	} else if v, ok := first["fullName"].(string); ok && v != "" {
+		secuName = v
+	} else if v, ok := first["secuName"].(string); ok && v != "" {
+		secuName = v
+	}
+
 	info := &EmEntityInfo{
 		ClassCode:  classCode,
 		SecuCode:   secuCode,
 		MarketChar: fmt.Sprintf("%v", first["marketChar"]),
-		SecuName:   fmt.Sprintf("%v", first["shortName"]),
+		SecuName:   secuName,
 	}
 	info.EmCode = info.buildEmCode()
 	return info, nil
@@ -349,11 +352,8 @@ func (api *EmAPI) FinancialQA(question string, deepThink bool) (*EmQAResult, err
 		payload["deepThink"] = true
 	}
 
-	headers := map[string]string{
-		"Content-Type": "application/json",
-		"Accept":       "application/json",
-		"em_api_key":   api.getApiKey(),
-	}
+	headers := api.baseHeaders()
+	headers["Accept"] = "application/json"
 
 	resp, err := api.client.R().
 		SetHeaders(headers).
@@ -1142,10 +1142,7 @@ func (api *EmAPI) ComparableCompanyAnalysis(query string) (*EmComparableCompanyR
 	payload := map[string]string{"question": query}
 
 	resp, err := api.client.R().
-		SetHeaders(map[string]string{
-			"Content-Type": "application/json",
-			"em_api_key":   api.getApiKey(),
-		}).
+		SetHeaders(api.baseHeaders()).
 		SetBody(payload).
 		Post(emComparableCompanyAPI)
 	if err != nil {
@@ -1233,10 +1230,7 @@ func (api *EmAPI) HotspotDiscovery(question string) (string, error) {
 	payload := map[string]string{"question": question}
 
 	resp, err := api.client.R().
-		SetHeaders(map[string]string{
-			"Content-Type": "application/json",
-			"em_api_key":   api.getApiKey(),
-		}).
+		SetHeaders(api.baseHeaders()).
 		SetBody(payload).
 		Post(emHotspotDiscoveryAPI)
 	if err != nil {
