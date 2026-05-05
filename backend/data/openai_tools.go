@@ -522,7 +522,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 }
 
 func AskAiWithToolsDepth(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, tools []Tool, thinkingMode bool, depth int) {
-	const maxDepth = 10
+	const maxDepth = 200
 	if depth > maxDepth {
 		logger.SugaredLogger.Warnf("AskAiWithTools max depth exceeded: %d", depth)
 		ch <- map[string]any{
