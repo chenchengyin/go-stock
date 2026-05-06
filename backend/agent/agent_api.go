@@ -384,6 +384,27 @@ func tryPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []
 				return false // 触发降级
 			}
 
+			// 处理 exceeds max steps 错误
+			if strings.Contains(event.Err.Error(), "exceeds max steps") || strings.Contains(event.Err.Error(), "exceeds max iterations") {
+				if fullResponse.Len() > 0 {
+					safeSend(ch, &schema.Message{
+						Role:    schema.Assistant,
+						Content: "\n\n---\n\n⚠️ **分析步骤已达上限，以下为已生成的部分分析结果：**\n\n",
+					})
+					safeSend(ch, &schema.Message{
+						Role:    schema.Assistant,
+						Content: fullResponse.String(),
+					})
+					return true
+				}
+				errMsg := "⚠️ 分析步骤已达上限，无法完成完整分析。\n\n**建议**：\n1. 简化问题，将复杂分析拆分成多个简单问题\n2. 在 AI 配置中尝试使用支持更长上下文的模型\n3. 减少对话历史或开启新对话"
+				safeSend(ch, &schema.Message{
+					Role:    schema.Assistant,
+					Content: errMsg,
+				})
+				return true
+			}
+
 			// 其他错误按正常处理
 			errMsg := fmt.Sprintf("❌ Agent 调用失败：%v", event.Err)
 			if isTokenLimitError(event.Err) {
@@ -580,6 +601,28 @@ func runPlanExecute(ctx context.Context, stockAiAgent *StockAiAgent, messages []
 
 		if event.Err != nil {
 			logger.SugaredLogger.Errorf("agent event error: %v", event.Err)
+
+			// 处理 exceeds max steps 错误
+			if strings.Contains(event.Err.Error(), "exceeds max steps") || strings.Contains(event.Err.Error(), "exceeds max iterations") {
+				if fullResponse.Len() > 0 {
+					safeSend(ch, &schema.Message{
+						Role:    schema.Assistant,
+						Content: "\n\n---\n\n⚠️ **分析步骤已达上限，以下为已生成的部分分析结果：**\n\n",
+					})
+					safeSend(ch, &schema.Message{
+						Role:    schema.Assistant,
+						Content: fullResponse.String(),
+					})
+				} else {
+					errMsg := "⚠️ 分析步骤已达上限，无法完成完整分析。\n\n**建议**：\n1. 简化问题，将复杂分析拆分成多个简单问题\n2. 在 AI 配置中尝试使用支持更长上下文的模型\n3. 减少对话历史或开启新对话"
+					safeSend(ch, &schema.Message{
+						Role:    schema.Assistant,
+						Content: errMsg,
+					})
+				}
+				continue
+			}
+
 			errMsg := fmt.Sprintf("❌ Agent 调用失败：%v", event.Err)
 			if isTokenLimitError(event.Err) {
 				errMsg = "❌ Agent 调用失败（token 超限）：输入内容超过模型最大上下文长度限制。请尝试缩短对话历史或使用支持更长上下文的模型。"
@@ -829,12 +872,53 @@ func handleAdkMessage(msg *schema.Message, role schema.RoleType, toolName string
 	}
 
 	if msg.Content != "" && (role == schema.Assistant || msg.Role == schema.Assistant) {
-		fullResponse.WriteString(msg.Content)
-		safeSend(ch, &schema.Message{
-			Role:    schema.Assistant,
-			Content: msg.Content,
-		})
+		cleanContent := stripPlanJSON(msg.Content)
+		if cleanContent != "" {
+			fullResponse.WriteString(cleanContent)
+			safeSend(ch, &schema.Message{
+				Role:    schema.Assistant,
+				Content: cleanContent,
+			})
+		}
 	}
+}
+
+func stripPlanJSON(content string) string {
+	lines := strings.Split(content, "\n")
+	var filtered []string
+	inJSONBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "```json") {
+			inJSONBlock = true
+			continue
+		}
+		if inJSONBlock && strings.HasPrefix(trimmed, "```") {
+			inJSONBlock = false
+			continue
+		}
+		if inJSONBlock {
+			if strings.Contains(trimmed, `"steps"`) {
+				continue
+			}
+		}
+
+		if strings.HasPrefix(trimmed, "{") && strings.Contains(trimmed, `"steps"`) {
+			continue
+		}
+
+		filtered = append(filtered, line)
+	}
+
+	result := strings.Join(filtered, "\n")
+
+	for strings.Contains(result, "\n\n\n") {
+		result = strings.ReplaceAll(result, "\n\n\n", "\n\n")
+	}
+
+	return strings.TrimSpace(result)
 }
 
 func formatMarkdown(content string) string {

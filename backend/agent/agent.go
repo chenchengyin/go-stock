@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"go-stock/backend/agent/tools"
 	"go-stock/backend/data"
@@ -138,7 +139,7 @@ func createReactAgent(ctx context.Context, chatModel model.ToolCallingChatModel,
 	agent, err := react.NewAgent(ctx, &react.AgentConfig{
 		ToolCallingModel: chatModel,
 		ToolsConfig:      aiTools,
-		MaxStep:          len(allTools) + 5,
+		MaxStep:          len(allTools) + 15,
 		MessageRewriter: func(ctx context.Context, input []*schema.Message) []*schema.Message {
 			maxTokens := getMaxInputTokens(aiConfig.MaxTokens)
 			return compressMessages(input, maxTokens)
@@ -189,7 +190,7 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 				},
 			},
 		},
-		MaxIterations: 25,
+		MaxIterations: 40,
 		GenInputFn:    genExecutorInput,
 	})
 	if err != nil {
@@ -210,7 +211,7 @@ func createPlanExecuteAgent(ctx context.Context, chatModel model.ToolCallingChat
 		Planner:       planner,
 		Executor:      executor,
 		Replanner:     replanner,
-		MaxIterations: 7,
+		MaxIterations: 12,
 	})
 	if err != nil {
 		logger.SugaredLogger.Errorf("创建PlanExecute Agent失败: %v", err)
@@ -992,18 +993,52 @@ func genReplannerInput(ctx context.Context, in *planexecute.ExecutionContext) ([
 		stepsContent.WriteString(fmt.Sprintf("步骤: %s\n结果: %s\n\n", s.Step, result))
 	}
 
+	var remainingStepsStr string
+	var planObj struct {
+		Steps []string `json:"steps"`
+	}
+	if err := json.Unmarshal(planContent, &planObj); err == nil && len(planObj.Steps) > 0 {
+		executedSet := make(map[string]bool)
+		for _, s := range in.ExecutedSteps {
+			executedSet[s.Step] = true
+		}
+		var remaining []string
+		for _, step := range planObj.Steps {
+			if !executedSet[step] {
+				remaining = append(remaining, step)
+			}
+		}
+		if len(remaining) > 0 {
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("⚠️ 还有 %d 个步骤未执行：\n", len(remaining)))
+			for i, step := range remaining {
+				sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, step))
+			}
+			sb.WriteString("\n【必须调用 plan 工具继续执行，不能跳过这些步骤】")
+			remainingStepsStr = sb.String()
+		} else {
+			remainingStepsStr = "✅ 所有计划步骤已执行完毕。"
+		}
+	}
+
 	question := extractUserQuestion(in.UserInput)
 
 	systemMsg := schema.SystemMessage(`审核执行进度并决定下一步。
 
-【重要】你只能二选一，且必须通过工具调用（function calling）完成，禁止仅用自然语言或 Markdown 作答：
-- 若用户目标已满足：调用工具「respond」，参数 JSON 含字段 response（完整最终答复）。
-- 若仍需继续：调用工具「plan」，参数 JSON 含字段 steps（剩余未完成步骤的字符串数组，不要重复已完成的步骤）。
+【重要】你必须严格遵守以下规则：
+1. 只有当所有计划步骤均已执行完毕时，才能调用 respond 工具输出最终结论
+2. 如果还有未执行的步骤，必须调用 plan 工具继续执行剩余步骤
+3. 即使你认为已能推断出结论，也不允许跳过未执行步骤
+4. 判定标准：看下面的"剩余未执行步骤"部分——有内容就必须调用 plan，显示"所有计划步骤已执行完毕"才调用 respond
+
+你只能二选一，且必须通过工具调用（function calling）完成：
+- 若还有未执行步骤：调用「plan」，参数 JSON 含字段 steps（剩余未完成步骤的字符串数组）
+- 若所有步骤已完成：调用「respond」，参数 JSON 含字段 response（完整最终答复）
 
 不要描述「我将调用 plan」；必须实际发出 plan 或 respond 工具调用。`)
 
-	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n原始计划: %s\n\n已完成步骤:\n%s",
-		question, string(planContent), stepsContent.String()))
+	userMsg := schema.UserMessage(fmt.Sprintf("目标: %s\n\n原始计划: %s\n\n已完成步骤:\n%s\n\n剩余未执行步骤:\n%s",
+		question, string(planContent), stepsContent.String(), remainingStepsStr))
 
 	return []adk.Message{systemMsg, userMsg}, nil
 }
