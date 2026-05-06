@@ -12,7 +12,6 @@ import (
 
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/strutil"
-	"github.com/go-resty/resty/v2"
 )
 
 type THSTokenResponse struct {
@@ -160,7 +159,7 @@ func thsResultToMarkdown(res map[string]any, title string) string {
 }
 
 func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, think bool) {
-	client := resty.New()
+	client := SharedHTTPClient
 	client.SetBaseURL(strutil.Trim(o.BaseUrl))
 	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
 	client.SetHeader("Content-Type", "application/json")
@@ -309,7 +308,7 @@ func AskAiWithTools(o *OpenAi, err error, messages []map[string]interface{}, ch 
 	//bytes, _ := json.Marshal(messages)
 	//logger.SugaredLogger.Debugf("Stream request: \n%s\n", string(bytes))
 
-	client := resty.New()
+	client := SharedHTTPClient
 	client.SetBaseURL(strutil.Trim(o.BaseUrl))
 	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
 	client.SetHeader("Content-Type", "application/json")

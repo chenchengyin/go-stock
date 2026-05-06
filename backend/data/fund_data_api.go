@@ -25,7 +25,7 @@ type FundApi struct {
 
 func NewFundApi() *FundApi {
 	return &FundApi{
-		client: resty.New(),
+		client: SharedHTTPClient,
 		config: GetSettingConfig(),
 	}
 }

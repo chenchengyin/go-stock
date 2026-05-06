@@ -207,7 +207,7 @@ type CallAuctionData struct {
 
 // NewEastMoneyKLineApi 创建东方财富 K 线 API 实例
 func NewEastMoneyKLineApi(config *SettingConfig) *EastMoneyKLineApi {
-	client := resty.New()
+	client := SharedHTTPClient
 
 	//// 配置强制 IPv4 优先的 Transport，解决 IPv6 连接问题
 	//dialer := &net.Dialer{

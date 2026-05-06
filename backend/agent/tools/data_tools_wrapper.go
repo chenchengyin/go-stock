@@ -19,7 +19,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/random"
-	"github.com/go-resty/resty/v2"
 	fakeUserAgent "github.com/lib4u/fake-useragent"
 	"github.com/tidwall/gjson"
 )
@@ -4657,7 +4656,7 @@ type APIPurchase struct {
 }
 
 func getMarketDataContent() (string, error) {
-	client := resty.New()
+	client := data.SharedHTTPClient
 	apiURL := "https://x-quote.cls.cn/quote/index/home?app=CailianpressWeb&os=web&sv=8.4.6"
 
 	uaGen, err := fakeUserAgent.New()
