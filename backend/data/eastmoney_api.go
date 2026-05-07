@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go-stock/backend/logger"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
@@ -32,8 +33,12 @@ type EmAPI struct {
 
 func NewEmAPI() *EmAPI {
 	config := GetSettingConfig()
-	client := resty.New().
-		SetTimeout(120 * time.Second).
+	// 共用连接池但允许更长的超时时间（AI 调用）
+	emHTTPClient := &http.Client{
+		Transport: SharedHTTPClient.GetClient().Transport,
+		Timeout:   120 * time.Second,
+	}
+	client := resty.NewWithClient(emHTTPClient).
 		SetRetryCount(2).
 		SetRetryWaitTime(2 * time.Second)
 	return &EmAPI{client: client, config: config}

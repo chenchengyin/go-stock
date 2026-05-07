@@ -31,7 +31,6 @@ import (
 	"github.com/duke-git/lancet/v2/mathutil"
 	"github.com/duke-git/lancet/v2/slice"
 	"github.com/duke-git/lancet/v2/strutil"
-	"github.com/go-resty/resty/v2"
 	"github.com/robfig/cron/v3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -176,7 +175,7 @@ func (a *App) CheckUpdate(flag int) {
 	releaseVersion := &models.GitHubReleaseVersion{}
 	var err error
 	if updateChannel == "release" {
-		_, err = resty.New().R().
+		_, err = data.SharedHTTPClient.R().
 			SetResult(releaseVersion).
 			Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases/latest")
 		if err != nil {
@@ -185,7 +184,7 @@ func (a *App) CheckUpdate(flag int) {
 		}
 	} else {
 		var releases []models.GitHubReleaseVersion
-		_, err = resty.New().R().
+		_, err = data.SharedHTTPClient.R().
 			SetResult(&releases).
 			Get("https://api.github.com/repos/ArvinLovegood/go-stock/releases")
 		if err != nil {
@@ -222,7 +221,7 @@ func (a *App) CheckUpdate(flag int) {
 
 	if releaseVersion.TagName != Version {
 		tag := &models.Tag{}
-		_, err = resty.New().R().
+		_, err = data.SharedHTTPClient.R().
 			SetResult(tag).
 			Get("https://api.github.com/repos/ArvinLovegood/go-stock/git/ref/tags/" + releaseVersion.TagName)
 		if err == nil {
@@ -230,7 +229,7 @@ func (a *App) CheckUpdate(flag int) {
 		}
 
 		commit := &models.Commit{}
-		_, err = resty.New().R().
+		_, err = data.SharedHTTPClient.R().
 			SetResult(commit).
 			Get(tag.Object.Url)
 		if err == nil {
@@ -254,7 +253,7 @@ func (a *App) CheckUpdate(flag int) {
 			"source":  "go-stock",
 			"content": fmt.Sprintf("%s", commit.Message),
 		})
-		resp, err := resty.New().R().Get(downloadUrl)
+		resp, err := data.SharedHTTPClient.R().Get(downloadUrl)
 		if err != nil {
 			go runtime.EventsEmit(a.ctx, "newsPush", map[string]any{
 				"time":    "新版本：" + releaseVersion.TagName,
@@ -376,7 +375,7 @@ func (a *App) isVip(sponsorCode string, downloadUrl string, releaseVersion *mode
 
 func (a *App) syncNews() {
 	defer PanicHandler()
-	client := resty.New()
+	client := data.SharedHTTPClient
 	url := fmt.Sprintf("http://go-stock.sparkmemory.top:16666/FinancialNews/json?since=%d", time.Now().Add(-24*time.Hour).Unix())
 	//logger.SugaredLogger.Infof("syncNews:%s", url)
 	resp, err := client.R().SetDoNotParseResponse(true).Get(url)
@@ -711,7 +710,7 @@ func (a *App) CheckStockBaseInfo(ctx context.Context) {
 		go runtime.EventsEmit(ctx, "loadingMsg", "done")
 	}()
 	stockBasics := &[]data.StockBasic{}
-	resty.New().R().
+	data.SharedHTTPClient.R().
 		SetHeader("user", "go-stock").
 		SetResult(stockBasics).
 		Get("http://8.134.249.145:18080/go-stock/stock_basic.json")
@@ -744,7 +743,7 @@ func (a *App) CheckStockBaseInfo(ctx context.Context) {
 	//}
 
 	stockHKBasics := &[]models.StockInfoHK{}
-	resty.New().R().
+	data.SharedHTTPClient.R().
 		SetHeader("user", "go-stock").
 		SetResult(stockHKBasics).
 		Get("http://8.134.249.145:18080/go-stock/stock_base_info_hk.json")
@@ -770,7 +769,7 @@ func (a *App) CheckStockBaseInfo(ctx context.Context) {
 	//	}
 	//}
 	stockUSBasics := &[]models.StockInfoUS{}
-	resty.New().R().
+	data.SharedHTTPClient.R().
 		SetHeader("user", "go-stock").
 		SetResult(stockUSBasics).
 		Get("http://8.134.249.145:18080/go-stock/stock_base_info_us.json")
@@ -849,7 +848,7 @@ func (a *App) AddCronTask(follow data.FollowedStock) func() {
 
 func refreshTelegraphList() *[]string {
 	url := "https://www.cls.cn/telegraph"
-	response, err := resty.New().R().
+	response, err := data.SharedHTTPClient.R().
 		SetHeader("Referer", "https://www.cls.cn/").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").
 		Get(url)
@@ -901,7 +900,7 @@ func isTradingDay(date time.Time) bool {
 }
 
 func checkHolidayAPI(date string) (isHoliday bool, apiOk bool) {
-	client := resty.New()
+	client := data.SharedHTTPClient
 	client.SetTimeout(3 * time.Second)
 	type holidayResp struct {
 		Code    int `json:"code"`
@@ -1024,7 +1023,7 @@ func isHKTradingDay(date time.Time) bool {
 }
 
 func checkHKHolidayAPI(date string) (isHoliday bool, apiOk bool) {
-	client := resty.New()
+	client := data.SharedHTTPClient
 	client.SetTimeout(5 * time.Second)
 	type klineResp struct {
 		Data struct {
@@ -1104,7 +1103,7 @@ func isUSTradingDay(estTime time.Time) bool {
 }
 
 func checkUSHolidayAPI(date string) (isHoliday bool, apiOk bool) {
-	client := resty.New()
+	client := data.SharedHTTPClient
 	client.SetTimeout(5 * time.Second)
 	type usHolidayResp struct {
 		IsHoliday    bool   `json:"is_holiday"`
@@ -1823,7 +1822,7 @@ func (a *App) ShareAnalysis(stockCode, stockName string) string {
 	if res != nil && len(res.Content) > 100 {
 		analysisTime := res.CreatedAt.Format("2006/01/02")
 		//logger.SugaredLogger.Infof("%s analysisTime:%s", res.CreatedAt, analysisTime)
-		response, err := resty.New().SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
+		response, err := data.SharedHTTPClient.SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
 			"text":         res.Content,
 			"stockCode":    stockCode,
 			"stockName":    stockName,
@@ -1849,7 +1848,7 @@ func (a *App) ShareText(text, title string) string {
 		title = "AI助手"
 	}
 	analysisTime := time.Now().Format("2006/01/02")
-	response, err := resty.New().SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
+	response, err := data.SharedHTTPClient.SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
 		"text":         text,
 		"stockCode":    title,
 		"stockName":    title,
@@ -2369,7 +2368,7 @@ func (a *App) FetchAiModels(baseUrl, apiKey string) []string {
 		Data []modelItem `json:"data"`
 	}
 
-	client := resty.New()
+	client := data.SharedHTTPClient
 	client.SetBaseURL(baseUrl)
 	client.SetHeader("Authorization", "Bearer "+apiKey)
 	client.SetHeader("Content-Type", "application/json")
@@ -2424,7 +2423,7 @@ func (a *App) FetchAiModelInfo(baseUrl, apiKey, modelName string) *AiModelInfo {
 		}
 		var detail modelDetail
 
-		client := resty.New()
+		client := data.SharedHTTPClient
 		client.SetBaseURL(baseUrl)
 		client.SetHeader("Authorization", "Bearer "+apiKey)
 		client.SetHeader("Content-Type", "application/json")

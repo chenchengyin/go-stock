@@ -15,7 +15,6 @@ import (
 
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/strutil"
-	"github.com/go-resty/resty/v2"
 )
 
 type THSTokenResponse struct {
@@ -319,6 +318,8 @@ func shouldHandleToolCalls(finishReason string) bool {
 }
 
 func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, think bool) {
+	client := SharedHTTPClient
+	client.SetBaseURL(strutil.Trim(o.BaseUrl))
 	client := resty.New()
 	baseURL, chatPath := openAIChatEndpoint(o.BaseUrl)
 	client.SetBaseURL(baseURL)
@@ -535,6 +536,8 @@ func AskAiWithToolsDepth(o *OpenAi, err error, messages []map[string]interface{}
 	//bytes, _ := json.Marshal(messages)
 	//logger.SugaredLogger.Debugf("Stream request: \n%s\n", string(bytes))
 
+	client := SharedHTTPClient
+	client.SetBaseURL(strutil.Trim(o.BaseUrl))
 	client := resty.New()
 	baseURL, chatPath := openAIChatEndpoint(o.BaseUrl)
 	client.SetBaseURL(baseURL)

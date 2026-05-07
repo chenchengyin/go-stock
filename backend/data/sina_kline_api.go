@@ -28,7 +28,7 @@ type SinaKLineItem struct {
 }
 
 func NewSinaKLineApi(config *SettingConfig) *SinaKLineApi {
-	client := resty.New()
+	client := SharedHTTPClient
 	client.SetTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
 	return &SinaKLineApi{
 		client: client,
@@ -362,7 +362,7 @@ type TencentKLineResponse struct {
 }
 
 func NewTencentKLineApi(config *SettingConfig) *TencentKLineApi {
-	client := resty.New()
+	client := SharedHTTPClient
 	client.SetTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
 	return &TencentKLineApi{
 		client: client,

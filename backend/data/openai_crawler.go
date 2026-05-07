@@ -12,7 +12,6 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/chromedp"
 	"github.com/duke-git/lancet/v2/strutil"
-	"github.com/go-resty/resty/v2"
 )
 
 func checkIsIndexBasic(stock string) bool {
@@ -153,7 +152,7 @@ func GetFinancialReports(stockCode string, crawlTimeOut int64) *[]string {
 
 func GetTelegraphList(crawlTimeOut int64) *[]string {
 	url := "https://www.cls.cn/telegraph"
-	response, err := resty.New().SetTimeout(time.Duration(crawlTimeOut)*time.Second).R().
+	response, err := SharedHTTPClient.SetTimeout(time.Duration(crawlTimeOut)*time.Second).R().
 		SetHeader("Referer", "https://www.cls.cn/").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").
 		Get(url)
@@ -175,7 +174,7 @@ func GetTelegraphList(crawlTimeOut int64) *[]string {
 
 func GetTopNewsList(crawlTimeOut int64) *[]string {
 	url := "https://www.cls.cn"
-	response, err := resty.New().SetTimeout(time.Duration(crawlTimeOut)*time.Second).R().
+	response, err := SharedHTTPClient.SetTimeout(time.Duration(crawlTimeOut)*time.Second).R().
 		SetHeader("Referer", "https://www.cls.cn/").
 		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").
 		Get(url)
