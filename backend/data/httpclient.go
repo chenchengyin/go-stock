@@ -30,7 +30,7 @@ func init() {
 		MaxConnsPerHost:       10,
 		IdleConnTimeout:       60 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
+		ResponseHeaderTimeout: 120 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ForceAttemptHTTP2:     true,
 		Proxy:                 nil,
@@ -38,12 +38,12 @@ func init() {
 
 	sharedHTTPClient = &http.Client{
 		Transport: sharedTransport,
-		Timeout:   30 * time.Second,
+		Timeout:   300 * time.Second,
 	}
 
 	SharedHTTPClient = resty.NewWithClient(sharedHTTPClient).
 		SetRetryCount(0).
-		SetTimeout(30 * time.Second)
+		SetTimeout(300 * time.Second)
 }
 
 func UpdateHTTPClientProxy(proxyURL string) {
@@ -95,6 +95,21 @@ func ConfigureFromSettings(config *SettingConfig) {
 	if config.CrawlTimeOut > 0 {
 		UpdateHTTPClientTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
 	} else {
-		UpdateHTTPClientTimeout(30 * time.Second)
+		UpdateHTTPClientTimeout(300 * time.Second)
 	}
+}
+
+func CreateHTTPClientWithTimeout(timeout time.Duration) *resty.Client {
+	httpConfigMutex.RLock()
+	transport := sharedTransport
+	httpConfigMutex.RUnlock()
+
+	httpClient := &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+	}
+
+	return resty.NewWithClient(httpClient).
+		SetTimeout(timeout).
+		SetRetryCount(0)
 }

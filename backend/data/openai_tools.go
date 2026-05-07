@@ -320,25 +320,25 @@ func shouldHandleToolCalls(finishReason string) bool {
 }
 
 func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, think bool) {
+	if o.TimeOut <= 0 {
+		o.TimeOut = 300
+	}
+	timeout := time.Duration(o.TimeOut) * time.Second
+
 	var client *resty.Client
 	if o.HttpProxyEnabled && o.HttpProxy != "" {
 		client = createHTTPClientWithProxy(o.HttpProxy, o.TimeOut)
 	} else {
-		client = SharedHTTPClient
+		client = CreateHTTPClientWithTimeout(timeout)
 	}
 
 	baseURL, chatPath := openAIChatEndpoint(o.BaseUrl)
 	client.SetBaseURL(baseURL)
-	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
-	client.SetHeader("Content-Type", "application/json")
-	if o.TimeOut <= 0 {
-		o.TimeOut = 300
-	}
+
 	thinking := "disabled"
 	if think {
 		thinking = "enabled"
 	}
-	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
 
 	if !think {
 		messages = stripReasoningContent(messages)
@@ -363,6 +363,8 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 
 	req := client.R().
 		SetDoNotParseResponse(true).
+		SetHeader("Authorization", "Bearer "+o.ApiKey).
+		SetHeader("Content-Type", "application/json").
 		SetBody(bodyMap)
 	if o.ctx != nil {
 		req = req.SetContext(o.ctx)
@@ -537,21 +539,20 @@ func AskAiWithToolsDepth(o *OpenAi, err error, messages []map[string]interface{}
 		return
 	}
 
+	if o.TimeOut <= 0 {
+		o.TimeOut = 300
+	}
+	timeout := time.Duration(o.TimeOut) * time.Second
+
 	var client *resty.Client
 	if o.HttpProxyEnabled && o.HttpProxy != "" {
 		client = createHTTPClientWithProxy(o.HttpProxy, o.TimeOut)
 	} else {
-		client = SharedHTTPClient
+		client = CreateHTTPClientWithTimeout(timeout)
 	}
 
 	baseURL, chatPath := openAIChatEndpoint(o.BaseUrl)
 	client.SetBaseURL(baseURL)
-	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
-	client.SetHeader("Content-Type", "application/json")
-	if o.TimeOut <= 0 {
-		o.TimeOut = 300
-	}
-	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
 
 	if !thinkingMode {
 		messages = stripReasoningContent(messages)
@@ -582,6 +583,8 @@ func AskAiWithToolsDepth(o *OpenAi, err error, messages []map[string]interface{}
 
 	req := client.R().
 		SetDoNotParseResponse(true).
+		SetHeader("Authorization", "Bearer "+o.ApiKey).
+		SetHeader("Content-Type", "application/json").
 		SetBody(bodyMap)
 	if o.ctx != nil {
 		req = req.SetContext(o.ctx)
