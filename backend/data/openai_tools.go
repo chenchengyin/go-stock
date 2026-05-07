@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go-stock/backend/db"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/strutil"
+	"github.com/go-resty/resty/v2"
 )
 
 type THSTokenResponse struct {
@@ -318,9 +320,13 @@ func shouldHandleToolCalls(finishReason string) bool {
 }
 
 func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[string]any, question string, think bool) {
-	client := SharedHTTPClient
-	client.SetBaseURL(strutil.Trim(o.BaseUrl))
-	client := resty.New()
+	var client *resty.Client
+	if o.HttpProxyEnabled && o.HttpProxy != "" {
+		client = createHTTPClientWithProxy(o.HttpProxy, o.TimeOut)
+	} else {
+		client = SharedHTTPClient
+	}
+
 	baseURL, chatPath := openAIChatEndpoint(o.BaseUrl)
 	client.SetBaseURL(baseURL)
 	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
@@ -333,9 +339,6 @@ func AskAi(o *OpenAi, err error, messages []map[string]interface{}, ch chan map[
 		thinking = "enabled"
 	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
-	if o.HttpProxyEnabled && o.HttpProxy != "" {
-		client.SetProxy(o.HttpProxy)
-	}
 
 	if !think {
 		messages = stripReasoningContent(messages)
@@ -533,12 +536,14 @@ func AskAiWithToolsDepth(o *OpenAi, err error, messages []map[string]interface{}
 		}
 		return
 	}
-	//bytes, _ := json.Marshal(messages)
-	//logger.SugaredLogger.Debugf("Stream request: \n%s\n", string(bytes))
 
-	client := SharedHTTPClient
-	client.SetBaseURL(strutil.Trim(o.BaseUrl))
-	client := resty.New()
+	var client *resty.Client
+	if o.HttpProxyEnabled && o.HttpProxy != "" {
+		client = createHTTPClientWithProxy(o.HttpProxy, o.TimeOut)
+	} else {
+		client = SharedHTTPClient
+	}
+
 	baseURL, chatPath := openAIChatEndpoint(o.BaseUrl)
 	client.SetBaseURL(baseURL)
 	client.SetHeader("Authorization", "Bearer "+o.ApiKey)
@@ -547,9 +552,6 @@ func AskAiWithToolsDepth(o *OpenAi, err error, messages []map[string]interface{}
 		o.TimeOut = 300
 	}
 	client.SetTimeout(time.Duration(o.TimeOut) * time.Second)
-	if o.HttpProxyEnabled && o.HttpProxy != "" {
-		client.SetProxy(o.HttpProxy)
-	}
 
 	if !thinkingMode {
 		messages = stripReasoningContent(messages)
@@ -891,4 +893,23 @@ func (o *OpenAi) GetAIResponseResult(stock string) *models.AIResponseResult {
 	var result models.AIResponseResult
 	db.Dao.Where("stock_code = ?", stock).Order("id desc").Limit(1).Find(&result)
 	return &result
+}
+
+func createHTTPClientWithProxy(proxyURL string, timeout int) *resty.Client {
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(parseProxyURL(proxyURL)),
+	}
+
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
+	if timeout <= 0 {
+		timeout = 300
+	}
+	httpClient.Timeout = time.Duration(timeout) * time.Second
+
+	return resty.NewWithClient(httpClient).
+		SetTimeout(time.Duration(timeout) * time.Second).
+		SetRetryCount(0)
 }

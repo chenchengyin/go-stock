@@ -154,6 +154,9 @@ func UpdateConfig(s *SettingConfig) string {
 			return "创建配置失败: " + result.Error.Error()
 		}
 	}
+
+	ConfigureFromSettings(s)
+
 	return "保存成功！"
 }
 

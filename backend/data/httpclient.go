@@ -3,16 +3,24 @@ package data
 import (
 	"net"
 	"net/http"
+	"net/url"
+	"sync"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 )
 
-// SharedHTTPClient 全局共享 HTTP 客户端，所有请求复用同一个连接池，避免路由器 NAT 表被撑爆。
-var SharedHTTPClient *resty.Client
+var (
+	sharedTransport     *http.Transport
+	sharedHTTPClient    *http.Client
+	SharedHTTPClient    *resty.Client
+	httpConfigMutex     sync.RWMutex
+	currentProxyEnabled bool
+	currentProxyURL     string
+)
 
 func init() {
-	transport := &http.Transport{
+	sharedTransport = &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   15 * time.Second,
 			KeepAlive: 30 * time.Second,
@@ -25,14 +33,68 @@ func init() {
 		ResponseHeaderTimeout: 30 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		ForceAttemptHTTP2:     true,
+		Proxy:                 nil,
 	}
 
-	httpClient := &http.Client{
-		Transport: transport,
+	sharedHTTPClient = &http.Client{
+		Transport: sharedTransport,
 		Timeout:   30 * time.Second,
 	}
 
-	SharedHTTPClient = resty.NewWithClient(httpClient).
+	SharedHTTPClient = resty.NewWithClient(sharedHTTPClient).
 		SetRetryCount(0).
 		SetTimeout(30 * time.Second)
+}
+
+func UpdateHTTPClientProxy(proxyURL string) {
+	httpConfigMutex.Lock()
+	defer httpConfigMutex.Unlock()
+
+	if proxyURL == "" || proxyURL == currentProxyURL {
+		return
+	}
+
+	sharedTransport.Proxy = http.ProxyURL(parseProxyURL(proxyURL))
+	currentProxyURL = proxyURL
+	currentProxyEnabled = true
+}
+
+func DisableHTTPClientProxy() {
+	httpConfigMutex.Lock()
+	defer httpConfigMutex.Unlock()
+
+	sharedTransport.Proxy = nil
+	currentProxyEnabled = false
+	currentProxyURL = ""
+}
+
+func UpdateHTTPClientTimeout(timeout time.Duration) {
+	sharedHTTPClient.Timeout = timeout
+	SharedHTTPClient.SetTimeout(timeout)
+}
+
+func parseProxyURL(proxyURL string) *url.URL {
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil
+	}
+	return u
+}
+
+func ConfigureFromSettings(config *SettingConfig) {
+	if config == nil {
+		return
+	}
+
+	if config.HttpProxyEnabled && config.HttpProxy != "" {
+		UpdateHTTPClientProxy(config.HttpProxy)
+	} else {
+		DisableHTTPClientProxy()
+	}
+
+	if config.CrawlTimeOut > 0 {
+		UpdateHTTPClientTimeout(time.Duration(config.CrawlTimeOut) * time.Second)
+	} else {
+		UpdateHTTPClientTimeout(30 * time.Second)
+	}
 }

@@ -22,6 +22,9 @@ import (
 // startup 在应用程序启动时调用
 func (a *App) startup(ctx context.Context) {
 	defer PanicHandler()
+
+	data.ConfigureFromSettings(data.GetSettingConfig())
+
 	runtime.EventsOn(ctx, "frontendError", func(optionalData ...interface{}) {
 		logger.SugaredLogger.Errorf("Frontend error: %v\n", optionalData)
 	})

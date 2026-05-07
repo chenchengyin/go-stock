@@ -40,6 +40,9 @@ func NewApp() *App {
 // startup is called at application startup
 func (a *App) startup(ctx context.Context) {
 	defer PanicHandler()
+
+	data.ConfigureFromSettings(data.GetSettingConfig())
+
 	runtime.EventsOn(ctx, "frontendError", func(optionalData ...interface{}) {
 		logger.SugaredLogger.Errorf("Frontend error: %v\n", optionalData)
 	})
