@@ -161,6 +161,10 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 		if aiConfig.Thinking {
 			thinking = &ark.Thinking{Type: "enabled"}
 		}
+		arkClient := httpClient
+		if arkClient == nil {
+			arkClient = createHTTPClientWithProxy("", timeout)
+		}
 		cfg := &ark.ChatModelConfig{
 			BaseURL:     baseURL,
 			Model:       aiConfig.ModelName,
@@ -168,9 +172,8 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 			MaxTokens:   &maxTok,
 			Temperature: &temperature,
 			Thinking:    thinking,
-		}
-		if httpClient != nil {
-			cfg.HTTPClient = httpClient
+			Timeout:     &timeout,
+			HTTPClient:  arkClient,
 		}
 		return ark.NewChatModel(ctx, cfg)
 
@@ -218,10 +221,15 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 		if maxOut <= 0 {
 			maxOut = 8192
 		}
+		anthropicClient := httpClient
+		if anthropicClient == nil {
+			anthropicClient = createHTTPClientWithProxy("", timeout)
+		}
 		cfg := &claude.Config{
-			APIKey:    aiConfig.ApiKey,
-			Model:     aiConfig.ModelName,
-			MaxTokens: maxOut,
+			APIKey:     aiConfig.ApiKey,
+			Model:      aiConfig.ModelName,
+			MaxTokens:  maxOut,
+			HTTPClient: anthropicClient,
 		}
 		if aiConfig.Temperature > 0 {
 			cfg.Temperature = ptrFloat32(temperature)
@@ -231,9 +239,6 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 		}
 		if aiConfig.Thinking {
 			cfg.Thinking = &claude.Thinking{Enable: true, BudgetTokens: min(maxOut, 32000)}
-		}
-		if httpClient != nil {
-			cfg.HTTPClient = httpClient
 		}
 		return claude.NewChatModel(ctx, cfg)
 
@@ -262,13 +267,15 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 		return ollama.NewChatModel(ctx, cfg)
 
 	case providerGemini:
+		geminiClient := httpClient
+		if geminiClient == nil {
+			geminiClient = createHTTPClientWithProxy("", timeout)
+		}
 		cc := &genai.ClientConfig{APIKey: aiConfig.ApiKey}
 		if b := baseURL; b != "" {
 			cc.HTTPOptions = genai.HTTPOptions{BaseURL: b}
 		}
-		if httpClient != nil {
-			cc.HTTPClient = httpClient
-		}
+		cc.HTTPClient = geminiClient
 		client, err := genai.NewClient(ctx, cc)
 		if err != nil {
 			return nil, fmt.Errorf("gemini genai client: %w", err)
