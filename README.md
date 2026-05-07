@@ -169,11 +169,6 @@
 - [Vite](https://vitejs.dev/)
 - [Tushare](https://tushare.pro/register?reg=701944)
 
-## 😘 赞助我
-### 都划到这了，如果我的项目对您有帮助，请赞助我吧！😊😊😊
-| 支付宝 | 微信  |
-|-----|-----| 
-| ![alipay.jpg](build/screenshot/alipay.jpg)  | ![wxpay.jpg](build/screenshot/wxpay.jpg) |
 
 
 ## ⭐ Star History

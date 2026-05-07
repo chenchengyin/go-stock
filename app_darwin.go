@@ -214,8 +214,8 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 		return true // 如果选择了取消，不关闭应用
 	} else {
 		// 在 macOS 上应用退出时执行清理工作
-		a.cron.Stop() // 停止定时任务
-		return false  // 如果选择了确定，继续关闭应用
+		a.cron.Stop()
+		return false // 如果选择了确定，继续关闭应用
 	}
 }
 

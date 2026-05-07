@@ -22,6 +22,8 @@ const (
 	emTrackingReportAPI     = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/tracking/report"
 	emSearchDataAPI         = "https://ai-saas.eastmoney.com/proxy/b/mcp/tool/searchData"
 	emSearchNewsAPI         = "https://ai-saas.eastmoney.com/proxy/b/mcp/tool/searchNews"
+	emComparableCompanyAPI  = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/comparable-company-analysis"
+	emHotspotDiscoveryAPI   = "https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/hotspot-discovery"
 )
 
 type EmAPI struct {
@@ -47,12 +49,6 @@ func (api *EmAPI) getApiKey() string {
 		return strings.TrimSpace(api.config.Settings.EmApiKey)
 	}
 	return ""
-}
-
-func (api *EmAPI) authHeaders() map[string]string {
-	return map[string]string{
-		"em_api_key": api.getApiKey(),
-	}
 }
 
 func (api *EmAPI) baseHeaders() map[string]string {
@@ -91,17 +87,10 @@ func (api *EmAPI) ValidateEntity(query string) (*EmEntityInfo, error) {
 		return nil, fmt.Errorf("东方财富API Key未配置，请在设置中填写em_api_key")
 	}
 
-	headers := map[string]string{
-		"Content-Type": "application/json",
-	}
-	for k, v := range api.authHeaders() {
-		headers[k] = v
-	}
-
 	payload := map[string]string{"content": query}
 
 	resp, err := api.client.R().
-		SetHeaders(headers).
+		SetHeaders(api.baseHeaders()).
 		SetBody(payload).
 		Post(emEntityAPI)
 	if err != nil {
@@ -111,6 +100,13 @@ func (api *EmAPI) ValidateEntity(query string) (*EmEntityInfo, error) {
 	var data map[string]any
 	if err := json.Unmarshal(resp.Body(), &data); err != nil {
 		return nil, fmt.Errorf("实体识别响应解析失败: %v", err)
+	}
+
+	code, _ := data["code"].(float64)
+	status, _ := data["status"].(float64)
+	if (code != 0 && code != 200) || (status != 0 && status != 200) {
+		msg, _ := data["message"].(string)
+		return nil, fmt.Errorf("实体识别接口返回异常: code=%.0f, status=%.0f, message=%s", code, status, msg)
 	}
 
 	var first map[string]any
@@ -151,11 +147,20 @@ func (api *EmAPI) ValidateEntity(query string) (*EmEntityInfo, error) {
 		return nil, fmt.Errorf("实体识别缺少secuCode")
 	}
 
+	secuName := ""
+	if v, ok := first["shortName"].(string); ok && v != "" {
+		secuName = v
+	} else if v, ok := first["fullName"].(string); ok && v != "" {
+		secuName = v
+	} else if v, ok := first["secuName"].(string); ok && v != "" {
+		secuName = v
+	}
+
 	info := &EmEntityInfo{
 		ClassCode:  classCode,
 		SecuCode:   secuCode,
 		MarketChar: fmt.Sprintf("%v", first["marketChar"]),
-		SecuName:   fmt.Sprintf("%v", first["shortName"]),
+		SecuName:   secuName,
 	}
 	info.EmCode = info.buildEmCode()
 	return info, nil
@@ -352,11 +357,8 @@ func (api *EmAPI) FinancialQA(question string, deepThink bool) (*EmQAResult, err
 		payload["deepThink"] = true
 	}
 
-	headers := map[string]string{
-		"Content-Type": "application/json",
-		"Accept":       "application/json",
-		"em_api_key":   api.getApiKey(),
-	}
+	headers := api.baseHeaders()
+	headers["Accept"] = "application/json"
 
 	resp, err := api.client.R().
 		SetHeaders(headers).
@@ -1128,4 +1130,145 @@ func (api *EmAPI) FinanceSearchToMarkdown(query string) string {
 	}
 
 	return result.Content
+}
+
+type EmComparableCompanyResult struct {
+	Header           map[string]any
+	SectionFinance   map[string]any
+	SectionValuation map[string]any
+	Raw              []map[string]any
+}
+
+func (api *EmAPI) ComparableCompanyAnalysis(query string) (*EmComparableCompanyResult, error) {
+	if api.getApiKey() == "" {
+		return nil, fmt.Errorf("东方财富API Key未配置，请在设置中填写em_api_key")
+	}
+
+	payload := map[string]string{"question": query}
+
+	resp, err := api.client.R().
+		SetHeaders(api.baseHeaders()).
+		SetBody(payload).
+		Post(emComparableCompanyAPI)
+	if err != nil {
+		return nil, fmt.Errorf("可比公司分析请求失败: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(resp.Body(), &raw); err != nil {
+		return nil, fmt.Errorf("可比公司分析响应解析失败: %v", err)
+	}
+
+	code, _ := raw["code"].(float64)
+	status, _ := raw["status"].(float64)
+	codeOk := code == 0 || code == 200
+	statusOk := status == 0 || status == 200
+	if !codeOk || !statusOk {
+		msg, _ := raw["message"].(string)
+		return nil, fmt.Errorf("可比公司分析接口返回异常: code=%.0f, status=%.0f, message=%s", code, status, msg)
+	}
+
+	dataList, _ := raw["data"].([]any)
+	if len(dataList) == 0 {
+		return nil, fmt.Errorf("可比公司分析数据为空")
+	}
+
+	result := &EmComparableCompanyResult{}
+	for i, item := range dataList {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		result.Raw = append(result.Raw, m)
+		switch i {
+		case 0:
+			result.Header = m
+		case 1:
+			result.SectionFinance = m
+		case 2:
+			result.SectionValuation = m
+		}
+	}
+	return result, nil
+}
+
+func (api *EmAPI) ComparableCompanyAnalysisToMarkdown(query string) string {
+	result, err := api.ComparableCompanyAnalysis(query)
+	if err != nil {
+		logger.SugaredLogger.Errorf("可比公司分析失败: %v", err)
+		return fmt.Sprintf("可比公司分析失败: %v", err)
+	}
+
+	var sb strings.Builder
+
+	for _, m := range result.Raw {
+		title, _ := m["title"].(string)
+		inputTitle, _ := m["inputTitle"].(string)
+		if title != "" {
+			sb.WriteString(fmt.Sprintf("### %s\n\n", title))
+		} else if inputTitle != "" {
+			sb.WriteString(fmt.Sprintf("### %s\n\n", inputTitle))
+		}
+
+		nameMap, _ := m["nameMap"].(map[string]any)
+		table, _ := m["table"].(map[string]any)
+		if len(table) > 0 {
+			md := genericTableToMarkdown(table, nameMap)
+			if md != "" {
+				sb.WriteString(md)
+				sb.WriteString("\n\n")
+			}
+		}
+	}
+
+	if sb.Len() == 0 {
+		return "可比公司分析暂无数据"
+	}
+	return sb.String()
+}
+
+func (api *EmAPI) HotspotDiscovery(question string) (string, error) {
+	if api.getApiKey() == "" {
+		return "", fmt.Errorf("东方财富API Key未配置，请在设置中填写em_api_key")
+	}
+
+	payload := map[string]string{"question": question}
+
+	resp, err := api.client.R().
+		SetHeaders(api.baseHeaders()).
+		SetBody(payload).
+		Post(emHotspotDiscoveryAPI)
+	if err != nil {
+		return "", fmt.Errorf("热点发现请求失败: %v", err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(resp.Body(), &raw); err != nil {
+		return "", fmt.Errorf("热点发现响应解析失败: %v", err)
+	}
+
+	code, _ := raw["code"].(float64)
+	status, _ := raw["status"].(float64)
+	codeOk := code == 0 || code == 200
+	statusOk := status == 0 || status == 200
+	if !codeOk || !statusOk {
+		msg, _ := raw["message"].(string)
+		return "", fmt.Errorf("热点发现接口返回异常: code=%.0f, status=%.0f, message=%s", code, status, msg)
+	}
+
+	data, _ := raw["data"].(map[string]any)
+	displayData, _ := data["displayData"].(string)
+	if displayData == "" {
+		return "", fmt.Errorf("热点发现未返回有效内容")
+	}
+	return displayData, nil
+}
+
+func (api *EmAPI) HotspotDiscoveryToMarkdown(question string) string {
+	content, err := api.HotspotDiscovery(question)
+	if err != nil {
+		logger.SugaredLogger.Errorf("热点发现失败: %v", err)
+		return fmt.Sprintf("热点发现失败: %v", err)
+	}
+	return content
 }

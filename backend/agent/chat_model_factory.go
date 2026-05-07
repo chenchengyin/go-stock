@@ -41,6 +41,11 @@ func normalizeBaseURL(base string) string {
 	return strings.TrimSuffix(strings.TrimSpace(base), "/")
 }
 
+func normalizeChatModelBaseURL(base string) string {
+	base = normalizeBaseURL(base)
+	return strings.TrimSuffix(base, "/chat/completions")
+}
+
 func detectChatModelProvider(baseLower, modelName string) chatModelProvider {
 	modelLower := strings.ToLower(strings.TrimSpace(modelName))
 
@@ -111,7 +116,8 @@ func ptrBool(v bool) *bool          { return &v }
 // createChatModel 按 Eino 生态组件路由（参见 https://www.cloudwego.io/zh/docs/eino/ecosystem_integration/chat_model/ ）
 // 未命中专用实现时回退到 OpenAI 兼容 ChatModel（硅基流动、LM Studio、Azure OpenAI 等）。
 func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCallingChatModel, error) {
-	baseLower := strings.ToLower(normalizeBaseURL(aiConfig.BaseUrl))
+	baseURL := normalizeChatModelBaseURL(aiConfig.BaseUrl)
+	baseLower := strings.ToLower(baseURL)
 	temperature := float32(aiConfig.Temperature)
 	timeout := time.Duration(aiConfig.TimeOut) * time.Second
 	if timeout <= 0 {
@@ -132,10 +138,10 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 			thinking = &ark.Thinking{Type: "enabled"}
 		}
 		return ark.NewChatModel(ctx, &ark.ChatModelConfig{
-			BaseURL:     strings.TrimSpace(aiConfig.BaseUrl),
+			BaseURL:     baseURL,
 			Model:       aiConfig.ModelName,
 			APIKey:      aiConfig.ApiKey,
-			MaxTokens:   &aiConfig.MaxTokens,
+			MaxTokens:   &maxTok,
 			Temperature: &temperature,
 			Thinking:    thinking,
 		})
@@ -143,7 +149,7 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 	case providerDashScope:
 		cfg := &qwen.ChatModelConfig{
 			APIKey:    aiConfig.ApiKey,
-			BaseURL:   strings.TrimSpace(aiConfig.BaseUrl),
+			BaseURL:   baseURL,
 			Model:     aiConfig.ModelName,
 			Timeout:   timeout,
 			MaxTokens: &maxTok,
@@ -159,7 +165,7 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 	case providerOpenRouter:
 		cfg := &openrouter.Config{
 			APIKey:    aiConfig.ApiKey,
-			BaseURL:   strings.TrimSpace(aiConfig.BaseUrl),
+			BaseURL:   baseURL,
 			Model:     aiConfig.ModelName,
 			Timeout:   timeout,
 			MaxTokens: &maxTok,
@@ -186,7 +192,7 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 		if aiConfig.Temperature > 0 {
 			cfg.Temperature = ptrFloat32(temperature)
 		}
-		if b := strings.TrimSpace(aiConfig.BaseUrl); b != "" {
+		if b := baseURL; b != "" {
 			cfg.BaseURL = &b
 		}
 		if aiConfig.Thinking {
@@ -235,7 +241,7 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 
 	case providerGemini:
 		cc := &genai.ClientConfig{APIKey: aiConfig.ApiKey}
-		if b := strings.TrimSpace(aiConfig.BaseUrl); b != "" {
+		if b := baseURL; b != "" {
 			cc.HTTPOptions = genai.HTTPOptions{BaseURL: b}
 		}
 		client, err := genai.NewClient(ctx, cc)
@@ -259,7 +265,7 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 
 	case providerDeepSeek:
 		return deepseek.NewChatModel(ctx, &deepseek.ChatModelConfig{
-			BaseURL:     strings.TrimSpace(aiConfig.BaseUrl),
+			BaseURL:     baseURL,
 			Model:       aiConfig.ModelName,
 			APIKey:      aiConfig.ApiKey,
 			MaxTokens:   maxTok,
@@ -270,15 +276,14 @@ func createChatModel(ctx context.Context, aiConfig data.AIConfig) (model.ToolCal
 	default:
 		extraFields := map[string]any{}
 		if aiConfig.Thinking {
-			extraFields["thinking"] = map[string]any{"type": "enabled"}
+			logger.SugaredLogger.Warnf("generic OpenAI-compatible agent model %q ignores thinking option to keep request parameters standard", aiConfig.ModelName)
 		}
-		mt := aiConfig.MaxTokens
 		return einoopenai.NewChatModel(ctx, &einoopenai.ChatModelConfig{
-			BaseURL:     strings.TrimSpace(aiConfig.BaseUrl),
+			BaseURL:     baseURL,
 			Model:       aiConfig.ModelName,
 			APIKey:      aiConfig.ApiKey,
 			Timeout:     timeout,
-			MaxTokens:   &mt,
+			MaxTokens:   &maxTok,
 			Temperature: &temperature,
 			ExtraFields: extraFields,
 		})

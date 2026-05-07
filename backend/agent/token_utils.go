@@ -184,11 +184,69 @@ func compressMessages(messages []*schema.Message, maxTokens int) []*schema.Messa
 	compressed := compressNonSystemMessages(nonSystemMsgs, remainingBudget)
 	result = append(result, compressed...)
 
+	result = validateAndFixMessageSequence(result)
+
 	finalTokens := estimateMessagesTokens(result)
 	logger.SugaredLogger.Infof("MessageRewriter: 上下文压缩后 %d 条消息, 估算 %d tokens (节省 %d tokens)",
 		len(result), finalTokens, currentTokens-finalTokens)
 
+	for i, msg := range result {
+		logger.SugaredLogger.Debugf("  [%d] role=%s contentLen=%d toolCalls=%d toolCallID=%s",
+			i, msg.Role, len(msg.Content), len(msg.ToolCalls), msg.ToolCallID)
+	}
+
 	return result
+}
+
+func validateAndFixMessageSequence(messages []*schema.Message) []*schema.Message {
+	if len(messages) == 0 {
+		return messages
+	}
+
+	var fixed []*schema.Message
+	for i, msg := range messages {
+		if msg.Role == schema.Tool {
+			hasParent := false
+			for j := i - 1; j >= 0; j-- {
+				if fixed[j].Role == schema.Assistant {
+					for _, tc := range fixed[j].ToolCalls {
+						if msg.ToolCallID == tc.ID {
+							hasParent = true
+							break
+						}
+					}
+				}
+				if hasParent {
+					break
+				}
+			}
+			if !hasParent {
+				logger.SugaredLogger.Warnf("MessageRewriter: 移除孤立的Tool消息 (toolCallID=%s)", msg.ToolCallID)
+				continue
+			}
+		}
+		fixed = append(fixed, msg)
+	}
+
+	if len(fixed) == 0 {
+		return messages
+	}
+
+	for i := 0; i < len(fixed); i++ {
+		if fixed[i].Role == schema.System {
+			if i+1 < len(fixed) && fixed[i+1].Role != schema.User {
+				logger.SugaredLogger.Warnf("MessageRewriter: System后非User消息(role=%s), 插入占位User", fixed[i+1].Role)
+				placeholder := &schema.Message{
+					Role:    schema.User,
+					Content: "继续",
+				}
+				fixed = append(fixed[:i+1], append([]*schema.Message{placeholder}, fixed[i+1:]...)...)
+				break
+			}
+		}
+	}
+
+	return fixed
 }
 
 func compressNonSystemMessages(messages []*schema.Message, maxTokens int) []*schema.Message {
@@ -203,33 +261,121 @@ func compressNonSystemMessages(messages []*schema.Message, maxTokens int) []*sch
 		return trimmed
 	}
 
-	var userMsgs []*schema.Message
-	var otherMsgs []*schema.Message
-	for _, msg := range trimmed {
+	var userMsg *schema.Message
+	var afterUser []*schema.Message
+	for i, msg := range trimmed {
 		if msg.Role == schema.User {
-			userMsgs = append(userMsgs, msg)
+			userMsg = msg
+			afterUser = trimmed[i+1:]
+			break
+		}
+	}
+
+	if userMsg == nil {
+		return dropOldestMessages(trimmed, maxTokens)
+	}
+
+	userTokens := estimateTokens(userMsg.Content) + 4
+	afterUserBudget := maxTokens - userTokens
+	if afterUserBudget < 0 {
+		afterUserBudget = 0
+	}
+
+	compressedAfterUser := dropToolCallGroups(afterUser, afterUserBudget)
+
+	result := make([]*schema.Message, 0, len(compressedAfterUser)+1)
+	result = append(result, userMsg)
+	result = append(result, compressedAfterUser...)
+	return result
+}
+
+func dropToolCallGroups(messages []*schema.Message, maxTokens int) []*schema.Message {
+	if len(messages) == 0 {
+		return messages
+	}
+
+	type toolGroup struct {
+		messages []*schema.Message
+		tokens   int
+	}
+	var groups []toolGroup
+
+	i := 0
+	for i < len(messages) {
+		msg := messages[i]
+		if msg.Role == schema.Assistant && len(msg.ToolCalls) > 0 {
+			groupTokens := estimateTokens(msg.Content) + 4
+			for _, tc := range msg.ToolCalls {
+				groupTokens += estimateTokens(tc.Function.Name) + estimateTokens(tc.Function.Arguments)
+			}
+
+			var groupMsgs []*schema.Message
+			groupMsgs = append(groupMsgs, msg)
+
+			j := i + 1
+			for j < len(messages) {
+				if messages[j].Role == schema.Tool {
+					matched := false
+					for _, tc := range msg.ToolCalls {
+						if messages[j].ToolCallID == tc.ID {
+							matched = true
+							break
+						}
+					}
+					if matched {
+						groupMsgs = append(groupMsgs, messages[j])
+						groupTokens += estimateTokens(messages[j].Content) + 4
+						j++
+						continue
+					}
+				}
+				break
+			}
+
+			if j < len(messages) && messages[j].Role == schema.Assistant && messages[j].Content != "" && len(messages[j].ToolCalls) == 0 {
+				groupMsgs = append(groupMsgs, messages[j])
+				groupTokens += estimateTokens(messages[j].Content) + 4
+				j++
+			}
+
+			groups = append(groups, toolGroup{messages: groupMsgs, tokens: groupTokens})
+			i = j
 		} else {
-			otherMsgs = append(otherMsgs, msg)
+			msgTokens := estimateTokens(msg.Content) + 4
+			groups = append(groups, toolGroup{messages: []*schema.Message{msg}, tokens: msgTokens})
+			i++
 		}
 	}
 
-	if len(userMsgs) > 0 {
-		lastUserMsg := userMsgs[len(userMsgs)-1]
-		lastUserTokens := estimateTokens(lastUserMsg.Content) + 4
-
-		otherBudget := maxTokens - lastUserTokens
-		if otherBudget < 0 {
-			otherBudget = 0
-		}
-
-		compressedOthers := dropOldestMessages(otherMsgs, otherBudget)
-		result := make([]*schema.Message, 0, len(compressedOthers)+1)
-		result = append(result, compressedOthers...)
-		result = append(result, lastUserMsg)
-		return result
+	totalTokens := 0
+	for _, g := range groups {
+		totalTokens += g.tokens
+	}
+	if totalTokens <= maxTokens {
+		return messages
 	}
 
-	return dropOldestMessages(trimmed, maxTokens)
+	startIdx := 0
+	for startIdx < len(groups) {
+		partialTokens := 0
+		for k := startIdx; k < len(groups); k++ {
+			partialTokens += groups[k].tokens
+		}
+		if partialTokens <= maxTokens {
+			break
+		}
+		startIdx++
+	}
+
+	if startIdx >= len(groups) {
+		startIdx = len(groups) - 1
+	}
+
+	var result []*schema.Message
+	for k := startIdx; k < len(groups); k++ {
+		result = append(result, groups[k].messages...)
+	}
+	return result
 }
 
 func trimLargeToolResults(messages []*schema.Message, maxToolResultTokens int) []*schema.Message {
@@ -237,13 +383,9 @@ func trimLargeToolResults(messages []*schema.Message, maxToolResultTokens int) [
 	for i, msg := range messages {
 		if msg.Role == schema.Tool && estimateTokens(msg.Content) > maxToolResultTokens {
 			compressed := trimToolResult(msg.Content, maxToolResultTokens)
-			result[i] = &schema.Message{
-				Role:       msg.Role,
-				Content:    compressed,
-				ToolCallID: msg.ToolCallID,
-				ToolName:   msg.ToolName,
-				Name:       msg.Name,
-			}
+			cp := *msg
+			cp.Content = compressed
+			result[i] = &cp
 		} else {
 			result[i] = msg
 		}

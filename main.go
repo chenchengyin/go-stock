@@ -73,6 +73,7 @@ func main() {
 
 	checkDir("data")
 	data.SponsorDecryptKeyHex = BuildKey
+	data.SetAppIcon(icon)
 	db.Init("")
 	data.InitAnalyzeSentiment()
 	go AutoMigrate()

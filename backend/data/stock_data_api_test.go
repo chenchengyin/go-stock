@@ -9,6 +9,7 @@ import (
 	"go-stock/backend/models"
 	"go-stock/backend/util"
 	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -386,4 +387,476 @@ func TestGetMutualTop10Deal(t *testing.T) {
 	stockDataApi := NewStockDataApi()
 	res := stockDataApi.GetMutualTop10Deal("002", "2026-03-17", 1, 10)
 	logger.SugaredLogger.Infof("%s", util.MarkdownTableWithTitle("SZ000001 mutual top 10 deal", res.Result.Data))
+}
+
+func getIwencaiAPIKey(t *testing.T) string {
+	t.Helper()
+	apiKey := os.Getenv("IWENCAI_API_KEY")
+	if apiKey == "" {
+		t.Skip("IWENCAI_API_KEY environment variable not set, skipping test")
+	}
+	return apiKey
+}
+
+func getEmAPIKey(t *testing.T) string {
+	t.Helper()
+	apiKey := os.Getenv("EM_API_KEY")
+	if apiKey == "" {
+		t.Skip("EM_API_KEY environment variable not set, skipping test")
+	}
+	return apiKey
+}
+
+func emTestHeaders(apiKey string) map[string]string {
+	emBaseInfo, _ := json.Marshal(map[string]string{"productType": "mx"})
+	return map[string]string{
+		"Content-Type": "application/json",
+		"em_base_info": string(emBaseInfo),
+		"em_api_key":   apiKey,
+	}
+}
+
+func TestEmValidateEntity(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(map[string]string{
+			"Content-Type": "application/json",
+			"em_api_key":   apiKey,
+		}).
+		SetBody(map[string]string{"content": "贵州茅台"}).
+		Post("https://ai-saas.eastmoney.com/proxy/entity/dialogTagsV2")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	t.Logf("Response: %s", resp.String())
+}
+
+func TestEmFinancialQA(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(map[string]string{
+			"Content-Type": "application/json",
+			"Accept":       "application/json",
+			"em_api_key":   apiKey,
+		}).
+		SetBody(map[string]any{"question": "贵州茅台最新股价是多少"}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/ask")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 500 {
+		body = body[:500] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmFinanceDataQuery(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(emTestHeaders(apiKey)).
+		SetBody(map[string]any{
+			"query": "贵州茅台最新价",
+			"toolContext": map[string]any{
+				"callId":   "call_00000001",
+				"userInfo": map[string]string{"userId": "user_00000001"},
+			},
+		}).
+		Post("https://ai-saas.eastmoney.com/proxy/b/mcp/tool/searchData")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmFinanceSearch(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(emTestHeaders(apiKey)).
+		SetBody(map[string]any{
+			"query": "贵州茅台",
+			"toolContext": map[string]any{
+				"callId": "call_00000002",
+			},
+		}).
+		Post("https://ai-saas.eastmoney.com/proxy/b/mcp/tool/searchNews")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmEarningsReview(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(emTestHeaders(apiKey)).
+		SetBody(map[string]string{
+			"query":      "600519.SH",
+			"reportDate": "2025-03-31",
+		}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/performance/comment")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmIndustryResearch(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(emTestHeaders(apiKey)).
+		SetBody(map[string]string{"query": "白酒行业"}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/industry/research")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmTrackingReport(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(emTestHeaders(apiKey)).
+		SetBody(map[string]string{"query": "贵州茅台"}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/tracking/report")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmReportList(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(emTestHeaders(apiKey)).
+		SetBody(map[string]string{"emCode": "600519.SH"}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/write/choice/reportList")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	t.Logf("Response: %s", resp.String())
+}
+
+func TestEmComparableCompanyAnalysis(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(map[string]string{
+			"Content-Type": "application/json",
+			"em_api_key":   apiKey,
+		}).
+		SetBody(map[string]string{"question": "东方财富"}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/comparable-company-analysis")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestEmHotspotDiscovery(t *testing.T) {
+	apiKey := getEmAPIKey(t)
+
+	resp, err := resty.New().R().
+		SetHeaders(map[string]string{
+			"Content-Type": "application/json",
+			"em_api_key":   apiKey,
+		}).
+		SetBody(map[string]string{"question": "今日热点"}).
+		Post("https://ai-saas.eastmoney.com/proxy/app-robo-advisor-api/assistant/hotspot-discovery")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+	body := resp.String()
+	if len(body) > 800 {
+		body = body[:800] + "..."
+	}
+	t.Logf("Response: %s", body)
+}
+
+func TestIwencaiQueryAPI(t *testing.T) {
+	apiKey := getIwencaiAPIKey(t)
+
+	query := "贵州茅台最新价"
+	page := 1
+	limit := 5
+
+	reqBody := map[string]any{
+		"query":        query,
+		"page":         fmt.Sprintf("%d", page),
+		"limit":        fmt.Sprintf("%d", limit),
+		"is_cache":     "1",
+		"expand_index": "true",
+		"app_id":       "AIME_SKILL",
+	}
+
+	resp, err := resty.New().R().
+		SetHeaders(iwencaiCommonHeaders(apiKey, "query2data", "1.0.0")).
+		SetBody(reqBody).
+		Post("https://openapi.iwencai.com/v1/query2data")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+
+	if resp.StatusCode() == 200 {
+		var result IwencaiResponse
+		if err := json.Unmarshal(resp.Body(), &result); err == nil {
+			t.Logf("Status Code: %d, Msg: %s, CodeCount: %d, Datas: %d",
+				result.StatusCode, result.StatusMsg, result.CodeCount, len(result.Datas))
+			if len(result.Datas) > 0 {
+				t.Logf("第一条数据: %v", result.Datas[0])
+			}
+		}
+	} else {
+		t.Logf("Response Body: %s", resp.String())
+	}
+}
+
+func TestIwencaiSearchAPI(t *testing.T) {
+	apiKey := getIwencaiAPIKey(t)
+
+	reqBody := map[string]any{
+		"channels": []string{"news"},
+		"app_id":   "AIME_SKILL",
+		"query":    "贵州茅台",
+	}
+
+	resp, err := resty.New().R().
+		SetHeaders(iwencaiCommonHeaders(apiKey, "news-search", "1.0.0")).
+		SetBody(reqBody).
+		Post("https://openapi.iwencai.com/v1/comprehensive/search")
+
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+
+	t.Logf("HTTP Status: %d", resp.StatusCode())
+
+	if resp.StatusCode() == 200 {
+		var result IwencaiSearchResponse
+		if err := json.Unmarshal(resp.Body(), &result); err == nil {
+			t.Logf("Search Results Count: %d", len(result.Data))
+			if len(result.Data) > 0 {
+				for i, item := range result.Data {
+					if i >= 3 {
+						break
+					}
+					t.Logf("  [%d] %s (%s)", i+1, item.Title, item.PublishDate)
+				}
+			}
+		}
+	} else {
+		t.Logf("Response Body: %s", resp.String())
+	}
+}
+
+func TestF10LatestFinance(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockLatestFinance("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+	md := api.GetStockLatestFinanceToMarkdown("600519")
+	t.Logf("Markdown (first 500 chars):\n%s", func() string {
+		if len(md) > 500 {
+			return md[:500]
+		}
+		return md
+	}())
+}
+
+func TestF10QtrMainFinance(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockQtrMainFinance("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10OrgPredict(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockOrgPredict("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10PredictSummary(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockPredictSummary("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10ValuationPercentile(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockValuationPercentile("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10MarginTrading(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockMarginTrading("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10BlockTrade(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockBlockTrade("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10HolderTrend(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockHolderTrend("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10Billboard(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockBillboard("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
+}
+
+func TestF10OperationDeptTrade(t *testing.T) {
+	db.Init("../../data/stock.db")
+	api := NewStockDataApi()
+	resp, err := api.GetStockOperationDeptTrade("600519")
+	if err != nil {
+		t.Fatalf("请求失败: %v", err)
+	}
+	if resp.Result != nil {
+		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
+	} else {
+		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
+	}
 }
