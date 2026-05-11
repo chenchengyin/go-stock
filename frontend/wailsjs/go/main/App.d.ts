@@ -38,6 +38,8 @@ export function CalculateNextRunTimes(arg1:string,arg2:number):Promise<Array<str
 
 export function ChatWithAgent(arg1:string,arg2:number,arg3:any,arg4:boolean,arg5:number,arg6:boolean,arg7:string):Promise<void>;
 
+export function CheckDeviceBinding(arg1:string,arg2:string):Promise<Record<string, any>>;
+
 export function CheckFrequentTrading(arg1:string):Promise<Record<string, any>>;
 
 export function CheckSponsorCode(arg1:string):Promise<Record<string, any>>;
@@ -172,6 +174,8 @@ export function GetMCPServerList(arg1:models.MCPServerQuery):Promise<models.MCPS
 
 export function GetMCPToolsByServerID(arg1:number):Promise<Array<models.MCPServerTool>>;
 
+export function GetMachineId():Promise<string>;
+
 export function GetMarketStatisticByDate(arg1:string):Promise<Array<models.MarketStatistic>>;
 
 export function GetMoneyRankSina(arg1:string):Promise<Array<Record<string, any>>>;
@@ -283,6 +287,8 @@ export function NewChatStream(arg1:string,arg2:string,arg3:string,arg4:number,ar
 export function NewsPush(arg1:any):Promise<void>;
 
 export function OpenURL(arg1:string):Promise<void>;
+
+export function QuitApp():Promise<void>;
 
 export function ReFleshTelegraphList(arg1:string):Promise<any>;
 

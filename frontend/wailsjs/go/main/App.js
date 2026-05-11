@@ -66,6 +66,10 @@ export function ChatWithAgent(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['ChatWithAgent'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function CheckDeviceBinding(arg1, arg2) {
+  return window['go']['main']['App']['CheckDeviceBinding'](arg1, arg2);
+}
+
 export function CheckFrequentTrading(arg1) {
   return window['go']['main']['App']['CheckFrequentTrading'](arg1);
 }
@@ -334,6 +338,10 @@ export function GetMCPToolsByServerID(arg1) {
   return window['go']['main']['App']['GetMCPToolsByServerID'](arg1);
 }
 
+export function GetMachineId() {
+  return window['go']['main']['App']['GetMachineId']();
+}
+
 export function GetMarketStatisticByDate(arg1) {
   return window['go']['main']['App']['GetMarketStatisticByDate'](arg1);
 }
@@ -556,6 +564,10 @@ export function NewsPush(arg1) {
 
 export function OpenURL(arg1) {
   return window['go']['main']['App']['OpenURL'](arg1);
+}
+
+export function QuitApp() {
+  return window['go']['main']['App']['QuitApp']();
 }
 
 export function ReFleshTelegraphList(arg1) {

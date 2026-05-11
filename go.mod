@@ -18,6 +18,7 @@ require (
 	github.com/cloudwego/eino-ext/components/model/qwen v0.1.9
 	github.com/cloudwego/eino-ext/components/tool/mcp v0.0.8
 	github.com/coocood/freecache v1.2.7
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/duke-git/lancet/v2 v2.3.9
 	github.com/eino-contrib/ollama v0.1.0
 	github.com/gen2brain/beeep v0.11.2

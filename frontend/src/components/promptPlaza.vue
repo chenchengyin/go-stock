@@ -1,10 +1,11 @@
 <script setup>
 import {computed, h, onBeforeMount, onMounted, ref, reactive} from 'vue'
-import {GetConfig, GetSponsorInfo} from "../../wailsjs/go/main/App";
+import {GetConfig, GetSponsorInfo, GetMachineId, CheckDeviceBinding, QuitApp, GetEffectiveSponsorVip, AddPromptTemplate} from "../../wailsjs/go/main/App";
 import {useMessage, useDialog} from "naive-ui";
 import {MdPreview, MdEditor} from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import 'md-editor-v3/lib/style.css'
+import {EventsEmit} from '../../wailsjs/runtime'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -81,6 +82,7 @@ const editModal = reactive({
 })
 
 const isLoggedIn = computed(() => !!token.value)
+const vipRequireLogin = ref(false)
 
 onBeforeMount(() => {
   GetConfig().then(result => {
@@ -99,6 +101,8 @@ onMounted(() => {
   loadPrompts()
   if (token.value) {
     fetchCurrentUser()
+  } else {
+    checkVipAndPromptLogin()
   }
 })
 
@@ -199,10 +203,57 @@ async function fetchCurrentUser() {
     const data = await apiGet('/user/me')
     currentUser.value = data
     syncVipInfo()
+    checkDeviceLimit()
   } catch (e) {
     token.value = ''
     localStorage.removeItem('promptPlazaToken')
     currentUser.value = null
+  }
+}
+
+async function checkVipAndPromptLogin() {
+  try {
+    const vipInfo = await GetEffectiveSponsorVip()
+    if (vipInfo && vipInfo.vipLevel > 0 && vipInfo.active) {
+      vipRequireLogin.value = true
+      loginModal.show = true
+      loginModal.tab = 'login'
+      message.info('VIP用户请登录，解锁专属提示词与更多权益')
+    }
+  } catch (e) {
+    console.warn('检查VIP状态失败', e)
+  }
+}
+
+async function checkDeviceLimit() {
+  if (!token.value) return
+  try {
+    const result = await CheckDeviceBinding(token.value, apiBase.value)
+    if (!result.bound && result.deviceCount >= result.maxDevices) {
+      let countdown = 30
+      const d = dialog.warning({
+        title: '设备绑定超限',
+        content: `您已绑定 ${result.deviceCount} 台设备，已达上限，当前设备未授权。程序将在 ${countdown} 秒后自动关闭。`,
+        positiveText: '立即关闭',
+        onPositiveClick: () => {
+          QuitApp()
+        },
+        onMaskClick: () => {},
+        onEsc: () => {}
+      })
+      const timer = setInterval(() => {
+        countdown--
+        if (countdown <= 0) {
+          clearInterval(timer)
+          d.destroy()
+          QuitApp()
+        } else {
+          d.content = `您已绑定 ${result.deviceCount} 台设备，已达上限，当前设备未授权。程序将在 ${countdown} 秒后自动关闭。`
+        }
+      }, 1000)
+    }
+  } catch (e) {
+    console.warn('设备绑定检查失败', e)
   }
 }
 
@@ -212,12 +263,20 @@ async function syncVipInfo() {
     const sponsorInfo = await GetSponsorInfo()
     const vipLevel = sponsorInfo?.vipLevel ? Number(sponsorInfo.vipLevel) : 0
     const vipExpireAt = sponsorInfo?.vipEndTime || ''
+    let uuid = ''
+    try {
+      uuid = await GetMachineId()
+    } catch (e) {
+      console.warn('获取机器ID失败', e)
+    }
+    const body = {vipLevel, uuid}
     if (vipLevel > 0 && vipExpireAt) {
       const d = new Date(vipExpireAt.replace(' ', 'T'))
-      await apiPost('/user/vip', {vipLevel, vipExpireAt: d.toISOString()})
+      body.vipExpireAt = d.toISOString()
     } else {
-      await apiPost('/user/vip', {vipLevel, vipExpireAt: ''})
+      body.vipExpireAt = ''
     }
+    await apiPost('/user/vip', body)
     if (currentUser.value) {
       currentUser.value.vipLevel = vipLevel
       currentUser.value.vipExpireAt = vipExpireAt
@@ -239,7 +298,10 @@ async function handleLogin() {
     localStorage.setItem('promptPlazaPassword', loginModal.password)
     currentUser.value = data.user
     loginModal.show = false
+    vipRequireLogin.value = false
     message.success('登录成功')
+    syncVipInfo()
+    checkDeviceLimit()
     loadPrompts()
   } catch (e) {
     message.error('登录失败: ' + e.message)
@@ -259,10 +321,13 @@ async function handleRegister() {
     localStorage.setItem('promptPlazaPassword', loginModal.password)
     currentUser.value = data.user
     loginModal.show = false
+    vipRequireLogin.value = false
     loginModal.username = ''
     loginModal.password = ''
     loginModal.nickname = ''
     message.success('注册成功')
+    syncVipInfo()
+    checkDeviceLimit()
     loadPrompts()
   } catch (e) {
     message.error('注册失败: ' + e.message)
@@ -409,6 +474,31 @@ async function handleCopyContent(content) {
     message.success('已复制到剪贴板')
   } catch (e) {
     message.error('复制失败')
+  }
+}
+
+async function addPromptToTemplate(prompt) {
+  if (prompt.needVip) {
+    const vipInfo = await GetEffectiveSponsorVip()
+    if (!vipInfo || vipInfo.vipLevel <= 0 || !vipInfo.active) {
+      message.warning('该提示词为VIP专属，请先开通VIP')
+      return
+    }
+  }
+  try {
+    const res = await AddPromptTemplate({
+      name: prompt.title,
+      content: prompt.content,
+      type: '模型系统Prompt'
+    })
+    if (res === '添加成功') {
+      message.success('已添加到我的提示词模板')
+      EventsEmit('promptTemplatesChanged')
+    } else {
+      message.warning(res)
+    }
+  } catch (e) {
+    message.error('添加失败: ' + e.message)
   }
 }
 
@@ -767,6 +857,9 @@ function timeAgo(timeStr) {
             <n-button size="tiny" quaternary @click="handleCopyContent(detailModal.data.content)">
               📋 复制
             </n-button>
+            <n-button size="tiny" type="info" @click="addPromptToTemplate(detailModal.data)">
+              ➕ 添加到我的模板
+            </n-button>
           </n-space>
         </n-space>
 
@@ -845,7 +938,18 @@ function timeAgo(timeStr) {
       </template>
     </n-modal>
 
-    <n-modal v-model:show="loginModal.show" preset="card" style="width: 400px" title="账号">
+    <n-modal v-model:show="loginModal.show" preset="card" style="width: 400px" :title="vipRequireLogin ? '🎉 VIP专属福利' : '账号'" :closable="!vipRequireLogin" :maskClosable="!vipRequireLogin" :closeOnEsc="!vipRequireLogin">
+      <div v-if="vipRequireLogin" style="margin-bottom: 16px; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: #fff">
+        <div style="font-size: 15px; font-weight: 600; margin-bottom: 8px">✨ 欢迎回来，VIP用户！</div>
+        <div style="font-size: 13px; line-height: 1.6; opacity: 0.95">
+          登录后即可解锁专属权益：
+          <div style="margin-top: 6px; padding-left: 8px">
+            📖 查看 <b>VIP专属提示词</b>，获取更精准的分析策略<br/>
+            🔒 自动绑定当前设备，保障账号安全<br/>
+            💡 与社区用户共享投资灵感
+          </div>
+        </div>
+      </div>
       <n-tabs v-model:value="loginModal.tab" type="line">
         <n-tab-pane name="login" tab="登录">
           <n-space vertical :size="12">

@@ -13,6 +13,7 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	machineid "go-stock/backend/machineid"
 	"go-stock/backend/models"
 	"os"
 	"path/filepath"
@@ -93,6 +94,60 @@ func (a *App) removeCronEntry(key string) {
 
 func (a *App) GetSponsorInfo() map[string]any {
 	return a.SponsorInfo
+}
+
+func (a *App) GetMachineId() string {
+	return machineid.GetMachineId()
+}
+
+func (a *App) CheckDeviceBinding(token string, apiBase string) map[string]any {
+	uuid := machineid.GetMachineId()
+	result := map[string]any{
+		"bound":      false,
+		"deviceCount": 0,
+		"maxDevices": 5,
+	}
+
+	if token == "" || apiBase == "" {
+		return result
+	}
+
+	url := fmt.Sprintf("%s/user/device-check?uuid=%s", apiBase, uuid)
+	resp, err := data.SharedHTTPClient.R().
+		SetHeader("Authorization", "Bearer "+token).
+		Get(url)
+	if err != nil {
+		return result
+	}
+
+	var respData struct {
+		Code int `json:"code"`
+		Data struct {
+			Bound      bool `json:"bound"`
+			DeviceCount int `json:"deviceCount"`
+			MaxDevices  int `json:"maxDevices"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &respData); err != nil {
+		return result
+	}
+	if respData.Code != 0 {
+		return result
+	}
+
+	result["bound"] = respData.Data.Bound
+	result["deviceCount"] = respData.Data.DeviceCount
+	result["maxDevices"] = respData.Data.MaxDevices
+	return result
+}
+
+func (a *App) QuitApp() {
+	if a.ctx != nil {
+		if a.cron != nil {
+			a.cron.Stop()
+		}
+		runtime.Quit(a.ctx)
+	}
 }
 
 // GetEffectiveSponsorVip 从本地配置解密赞助信息并判断当前是否在 VIP 有效期内（与 ai-assistant-web / data.EffectiveSponsorVipLevel 一致）。
