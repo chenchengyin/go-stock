@@ -405,6 +405,8 @@ export namespace data {
 	    netEstimatedUnitTime: string;
 	    netAccumulated?: number;
 	    netEstimatedRate?: number;
+	    netUnitValuePrev?: number;
+	    netActualRate?: number;
 	    fundBasic: FundBasic;
 	
 	    static createFrom(source: any = {}) {
@@ -425,6 +427,8 @@ export namespace data {
 	        this.netEstimatedUnitTime = source["netEstimatedUnitTime"];
 	        this.netAccumulated = source["netAccumulated"];
 	        this.netEstimatedRate = source["netEstimatedRate"];
+	        this.netUnitValuePrev = source["netUnitValuePrev"];
+	        this.netActualRate = source["netActualRate"];
 	        this.fundBasic = this.convertValues(source["fundBasic"], FundBasic);
 	    }
 	

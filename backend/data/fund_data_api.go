@@ -3,16 +3,17 @@ package data
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/duke-git/lancet/v2/convertor"
-	"github.com/duke-git/lancet/v2/mathutil"
-	"github.com/duke-git/lancet/v2/strutil"
-	"github.com/go-resty/resty/v2"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/duke-git/lancet/v2/convertor"
+	"github.com/duke-git/lancet/v2/mathutil"
+	"github.com/duke-git/lancet/v2/strutil"
+	"github.com/go-resty/resty/v2"
 
 	"github.com/PuerkitoBio/goquery"
 	"gorm.io/gorm"
@@ -42,6 +43,8 @@ type FollowedFund struct {
 	NetAccumulated   *float64 `json:"netAccumulated"`
 
 	NetEstimatedRate *float64 `json:"netEstimatedRate"`
+	NetUnitValuePrev *float64 `json:"netUnitValuePrev"`
+	NetActualRate    *float64 `json:"netActualRate"`
 
 	FundBasic FundBasic `json:"fundBasic" gorm:"foreignKey:Code;references:Code"`
 }
@@ -144,7 +147,7 @@ func (f *FundApi) crawlFundBasicViaHTML(fundCode string) (*FundBasic, error) {
 	name := doc.Find(".merchandiseDetail .fundDetail-tit").First().Text()
 	fund.Name = strings.TrimSpace(strutil.ReplaceWithMap(name, map[string]string{
 		"查看相关ETF联接>": "",
-		"查看相关ETF>":    "",
+		"查看相关ETF>":   "",
 	}))
 
 	doc.Find(".infoOfFund table td").Each(func(i int, s *goquery.Selection) {
@@ -284,11 +287,11 @@ func (f *FundApi) setGrowthFromTable(doc *goquery.Document, selector string, fun
 }
 
 var (
-	reFSName       = regexp.MustCompile(`var\s+fS_name\s*=\s*"([^"]*)"`)
-	reFSCode       = regexp.MustCompile(`var\s+fS_code\s*=\s*"([^"]*)"`)
-	rePerformance  = regexp.MustCompile(`var\s+Data_performance\s*=\s*(\{.+?\});`)
-	reFundManager  = regexp.MustCompile(`var\s+Data_currentFundManager\s*=\s*(\[.+?\]);`)
-	reFluctuation  = regexp.MustCompile(`var\s+Data_fluctuationScale\s*=\s*(\{.+?\});`)
+	reFSName      = regexp.MustCompile(`var\s+fS_name\s*=\s*"([^"]*)"`)
+	reFSCode      = regexp.MustCompile(`var\s+fS_code\s*=\s*"([^"]*)"`)
+	rePerformance = regexp.MustCompile(`var\s+Data_performance\s*=\s*(\{.+?\});`)
+	reFundManager = regexp.MustCompile(`var\s+Data_currentFundManager\s*=\s*(\[.+?\]);`)
+	reFluctuation = regexp.MustCompile(`var\s+Data_fluctuationScale\s*=\s*(\{.+?\});`)
 )
 
 func (f *FundApi) crawlFundBasicViaPingZhongData(fundCode string) (*FundBasic, error) {
@@ -505,6 +508,9 @@ func (f *FundApi) GetFollowedFund() []FollowedFund {
 				if updated.NetEstimatedTime != "" {
 					funds[i2].NetEstimatedTime = updated.NetEstimatedTime
 				}
+				if updated.NetUnitValuePrev != nil {
+					funds[i2].NetUnitValuePrev = updated.NetUnitValuePrev
+				}
 				break
 			}
 		}
@@ -523,10 +529,25 @@ func (f *FundApi) GetFollowedFund() []FollowedFund {
 		if fund.NetAccumulated == nil && fund.FundBasic.NetAccumulated != nil {
 			funds[i].NetAccumulated = fund.FundBasic.NetAccumulated
 		}
-		if funds[i].NetUnitValue != nil && funds[i].NetEstimatedUnit != nil && *funds[i].NetUnitValue > 0 {
+		if funds[i].NetUnitValuePrev != nil && funds[i].NetEstimatedUnit != nil && *funds[i].NetUnitValuePrev > 0 {
+			netEstimatedRate := (*(funds[i].NetEstimatedUnit) - *(funds[i].NetUnitValuePrev)) / *(funds[i].NetUnitValuePrev) * 100
+			netEstimatedRate = mathutil.RoundToFloat(netEstimatedRate, 2)
+			funds[i].NetEstimatedRate = &netEstimatedRate
+		} else if funds[i].NetUnitValue != nil && funds[i].NetEstimatedUnit != nil && *funds[i].NetUnitValue > 0 {
 			netEstimatedRate := (*(funds[i].NetEstimatedUnit) - *(funds[i].NetUnitValue)) / *(funds[i].NetUnitValue) * 100
 			netEstimatedRate = mathutil.RoundToFloat(netEstimatedRate, 2)
 			funds[i].NetEstimatedRate = &netEstimatedRate
+		}
+		if funds[i].NetUnitValue != nil && funds[i].NetUnitValuePrev != nil && *funds[i].NetUnitValuePrev > 0 {
+			estimatedDate := ""
+			if funds[i].NetEstimatedTime != "" {
+				estimatedDate = strings.Split(funds[i].NetEstimatedTime, " ")[0]
+			}
+			if estimatedDate != "" && funds[i].NetUnitValueDate >= estimatedDate {
+				netActualRate := (*(funds[i].NetUnitValue) - *(funds[i].NetUnitValuePrev)) / *(funds[i].NetUnitValuePrev) * 100
+				netActualRate = mathutil.RoundToFloat(netActualRate, 2)
+				funds[i].NetActualRate = &netActualRate
+			}
 		}
 	}
 	return funds
@@ -658,6 +679,10 @@ func (f *FundApi) CrawlFundNetEstimatedUnit(code string) {
 			if err == nil {
 				fund.NetEstimatedRate = &netEstimatedRate
 			}
+			netUnitValuePrev, err := convertor.ToFloat(fundNetUnitValue.Dwjz)
+			if err == nil {
+				fund.NetUnitValuePrev = &netUnitValuePrev
+			}
 			db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
 		}
 	}
@@ -778,7 +803,7 @@ func (f *FundApi) crawlOnExchangeFundNetUnitValue(code string) {
 }
 
 func (f *FundApi) crawlFundNetUnitValueViaEastMoney(code string) {
-	history, err := f.GetFundHistoryNetValue(code, 1, 1, "", "")
+	history, err := f.GetFundHistoryNetValue(code, 1, 2, "", "")
 	if err != nil || len(history) == 0 {
 		return
 	}
@@ -788,6 +813,10 @@ func (f *FundApi) crawlFundNetUnitValueViaEastMoney(code string) {
 		Code:             code,
 		NetUnitValue:     &val,
 		NetUnitValueDate: latest.Date,
+	}
+	if len(history) >= 2 {
+		prev := history[1].NetValue
+		fund.NetUnitValuePrev = &prev
 	}
 	db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
 }

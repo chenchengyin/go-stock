@@ -692,16 +692,17 @@ func (a *App) domReady(ctx context.Context) {
 	//检查新版本
 	go func() {
 		a.CheckUpdate(0)
+		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
+			logger.SugaredLogger.Errorf("Checking for updates...")
+			a.CheckUpdate(0)
+		})
+
 		go a.CheckStockBaseInfo(a.ctx)
 		go syncAllStockInfo(a.ctx)
 
 		a.cron.AddFunc("0 0 2 * * *", func() {
 			logger.SugaredLogger.Errorf("Checking for updates...")
 			a.CheckStockBaseInfo(a.ctx)
-		})
-		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
-			logger.SugaredLogger.Errorf("Checking for updates...")
-			a.CheckUpdate(0)
 		})
 		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
 			syncAllStockInfo(a.ctx)

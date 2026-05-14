@@ -315,25 +315,35 @@ function blinkBorder(findId) {
         <n-grid :cols="24" :x-gap="16">
           <n-gi :span="10">
             <n-flex align="center" :size="12" :wrap="false">
-              <div v-if="info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit" style="min-width: 100px;">
-                <div style="font-size: 12px; color: #999;">{{ isOnExchangeFund(info.code) ? '实时价格' : '估算净值' }}</div>
-                <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 22px; font-weight: 700;">
-                  {{ info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit }}
+              <div v-if="!isOnExchangeFund(info.code) && info.netActualRate != null" style="min-width: 100px;">
+                <div style="font-size: 12px; color: #999;">实际净值</div>
+                <n-text :type="rateType(info.netActualRate)" style="font-size: 22px; font-weight: 700;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
+                <n-text :type="rateType(info.netActualRate)" style="font-size: 14px; margin-left: 4px;">
+                  {{ info.netActualRate > 0 ? '+' : '' }}{{ info.netActualRate?.toFixed(2) }}%
                 </n-text>
-                <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 14px; margin-left: 4px;">
-                  {{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate) > 0 ? '+' : '' }}{{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate)?.toFixed(2) }}%
-                </n-text>
-              </div>
-              <div v-else-if="info.netUnitValue || info.fundBasic?.netUnitValue" style="min-width: 100px;">
-                <div style="font-size: 12px; color: #999;">单位净值</div>
-                <n-text style="font-size: 22px; font-weight: 700;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
-              </div>
-              <n-divider vertical v-if="(info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit) && (info.netUnitValue || info.fundBasic?.netUnitValue)"/>
-              <div v-if="(info.netUnitValue || info.fundBasic?.netUnitValue) && (info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit)">
-                <div style="font-size: 12px; color: #999;">单位净值</div>
-                <n-text style="font-size: 15px;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
                 <div style="font-size: 11px; color: #999;">{{ info.netUnitValueDate || info.fundBasic?.netUnitValueDate }}</div>
               </div>
+              <template v-else>
+                <div v-if="info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit" style="min-width: 100px;">
+                  <div style="font-size: 12px; color: #999;">{{ isOnExchangeFund(info.code) ? '实时价格' : '估算净值' }}</div>
+                  <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 22px; font-weight: 700;">
+                    {{ info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit }}
+                  </n-text>
+                  <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 14px; margin-left: 4px;">
+                    {{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate) > 0 ? '+' : '' }}{{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate)?.toFixed(2) }}%
+                  </n-text>
+                </div>
+                <div v-else-if="info.netUnitValue || info.fundBasic?.netUnitValue" style="min-width: 100px;">
+                  <div style="font-size: 12px; color: #999;">单位净值</div>
+                  <n-text style="font-size: 22px; font-weight: 700;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
+                </div>
+                <n-divider vertical v-if="(info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit) && (info.netUnitValue || info.fundBasic?.netUnitValue)"/>
+                <div v-if="(info.netUnitValue || info.fundBasic?.netUnitValue) && (info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit)">
+                  <div style="font-size: 12px; color: #999;">单位净值</div>
+                  <n-text style="font-size: 15px;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
+                  <div style="font-size: 11px; color: #999;">{{ info.netUnitValueDate || info.fundBasic?.netUnitValueDate }}</div>
+                </div>
+              </template>
             </n-flex>
 
             <n-flex :size="4" style="margin-top: 8px;" :wrap="true">
