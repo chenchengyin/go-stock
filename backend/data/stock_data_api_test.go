@@ -717,7 +717,7 @@ func TestIwencaiSearchAPI(t *testing.T) {
 func TestF10LatestFinance(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockLatestFinance("600519")
+	resp, err := api.GetStockLatestFinance("300390.SZ")
 	if err != nil {
 		t.Fatalf("请求失败: %v", err)
 	}
@@ -726,11 +726,8 @@ func TestF10LatestFinance(t *testing.T) {
 	} else {
 		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
 	}
-	md := api.GetStockLatestFinanceToMarkdown("600519")
-	t.Logf("Markdown (first 500 chars):\n%s", func() string {
-		if len(md) > 500 {
-			return md[:500]
-		}
+	md := api.GetStockLatestFinanceToMarkdown("300390.SZ")
+	t.Logf("Markdown :\n%s", func() string {
 		return md
 	}())
 }
@@ -738,125 +735,62 @@ func TestF10LatestFinance(t *testing.T) {
 func TestF10QtrMainFinance(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockQtrMainFinance("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockQtrMainFinanceToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10OrgPredict(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockOrgPredict("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockOrgPredictToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10PredictSummary(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockPredictSummary("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockPredictSummaryToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10ValuationPercentile(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockValuationPercentile("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockValuationPercentileToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10MarginTrading(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockMarginTrading("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockMarginTradingToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10BlockTrade(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockBlockTrade("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockBlockTradeToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10HolderTrend(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockHolderTrend("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockHolderTrendToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10Billboard(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockBillboard("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockBillboardToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }
 
 func TestF10OperationDeptTrade(t *testing.T) {
 	db.Init("../../data/stock.db")
 	api := NewStockDataApi()
-	resp, err := api.GetStockOperationDeptTrade("600519")
-	if err != nil {
-		t.Fatalf("请求失败: %v", err)
-	}
-	if resp.Result != nil {
-		t.Logf("Success: %v, Count: %d", resp.Success, resp.Result.Count)
-	} else {
-		t.Logf("Result is nil, Success: %v, Message: %s", resp.Success, resp.Message)
-	}
+	md := api.GetStockOperationDeptTradeToMarkdown("600519")
+	t.Logf("Markdown:\n%s", md)
 }

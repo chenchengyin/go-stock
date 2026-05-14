@@ -103,9 +103,9 @@ func (a *App) GetMachineId() string {
 func (a *App) CheckDeviceBinding(token string, apiBase string) map[string]any {
 	uuid := machineid.GetMachineId()
 	result := map[string]any{
-		"bound":      false,
+		"bound":       false,
 		"deviceCount": 0,
-		"maxDevices": 5,
+		"maxDevices":  5,
 	}
 
 	if token == "" || apiBase == "" {
@@ -123,9 +123,9 @@ func (a *App) CheckDeviceBinding(token string, apiBase string) map[string]any {
 	var respData struct {
 		Code int `json:"code"`
 		Data struct {
-			Bound      bool `json:"bound"`
-			DeviceCount int `json:"deviceCount"`
-			MaxDevices  int `json:"maxDevices"`
+			Bound       bool `json:"bound"`
+			DeviceCount int  `json:"deviceCount"`
+			MaxDevices  int  `json:"maxDevices"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(resp.Body(), &respData); err != nil {
@@ -197,7 +197,7 @@ func (a *App) CheckSponsorCode(sponsorCode string) map[string]any {
 			"msg":  "赞助码校验成功，感谢您的支持!",
 		}
 	} else {
-		return map[string]any{"code": 0, "message": "赞助码不能为空,请输入正确的赞助码!"}
+		return map[string]any{"code": 0, "msg": "赞助码不能为空,请输入正确的赞助码!"}
 	}
 }
 
@@ -1926,6 +1926,23 @@ func (a *App) FollowFund(fundCode string) string {
 }
 func (a *App) UnFollowFund(fundCode string) string {
 	return data.NewFundApi().UnFollowFund(fundCode)
+}
+func (a *App) GetFundKLine(fundCode string, klt string, limit int) *data.KLineSourceResult {
+	return data.NewFundKLineApi().GetFundKLineWithFallback(fundCode, klt, limit)
+}
+func (a *App) GetFundHistoryNetValue(fundCode string, pageSize int, startDate string, endDate string) []data.FundHistoryNetValue {
+	res, _ := data.NewFundApi().GetFundHistoryNetValue(fundCode, 1, pageSize, startDate, endDate)
+	if res == nil {
+		return []data.FundHistoryNetValue{}
+	}
+	return res
+}
+func (a *App) GetFundTop10Holdings(fundCode string) []data.FundHoldingStock {
+	res, err := data.NewFundApi().GetFundTop10Holdings(fundCode)
+	if err != nil || res == nil {
+		return []data.FundHoldingStock{}
+	}
+	return res
 }
 func (a *App) SaveAsMarkdown(stockCode, stockName string) string {
 	res := data.NewDeepSeekOpenAi(a.ctx, 0).GetAIResponseResult(stockCode)

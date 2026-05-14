@@ -141,12 +141,9 @@ onBeforeUnmount(() => {
 
 EventsOn("updateVersion",async (msg) => {
   const githubTimeStr = msg.published_at;
-  // 创建一个 Date 对象
   const utcDate = new Date(githubTimeStr);
-// 获取本地时间
   const date = new Date(utcDate.getTime());
   const year = date.getFullYear();
-// getMonth 返回值是 0 - 11，所以要加 1
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const hours = String(date.getHours()).padStart(2, '0');
@@ -155,8 +152,6 @@ EventsOn("updateVersion",async (msg) => {
 
   const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
-  //console.log("GitHub UTC 时间:", utcDate);
-  //console.log("转换后的本地时间:", formattedDate);
   notify.info({
     avatar: () =>
         h(NAvatar, {
@@ -166,7 +161,6 @@ EventsOn("updateVersion",async (msg) => {
         }),
     title: '发现新版本: ' + msg.tag_name,
     content: () => {
-      //return h(MdPreview, {theme:'dark',modelValue:msg.commit?.message}, null)
       return h('div', {
         style: {
           'text-align': 'left',

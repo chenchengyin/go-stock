@@ -34,6 +34,9 @@ func init() {
 	registerToolHandler("GetStockNotice", handleGetStockNoticeTool)
 	registerToolHandler("SearchFund", handleSearchFund)
 	registerToolHandler("GetFundInfo", handleGetFundInfo)
+	registerToolHandler("GetFundKLine", handleGetFundKLine)
+	registerToolHandler("GetFundHistoryNetValue", handleGetFundHistoryNetValue)
+	registerToolHandler("GetFundTop10Holdings", handleGetFundTop10Holdings)
 	registerToolHandler("QueryIwencai", handleQueryIwencai)
 	registerToolHandler("SelectAStock", handleSelectAStock)
 	registerToolHandler("SelectSector", handleSelectSector)
@@ -391,6 +394,59 @@ func handleGetFundInfo(o *OpenAi, funcArguments string, ctx *ToolContext) error 
 	sendToolCallLog(ctx, "GetFundInfo", funcArguments)
 	fundCode := gjson.Get(funcArguments, "fundCode").String()
 	res, _ := NewFundApi().CrawlFundBasic(fundCode)
+	jsonBytes, _ := json.Marshal(res)
+	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(), ctx.CurrentCallID, ctx.FuncName, funcArguments, string(jsonBytes))
+	return nil
+}
+
+func handleGetFundKLine(o *OpenAi, funcArguments string, ctx *ToolContext) error {
+	sendToolCallLog(ctx, "GetFundKLine", funcArguments)
+	fundCode := gjson.Get(funcArguments, "fundCode").String()
+	klt := gjson.Get(funcArguments, "klt").String()
+	limit := gjson.Get(funcArguments, "limit").Int()
+	if klt == "" {
+		klt = "101"
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	res := NewFundKLineApi().GetFundKLine(fundCode, klt, int(limit))
+	jsonBytes, _ := json.Marshal(res)
+	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(), ctx.CurrentCallID, ctx.FuncName, funcArguments, string(jsonBytes))
+	return nil
+}
+
+func handleGetFundHistoryNetValue(o *OpenAi, funcArguments string, ctx *ToolContext) error {
+	sendToolCallLog(ctx, "GetFundHistoryNetValue", funcArguments)
+	fundCode := gjson.Get(funcArguments, "fundCode").String()
+	pageIndex := gjson.Get(funcArguments, "pageIndex").Int()
+	pageSize := gjson.Get(funcArguments, "pageSize").Int()
+	startDate := gjson.Get(funcArguments, "startDate").String()
+	endDate := gjson.Get(funcArguments, "endDate").String()
+	if pageIndex <= 0 {
+		pageIndex = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	res, err := NewFundApi().GetFundHistoryNetValue(fundCode, int(pageIndex), int(pageSize), startDate, endDate)
+	if err != nil {
+		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(), ctx.CurrentCallID, ctx.FuncName, funcArguments, fmt.Sprintf("获取基金历史净值失败: %v", err))
+		return nil
+	}
+	jsonBytes, _ := json.Marshal(res)
+	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(), ctx.CurrentCallID, ctx.FuncName, funcArguments, string(jsonBytes))
+	return nil
+}
+
+func handleGetFundTop10Holdings(o *OpenAi, funcArguments string, ctx *ToolContext) error {
+	sendToolCallLog(ctx, "GetFundTop10Holdings", funcArguments)
+	fundCode := gjson.Get(funcArguments, "fundCode").String()
+	res, err := NewFundApi().GetFundTop10Holdings(fundCode)
+	if err != nil {
+		appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(), ctx.CurrentCallID, ctx.FuncName, funcArguments, fmt.Sprintf("获取基金十大持仓股失败: %v", err))
+		return nil
+	}
 	jsonBytes, _ := json.Marshal(res)
 	appendToolMessages(ctx.Messages, ctx.CurrentAIContent.String(), ctx.ReasoningContentText.String(), ctx.CurrentCallID, ctx.FuncName, funcArguments, string(jsonBytes))
 	return nil

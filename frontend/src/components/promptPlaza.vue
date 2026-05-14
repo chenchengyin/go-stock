@@ -276,6 +276,14 @@ async function syncVipInfo() {
     } else {
       body.vipExpireAt = ''
     }
+    try {
+      const config = await GetConfig()
+      if (config?.sponsorCode) {
+        body.sponsorCode = config.sponsorCode
+      }
+    } catch (e) {
+      console.warn('获取赞助码失败', e)
+    }
     await apiPost('/user/vip', body)
     if (currentUser.value) {
       currentUser.value.vipLevel = vipLevel

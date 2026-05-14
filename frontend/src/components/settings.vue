@@ -287,21 +287,20 @@ function saveConfig() {
 
   if (config.sponsorCode) {
     CheckSponsorCode(config.sponsorCode).then(res => {
-      if (res.code) {
-        UpdateConfig(config).then(res => {
-          message.success(res)
-          EventsEmit("updateSettings", config);
-        })
-      } else {
-        message.error(res.msg)
+      if (!res.code) {
+        message.warning(res.msg || '赞助码验证失败')
       }
     })
-  } else {
-    UpdateConfig(config).then(res => {
-      message.success(res)
-      EventsEmit("updateSettings", config);
-    })
   }
+
+  UpdateConfig(config).then(res => {
+    if (res === '保存成功！') {
+      message.success(res)
+    } else {
+      message.error(res)
+    }
+    EventsEmit("updateSettings", config);
+  })
 }
 
 
@@ -484,12 +483,12 @@ function deletePrompt(ID) {
             <n-form-item-gi :span="10" label="浏览器安装路径：" path="browserPath">
               <n-input type="text" placeholder="浏览器安装路径" v-model:value="formValue.browserPath" clearable/>
             </n-form-item-gi>
-<!--            <n-form-item-gi :span="3" label="指数基金：" path="enableFund">
+           <n-form-item-gi :span="3" label="指数基金：" path="enableFund">
               <n-switch v-model:value="formValue.enableFund"/>
             </n-form-item-gi>
-            <n-form-item-gi :span="3" label="AI智能体：" path="enableAgent">
-              <n-switch v-model:value="formValue.enableAgent"/>
-            </n-form-item-gi>-->
+            <!--      <n-form-item-gi :span="3" label="AI智能体：" path="enableAgent">
+                   <n-switch v-model:value="formValue.enableAgent"/>
+                 </n-form-item-gi>-->
             <n-form-item-gi :span="11" label="东财唯一标识：" path="qgqpBId">
               <n-input type="text" placeholder="东财唯一标识" v-model:value="formValue.qgqpBId" clearable/>
               <n-tooltip placement="top">

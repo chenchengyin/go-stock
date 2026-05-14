@@ -156,6 +156,12 @@ export function GetFollowList(arg1:number):Promise<any>;
 
 export function GetFollowedFund():Promise<Array<data.FollowedFund>>;
 
+export function GetFundHistoryNetValue(arg1:string,arg2:number,arg3:string,arg4:string):Promise<Array<data.FundHistoryNetValue>>;
+
+export function GetFundKLine(arg1:string,arg2:string,arg3:number):Promise<data.KLineSourceResult>;
+
+export function GetFundTop10Holdings(arg1:string):Promise<Array<data.FundHoldingStock>>;
+
 export function GetGroupList():Promise<Array<data.Group>>;
 
 export function GetGroupStockList(arg1:number):Promise<Array<data.GroupStock>>;

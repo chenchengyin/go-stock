@@ -302,6 +302,18 @@ export function GetFollowedFund() {
   return window['go']['main']['App']['GetFollowedFund']();
 }
 
+export function GetFundHistoryNetValue(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetFundHistoryNetValue'](arg1, arg2, arg3, arg4);
+}
+
+export function GetFundKLine(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetFundKLine'](arg1, arg2, arg3);
+}
+
+export function GetFundTop10Holdings(arg1) {
+  return window['go']['main']['App']['GetFundTop10Holdings'](arg1);
+}
+
 export function GetGroupList() {
   return window['go']['main']['App']['GetGroupList']();
 }

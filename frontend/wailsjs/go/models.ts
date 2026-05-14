@@ -600,6 +600,58 @@ export namespace data {
 		}
 	}
 	
+	export class FundHistoryNetValue {
+	    date: string;
+	    netValue: number;
+	    accumValue: number;
+	    dailyGrowth: number;
+	    buyStatus: string;
+	    sellStatus: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FundHistoryNetValue(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.date = source["date"];
+	        this.netValue = source["netValue"];
+	        this.accumValue = source["accumValue"];
+	        this.dailyGrowth = source["dailyGrowth"];
+	        this.buyStatus = source["buyStatus"];
+	        this.sellStatus = source["sellStatus"];
+	    }
+	}
+	export class FundHoldingStock {
+	    rank: number;
+	    stockCode: string;
+	    stockName: string;
+	    ratio: number;
+	    shares: string;
+	    marketCap: string;
+	    quarter: string;
+	    price?: number;
+	    changeRate?: number;
+	    market: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FundHoldingStock(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.rank = source["rank"];
+	        this.stockCode = source["stockCode"];
+	        this.stockName = source["stockName"];
+	        this.ratio = source["ratio"];
+	        this.shares = source["shares"];
+	        this.marketCap = source["marketCap"];
+	        this.quarter = source["quarter"];
+	        this.price = source["price"];
+	        this.changeRate = source["changeRate"];
+	        this.market = source["market"];
+	    }
+	}
 	
 	
 	export class KLineData {

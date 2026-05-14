@@ -104,10 +104,13 @@ func (s *SettingsApi) Export() string {
 }
 
 func UpdateConfig(s *SettingConfig) string {
+	if s.Settings == nil {
+		return "保存失败: 配置数据为空"
+	}
 	count := int64(0)
 	db.Dao.Model(&Settings{}).Count(&count)
 	if count > 0 {
-		db.Dao.Model(&Settings{}).Where("id=?", s.ID).Updates(map[string]any{
+		result := db.Dao.Model(&Settings{}).Where("id=?", s.ID).Updates(map[string]any{
 			"local_push_enable":          s.LocalPushEnable,
 			"ding_push_enable":           s.DingPushEnable,
 			"ding_robot":                 s.DingRobot,
@@ -137,21 +140,28 @@ func UpdateConfig(s *SettingConfig) string {
 			"em_api_key":                 s.EmApiKey,
 			"window_width":               s.WindowWidth,
 			"window_height":              s.WindowHeight,
+			"prompt_plaza_api_base":      s.PromptPlazaApiBase,
 		})
+		if result.Error != nil {
+			logger.SugaredLogger.Errorf("更新配置失败: %v", result.Error)
+			return "保存失败: " + result.Error.Error()
+		}
 
-		//更新AiConfig
 		err := updateAiConfigs(s.AiConfigs)
 		if err != nil {
 			logger.SugaredLogger.Errorf("更新AI模型服务配置失败: %v", err)
 			return "更新AI模型服务配置失败: " + err.Error()
 		}
 	} else {
-		//logger.SugaredLogger.Infof("未找到配置，创建默认配置")
-		// 创建主配置
-		result := db.Dao.Model(&Settings{}).Create(&Settings{})
+		result := db.Dao.Model(&Settings{}).Create(s.Settings)
 		if result.Error != nil {
 			logger.SugaredLogger.Error("创建配置失败:", result.Error)
 			return "创建配置失败: " + result.Error.Error()
+		}
+		err := updateAiConfigs(s.AiConfigs)
+		if err != nil {
+			logger.SugaredLogger.Errorf("更新AI模型服务配置失败: %v", err)
+			return "更新AI模型服务配置失败: " + err.Error()
 		}
 	}
 
@@ -208,6 +218,7 @@ func updateAiConfigs(aiConfigs []*AIConfig) error {
 				"http_proxy":         item.HttpProxy,
 				"http_proxy_enabled": item.HttpProxyEnabled,
 				"session_id":         item.SessionId,
+				"thinking":           item.Thinking,
 			}).Error
 			if e != nil {
 				return
@@ -261,7 +272,6 @@ func GetSettingConfig() *SettingConfig {
 	if settings.BrowserPoolSize <= 0 {
 		settings.BrowserPoolSize = 1
 	}
-	settings.EnableFund = false
 	settings.EnableAgent = false
 
 	settingConfig.Settings = settings
