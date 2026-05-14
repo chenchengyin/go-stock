@@ -406,7 +406,7 @@ function blinkBorder(findId) {
               <n-button size="tiny" :loading="refreshing" @click="manualRefresh">
                 <template #icon><n-icon :component="RefreshOutline"/></template>
               </n-button>
-              <n-button size="tiny" type="error" @click="showChart(info.code, info.name)">K线</n-button>
+              <n-button size="tiny" type="error" @click="showChart(info.code, info.name)">历史净值</n-button>
               <n-button size="tiny" type="warning" @click="search(info.code)">详情</n-button>
               <n-button size="tiny" @click="unFollow(info.code)">取消关注</n-button>
             </n-flex>

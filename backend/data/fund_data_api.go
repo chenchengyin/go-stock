@@ -780,17 +780,17 @@ func (f *FundApi) CrawlFundNetUnitValue(code string) {
 
 func (f *FundApi) crawlOnExchangeFundNetUnitValue(code string) {
 	klineApi := NewFundKLineApi()
-	result := klineApi.GetFundKLine(code, "101", 3)
-	if result == nil || result.Data == nil || len(*result.Data) < 2 {
+	result := klineApi.GetFundKLine(code, "101", 2)
+	if result == nil || result.Data == nil || len(*result.Data) < 1 {
 		return
 	}
 	data := *result.Data
-	yesterday := data[len(data)-2]
-	val, err := convertor.ToFloat(yesterday.Close)
+	latest := data[len(data)-1]
+	val, err := convertor.ToFloat(latest.Close)
 	if err != nil || val == 0 {
 		return
 	}
-	date := yesterday.Day
+	date := latest.Day
 	if strings.Contains(date, " ") {
 		date = strings.Split(date, " ")[0]
 	}
@@ -798,6 +798,13 @@ func (f *FundApi) crawlOnExchangeFundNetUnitValue(code string) {
 		Code:             code,
 		NetUnitValue:     &val,
 		NetUnitValueDate: date,
+	}
+	if len(data) >= 2 {
+		prev := data[len(data)-2]
+		prevVal, err := convertor.ToFloat(prev.Close)
+		if err == nil && prevVal > 0 {
+			fund.NetUnitValuePrev = &prevVal
+		}
 	}
 	db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
 }
