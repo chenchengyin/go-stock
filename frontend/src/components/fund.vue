@@ -7,17 +7,17 @@ import {
   GetConfig,
   GetFollowedFund,
   GetfundList,
-  GetVersionInfo, OpenURL,
+  GetVersionInfo,
+  OpenURL,
   UnFollowFund,
   GetFundHistoryNetValue,
-  GetFundTop10Holdings,
+  GetFundTop10Holdings
 } from "../../wailsjs/go/main/App";
-import {Environment} from "../../wailsjs/runtime";
-import {EventsOff, EventsOn} from "../../wailsjs/runtime";
-import {useRoute} from 'vue-router'
+import {Environment, EventsOn, EventsOff} from "../../wailsjs/runtime";
 import vueDanmaku from 'vue3-danmaku'
 import FundKlineChart from "./FundKlineChart.vue";
 import FundRanking from "./FundRanking.vue";
+import {useRoute} from 'vue-router'
 
 const danmus = ref([])
 const ws = ref(null)
@@ -94,15 +94,6 @@ onBeforeMount(() => {
   })
 })
 
-EventsOn("changeFundTab", async (msg) => {
-  console.log("changeFundTab", msg)
-  updateTab(msg.name)
-})
-
-onBeforeUnmount(() => {
-  EventsOff("changeFundTab")
-})
-
 onMounted(() => {
   GetVersionInfo().then((res) => {
     icon.value = res.icon
@@ -132,6 +123,11 @@ onBeforeUnmount(() => {
   clearInterval(countdownTimer.value)
   if (ws.value) ws.value.close()
   message.destroyAll()
+  EventsOff("changeFundTab")
+})
+
+EventsOn("changeFundTab", async (msg) => {
+  updateTab(msg.name)
 })
 
 function updateTab(name) {
@@ -308,194 +304,199 @@ function blinkBorder(findId) {
 </script>
 
 <template>
-  <n-card content-style="padding: 0 20px 0 20px;">
-    <n-tabs type="line" animated @update:value="updateTab" :value="nowTab" style="--wails-draggable:no-drag">
-      <n-tab-pane name="基金自选">
-        <vue-danmaku v-model:danmus="danmus" useSlot style="height:100px; width:100%;z-index: 9;position:absolute; top: 400px; pointer-events: none;">
-          <template v-slot:dm="{ danmu }">
-            <n-gradient-text type="info">
-              <n-icon :component="ChatboxOutline"/>{{ danmu }}
-            </n-gradient-text>
-          </template>
-        </vue-danmaku>
+  <n-card>
+  <n-tabs type="line" animated @update:value="updateTab" :value="nowTab" style="--wails-draggable:no-drag">
+    <n-tab-pane name="基金自选">
 
-        <n-grid :x-gap="10" :y-gap="10" :cols="2" responsive="screen" item-responsive>
-          <n-gi v-for="info in followList" :key="info.code" :id="info.code + '_gi'">
-            <n-card :id="info.code" size="small" hoverable>
-              <template #header>
-                <n-text style="font-size: 15px; font-weight: 600;">{{ info.fundBasic?.fullName || info.name }}</n-text>
-              </template>
-              <template #header-extra>
-                <n-flex :wrap="false" align="center" :size="4">
-                  <n-tag size="small" :bordered="false" type="info">{{ info.code }}</n-tag>
-                  <n-tag size="small" :bordered="false" type="warning">{{ info.fundBasic?.type || '' }}</n-tag>
-                </n-flex>
-              </template>
+  <vue-danmaku v-model:danmus="danmus" useSlot style="height:100px; width:100%;z-index: 9;position:absolute; top: 400px; pointer-events: none;">
+    <template v-slot:dm="{ danmu }">
+      <n-gradient-text type="info">
+        <n-icon :component="ChatboxOutline"/>{{ danmu }}
+      </n-gradient-text>
+    </template>
+  </vue-danmaku>
 
-              <n-grid :cols="24" :x-gap="16">
-                <n-gi :span="10">
-                  <n-flex align="center" :size="12" :wrap="false">
-                    <div v-if="!isOnExchangeFund(info.code) && info.netActualRate != null" style="min-width: 100px;">
-                      <div style="font-size: 12px; color: #999;">实际净值</div>
-                      <n-text :type="rateType(info.netActualRate)" style="font-size: 22px; font-weight: 700;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
-                      <n-text :type="rateType(info.netActualRate)" style="font-size: 14px; margin-left: 4px;">
-                        {{ info.netActualRate > 0 ? '+' : '' }}{{ info.netActualRate?.toFixed(2) }}%
-                      </n-text>
-                      <div style="font-size: 11px; color: #999;">{{ info.netUnitValueDate || info.fundBasic?.netUnitValueDate }}</div>
-                    </div>
-                    <template v-else>
-                      <div v-if="info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit" style="min-width: 100px;">
-                        <div style="font-size: 12px; color: #999;">{{ isOnExchangeFund(info.code) ? '实时价格' : '估算净值' }}</div>
-                        <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 22px; font-weight: 700;">
-                          {{ info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit }}
-                        </n-text>
-                        <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 14px; margin-left: 4px;">
-                          {{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate) > 0 ? '+' : '' }}{{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate)?.toFixed(2) }}%
-                        </n-text>
-                      </div>
-                      <div v-else-if="info.netUnitValue || info.fundBasic?.netUnitValue" style="min-width: 100px;">
-                        <div style="font-size: 12px; color: #999;">单位净值</div>
-                        <n-text style="font-size: 22px; font-weight: 700;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
-                      </div>
-                      <n-divider vertical v-if="(info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit) && (info.netUnitValue || info.fundBasic?.netUnitValue)"/>
-                      <div v-if="(info.netUnitValue || info.fundBasic?.netUnitValue) && (info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit)">
-                        <div style="font-size: 12px; color: #999;">单位净值</div>
-                        <n-text style="font-size: 15px;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
-                        <div style="font-size: 11px; color: #999;">{{ info.netUnitValueDate || info.fundBasic?.netUnitValueDate }}</div>
-                      </div>
-                    </template>
-                  </n-flex>
+  <n-divider style="margin: 4px 0 8px 0"/>
 
-                  <n-flex :size="4" style="margin-top: 8px;" :wrap="true">
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth1)" :bordered="false" v-if="info.fundBasic?.netGrowth1">近1月 {{ info.fundBasic.netGrowth1 }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth3)" :bordered="false" v-if="info.fundBasic?.netGrowth3">近3月 {{ info.fundBasic.netGrowth3 }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth6)" :bordered="false" v-if="info.fundBasic?.netGrowth6">近6月 {{ info.fundBasic.netGrowth6 }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth12)" :bordered="false" v-if="info.fundBasic?.netGrowth12">近1年 {{ info.fundBasic.netGrowth12 }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth36)" :bordered="false" v-if="info.fundBasic?.netGrowth36">近3年 {{ info.fundBasic.netGrowth36 }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth60)" :bordered="false" v-if="info.fundBasic?.netGrowth60">近5年 {{ info.fundBasic.netGrowth60 }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowthYTD)" :bordered="false" v-if="info.fundBasic?.netGrowthYTD">今年来 {{ info.fundBasic.netGrowthYTD }}%</n-tag>
-                    <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowthAll)" :bordered="false" v-if="info.fundBasic?.netGrowthAll">成立来 {{ info.fundBasic.netGrowthAll }}%</n-tag>
-                  </n-flex>
-                </n-gi>
+  <n-grid :x-gap="10" :y-gap="10" :cols="2" responsive="screen" item-responsive>
+    <n-gi v-for="info in followList" :key="info.code" :id="info.code + '_gi'">
+      <n-card :id="info.code" size="small" hoverable>
+        <template #header>
+          <n-text style="font-size: 15px; font-weight: 600;">{{ info.fundBasic?.fullName || info.name }}</n-text>
+        </template>
+        <template #header-extra>
+          <n-flex :wrap="false" align="center" :size="4">
+            <n-tag size="small" :bordered="false" type="info">{{ info.code }}</n-tag>
+            <n-tag size="small" :bordered="false" type="warning">{{ info.fundBasic?.type || '' }}</n-tag>
+          </n-flex>
+        </template>
 
-                <n-gi :span="14">
-                  <div v-if="holdingsMap[info.code] && holdingsMap[info.code].length" class="holdings-panel">
-                    <div class="holdings-title">
-                      十大持仓
-                      <n-text v-if="holdingsMap[info.code][0]?.quarter" depth="3" style="font-size: 11px; margin-left: 4px;">
-                        {{ holdingsMap[info.code][0].quarter }}
-                      </n-text>
-                    </div>
-                    <div class="holdings-cols">
-                      <template v-for="(half, hi) in splitHalves(holdingsMap[info.code])" :key="hi">
-                        <div class="holdings-col">
-                          <div class="holdings-header">
-                            <span>名称</span>
-                            <span>占比</span>
-                            <span>最新价</span>
-                            <span>涨跌幅</span>
-                          </div>
-                          <div v-for="stock in half" :key="stock.stockCode" class="holding-row">
-                            <span class="holding-name" :title="stock.stockName">{{ stock.stockName }}</span>
-                            <span class="holding-ratio" :style="{ color: ratioColor(stock.ratio) }">{{ stock.ratio?.toFixed(2) }}%</span>
-                            <span class="holding-price" :style="{ color: changeColor(stock.changeRate) }">{{ stock.price ? stock.price.toFixed(2) : '-' }}</span>
-                            <span class="holding-change" :style="{ color: changeColor(stock.changeRate) }">{{ changeText(stock.changeRate) }}</span>
-                          </div>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                  <div v-else class="holdings-panel">
-                    <n-text depth="3" style="font-size: 12px;">暂无持仓数据</n-text>
-                  </div>
-                </n-gi>
-              </n-grid>
-
-              <template #footer>
-                <n-flex justify="space-between" align="center">
-                  <n-text depth="3" style="font-size: 12px;">
-                    {{ info.fundBasic?.company }} · {{ info.fundBasic?.manager }}
+        <n-grid :cols="24" :x-gap="16">
+          <n-gi :span="10">
+            <n-flex align="center" :size="12" :wrap="false">
+              <div v-if="!isOnExchangeFund(info.code) && info.netActualRate != null" style="min-width: 100px;">
+                <div style="font-size: 12px; color: #999;">实际净值</div>
+                <n-text :type="rateType(info.netActualRate)" style="font-size: 22px; font-weight: 700;">
+                  {{ info.netUnitValue }}
+                </n-text>
+                <n-text :type="rateType(info.netActualRate)" style="font-size: 14px; margin-left: 4px;">
+                  {{ info.netActualRate > 0 ? '+' : '' }}{{ info.netActualRate.toFixed(2) }}%
+                </n-text>
+                <div style="font-size: 11px; color: #999;">{{ info.netUnitValueDate }}</div>
+              </div>
+              <template v-else>
+                <div v-if="info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit" style="min-width: 100px;">
+                  <div style="font-size: 12px; color: #999;">{{ isOnExchangeFund(info.code) ? '实时价格' : '估算净值' }}</div>
+                  <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 22px; font-weight: 700;">
+                    {{ info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit }}
                   </n-text>
-                </n-flex>
+                  <n-text :type="rateType(info.netEstimatedRate || info.fundBasic?.netEstimatedRate)" style="font-size: 14px; margin-left: 4px;">
+                    {{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate) > 0 ? '+' : '' }}{{ (info.netEstimatedRate || info.fundBasic?.netEstimatedRate)?.toFixed(2) }}%
+                  </n-text>
+                </div>
+                <div v-else-if="info.netUnitValue || info.fundBasic?.netUnitValue" style="min-width: 100px;">
+                  <div style="font-size: 12px; color: #999;">单位净值</div>
+                  <n-text style="font-size: 22px; font-weight: 700;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
+                </div>
+                <n-divider vertical v-if="(info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit) && (info.netUnitValue || info.fundBasic?.netUnitValue)"/>
+                <div v-if="(info.netUnitValue || info.fundBasic?.netUnitValue) && (info.netEstimatedUnit || info.fundBasic?.netEstimatedUnit)">
+                  <div style="font-size: 12px; color: #999;">单位净值</div>
+                  <n-text style="font-size: 15px;">{{ info.netUnitValue || info.fundBasic?.netUnitValue }}</n-text>
+                  <div style="font-size: 11px; color: #999;">{{ info.netUnitValueDate || info.fundBasic?.netUnitValueDate }}</div>
+                </div>
               </template>
+            </n-flex>
 
-              <template #action>
-                <n-flex justify="space-between" align="center">
-                  <n-text depth="3" style="font-size: 11px;">{{ countdown }}s 后刷新</n-text>
-                  <n-flex :size="8">
-                    <n-button size="tiny" :loading="refreshing" @click="manualRefresh">
-                      <template #icon><n-icon :component="RefreshOutline"/></template>
-                    </n-button>
-                    <n-button size="tiny" type="error" @click="showChart(info.code, info.name)">历史净值</n-button>
-                    <n-button size="tiny" type="warning" @click="search(info.code)">详情</n-button>
-                    <n-button size="tiny" @click="unFollow(info.code)">取消关注</n-button>
-                  </n-flex>
-                </n-flex>
-              </template>
-            </n-card>
+            <n-flex :size="4" style="margin-top: 8px;" :wrap="true">
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth1)" :bordered="false" v-if="info.fundBasic?.netGrowth1">近1月 {{ info.fundBasic.netGrowth1 }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth3)" :bordered="false" v-if="info.fundBasic?.netGrowth3">近3月 {{ info.fundBasic.netGrowth3 }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth6)" :bordered="false" v-if="info.fundBasic?.netGrowth6">近6月 {{ info.fundBasic.netGrowth6 }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth12)" :bordered="false" v-if="info.fundBasic?.netGrowth12">近1年 {{ info.fundBasic.netGrowth12 }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth36)" :bordered="false" v-if="info.fundBasic?.netGrowth36">近3年 {{ info.fundBasic.netGrowth36 }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowth60)" :bordered="false" v-if="info.fundBasic?.netGrowth60">近5年 {{ info.fundBasic.netGrowth60 }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowthYTD)" :bordered="false" v-if="info.fundBasic?.netGrowthYTD">今年来 {{ info.fundBasic.netGrowthYTD }}%</n-tag>
+              <n-tag size="tiny" :type="growthType(info.fundBasic?.netGrowthAll)" :bordered="false" v-if="info.fundBasic?.netGrowthAll">成立来 {{ info.fundBasic.netGrowthAll }}%</n-tag>
+            </n-flex>
+          </n-gi>
+
+          <n-gi :span="14">
+            <div v-if="holdingsMap[info.code] && holdingsMap[info.code].length" class="holdings-panel">
+              <div class="holdings-title">
+                十大持仓
+                <n-text v-if="holdingsMap[info.code][0]?.quarter" depth="3" style="font-size: 11px; margin-left: 4px;">
+                  {{ holdingsMap[info.code][0].quarter }}
+                </n-text>
+              </div>
+              <div class="holdings-cols">
+                <template v-for="(half, hi) in splitHalves(holdingsMap[info.code])" :key="hi">
+                  <div class="holdings-col">
+                    <div class="holdings-header">
+                      <span>名称</span>
+                      <span>占比</span>
+                      <span>最新价</span>
+                      <span>涨跌幅</span>
+                    </div>
+                    <div v-for="stock in half" :key="stock.stockCode" class="holding-row">
+                      <span class="holding-name" :title="stock.stockName">{{ stock.stockName }}</span>
+                      <span class="holding-ratio" :style="{ color: ratioColor(stock.ratio) }">{{ stock.ratio?.toFixed(2) }}%</span>
+                      <span class="holding-price" :style="{ color: changeColor(stock.changeRate) }">{{ stock.price ? stock.price.toFixed(2) : '-' }}</span>
+                      <span class="holding-change" :style="{ color: changeColor(stock.changeRate) }">{{ changeText(stock.changeRate) }}</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <div v-else class="holdings-panel">
+              <n-text depth="3" style="font-size: 12px;">暂无持仓数据</n-text>
+            </div>
           </n-gi>
         </n-grid>
 
-        <n-modal
-          v-model:show="chartModalShow"
-          :title="chartFundName + ' - ' + chartFundCode"
-          preset="card"
-          style="width: 90vw; max-width: 1100px;"
-          :mask-closable="true"
-        >
-          <FundKlineChart
-            v-if="chartFundCode"
-            :key="chartFundCode"
-            :fund-code="chartFundCode"
-            :fund-name="chartFundName"
-            :dark-theme="darkTheme"
-            :chart-height="400"
-          />
+        <template #footer>
+          <n-flex justify="space-between" align="center">
+            <n-text depth="3" style="font-size: 12px;">
+              {{ info.fundBasic?.company }} · {{ info.fundBasic?.manager }}
+            </n-text>
+          </n-flex>
+        </template>
 
-          <n-divider style="margin: 12px 0 8px 0">{{ isOnExchangeFund(chartFundCode) ? '历史行情' : '历史净值' }}</n-divider>
+        <template #action>
+          <n-flex justify="space-between" align="center">
+            <n-text depth="3" style="font-size: 11px;">{{ countdown }}s 后刷新</n-text>
+            <n-flex :size="8">
+              <n-button size="tiny" :loading="refreshing" @click="manualRefresh">
+                <template #icon><n-icon :component="RefreshOutline"/></template>
+              </n-button>
+              <n-button size="tiny" type="error" @click="showChart(info.code, info.name)">历史净值</n-button>
+              <n-button size="tiny" type="warning" @click="search(info.code)">详情</n-button>
+              <n-button size="tiny" @click="unFollow(info.code)">取消关注</n-button>
+            </n-flex>
+          </n-flex>
+        </template>
+      </n-card>
+    </n-gi>
+  </n-grid>
 
-          <n-data-table
-            :columns="netValueColumns"
-            :data="netValueData"
-            :loading="netValueLoading"
-            :pagination="{ pageSize: 10 }"
-            size="small"
-            :bordered="false"
-            :max-height="300"
-            striped
-          />
-        </n-modal>
+  <n-modal
+    v-model:show="chartModalShow"
+    :title="chartFundName + ' - ' + chartFundCode"
+    preset="card"
+    style="width: 90vw; max-width: 1100px;"
+    :mask-closable="true"
+  >
+    <FundKlineChart
+      v-if="chartFundCode"
+      :key="chartFundCode"
+      :fund-code="chartFundCode"
+      :fund-name="chartFundName"
+      :dark-theme="darkTheme"
+      :chart-height="400"
+    />
 
-        <div style="position: fixed;bottom: 18px;right:5px;z-index: 10;width: 400px">
-          <n-input-group>
-            <n-auto-complete
-              v-model:value="data.name"
-              :input-props="{ autocomplete: 'disabled' }"
-              :options="options"
-              placeholder="基金名称/代码/弹幕"
-              clearable
-              @update-value="getFundList"
-              :on-select="onSelectFund"
-            />
-            <n-popover trigger="manual" :show="showPopover">
-              <template #trigger>
-                <n-button type="primary" @click="AddFund">
-                  <n-icon :component="Add"/>&nbsp;关注
-                </n-button>
-              </template>
-              <span>输入基金名称/代码关键词开始吧~~~</span>
-            </n-popover>
-            <n-button type="info" @click="SendDanmu" v-if="data.enableDanmu">
-              <n-icon :component="ChatboxOutline"/>&nbsp;发送弹幕
-            </n-button>
-          </n-input-group>
-        </div>
-      </n-tab-pane>
+    <n-divider style="margin: 12px 0 8px 0">{{ isOnExchangeFund(chartFundCode) ? '历史行情' : '历史净值' }}</n-divider>
 
-      <n-tab-pane name="基金排行">
-        <FundRanking/>
-      </n-tab-pane>
-    </n-tabs>
+    <n-data-table
+      :columns="netValueColumns"
+      :data="netValueData"
+      :loading="netValueLoading"
+      :pagination="{ pageSize: 10 }"
+      size="small"
+      :bordered="false"
+      :max-height="300"
+      striped
+    />
+  </n-modal>
+
+  <div style="position: fixed;bottom: 18px;right:5px;z-index: 10;width: 400px">
+    <n-input-group>
+      <n-auto-complete
+        v-model:value="data.name"
+        :input-props="{ autocomplete: 'disabled' }"
+        :options="options"
+        placeholder="基金名称/代码/弹幕"
+        clearable
+        @update-value="getFundList"
+        :on-select="onSelectFund"
+      />
+      <n-popover trigger="manual" :show="showPopover">
+        <template #trigger>
+          <n-button type="primary" @click="AddFund">
+            <n-icon :component="Add"/>&nbsp;关注
+          </n-button>
+        </template>
+        <span>输入基金名称/代码关键词开始吧~~~</span>
+      </n-popover>
+      <n-button type="info" @click="SendDanmu" v-if="data.enableDanmu">
+        <n-icon :component="ChatboxOutline"/>&nbsp;发送弹幕
+      </n-button>
+    </n-input-group>
+  </div>
+
+    </n-tab-pane>
+    <n-tab-pane name="基金排行">
+      <FundRanking/>
+    </n-tab-pane>
+  </n-tabs>
   </n-card>
 </template>
 

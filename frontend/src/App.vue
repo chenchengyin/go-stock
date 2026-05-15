@@ -453,23 +453,15 @@ const menuOptions = ref([
             h(
                 RouterLink,
                 {
-                  to: {
-                    name: 'fund',
-                    query: {
-                      name: '基金排行',
-                    },
-                  },
+                  to: {name: 'fund', query: {name: '基金排行'}},
                   onClick: () => {
-                    activeKey.value = 'fundRanking'
-                    setTimeout(() => {
-                      EventsEmit("changeFundTab", {name: '基金排行'})
-                    }, 100)
+                    activeKey.value = 'fund'
+                    EventsEmit("changeFundTab", {name: '基金排行'})
                   },
                 },
                 {default: () => '基金排行'}
             ),
         key: 'fundRanking',
-        show: enableFund.value,
         icon: renderIcon(TrendingUp),
       },
     ]
@@ -853,7 +845,6 @@ const menuOptions = ref([
         ),
     key: 'about',
     icon: renderIcon(LogoGithub),
-    show:true,
   },
   {
     show:false,
@@ -1036,26 +1027,6 @@ onBeforeMount(() => {
     })
 
     if (res.darkTheme) {
-      enableDarkTheme.value = darkTheme
-    } else {
-      enableDarkTheme.value = null
-    }
-  })
-
-  EventsOn("updateSettings", (config) => {
-    enableFund.value = config.enableFund
-    enableAgent.value = config.enableAgent
-
-    menuOptions.value.filter((item) => {
-      if (item.key === 'fund') {
-        item.show = config.enableFund
-      }
-      if (item.key === 'agent') {
-        item.show = config.enableAgent
-      }
-    })
-
-    if (config.darkTheme) {
       enableDarkTheme.value = darkTheme
     } else {
       enableDarkTheme.value = null

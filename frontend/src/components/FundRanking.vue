@@ -1,5 +1,5 @@
 <script setup>
-import {h, reactive, ref, computed, watch} from "vue";
+import {h, ref, computed, reactive, onMounted, watch} from "vue";
 import {NButton, NText, NFlex, NTag} from "naive-ui";
 import {
   FollowFund,
@@ -102,27 +102,27 @@ function renderGrowth(val) {
 
 const rankingColumns = computed(() => {
   const cols = [
-    {title: '代码', key: 'code', width: 80, fixed: 'left'},
-    {title: '名称', key: 'name', width: 150, ellipsis: {tooltip: true}},
+    {title: '代码', key: 'code', width: 90, fixed: 'left'},
+    {title: '名称', key: 'name', width: 160, ellipsis: {tooltip: true}},
   ]
   if (marketType.value === 'fb') {
     cols.push({title: '类型', key: 'fundTypeDetail', width: 90, render: (row) => row.fundTypeDetail ? h(NTag, {size: 'tiny', bordered: false, type: 'info'}, () => row.fundTypeDetail) : '-'})
   }
   cols.push(
-    {title: '日期', key: 'netValueDate', width: 82},
-    {title: '净值', key: 'netUnitValue', width: 72, align: 'right', render: (row) => row.netUnitValue?.toFixed(4) ?? '-'},
-    {title: '累计', key: 'netAccumulated', width: 72, align: 'right', render: (row) => row.netAccumulated?.toFixed(4) ?? '-'},
-    {title: '日涨幅', key: 'dailyGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.dailyGrowth)},
-    {title: '周涨幅', key: 'weekGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.weekGrowth)},
-    {title: '月涨幅', key: 'monthGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.monthGrowth)},
-    {title: '季涨幅', key: 'threeMonthGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.threeMonthGrowth)},
-    {title: '半年', key: 'sixMonthGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.sixMonthGrowth)},
-    {title: '年涨幅', key: 'yearGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.yearGrowth)},
-    {title: '3年', key: 'threeYearGrowth', width: 80, align: 'right', render: (row) => renderGrowth(row.threeYearGrowth)},
-    {title: '今年来', key: 'ytdGrowth', width: 82, align: 'right', render: (row) => renderGrowth(row.ytdGrowth)},
-    {title: '成立来', key: 'sinceInception', width: 82, align: 'right', render: (row) => renderGrowth(row.sinceInception)},
-    {title: '规模', key: 'scale', width: 70, align: 'right', render: (row) => row.scale?.toFixed(2) ?? '-'},
-    {title: '成立日', key: 'establishDate', width: 82},
+    {title: '净值日期', key: 'netValueDate', width: 95},
+    {title: '单位净值', key: 'netUnitValue', width: 85, render: (row) => row.netUnitValue?.toFixed(4) ?? '-'},
+    {title: '累计净值', key: 'netAccumulated', width: 85, render: (row) => row.netAccumulated?.toFixed(4) ?? '-'},
+    {title: '日涨幅', key: 'dailyGrowth', width: 78, render: (row) => renderGrowth(row.dailyGrowth)},
+    {title: '近1周', key: 'weekGrowth', width: 72, render: (row) => renderGrowth(row.weekGrowth)},
+    {title: '近1月', key: 'monthGrowth', width: 72, render: (row) => renderGrowth(row.monthGrowth)},
+    {title: '近3月', key: 'threeMonthGrowth', width: 72, render: (row) => renderGrowth(row.threeMonthGrowth)},
+    {title: '近6月', key: 'sixMonthGrowth', width: 72, render: (row) => renderGrowth(row.sixMonthGrowth)},
+    {title: '近1年', key: 'yearGrowth', width: 72, render: (row) => renderGrowth(row.yearGrowth)},
+    {title: '近3年', key: 'threeYearGrowth', width: 72, render: (row) => renderGrowth(row.threeYearGrowth)},
+    {title: '今年来', key: 'ytdGrowth', width: 78, render: (row) => renderGrowth(row.ytdGrowth)},
+    {title: '成立来', key: 'sinceInception', width: 78, render: (row) => renderGrowth(row.sinceInception)},
+    {title: '规模(亿)', key: 'scale', width: 78, render: (row) => row.scale?.toFixed(2) ?? '-'},
+    {title: '成立日期', key: 'establishDate', width: 95},
     {
       title: '操作', key: 'actions', width: 120, fixed: 'right',
       render: (row) => {
@@ -157,19 +157,19 @@ function fetchFundRanking() {
   })
 }
 
+function resetRankingFilter() {
+  rankingFundType.value = marketType.value === 'fb' ? 'ct' : 'all'
+  rankingSortField.value = 'jnzf'
+  paginationReactive.page = 1
+  searchKeyword.value = ''
+  fetchFundRanking()
+}
+
 function handlePageChange(currentPage) {
   if (!rankingLoading.value) {
     paginationReactive.page = currentPage
     fetchFundRanking()
   }
-}
-
-function resetRankingFilter() {
-  rankingFundType.value = marketType.value === 'fb' ? 'ct' : 'all'
-  rankingSortField.value = 'jnzf'
-  searchKeyword.value = ''
-  paginationReactive.page = 1
-  fetchFundRanking()
 }
 
 function rankingFollowFund(code) {
@@ -206,34 +206,29 @@ fetchFundRanking()
 </script>
 
 <template>
-  <n-input-group>
-    <n-select v-model:value="marketType" :options="marketTypeOptions" style="width: 110px;" size="small"/>
-    <n-input v-model:value="searchKeyword" placeholder="基金名称/代码" clearable size="small" style="width: 160px;"/>
-    <n-select v-model:value="rankingFundType" :options="fundTypeOptions" style="width: 110px;" size="small"/>
-    <n-select v-model:value="rankingSortField" :options="sortFieldOptions" style="width: 130px;" size="small"/>
-    <n-button type="primary" size="small" @click="fetchFundRanking" :loading="rankingLoading">查询</n-button>
-    <n-button size="small" @click="resetRankingFilter">重置</n-button>
-  </n-input-group>
-  <n-data-table
-    remote
-    size="small"
-    :columns="rankingColumns"
-    :data="filteredData"
-    :loading="rankingLoading"
-    :pagination="paginationReactive"
-    :row-key="(row) => row.code"
-    @update:page="handlePageChange"
-    flex-height
-    style="height: calc(100vh - 170px);"
-    :bordered="false"
-    striped
-    :scroll-x="1500"
-  />
+  <n-flex vertical :size="8" style="height: calc(90vh - 60px); overflow: hidden;">
+    <n-flex :wrap="false" align="center" :size="12">
+      <n-select v-model:value="marketType" :options="marketTypeOptions" style="width: 120px;" size="small"/>
+      <n-input v-model:value="searchKeyword" placeholder="基金名称/代码" clearable size="small" style="width: 180px;"/>
+      <n-select v-model:value="rankingFundType" :options="fundTypeOptions" style="width: 120px;" size="small"/>
+      <n-select v-model:value="rankingSortField" :options="sortFieldOptions" style="width: 140px;" size="small"/>
+      <n-button type="primary" size="small" @click="fetchFundRanking" :loading="rankingLoading">查询</n-button>
+      <n-button size="small" @click="resetRankingFilter">重置</n-button>
+      <n-text depth="3" v-if="searchKeyword" style="font-size: 12px;">筛选出 {{ filteredData.length }} 只</n-text>
+    </n-flex>
+    <n-data-table
+      remote
+      :columns="rankingColumns"
+      :data="filteredData"
+      :loading="rankingLoading"
+      :bordered="false"
+      size="small"
+      striped
+      :pagination="paginationReactive"
+      @update:page="handlePageChange"
+      :scroll-x="1700"
+      flex-height
+      style="height: calc(100vh - 160px);"
+    />
+  </n-flex>
 </template>
-
-<style scoped>
-:deep(.n-data-table-td),
-:deep(.n-data-table-th) {
-  white-space: nowrap;
-}
-</style>
