@@ -656,6 +656,98 @@ export namespace data {
 	        this.market = source["market"];
 	    }
 	}
+	export class FundRankingItem {
+	    code: string;
+	    name: string;
+	    pinyin: string;
+	    netValueDate: string;
+	    netUnitValue?: number;
+	    netAccumulated?: number;
+	    dailyGrowth?: number;
+	    weekGrowth?: number;
+	    monthGrowth?: number;
+	    threeMonthGrowth?: number;
+	    sixMonthGrowth?: number;
+	    yearGrowth?: number;
+	    twoYearGrowth?: number;
+	    threeYearGrowth?: number;
+	    ytdGrowth?: number;
+	    sinceInception?: number;
+	    establishDate: string;
+	    purchasable: boolean;
+	    scale?: number;
+	    purchaseRate?: number;
+	    discountRate?: number;
+	    fundTypeDetail: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FundRankingItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.code = source["code"];
+	        this.name = source["name"];
+	        this.pinyin = source["pinyin"];
+	        this.netValueDate = source["netValueDate"];
+	        this.netUnitValue = source["netUnitValue"];
+	        this.netAccumulated = source["netAccumulated"];
+	        this.dailyGrowth = source["dailyGrowth"];
+	        this.weekGrowth = source["weekGrowth"];
+	        this.monthGrowth = source["monthGrowth"];
+	        this.threeMonthGrowth = source["threeMonthGrowth"];
+	        this.sixMonthGrowth = source["sixMonthGrowth"];
+	        this.yearGrowth = source["yearGrowth"];
+	        this.twoYearGrowth = source["twoYearGrowth"];
+	        this.threeYearGrowth = source["threeYearGrowth"];
+	        this.ytdGrowth = source["ytdGrowth"];
+	        this.sinceInception = source["sinceInception"];
+	        this.establishDate = source["establishDate"];
+	        this.purchasable = source["purchasable"];
+	        this.scale = source["scale"];
+	        this.purchaseRate = source["purchaseRate"];
+	        this.discountRate = source["discountRate"];
+	        this.fundTypeDetail = source["fundTypeDetail"];
+	    }
+	}
+	export class FundRankingResult {
+	    items: FundRankingItem[];
+	    totalCount: number;
+	    pageIndex: number;
+	    pageSize: number;
+	    totalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FundRankingResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.items = this.convertValues(source["items"], FundRankingItem);
+	        this.totalCount = source["totalCount"];
+	        this.pageIndex = source["pageIndex"];
+	        this.pageSize = source["pageSize"];
+	        this.totalPages = source["totalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	
 	export class KLineData {

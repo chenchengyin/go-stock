@@ -448,6 +448,30 @@ const menuOptions = ref([
         show: realtimeProfit.value,
         icon: renderIcon(AlarmOutline),
       },
+      {
+        label: () =>
+            h(
+                RouterLink,
+                {
+                  to: {
+                    name: 'fund',
+                    query: {
+                      name: '基金排行',
+                    },
+                  },
+                  onClick: () => {
+                    activeKey.value = 'fundRanking'
+                    setTimeout(() => {
+                      EventsEmit("changeFundTab", {name: '基金排行'})
+                    }, 100)
+                  },
+                },
+                {default: () => '基金排行'}
+            ),
+        key: 'fundRanking',
+        show: enableFund.value,
+        icon: renderIcon(TrendingUp),
+      },
     ]
   },
   {

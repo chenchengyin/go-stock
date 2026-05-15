@@ -160,6 +160,8 @@ export function GetFundHistoryNetValue(arg1:string,arg2:number,arg3:string,arg4:
 
 export function GetFundKLine(arg1:string,arg2:string,arg3:number):Promise<data.KLineSourceResult>;
 
+export function GetFundRanking(arg1:string,arg2:string,arg3:string,arg4:string,arg5:number,arg6:number):Promise<data.FundRankingResult>;
+
 export function GetFundTop10Holdings(arg1:string):Promise<Array<data.FundHoldingStock>>;
 
 export function GetGroupList():Promise<Array<data.Group>>;

@@ -251,7 +251,7 @@ const userPromptId = ref<number | null>(null);
 const userPromptOptions = ref<SelectOption[]>([]);
 const userPromptTemplates = ref<PromptTemplate[]>([]);
 
-const thinking = ref(false);
+const thinking = ref(true);
 const memoryMode = ref(true);
 const memoryCount = ref(5);
 const memoryCountOptions: SelectOption[] = [

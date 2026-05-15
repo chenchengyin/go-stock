@@ -310,6 +310,10 @@ export function GetFundKLine(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetFundKLine'](arg1, arg2, arg3);
 }
 
+export function GetFundRanking(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['GetFundRanking'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function GetFundTop10Holdings(arg1) {
   return window['go']['main']['App']['GetFundTop10Holdings'](arg1);
 }

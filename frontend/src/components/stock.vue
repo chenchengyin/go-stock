@@ -97,6 +97,7 @@ const handleProgress = (progress) => {
 const enableEditor = ref(false)
 const mdPreviewRef = ref(null)
 const mdEditorRef = ref(null)
+const aiResultScrollRef = ref(null)
 const tipsRef = ref(null)
 const message = useMessage()
 const notify = useNotification()
@@ -126,7 +127,7 @@ const vipLevel = ref(0)
 const klineAutoCloseTimer = ref(null)
 const addBTN = ref(true)
 const enableTools = ref(true)
-const thinkingMode = ref(false)
+const thinkingMode = ref(true)
 const formModel = ref({
   name: "",
   code: "",
@@ -394,7 +395,6 @@ onBeforeMount(() => {
   })
 
   EventsOn("newChatStream", async (msg) => {
-    data.loading = false
     if (msg === "DONE") {
       SaveAIResponseResult(data.code, data.name, data.airesult, data.chatId, data.question, data.aiConfigId)
       message.info("AI分析完成！")
@@ -407,6 +407,9 @@ onBeforeMount(() => {
       if (msg.question) {
         data.question = msg.question
       }
+      if (msg.content || msg.reasoning_content || msg.extraContent) {
+        data.loading = false
+      }
       if (msg.content) {
         data.airesult = data.airesult + msg.content
       }
@@ -416,7 +419,6 @@ onBeforeMount(() => {
       if (msg.extraContent) {
         data.airesult = data.airesult + msg.extraContent
       }
-      data.loading= true
       scrollToAiResultBottom()
     }
   })
@@ -2030,15 +2032,12 @@ async function copyToClipboard() {
 
 function scrollToAiResultBottom() {
   nextTick(() => {
-    const previewEl = mdPreviewRef.value?.$el || mdEditorRef.value?.$el
-    if (previewEl) {
-      const scrollContainer = previewEl.querySelector('.md-editor-preview-wrapper') || 
-                               previewEl.querySelector('.md-editor-preview') ||
-                               previewEl
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
+    requestAnimationFrame(() => {
+      const el = aiResultScrollRef.value
+      if (el) {
+        el.scrollTop = el.scrollHeight
       }
-    }
+    })
   })
 }
 
@@ -2726,8 +2725,9 @@ watch(modalShow6, (newVal) => {
                      :modelValue="data.airesult" @onProgress="handleProgress"/>
         </template>
       </MdEditor>
-      <MdPreview v-if="!enableEditor" ref="mdPreviewRef" style="height: 440px;max-height: 60vh;text-align: left;overflow-y: auto;"
-                 :modelValue="data.airesult" :theme="theme"/>
+      <div v-if="!enableEditor" ref="aiResultScrollRef" style="height: 440px;max-height: 60vh;text-align: left;overflow-y: auto;">
+        <MdPreview ref="mdPreviewRef" :modelValue="data.airesult" :theme="theme"/>
+      </div>
     </n-spin>
     <template #footer>
       <n-flex justify="space-between" ref="tipsRef">

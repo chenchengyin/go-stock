@@ -72,7 +72,7 @@ function addAiConfig() {
     timeOut: 6000,
     httpProxy:"",
     httpProxyEnabled:false,
-    thinking: false,
+    thinking: true,
   }));
 }
 

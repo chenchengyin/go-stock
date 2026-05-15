@@ -1945,6 +1945,16 @@ func (a *App) GetFundTop10Holdings(fundCode string) []data.FundHoldingStock {
 	}
 	return res
 }
+
+func (a *App) GetFundRanking(marketType, fundType, sortField, sortOrder string, pageIndex, pageSize int) *data.FundRankingResult {
+	res, err := data.NewFundApi().GetFundRanking(marketType, fundType, sortField, sortOrder, pageIndex, pageSize)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetFundRanking error: %v", err)
+		return &data.FundRankingResult{}
+	}
+	return res
+}
+
 func (a *App) SaveAsMarkdown(stockCode, stockName string) string {
 	res := data.NewDeepSeekOpenAi(a.ctx, 0).GetAIResponseResult(stockCode)
 	if res != nil && len(res.Content) > 100 {

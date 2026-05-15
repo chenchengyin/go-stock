@@ -995,25 +995,22 @@ func (m MarketNewsApi) TradingViewNewsDetail(id string) *models.TVNewsDetail {
 }
 
 func (m MarketNewsApi) XUEQIUHotStock(size int, marketType string) *[]models.HotItem {
-	request := SharedHTTPClient.SetTimeout(time.Duration(30) * time.Second).R()
-	_, err := request.
-		SetHeader("Host", "xueqiu.com").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
-		Get("https://xueqiu.com/hq#hot")
-
-	//cookies := resp.Header().Get("Set-Cookie")
-	//logger.SugaredLogger.Infof("cookies:%s", cookies)
+	cookieHeader, cookieErr := FetchXueqiuCookiesViaChromedp("", 30*time.Second, "https://xueqiu.com/hq#hot")
+	if cookieErr != nil {
+		logger.SugaredLogger.Warnf("雪球 chromedp 获取 cookie 失败: %v", cookieErr)
+	}
 
 	url := fmt.Sprintf("https://stock.xueqiu.com/v5/stock/hot_stock/list.json?page=1&size=%d&_type=%s&type=%s", size, marketType, marketType)
 	res := &models.XUEQIUHot{}
-	_, err = request.
-		SetHeader("Host", "stock.xueqiu.com").
+	request := SharedHTTPClient.SetTimeout(time.Duration(30) * time.Second).R()
+	request.SetHeader("Host", "stock.xueqiu.com").
 		SetHeader("Origin", "https://xueqiu.com").
 		SetHeader("Referer", "https://xueqiu.com/").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
-		//SetHeader("Cookie", "cookiesu=871730774144180; device_id=ee75cebba8a35005c9e7baf7b7dead59; s=ch12b12pfi; Hm_lvt_1db88642e346389874251b5a1eded6e3=1746247619; xq_a_token=361dcfccb1d32a1d9b5b65f1a188b9c9ed1e687d; xqat=361dcfccb1d32a1d9b5b65f1a188b9c9ed1e687d; xq_r_token=450d1db0db9659a6af7cc9297bfa4fccf1776fae; xq_id_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJ1aWQiOi0xLCJpc3MiOiJ1YyIsImV4cCI6MTc1MzgzODAwNiwiY3RtIjoxNzUxMjUxMzc2MDY3LCJjaWQiOiJkOWQwbjRBWnVwIn0.TjEtQ5WEN4ajnVjVnY3J-Qq9LjL-F0eat9Cefv_tLJLqsPhzD2y8Lc1CeIu0Ceqhlad7O_yW1tR9nb2dIjDpyOPzWKxvwSOKXLm8XMoz4LMgE2pysBCH4TsetzHsEOhBsY467q-JX3WoFuqo-dqv1FfLSondZCspjEMFdgPFt2V-2iXJY05YUwcBVUvL74mT9ZjNq0KaDeRBJk_il6UR8yibG7RMbe9xWYz5dSO_wJwWuxvnZ8u9EXC2m-TV7-QHVxFHR_5e8Fodrzg0yIcLU4wBTSoIIQDUKqngajX2W-nUAdo6fr78NNDmoswFVH7T7XMuQciMAqj9MpMCVW3Sog; u=871730774144180; ssxmod_itna=iq+h7KAImDORKYQ4Y5G=nxBKDtD7D3qCD0dGMDxeq7tDRDFqApKDHtA68oon7ziBA0+PbZ9xGN4oYxiNDAPq0iDC+Wjxs9Orw5KQb9iqP4MAn0TbNsbtU22eqbCe=S3vTv6xoDHxY=DU1GzeieDx=PD5xDTDWeDGDD3DmnsDi5YD0KDjBYpH+omDYPDEBYDaxDbDimwY4GCrDDCtc5Dw6bmzDDzznL5WWAPzWffZg3YcFgxf8GwD7y3Dla4rMhw23=cz0Efdk0A5hYDXotDvhoY1/H6neEvOt3o=Q0ruT+5RuxoRhDxCmh5tGP32xBD5G0xS2xcb4quDK0Dy2ZmY/DDWM0qmEeSEDeOCIq1fw1misCY=WAzoOtMwDzGdUjpRk5Z0xQBDI2IMw4H7qNiNBLxWiDD; ssxmod_itna2=iq+h7KAImDORKYQ4Y5G=nxBKDtD7D3qCD0dGMDxeq7tDRDFqApKDHtA68oon7ziBA0+PbZYxD3boBmiEPtDFOEPAeFmDDsuGSxf46oGKwGHd8wtUjFe+oV1lxUzutkGly=nCyCjq=UTHxMxFCr1DsFiKPuEpPVO7GrOyk5Aymnc0+11AFND7v16PvwrFQH4I72=3O1OpK7rGw+poWNCxjj=Ka5QDFWAvEzrDFQcIH=GpKpS90FAyIzGcTyck+yhQKaojn96dRqeIh=HkaFrlGnKwzO+a49=F7/c/MejoR3QM20K9IIOymrMN2bsk2TRdKFiaf4O0ut2MauiOER=iQNW2WVgDrkKzD=57r577wEx2hwkqhf8T8BDvkHZRDirC0bNK4O=G3TSkd3wYwq8bst0t9qF/e3M87NYtU2IWYWzqd=BqEfdqGq0R8wxmqLzpeGeuwSTq1OAiB87gDrozjnGkwDKRdrLz8uDjQKVlGhWk8Wd/rXQjx4pG=BNqpW/6TS1wpfxzGf5CrUhtt0j0wC5AUFo2GbX+QXPzD2guxKXrx8lZUQlwWIHyEUz+OLh0eWUkfHfM0YWXlgOejnuUa06rW9y5maDPipGms751hxKcqLq62pQty4iX3QDF6SRQd3tfEBf3CH7r2xe2qq0qdOI5Ge=GezD/Us5Z0xQBwVAZ2N/XvD0HDD").
-		SetResult(res).
-		Get(url)
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0")
+	if cookieErr == nil && cookieHeader != "" {
+		request.SetHeader("Cookie", cookieHeader)
+	}
+	_, err := request.SetResult(res).Get(url)
 	if err != nil {
 		logger.SugaredLogger.Errorf("XUEQIUHotStock err:%s", err.Error())
 		return &[]models.HotItem{}
@@ -1026,29 +1023,37 @@ func (m MarketNewsApi) XUEQIUHotStock(size int, marketType string) *[]models.Hot
 }
 
 func (m MarketNewsApi) HotEvent(size int) *[]models.HotEvent {
-	request := SharedHTTPClient.SetTimeout(time.Duration(30) * time.Second).R()
-	_, err := request.
-		SetHeader("Host", "xueqiu.com").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0").
-		Get("https://xueqiu.com/hq#hot")
+	cookieHeader, cookieErr := FetchXueqiuCookiesViaChromedp("", 30*time.Second, "https://xueqiu.com/hq#hot")
+	if cookieErr != nil {
+		logger.SugaredLogger.Warnf("雪球 chromedp 获取 cookie 失败: %v", cookieErr)
+	}
 
 	events := &[]models.HotEvent{}
 	sprintf := fmt.Sprintf("https://xueqiu.com/hot_event/list.json?count=%d", size)
+	request := SharedHTTPClient.SetTimeout(time.Duration(30) * time.Second).R()
+	request.SetHeader("Host", "xueqiu.com").
+		SetHeader("Referer", "https://xueqiu.com/").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0")
+	if cookieErr == nil && cookieHeader != "" {
+		request.SetHeader("Cookie", cookieHeader)
+	}
 	resp, err := request.Get(sprintf)
 	if err != nil {
 		logger.SugaredLogger.Errorf("HotEvent err:%s", err.Error())
 		return events
 	}
-	//logger.SugaredLogger.Infof("HotEvent:%s", resp.Body())
 	respMap := map[string]any{}
 	err = json.Unmarshal(resp.Body(), &respMap)
+	if err != nil {
+		logger.SugaredLogger.Errorf("HotEvent json unmarshal err:%s", err.Error())
+		return events
+	}
 	items, err := json.Marshal(respMap["list"])
 	if err != nil {
 		return events
 	}
 	json.Unmarshal(items, events)
 	return events
-
 }
 
 func (m MarketNewsApi) HotTopic(size int) []any {
