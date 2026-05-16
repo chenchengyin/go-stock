@@ -13,7 +13,7 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
-	machineid "go-stock/backend/machineid"
+	"go-stock/backend/machineid"
 	"go-stock/backend/models"
 	"os"
 	"path/filepath"
@@ -96,6 +96,15 @@ func (a *App) GetSponsorInfo() map[string]any {
 	return a.SponsorInfo
 }
 
+// GetEffectiveSponsorVip 从本地配置解密赞助信息并判断当前是否在 VIP 有效期内（与 ai-assistant-web / data.EffectiveSponsorVipLevel 一致）。
+func (a *App) GetEffectiveSponsorVip() map[string]any {
+	level, active := data.EffectiveSponsorVipLevel()
+	return map[string]any{
+		"vipLevel": level,
+		"active":   active,
+	}
+}
+
 func (a *App) GetMachineId() string {
 	return machineid.GetMachineId()
 }
@@ -149,15 +158,6 @@ func (a *App) QuitApp() {
 		runtime.Quit(a.ctx)
 	}
 }
-
-// GetEffectiveSponsorVip 从本地配置解密赞助信息并判断当前是否在 VIP 有效期内（与 ai-assistant-web / data.EffectiveSponsorVipLevel 一致）。
-func (a *App) GetEffectiveSponsorVip() map[string]any {
-	level, active := data.EffectiveSponsorVipLevel()
-	return map[string]any{
-		"vipLevel": level,
-		"active":   active,
-	}
-}
 func (a *App) CheckSponsorCode(sponsorCode string) map[string]any {
 	sponsorCode = strutil.Trim(sponsorCode)
 	if sponsorCode != "" {
@@ -197,7 +197,7 @@ func (a *App) CheckSponsorCode(sponsorCode string) map[string]any {
 			"msg":  "赞助码校验成功，感谢您的支持!",
 		}
 	} else {
-		return map[string]any{"code": 0, "msg": "赞助码不能为空,请输入正确的赞助码!"}
+		return map[string]any{"code": 0, "message": "赞助码不能为空,请输入正确的赞助码!"}
 	}
 }
 
@@ -692,17 +692,16 @@ func (a *App) domReady(ctx context.Context) {
 	//检查新版本
 	go func() {
 		a.CheckUpdate(0)
-		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
-			logger.SugaredLogger.Errorf("Checking for updates...")
-			a.CheckUpdate(0)
-		})
-
 		go a.CheckStockBaseInfo(a.ctx)
 		go syncAllStockInfo(a.ctx)
 
 		a.cron.AddFunc("0 0 2 * * *", func() {
 			logger.SugaredLogger.Errorf("Checking for updates...")
 			a.CheckStockBaseInfo(a.ctx)
+		})
+		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
+			logger.SugaredLogger.Errorf("Checking for updates...")
+			a.CheckUpdate(0)
 		})
 		a.cron.AddFunc("30 05 8,12,20 * * *", func() {
 			syncAllStockInfo(a.ctx)
@@ -956,8 +955,6 @@ func isTradingDay(date time.Time) bool {
 }
 
 func checkHolidayAPI(date string) (isHoliday bool, apiOk bool) {
-	client := data.SharedHTTPClient
-	client.SetTimeout(3 * time.Second)
 	type holidayResp struct {
 		Code    int `json:"code"`
 		Holiday struct {
@@ -966,7 +963,7 @@ func checkHolidayAPI(date string) (isHoliday bool, apiOk bool) {
 		} `json:"holiday"`
 	}
 	var result holidayResp
-	resp, err := client.R().SetResult(&result).Get(fmt.Sprintf("https://timor.tech/api/holiday/info/%s", date))
+	resp, err := data.SharedHTTPClient.R().SetResult(&result).Get(fmt.Sprintf("https://timor.tech/api/holiday/info/%s", date))
 	if err != nil || resp.StatusCode() != 200 {
 		return false, false
 	}
@@ -1079,8 +1076,6 @@ func isHKTradingDay(date time.Time) bool {
 }
 
 func checkHKHolidayAPI(date string) (isHoliday bool, apiOk bool) {
-	client := data.SharedHTTPClient
-	client.SetTimeout(5 * time.Second)
 	type klineResp struct {
 		Data struct {
 			Klines []string `json:"klines"`
@@ -1089,7 +1084,7 @@ func checkHKHolidayAPI(date string) (isHoliday bool, apiOk bool) {
 	var result klineResp
 	dateClean := strings.ReplaceAll(date, "-", "")
 	apiURL := fmt.Sprintf("https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=100.HSI&fields1=f1&fields2=f51&klt=101&fqt=0&beg=%s&end=%s", dateClean, dateClean)
-	resp, err := client.R().SetResult(&result).Get(apiURL)
+	resp, err := data.SharedHTTPClient.R().SetResult(&result).Get(apiURL)
 	if err != nil || resp.StatusCode() != 200 {
 		return false, false
 	}
@@ -1159,8 +1154,6 @@ func isUSTradingDay(estTime time.Time) bool {
 }
 
 func checkUSHolidayAPI(date string) (isHoliday bool, apiOk bool) {
-	client := data.SharedHTTPClient
-	client.SetTimeout(5 * time.Second)
 	type usHolidayResp struct {
 		IsHoliday    bool   `json:"is_holiday"`
 		IsEarlyClose bool   `json:"is_early_close"`
@@ -1169,7 +1162,7 @@ func checkUSHolidayAPI(date string) (isHoliday bool, apiOk bool) {
 	}
 	var result usHolidayResp
 	apiURL := fmt.Sprintf("https://fincalapi.com/v1/day_status?calendar=NYSE&date=%s", date)
-	resp, err := client.R().SetResult(&result).Get(apiURL)
+	resp, err := data.SharedHTTPClient.R().SetResult(&result).Get(apiURL)
 	if err != nil || resp.StatusCode() != 200 {
 		return false, false
 	}
@@ -1878,7 +1871,7 @@ func (a *App) ShareAnalysis(stockCode, stockName string) string {
 	if res != nil && len(res.Content) > 100 {
 		analysisTime := res.CreatedAt.Format("2006/01/02")
 		//logger.SugaredLogger.Infof("%s analysisTime:%s", res.CreatedAt, analysisTime)
-		response, err := data.SharedHTTPClient.SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
+		response, err := data.SharedHTTPClient.R().SetHeader("ua-x", "go-stock").SetFormData(map[string]string{
 			"text":         res.Content,
 			"stockCode":    stockCode,
 			"stockName":    stockName,
@@ -1904,7 +1897,7 @@ func (a *App) ShareText(text, title string) string {
 		title = "AI助手"
 	}
 	analysisTime := time.Now().Format("2006/01/02")
-	response, err := data.SharedHTTPClient.SetHeader("ua-x", "go-stock").R().SetFormData(map[string]string{
+	response, err := data.SharedHTTPClient.R().SetHeader("ua-x", "go-stock").SetFormData(map[string]string{
 		"text":         text,
 		"stockCode":    title,
 		"stockName":    title,
@@ -1945,16 +1938,19 @@ func (a *App) GetFundTop10Holdings(fundCode string) []data.FundHoldingStock {
 	}
 	return res
 }
-
 func (a *App) GetFundRanking(marketType, fundType, sortField, sortOrder string, pageIndex, pageSize int) *data.FundRankingResult {
 	res, err := data.NewFundApi().GetFundRanking(marketType, fundType, sortField, sortOrder, pageIndex, pageSize)
-	if err != nil {
-		logger.SugaredLogger.Errorf("GetFundRanking error: %v", err)
+	if err != nil || res == nil {
 		return &data.FundRankingResult{}
 	}
 	return res
 }
-
+func (a *App) SearchFundCodes(keyword string) []data.FundSearchItem {
+	return data.NewFundApi().SearchFundCodes(keyword)
+}
+func (a *App) GetFollowedFundPaged(pageIndex, pageSize int, keyword string) *data.FollowedFundPagedResult {
+	return data.NewFundApi().GetFollowedFundPaged(pageIndex, pageSize, keyword)
+}
 func (a *App) SaveAsMarkdown(stockCode, stockName string) string {
 	res := data.NewDeepSeekOpenAi(a.ctx, 0).GetAIResponseResult(stockCode)
 	if res != nil && len(res.Content) > 100 {
@@ -2453,10 +2449,10 @@ func (a *App) FetchAiModels(baseUrl, apiKey string) []string {
 
 	client := data.SharedHTTPClient
 	client.SetBaseURL(baseUrl)
-	client.SetHeader("Authorization", "Bearer "+apiKey)
-	client.SetHeader("Content-Type", "application/json")
 
 	resp, err := client.R().
+		SetHeader("Authorization", "Bearer "+apiKey).
+		SetHeader("Content-Type", "application/json").
 		SetResult(&respData).
 		Get("/models")
 	if err != nil {
@@ -2508,11 +2504,10 @@ func (a *App) FetchAiModelInfo(baseUrl, apiKey, modelName string) *AiModelInfo {
 
 		client := data.SharedHTTPClient
 		client.SetBaseURL(baseUrl)
-		client.SetHeader("Authorization", "Bearer "+apiKey)
-		client.SetHeader("Content-Type", "application/json")
-		client.SetTimeout(10 * time.Second)
 
 		resp, err := client.R().
+			SetHeader("Authorization", "Bearer "+apiKey).
+			SetHeader("Content-Type", "application/json").
 			SetResult(&detail).
 			Get("/models/" + modelName)
 

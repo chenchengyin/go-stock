@@ -156,6 +156,8 @@ export function GetFollowList(arg1:number):Promise<any>;
 
 export function GetFollowedFund():Promise<Array<data.FollowedFund>>;
 
+export function GetFollowedFundPaged(arg1:number,arg2:number,arg3:string):Promise<data.FollowedFundPagedResult>;
+
 export function GetFundHistoryNetValue(arg1:string,arg2:number,arg3:string,arg4:string):Promise<Array<data.FundHistoryNetValue>>;
 
 export function GetFundKLine(arg1:string,arg2:string,arg3:number):Promise<data.KLineSourceResult>;
@@ -319,6 +321,8 @@ export function SaveStockChangesToHistory(arg1:Array<number>):Promise<string>;
 export function SaveWordFile(arg1:string,arg2:string):Promise<string>;
 
 export function SearchCronTasks(arg1:string):Promise<Array<models.CronTask>>;
+
+export function SearchFundCodes(arg1:string):Promise<Array<data.FundSearchItem>>;
 
 export function SearchStock(arg1:string):Promise<Record<string, any>>;
 

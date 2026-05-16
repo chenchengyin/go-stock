@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/duke-git/lancet/v2/convertor"
@@ -43,6 +45,7 @@ type FollowedFund struct {
 	NetAccumulated   *float64 `json:"netAccumulated"`
 
 	NetEstimatedRate *float64 `json:"netEstimatedRate"`
+
 	NetUnitValuePrev *float64 `json:"netUnitValuePrev"`
 	NetActualRate    *float64 `json:"netActualRate"`
 
@@ -511,6 +514,9 @@ func (f *FundApi) GetFollowedFund() []FollowedFund {
 				if updated.NetUnitValuePrev != nil {
 					funds[i2].NetUnitValuePrev = updated.NetUnitValuePrev
 				}
+				if updated.NetActualRate != nil {
+					funds[i2].NetActualRate = updated.NetActualRate
+				}
 				break
 			}
 		}
@@ -529,7 +535,7 @@ func (f *FundApi) GetFollowedFund() []FollowedFund {
 		if fund.NetAccumulated == nil && fund.FundBasic.NetAccumulated != nil {
 			funds[i].NetAccumulated = fund.FundBasic.NetAccumulated
 		}
-		if funds[i].NetUnitValuePrev != nil && funds[i].NetEstimatedUnit != nil && *funds[i].NetUnitValuePrev > 0 {
+		if funds[i].NetEstimatedUnit != nil && funds[i].NetUnitValuePrev != nil && *funds[i].NetUnitValuePrev > 0 {
 			netEstimatedRate := (*(funds[i].NetEstimatedUnit) - *(funds[i].NetUnitValuePrev)) / *(funds[i].NetUnitValuePrev) * 100
 			netEstimatedRate = mathutil.RoundToFloat(netEstimatedRate, 2)
 			funds[i].NetEstimatedRate = &netEstimatedRate
@@ -538,12 +544,19 @@ func (f *FundApi) GetFollowedFund() []FollowedFund {
 			netEstimatedRate = mathutil.RoundToFloat(netEstimatedRate, 2)
 			funds[i].NetEstimatedRate = &netEstimatedRate
 		}
-		if funds[i].NetUnitValue != nil && funds[i].NetUnitValuePrev != nil && *funds[i].NetUnitValuePrev > 0 {
+		if funds[i].NetActualRate == nil && funds[i].NetUnitValue != nil && funds[i].NetUnitValuePrev != nil && *funds[i].NetUnitValuePrev > 0 {
 			estimatedDate := ""
 			if funds[i].NetEstimatedTime != "" {
-				estimatedDate = strings.Split(funds[i].NetEstimatedTime, " ")[0]
+				parts := strings.SplitN(funds[i].NetEstimatedTime, " ", 2)
+				estimatedDate = parts[0]
 			}
-			if estimatedDate == "" || funds[i].NetUnitValueDate >= estimatedDate {
+			isNetValueUpdated := false
+			if estimatedDate != "" {
+				isNetValueUpdated = funds[i].NetUnitValueDate >= estimatedDate
+			} else {
+				isNetValueUpdated = funds[i].NetUnitValueDate == time.Now().Format("2006-01-02")
+			}
+			if isNetValueUpdated {
 				netActualRate := (*(funds[i].NetUnitValue) - *(funds[i].NetUnitValuePrev)) / *(funds[i].NetUnitValuePrev) * 100
 				netActualRate = mathutil.RoundToFloat(netActualRate, 2)
 				funds[i].NetActualRate = &netActualRate
@@ -551,6 +564,354 @@ func (f *FundApi) GetFollowedFund() []FollowedFund {
 		}
 	}
 	return funds
+}
+
+type FollowedFundPagedResult struct {
+	Items      []FollowedFund `json:"items"`
+	TotalCount int64          `json:"totalCount"`
+	PageIndex  int            `json:"pageIndex"`
+	PageSize   int            `json:"pageSize"`
+	TotalPages int            `json:"totalPages"`
+}
+
+var sinajsVarRe = regexp.MustCompile(`var\s+hq_str_([^\s=]+)\s*=\s*"([^"]*)"`)
+
+type sinajsFData struct {
+	Name             string
+	NetUnitValue     *float64
+	NetUnitValueDate string
+}
+
+type sinajsFuData struct {
+	NetEstimatedUnit *float64
+	NetEstimatedRate *float64
+	NetUnitValuePrev *float64
+	EstimatedTime    string
+}
+
+type sinajsStockData struct {
+	NetEstimatedUnit *float64
+	NetEstimatedRate *float64
+	NetEstimatedTime string
+	PrevClose        *float64
+}
+
+func (f *FundApi) parseSinajsBatchResponse(body string, parsedF map[string]*sinajsFData, parsedFu map[string]*sinajsFuData, parsedStock map[string]*sinajsStockData) {
+	matches := sinajsVarRe.FindAllStringSubmatch(body, -1)
+	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
+		key := m[1]
+		value := m[2]
+		if value == "" {
+			continue
+		}
+
+		if strings.HasPrefix(key, "f_") && !strings.HasPrefix(key, "fu_") {
+			code := key[2:]
+			parts := strings.Split(value, ",")
+			if len(parts) < 5 {
+				continue
+			}
+			data := &sinajsFData{Name: strings.TrimSpace(parts[0])}
+			if val, err := convertor.ToFloat(parts[1]); err == nil && val > 0 {
+				data.NetUnitValue = &val
+			}
+			if len(parts) > 4 {
+				data.NetUnitValueDate = strings.TrimSpace(parts[4])
+			}
+			if data.NetUnitValue != nil {
+				parsedF[code] = data
+			}
+		} else if strings.HasPrefix(key, "fu_") {
+			code := key[3:]
+			parts := strings.Split(value, ",")
+			if len(parts) < 8 {
+				continue
+			}
+			data := &sinajsFuData{}
+			if val, err := convertor.ToFloat(parts[2]); err == nil && val > 0 {
+				data.NetEstimatedUnit = &val
+			}
+			if val, err := convertor.ToFloat(parts[3]); err == nil && val > 0 {
+				data.NetUnitValuePrev = &val
+			}
+			if val, err := convertor.ToFloat(parts[6]); err == nil {
+				data.NetEstimatedRate = &val
+			}
+			tm := strings.TrimSpace(parts[1])
+			date := strings.TrimSpace(parts[7])
+			if tm != "" && date != "" {
+				data.EstimatedTime = date + " " + tm
+			}
+			if data.NetEstimatedUnit != nil {
+				parsedFu[code] = data
+			}
+		} else if strings.HasPrefix(key, "sh") || strings.HasPrefix(key, "sz") {
+			code := key[2:]
+			parts := strings.Split(value, ",")
+			if len(parts) < 32 {
+				continue
+			}
+			data := &sinajsStockData{}
+			currentPrice, err1 := convertor.ToFloat(parts[3])
+			prevClose, err2 := convertor.ToFloat(parts[2])
+			if err1 != nil || currentPrice == 0 || err2 != nil || prevClose == 0 {
+				continue
+			}
+			data.NetEstimatedUnit = &currentPrice
+			data.PrevClose = &prevClose
+			changeRate := (currentPrice - prevClose) / prevClose * 100
+			changeRate = mathutil.RoundToFloat(changeRate, 2)
+			data.NetEstimatedRate = &changeRate
+			if len(parts) > 31 {
+				data.NetEstimatedTime = strings.TrimSpace(parts[31])
+			}
+			parsedStock[code] = data
+		}
+	}
+}
+
+func (f *FundApi) batchCrawlFundData(funds []FollowedFund) {
+	var sinajsList []string
+	var offExchangeCodes []string
+	var onExchangeCodes []string
+
+	for _, fund := range funds {
+		if IsOnExchangeFund(fund.Code) {
+			onExchangeCodes = append(onExchangeCodes, fund.Code)
+			if len(fund.Code) >= 1 {
+				switch fund.Code[0:1] {
+				case "5", "6":
+					sinajsList = append(sinajsList, "sh"+fund.Code)
+				case "1", "2":
+					sinajsList = append(sinajsList, "sz"+fund.Code)
+				}
+			}
+		} else {
+			offExchangeCodes = append(offExchangeCodes, fund.Code)
+			sinajsList = append(sinajsList, "f_"+fund.Code, "fu_"+fund.Code)
+		}
+	}
+
+	parsedF := make(map[string]*sinajsFData)
+	parsedFu := make(map[string]*sinajsFuData)
+	parsedStock := make(map[string]*sinajsStockData)
+
+	if len(sinajsList) > 0 {
+		listStr := strings.Join(sinajsList, ",")
+		reqURL := fmt.Sprintf("http://hq.sinajs.cn/rn=%d&list=%s", time.Now().UnixMilli(), listStr)
+		resp, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
+			SetHeader("Host", "hq.sinajs.cn").
+			SetHeader("User-Agent", getRandomUA()).
+			SetHeader("Referer", "https://finance.sina.com.cn").
+			Get(reqURL)
+		if err == nil && resp.StatusCode() == 200 {
+			body := string(GB18030ToUTF8(resp.Body()))
+			f.parseSinajsBatchResponse(body, parsedF, parsedFu, parsedStock)
+		}
+	}
+
+	for _, code := range offExchangeCodes {
+		if data, ok := parsedF[code]; ok {
+			fund := &FollowedFund{
+				Code:             code,
+				NetUnitValue:     data.NetUnitValue,
+				NetUnitValueDate: data.NetUnitValueDate,
+			}
+			if data.Name != "" {
+				fund.Name = data.Name
+			}
+			db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
+		}
+		if data, ok := parsedFu[code]; ok {
+			fund := &FollowedFund{
+				Code:             code,
+				NetEstimatedUnit: data.NetEstimatedUnit,
+				NetEstimatedRate: data.NetEstimatedRate,
+				NetEstimatedTime: data.EstimatedTime,
+			}
+			if data.NetUnitValuePrev != nil {
+				fund.NetUnitValuePrev = data.NetUnitValuePrev
+			}
+			db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
+		}
+	}
+
+	for _, code := range onExchangeCodes {
+		if data, ok := parsedStock[code]; ok {
+			fund := &FollowedFund{
+				Code:             code,
+				NetEstimatedUnit: data.NetEstimatedUnit,
+				NetEstimatedRate: data.NetEstimatedRate,
+				NetEstimatedTime: data.NetEstimatedTime,
+			}
+			if data.PrevClose != nil {
+				fund.NetUnitValuePrev = data.PrevClose
+			}
+			db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
+		}
+	}
+
+	var wg sync.WaitGroup
+	for _, fund := range funds {
+		code := fund.Code
+		if fund.FundBasic.Code != "" && (fund.FundBasic.Company == "" || fund.FundBasic.NetGrowthYTD == nil) {
+			wg.Add(1)
+			go func(c string) {
+				defer wg.Done()
+				f.CrawlFundBasic(c)
+			}(code)
+		}
+	}
+
+	for _, code := range offExchangeCodes {
+		if _, ok := parsedF[code]; !ok {
+			wg.Add(1)
+			go func(c string) {
+				defer wg.Done()
+				f.crawlFundNetUnitValueViaEastMoney(c)
+			}(code)
+		}
+		if _, ok := parsedFu[code]; !ok {
+			wg.Add(1)
+			go func(c string) {
+				defer wg.Done()
+				f.CrawlFundNetEstimatedUnit(c)
+			}(code)
+		}
+	}
+
+	for _, code := range onExchangeCodes {
+		wg.Add(1)
+		go func(c string) {
+			defer wg.Done()
+			f.crawlOnExchangeFundNetUnitValue(c)
+		}(code)
+		if _, ok := parsedStock[code]; !ok {
+			wg.Add(1)
+			go func(c string) {
+				defer wg.Done()
+				f.crawlOnExchangeFundQuote(c)
+			}(code)
+		}
+	}
+
+	wg.Wait()
+}
+
+func computeFundRates(fund *FollowedFund) {
+	if fund.NetEstimatedUnit != nil && fund.NetUnitValuePrev != nil && *fund.NetUnitValuePrev > 0 {
+		rate := (*(fund.NetEstimatedUnit) - *(fund.NetUnitValuePrev)) / *(fund.NetUnitValuePrev) * 100
+		rate = mathutil.RoundToFloat(rate, 2)
+		fund.NetEstimatedRate = &rate
+	} else if fund.NetUnitValue != nil && fund.NetEstimatedUnit != nil && *fund.NetUnitValue > 0 {
+		rate := (*(fund.NetEstimatedUnit) - *(fund.NetUnitValue)) / *(fund.NetUnitValue) * 100
+		rate = mathutil.RoundToFloat(rate, 2)
+		fund.NetEstimatedRate = &rate
+	}
+	if fund.NetActualRate == nil && fund.NetUnitValue != nil && fund.NetUnitValuePrev != nil && *fund.NetUnitValuePrev > 0 {
+		estimatedDate := ""
+		if fund.NetEstimatedTime != "" {
+			parts := strings.SplitN(fund.NetEstimatedTime, " ", 2)
+			estimatedDate = parts[0]
+		}
+		isNetValueUpdated := false
+		if estimatedDate != "" {
+			isNetValueUpdated = fund.NetUnitValueDate >= estimatedDate
+		} else {
+			isNetValueUpdated = fund.NetUnitValueDate == time.Now().Format("2006-01-02")
+		}
+		if isNetValueUpdated {
+			rate := (*(fund.NetUnitValue) - *(fund.NetUnitValuePrev)) / *(fund.NetUnitValuePrev) * 100
+			rate = mathutil.RoundToFloat(rate, 2)
+			fund.NetActualRate = &rate
+		}
+	}
+}
+
+func mergeFundBasicDefaults(fund *FollowedFund) {
+	if fund.NetUnitValue == nil && fund.FundBasic.NetUnitValue != nil {
+		fund.NetUnitValue = fund.FundBasic.NetUnitValue
+	}
+	if fund.NetUnitValueDate == "" && fund.FundBasic.NetUnitValueDate != "" {
+		fund.NetUnitValueDate = fund.FundBasic.NetUnitValueDate
+	}
+	if fund.NetEstimatedUnit == nil && fund.FundBasic.NetEstimatedUnit != nil {
+		fund.NetEstimatedUnit = fund.FundBasic.NetEstimatedUnit
+	}
+	if fund.NetEstimatedTime == "" && fund.FundBasic.NetEstimatedTime != "" {
+		fund.NetEstimatedTime = fund.FundBasic.NetEstimatedTime
+	}
+	if fund.NetAccumulated == nil && fund.FundBasic.NetAccumulated != nil {
+		fund.NetAccumulated = fund.FundBasic.NetAccumulated
+	}
+}
+
+func (f *FundApi) GetFollowedFundPaged(pageIndex, pageSize int, keyword string) *FollowedFundPagedResult {
+	if pageIndex <= 0 {
+		pageIndex = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 4
+	}
+
+	query := db.Dao.Model(&FollowedFund{})
+	if keyword != "" {
+		kw := "%" + keyword + "%"
+		query = query.Joins("LEFT JOIN fund_basic ON fund_basic.code = followed_fund.code").
+			Where("followed_fund.code LIKE ? OR followed_fund.name LIKE ? OR fund_basic.full_name LIKE ?", kw, kw, kw)
+	}
+
+	var totalCount int64
+	query.Count(&totalCount)
+
+	totalPages := int(math.Ceil(float64(totalCount) / float64(pageSize)))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	var funds []FollowedFund
+	offset := (pageIndex - 1) * pageSize
+	if keyword != "" {
+		kw := "%" + keyword + "%"
+		db.Dao.Preload("FundBasic").
+			Joins("LEFT JOIN fund_basic ON fund_basic.code = followed_fund.code").
+			Where("followed_fund.code LIKE ? OR followed_fund.name LIKE ? OR fund_basic.full_name LIKE ?", kw, kw, kw).
+			Offset(offset).Limit(pageSize).Find(&funds)
+	} else {
+		db.Dao.Preload("FundBasic").Offset(offset).Limit(pageSize).Find(&funds)
+	}
+
+	if len(funds) > 0 {
+		f.batchCrawlFundData(funds)
+
+		var codes []string
+		for _, fund := range funds {
+			codes = append(codes, fund.Code)
+		}
+		var updatedFunds []FollowedFund
+		db.Dao.Preload("FundBasic").Where("code IN ?", codes).Find(&updatedFunds)
+
+		for i := range updatedFunds {
+			mergeFundBasicDefaults(&updatedFunds[i])
+			computeFundRates(&updatedFunds[i])
+		}
+		funds = updatedFunds
+	}
+
+	if funds == nil {
+		funds = []FollowedFund{}
+	}
+
+	return &FollowedFundPagedResult{
+		Items:      funds,
+		TotalCount: totalCount,
+		PageIndex:  pageIndex,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}
 }
 
 func (f *FundApi) FollowFund(fundCode string) string {
@@ -655,14 +1016,13 @@ func (f *FundApi) CrawlFundNetEstimatedUnit(code string) {
 		Get(fmt.Sprintf("https://fundgz.1234567.com.cn/js/%s.js", code))
 	if err != nil {
 		logger.SugaredLogger.Errorf("err:%s", err.Error())
-	}
-	if err == nil && response.StatusCode() == 200 {
+	} else if response.StatusCode() == 200 {
 		htmlContent := string(response.Body())
 		if strings.Contains(htmlContent, "jsonpgz") {
 			htmlContent = strutil.Trim(htmlContent, "jsonpgz(", ");")
 			htmlContent = strutil.Trim(htmlContent, ");")
 			err := json.Unmarshal([]byte(htmlContent), &fundNetUnitValue)
-			if err == nil {
+			if err == nil && fundNetUnitValue.Gsz != "" {
 				fund := &FollowedFund{
 					Code:             fundNetUnitValue.Fundcode,
 					Name:             fundNetUnitValue.Name,
@@ -685,53 +1045,117 @@ func (f *FundApi) CrawlFundNetEstimatedUnit(code string) {
 			}
 		}
 	}
-	f.crawlOffExchangeFundEstimatedViaSina(code)
+	f.crawlFundEstimatedViaSina(code)
 }
 
-func (f *FundApi) crawlOffExchangeFundEstimatedViaSina(code string) {
-	url := fmt.Sprintf("https://hq.sinajs.cn/rn=%d&list=fu_%s", time.Now().UnixMilli(), code)
-	resp, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
-		SetHeader("Host", "hq.sinajs.cn").
+func (f *FundApi) crawlFundEstimatedViaSina(code string) {
+	response, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
 		SetHeader("User-Agent", getRandomUA()).
-		SetHeader("Referer", "https://finance.sina.com.cn").
+		SetHeader("Referer", "https://finance.sina.com.cn/").
+		Get(fmt.Sprintf("http://hq.sinajs.cn/list=fu_%s", code))
+	if err == nil && response.StatusCode() == 200 {
+		data := string(GB18030ToUTF8(response.Body()))
+		datas := strutil.SplitAndTrim(data, "=", "\"")
+		if len(datas) >= 2 {
+			parts := strings.Split(datas[1], ",")
+			if len(parts) >= 8 {
+				gsz := strings.TrimSpace(parts[2])
+				if gsz != "" && gsz != "0" {
+					gszzl := strings.TrimSpace(parts[6])
+					dwjz := strings.TrimSpace(parts[3])
+					date := strings.TrimSpace(parts[7])
+					tm := strings.TrimSpace(parts[1])
+					fund := &FollowedFund{
+						Code:             code,
+						NetEstimatedTime: date + " " + tm,
+					}
+					netEstimatedUnit, err := convertor.ToFloat(gsz)
+					if err == nil {
+						fund.NetEstimatedUnit = &netEstimatedUnit
+					}
+					netEstimatedRate, err := convertor.ToFloat(gszzl)
+					if err == nil {
+						fund.NetEstimatedRate = &netEstimatedRate
+					}
+					netUnitValuePrev, err := convertor.ToFloat(dwjz)
+					if err == nil {
+						fund.NetUnitValuePrev = &netUnitValuePrev
+					}
+					db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
+					return
+				}
+			}
+		}
+	}
+	f.crawlFundEstimatedViaMobileAPI(code)
+}
+
+func (f *FundApi) crawlFundEstimatedViaMobileAPI(code string) {
+	type MobileFundInfo struct {
+		FCODE     string  `json:"FCODE"`
+		SHORTNAME string  `json:"SHORTNAME"`
+		PDATE     string  `json:"PDATE"`
+		NAV       string  `json:"NAV"`
+		ACCNAV    string  `json:"ACCNAV"`
+		NAVCHGRT  string  `json:"NAVCHGRT"`
+		GSZ       *string `json:"GSZ"`
+		GSZZL     *string `json:"GSZZL"`
+		GZTIME    *string `json:"GZTIME"`
+	}
+	type MobileAPIResponse struct {
+		Datas   []MobileFundInfo `json:"Datas"`
+		ErrCode int              `json:"ErrCode"`
+		Success bool             `json:"Success"`
+	}
+
+	url := fmt.Sprintf("https://fundmobapi.eastmoney.com/FundMNewApi/FundMNFInfo?pageIndex=1&pageSize=1&plat=Android&appType=ttjj&product=EFund&Version=1&deviceid=1&Ession=1&Fcodes=%s", code)
+	resp, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("User-Agent", getRandomUA()).
 		Get(url)
 	if err != nil || resp.StatusCode() != 200 {
 		return
 	}
-	data := string(GB18030ToUTF8(resp.Body()))
-	parts := strings.SplitN(data, "=", 2)
-	if len(parts) < 2 {
+
+	var result MobileAPIResponse
+	if err := json.Unmarshal(resp.Body(), &result); err != nil || !result.Success || len(result.Datas) == 0 {
 		return
 	}
-	content := strings.Trim(parts[1], " \"\n\r;")
-	if content == "" {
-		return
-	}
-	fields := strings.Split(content, ",")
-	if len(fields) < 8 {
-		return
-	}
-	netEstimatedUnit, err := convertor.ToFloat(fields[3])
-	if err != nil || netEstimatedUnit == 0 {
-		return
-	}
+
+	data := result.Datas[0]
 	fund := &FollowedFund{
-		Code: code,
+		Code: data.FCODE,
+		Name: data.SHORTNAME,
 	}
-	fund.NetEstimatedUnit = &netEstimatedUnit
-	netUnitValuePrev, err := convertor.ToFloat(fields[2])
-	if err == nil && netUnitValuePrev > 0 {
-		fund.NetUnitValuePrev = &netUnitValuePrev
+
+	if data.GSZ != nil && *data.GSZ != "" && data.GZTIME != nil && *data.GZTIME != "" {
+		gsz, err := convertor.ToFloat(*data.GSZ)
+		if err == nil {
+			fund.NetEstimatedUnit = &gsz
+		}
+		if data.GSZZL != nil {
+			gszzl, err := convertor.ToFloat(*data.GSZZL)
+			if err == nil {
+				fund.NetEstimatedRate = &gszzl
+			}
+		}
+		fund.NetEstimatedTime = *data.GZTIME
 	}
-	netEstimatedRate, err := convertor.ToFloat(fields[6])
-	if err == nil {
-		fund.NetEstimatedRate = &netEstimatedRate
+
+	if data.PDATE != "" && data.NAV != "" {
+		nav, err := convertor.ToFloat(data.NAV)
+		if err == nil {
+			fund.NetUnitValue = &nav
+		}
+		fund.NetUnitValueDate = data.PDATE
 	}
-	estimatedDate := strings.TrimSpace(fields[7])
-	estimatedTime := strings.TrimSpace(fields[1])
-	if estimatedDate != "" && estimatedTime != "" {
-		fund.NetEstimatedTime = estimatedDate + " " + estimatedTime
+
+	if data.NAVCHGRT != "" && data.PDATE == time.Now().Format("2006-01-02") {
+		navChgRt, err := convertor.ToFloat(data.NAVCHGRT)
+		if err == nil {
+			fund.NetActualRate = &navChgRt
+		}
 	}
+
 	db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
 }
 
@@ -827,7 +1251,7 @@ func (f *FundApi) CrawlFundNetUnitValue(code string) {
 
 func (f *FundApi) crawlOnExchangeFundNetUnitValue(code string) {
 	klineApi := NewFundKLineApi()
-	result := klineApi.GetFundKLine(code, "101", 2)
+	result := klineApi.GetFundKLine(code, "101", 3)
 	if result == nil || result.Data == nil || len(*result.Data) < 1 {
 		return
 	}
@@ -869,8 +1293,8 @@ func (f *FundApi) crawlFundNetUnitValueViaEastMoney(code string) {
 		NetUnitValueDate: latest.Date,
 	}
 	if len(history) >= 2 {
-		prev := history[1].NetValue
-		fund.NetUnitValuePrev = &prev
+		prevVal := history[1].NetValue
+		fund.NetUnitValuePrev = &prevVal
 	}
 	db.Dao.Model(fund).Where("code=?", fund.Code).Updates(fund)
 }
@@ -1029,204 +1453,6 @@ func (f *FundApi) GetFundTop10Holdings(fundCode string) ([]FundHoldingStock, err
 	f.fillHoldingStockQuotes(holdings)
 
 	return holdings, nil
-}
-
-type FundRankingItem struct {
-	Code             string   `json:"code"`
-	Name             string   `json:"name"`
-	Pinyin           string   `json:"pinyin"`
-	NetValueDate     string   `json:"netValueDate"`
-	NetUnitValue     *float64 `json:"netUnitValue"`
-	NetAccumulated   *float64 `json:"netAccumulated"`
-	DailyGrowth      *float64 `json:"dailyGrowth"`
-	WeekGrowth       *float64 `json:"weekGrowth"`
-	MonthGrowth      *float64 `json:"monthGrowth"`
-	ThreeMonthGrowth *float64 `json:"threeMonthGrowth"`
-	SixMonthGrowth   *float64 `json:"sixMonthGrowth"`
-	YearGrowth       *float64 `json:"yearGrowth"`
-	TwoYearGrowth    *float64 `json:"twoYearGrowth"`
-	ThreeYearGrowth  *float64 `json:"threeYearGrowth"`
-	YTDGrowth        *float64 `json:"ytdGrowth"`
-	SinceInception   *float64 `json:"sinceInception"`
-	EstablishDate    string   `json:"establishDate"`
-	Purchasable      bool     `json:"purchasable"`
-	Scale            *float64 `json:"scale"`
-	PurchaseRate     *float64 `json:"purchaseRate"`
-	DiscountRate     *float64 `json:"discountRate"`
-	FundTypeDetail   string   `json:"fundTypeDetail"`
-}
-
-type FundRankingResult struct {
-	Items      []FundRankingItem `json:"items"`
-	TotalCount int               `json:"totalCount"`
-	PageIndex  int               `json:"pageIndex"`
-	PageSize   int               `json:"pageSize"`
-	TotalPages int               `json:"totalPages"`
-}
-
-func fundParseFloatPtr(s string) *float64 {
-	s = strings.TrimSpace(s)
-	if s == "" || s == "-" {
-		return nil
-	}
-	val, err := strconv.ParseFloat(s, 64)
-	if err == nil {
-		return &val
-	}
-	return nil
-}
-
-func (f *FundApi) GetFundRanking(marketType, fundType, sortField, sortOrder string, pageIndex, pageSize int) (*FundRankingResult, error) {
-	defer func() {
-		if r := recover(); r != nil {
-			logger.SugaredLogger.Errorf("GetFundRanking panic: %v", r)
-		}
-	}()
-
-	if marketType == "" {
-		marketType = "kf"
-	}
-	if fundType == "" {
-		fundType = "all"
-	}
-	if sortField == "" {
-		sortField = "jnzf"
-	}
-	if sortOrder == "" {
-		sortOrder = "desc"
-	}
-	if pageIndex <= 0 {
-		pageIndex = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 50
-	}
-
-	referer := "https://fund.eastmoney.com/data/fundranking.html"
-	if marketType == "fb" {
-		referer = "https://fund.eastmoney.com/data/fbsfundranking.html"
-		if fundType == "all" || fundType == "gp" || fundType == "hh" || fundType == "zq" || fundType == "zs" || fundType == "qdii" || fundType == "fof" {
-			fundType = "ct"
-		}
-	}
-
-	apiUrl := "https://fund.eastmoney.com/data/rankhandler.aspx"
-	queryParams := map[string]string{
-		"op": "ph",
-		"dt": marketType,
-		"ft": fundType,
-		"rs": "",
-		"gs": "0",
-		"sc": sortField,
-		"st": sortOrder,
-		"sd": "",
-		"ed": "",
-		"pi": strconv.Itoa(pageIndex),
-		"pn": strconv.Itoa(pageSize),
-		"v":  strconv.FormatInt(time.Now().UnixMilli(), 10),
-	}
-	if marketType == "kf" {
-		queryParams["qdii"] = ""
-		queryParams["tabSubtype"] = ",,,,"
-		queryParams["dx"] = "1"
-	}
-
-	resp, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
-		SetHeader("User-Agent", getRandomUA()).
-		SetHeader("Referer", referer).
-		SetQueryParams(queryParams).
-		Get(apiUrl)
-	if err != nil {
-		return nil, fmt.Errorf("请求基金排行API失败: %w", err)
-	}
-	if resp.StatusCode() != 200 {
-		return nil, fmt.Errorf("HTTP状态码: %d", resp.StatusCode())
-	}
-
-	body := string(resp.Body())
-
-	startIdx := strings.Index(body, "datas:[")
-	if startIdx == -1 {
-		return nil, fmt.Errorf("未找到基金排行数据(datas)")
-	}
-	startIdx += len("datas:[")
-	endIdx := strings.Index(body[startIdx:], "]")
-	if endIdx == -1 {
-		return nil, fmt.Errorf("基金排行数据格式错误")
-	}
-	datasContent := body[startIdx : startIdx+endIdx]
-
-	allRecordsRe := regexp.MustCompile(`allRecords:(\d+)`)
-	allRecordsMatch := allRecordsRe.FindStringSubmatch(body)
-	totalCount := 0
-	if len(allRecordsMatch) > 1 {
-		totalCount, _ = strconv.Atoi(allRecordsMatch[1])
-	}
-
-	allPagesRe := regexp.MustCompile(`allPages:(\d+)`)
-	allPagesMatch := allPagesRe.FindStringSubmatch(body)
-	totalPages := 0
-	if len(allPagesMatch) > 1 {
-		totalPages, _ = strconv.Atoi(allPagesMatch[1])
-	}
-
-	recordRe := regexp.MustCompile(`"([^"]*)"`)
-	records := recordRe.FindAllStringSubmatch(datasContent, -1)
-
-	var items []FundRankingItem
-	for _, record := range records {
-		if len(record) < 2 {
-			continue
-		}
-		fields := strings.Split(record[1], ",")
-		if len(fields) < 17 {
-			continue
-		}
-
-		item := FundRankingItem{
-			Code:             fields[0],
-			Name:             fields[1],
-			Pinyin:           fields[2],
-			NetValueDate:     fields[3],
-			NetUnitValue:     fundParseFloatPtr(fields[4]),
-			NetAccumulated:   fundParseFloatPtr(fields[5]),
-			DailyGrowth:      fundParseFloatPtr(fields[6]),
-			WeekGrowth:       fundParseFloatPtr(fields[7]),
-			MonthGrowth:      fundParseFloatPtr(fields[8]),
-			ThreeMonthGrowth: fundParseFloatPtr(fields[9]),
-			SixMonthGrowth:   fundParseFloatPtr(fields[10]),
-			YearGrowth:       fundParseFloatPtr(fields[11]),
-			TwoYearGrowth:    fundParseFloatPtr(fields[12]),
-			ThreeYearGrowth:  fundParseFloatPtr(fields[13]),
-			YTDGrowth:        fundParseFloatPtr(fields[14]),
-			SinceInception:   fundParseFloatPtr(fields[15]),
-			EstablishDate:    fields[16],
-		}
-
-		if marketType == "kf" && len(fields) >= 21 {
-			item.Purchasable = fields[17] == "1"
-			item.Scale = fundParseFloatPtr(fields[18])
-			item.PurchaseRate = fundParseFloatPtr(fields[19])
-			item.DiscountRate = fundParseFloatPtr(fields[20])
-		} else if marketType == "fb" && len(fields) >= 23 {
-			item.FundTypeDetail = fields[21]
-			item.Scale = fundParseFloatPtr(fields[22])
-		}
-
-		items = append(items, item)
-	}
-
-	if items == nil {
-		items = []FundRankingItem{}
-	}
-
-	return &FundRankingResult{
-		Items:      items,
-		TotalCount: totalCount,
-		PageIndex:  pageIndex,
-		PageSize:   pageSize,
-		TotalPages: totalPages,
-	}, nil
 }
 
 func stockSinaPrefix(code string) string {
@@ -1521,6 +1747,262 @@ func (f *FundApi) parseSinaUSQuotes(body string, quoteMap map[string]quoteData) 
 		pureCode = strings.TrimPrefix(pureCode, "gb_")
 		quoteMap[strings.ToLower(pureCode)] = quoteData{price: currentPrice, changeRate: changeRate}
 	}
+}
+
+type FundRankingItem struct {
+	Code             string   `json:"code"`
+	Name             string   `json:"name"`
+	Pinyin           string   `json:"pinyin"`
+	NetValueDate     string   `json:"netValueDate"`
+	NetUnitValue     *float64 `json:"netUnitValue"`
+	NetAccumulated   *float64 `json:"netAccumulated"`
+	DailyGrowth      *float64 `json:"dailyGrowth"`
+	WeekGrowth       *float64 `json:"weekGrowth"`
+	MonthGrowth      *float64 `json:"monthGrowth"`
+	ThreeMonthGrowth *float64 `json:"threeMonthGrowth"`
+	SixMonthGrowth   *float64 `json:"sixMonthGrowth"`
+	YearGrowth       *float64 `json:"yearGrowth"`
+	TwoYearGrowth    *float64 `json:"twoYearGrowth"`
+	ThreeYearGrowth  *float64 `json:"threeYearGrowth"`
+	YTDGrowth        *float64 `json:"ytdGrowth"`
+	SinceInception   *float64 `json:"sinceInception"`
+	EstablishDate    string   `json:"establishDate"`
+	Purchasable      bool     `json:"purchasable"`
+	Scale            *float64 `json:"scale"`
+	PurchaseRate     *float64 `json:"purchaseRate"`
+	DiscountRate     *float64 `json:"discountRate"`
+	FundTypeDetail   string   `json:"fundTypeDetail"`
+}
+
+type FundRankingResult struct {
+	Items      []FundRankingItem `json:"items"`
+	TotalCount int               `json:"totalCount"`
+	PageIndex  int               `json:"pageIndex"`
+	PageSize   int               `json:"pageSize"`
+	TotalPages int               `json:"totalPages"`
+}
+
+func fundParseFloatPtr(s string) *float64 {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "-" {
+		return nil
+	}
+	val, err := strconv.ParseFloat(s, 64)
+	if err == nil {
+		return &val
+	}
+	return nil
+}
+
+type FundSearchItem struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+func (f *FundApi) SearchFundCodes(keyword string) []FundSearchItem {
+	if keyword == "" {
+		return []FundSearchItem{}
+	}
+	url := fmt.Sprintf("https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?callback=&m=1&key=%s", keyword)
+	resp, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("User-Agent", getRandomUA()).
+		SetHeader("Referer", "https://fund.eastmoney.com/").
+		Get(url)
+	if err != nil || resp.StatusCode() != 200 {
+		return []FundSearchItem{}
+	}
+	var result struct {
+		Datas []struct {
+			Code         string `json:"CODE"`
+			Name         string `json:"NAME"`
+			FundBaseInfo *struct {
+				FCODE     string  `json:"FCODE"`
+				SHORTNAME string  `json:"SHORTNAME"`
+				FTYPE     string  `json:"FTYPE"`
+				DWJZ      float64 `json:"DWJZ"`
+			} `json:"FundBaseInfo"`
+		} `json:"Datas"`
+	}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		return []FundSearchItem{}
+	}
+	var items []FundSearchItem
+	for _, item := range result.Datas {
+		if item.FundBaseInfo == nil {
+			continue
+		}
+		ftype := item.FundBaseInfo.FTYPE
+		items = append(items, FundSearchItem{
+			Code: item.Code,
+			Name: item.Name,
+			Type: ftype,
+		})
+		var count int64
+		db.Dao.Model(&FundBasic{}).Where("code=?", item.Code).Count(&count)
+		if count == 0 {
+			db.Dao.Create(&FundBasic{Code: item.Code, Name: item.Name, Type: ftype})
+		} else {
+			db.Dao.Model(&FundBasic{}).Where("code=?", item.Code).Updates(map[string]interface{}{"name": item.Name, "type": ftype})
+		}
+	}
+	if items == nil {
+		items = []FundSearchItem{}
+	}
+	return items
+}
+
+func (f *FundApi) GetFundRanking(marketType, fundType, sortField, sortOrder string, pageIndex, pageSize int) (*FundRankingResult, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.SugaredLogger.Errorf("GetFundRanking panic: %v", r)
+		}
+	}()
+
+	if marketType == "" {
+		marketType = "kf"
+	}
+	if fundType == "" {
+		fundType = "all"
+	}
+	if sortField == "" {
+		sortField = "jnzf"
+	}
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	if pageIndex <= 0 {
+		pageIndex = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+
+	referer := "https://fund.eastmoney.com/data/fundranking.html"
+	if marketType == "fb" {
+		referer = "https://fund.eastmoney.com/data/fbsfundranking.html"
+		if fundType == "all" || fundType == "gp" || fundType == "hh" || fundType == "zq" || fundType == "zs" || fundType == "qdii" || fundType == "fof" {
+			fundType = "ct"
+		}
+	}
+
+	apiUrl := "https://fund.eastmoney.com/data/rankhandler.aspx"
+	queryParams := map[string]string{
+		"op": "ph",
+		"dt": marketType,
+		"ft": fundType,
+		"rs": "",
+		"gs": "0",
+		"sc": sortField,
+		"st": sortOrder,
+		"sd": "",
+		"ed": "",
+		"pi": strconv.Itoa(pageIndex),
+		"pn": strconv.Itoa(pageSize),
+		"v":  strconv.FormatInt(time.Now().UnixMilli(), 10),
+	}
+	if marketType == "kf" {
+		queryParams["qdii"] = ""
+		queryParams["tabSubtype"] = ",,,,"
+		queryParams["dx"] = "1"
+	}
+
+	resp, err := f.client.SetTimeout(time.Duration(f.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("User-Agent", getRandomUA()).
+		SetHeader("Referer", referer).
+		SetQueryParams(queryParams).
+		Get(apiUrl)
+	if err != nil {
+		return nil, fmt.Errorf("请求基金排行API失败: %w", err)
+	}
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("HTTP状态码: %d", resp.StatusCode())
+	}
+
+	body := string(resp.Body())
+
+	startIdx := strings.Index(body, "datas:[")
+	if startIdx == -1 {
+		return nil, fmt.Errorf("未找到基金排行数据(datas)")
+	}
+	startIdx += len("datas:[")
+	endIdx := strings.Index(body[startIdx:], "]")
+	if endIdx == -1 {
+		return nil, fmt.Errorf("基金排行数据格式错误")
+	}
+	datasContent := body[startIdx : startIdx+endIdx]
+
+	allRecordsRe := regexp.MustCompile(`allRecords:(\d+)`)
+	allRecordsMatch := allRecordsRe.FindStringSubmatch(body)
+	totalCount := 0
+	if len(allRecordsMatch) > 1 {
+		totalCount, _ = strconv.Atoi(allRecordsMatch[1])
+	}
+
+	allPagesRe := regexp.MustCompile(`allPages:(\d+)`)
+	allPagesMatch := allPagesRe.FindStringSubmatch(body)
+	totalPages := 0
+	if len(allPagesMatch) > 1 {
+		totalPages, _ = strconv.Atoi(allPagesMatch[1])
+	}
+
+	recordRe := regexp.MustCompile(`"([^"]*)"`)
+	records := recordRe.FindAllStringSubmatch(datasContent, -1)
+
+	var items []FundRankingItem
+	for _, record := range records {
+		if len(record) < 2 {
+			continue
+		}
+		fields := strings.Split(record[1], ",")
+		if len(fields) < 17 {
+			continue
+		}
+
+		item := FundRankingItem{
+			Code:             fields[0],
+			Name:             fields[1],
+			Pinyin:           fields[2],
+			NetValueDate:     fields[3],
+			NetUnitValue:     fundParseFloatPtr(fields[4]),
+			NetAccumulated:   fundParseFloatPtr(fields[5]),
+			DailyGrowth:      fundParseFloatPtr(fields[6]),
+			WeekGrowth:       fundParseFloatPtr(fields[7]),
+			MonthGrowth:      fundParseFloatPtr(fields[8]),
+			ThreeMonthGrowth: fundParseFloatPtr(fields[9]),
+			SixMonthGrowth:   fundParseFloatPtr(fields[10]),
+			YearGrowth:       fundParseFloatPtr(fields[11]),
+			TwoYearGrowth:    fundParseFloatPtr(fields[12]),
+			ThreeYearGrowth:  fundParseFloatPtr(fields[13]),
+			YTDGrowth:        fundParseFloatPtr(fields[14]),
+			SinceInception:   fundParseFloatPtr(fields[15]),
+			EstablishDate:    fields[16],
+		}
+
+		if marketType == "kf" && len(fields) >= 21 {
+			item.Purchasable = fields[17] == "1"
+			item.Scale = fundParseFloatPtr(fields[18])
+			item.PurchaseRate = fundParseFloatPtr(fields[19])
+			item.DiscountRate = fundParseFloatPtr(fields[20])
+		} else if marketType == "fb" && len(fields) >= 23 {
+			item.FundTypeDetail = fields[21]
+			item.Scale = fundParseFloatPtr(fields[22])
+		}
+
+		items = append(items, item)
+	}
+
+	if items == nil {
+		items = []FundRankingItem{}
+	}
+
+	return &FundRankingResult{
+		Items:      items,
+		TotalCount: totalCount,
+		PageIndex:  pageIndex,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (f *FundApi) getTop10HoldingsViaHTML(fundCode string) ([]FundHoldingStock, error) {

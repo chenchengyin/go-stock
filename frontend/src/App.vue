@@ -443,10 +443,20 @@ const menuOptions = ref([
     icon: renderIcon(SparklesOutline),
     children: [
       {
-        label: () => h(NText, {type: realtimeProfit.value > 0 ? 'error' : 'success'}, {default: () => '功能完善中！'}),
-        key: 'realtimeProfit',
-        show: realtimeProfit.value,
-        icon: renderIcon(AlarmOutline),
+        label: () =>
+            h(
+                RouterLink,
+                {
+                  to: {name: 'fund', query: {name: '基金自选'}},
+                  onClick: () => {
+                    activeKey.value = 'fund'
+                    EventsEmit("changeFundTab", {name: '基金自选'})
+                  },
+                },
+                {default: () => '基金自选'}
+            ),
+        key: 'fundFollow',
+        icon: renderIcon(StarOutline),
       },
       {
         label: () =>

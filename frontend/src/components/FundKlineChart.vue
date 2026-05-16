@@ -94,7 +94,7 @@ function parseKLineData(raw, klt) {
 function clearMA() {
   for (const key of Object.keys(maSeriesMap)) {
     if (maSeriesMap[key] && chart) {
-      try { chart.removeSeries(maSeriesMap[key]) } catch (_e) { }
+      try { chart.removeSeries(maSeriesMap[key]) } catch (_e) { /* ignore */ }
     }
   }
   maSeriesMap = {}
@@ -142,7 +142,7 @@ async function fetchKLine() {
     }
 
     dataSource.value = result.source || ''
-    isCandleMode.value = !result.source.includes('eastmoney_off') && !result.source.includes('eastmoney_lsjz')
+    isCandleMode.value = result.source.includes('K线')
     removeSeries()
 
     const { candles, lineData, volumes, maData } = parseKLineData(result.data, activeKlt.value)
