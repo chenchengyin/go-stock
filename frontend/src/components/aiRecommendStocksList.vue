@@ -502,11 +502,11 @@ function toggleAlert(row, newEnableAlert) {
             style="height: calc(100vh - 210px);margin-top: 10px"
         />
 
-  <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="width: 950px;max-width: calc(100vw - 32px);">
+  <n-modal v-model:show="modalDataRef.visible" :title="modalDataRef.title" preset="card" style="max-width: 1400px;">
     <n-gradient-text :size="16" type="warning">{{modalDataRef.remarks}}</n-gradient-text>
     <n-card size="small">
       <StockLightweightKlineChart
-        style="width: 100%;max-width: 1000px;"
+        style="width: 100%;"
         :code="modalDataRef.stockCode"
         :chart-height="350"
         :stock-name="modalDataRef.stockName"

@@ -425,7 +425,7 @@ function showStockKline(stockCode, stockName, market) {
     v-model:show="holdingsModalShow"
     :title="holdingsFundName + ' - ' + holdingsFundCode + ' 十大持仓'"
     preset="card"
-    style="width: 800px;"
+    style="max-width: 1400px;"
     :mask-closable="true"
   >
     <n-text v-if="holdingsData.length > 0 && holdingsData[0]?.quarter" depth="3" style="font-size: 12px; margin-bottom: 4px; display: inline-block;">
@@ -447,7 +447,7 @@ function showStockKline(stockCode, stockName, market) {
     v-model:show="klineModalShow"
     :title="klineStockName + ' - ' + klineStockCode + ' K线图'"
     preset="card"
-    style="width: 850px;"
+    style="max-width: 1400px;"
     :mask-closable="true"
   >
     <StockLightweightKlineChart

@@ -855,6 +855,7 @@ const menuOptions = ref([
         ),
     key: 'about',
     icon: renderIcon(LogoGithub),
+    show: true,
   },
   {
     show:false,
