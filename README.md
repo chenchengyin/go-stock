@@ -18,7 +18,7 @@
 </a>
 </td>
 <td>
-感谢Anspire开放平台赞助了本项目！安思派AI服务平台(Anspire Open)是面向智能体时代的领先的基础设施提供商，现已上线AI联网搜索、AI模型服务、OpenClaw部署、无忧养虾服务。新用户立赠2500点，可体验平台下的任意产品。</td>
+感谢 <a href="https://open.anspire.cn/?share_code=OMSTE9LW">Anspire开放平台</a> 赞助了本项目！安思派AI服务平台(Anspire Open)是面向智能体时代的领先的基础设施提供商，现已上线AI联网搜索、AI模型服务、OpenClaw部署、无忧养虾服务。新用户立赠2500点，可体验平台下的任意产品。</td>
 </tr>
 <tr>
 <td width="180">
@@ -27,7 +27,7 @@
 </a>
 </td>
 <td>
-感谢优云智算赞助了本项目！优云智算是UCloud旗下AI云平台，主打包月、按次的高性价比 国模Agent Plan套餐，同时提供官转稳定海外模型。支持接入 Claude Code、Codex 及 API 调用。支持企业高并发、7*24技术支持、自助开票。通过此链接注册的用户，可得免费5元平台体验金！        
+感谢 <a href="https://www.compshare.cn/?ytag=GPU_YY_YX_git_go-stock">优云智算</a> 赞助了本项目！优云智算是UCloud旗下AI云平台，主打包月、按次的高性价比 国模Agent Plan套餐，同时提供官转稳定海外模型。支持接入 Claude Code、Codex 及 API 调用。支持企业高并发、7*24技术支持、自助开票。通过此链接注册的用户，可得免费5元平台体验金！        
 </td>
 </tr>
 </table>
