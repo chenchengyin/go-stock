@@ -205,6 +205,7 @@ const ind = {
   adxDiM: null,
   williamsR: null,
   stochRsi: null,
+  stochRsiD: null,
   cmf: null,
   aroonUp: null,
   aroonDown: null,
@@ -1378,6 +1379,7 @@ function tearDownAllSubPanes() {
   ind.adxDiM = removeSeriesSafe(ind.adxDiM)
   ind.williamsR = removeSeriesSafe(ind.williamsR)
   ind.stochRsi = removeSeriesSafe(ind.stochRsi)
+  ind.stochRsiD = removeSeriesSafe(ind.stochRsiD)
   ind.cmf = removeSeriesSafe(ind.cmf)
   ind.aroonUp = removeSeriesSafe(ind.aroonUp)
   ind.aroonDown = removeSeriesSafe(ind.aroonDown)
@@ -1662,7 +1664,7 @@ function syncSubPaneIndicators(times, closes, highs, lows, vols) {
         },
         paneIdx,
       )
-      const stochRsiD = chart.addSeries(
+      ind.stochRsiD = chart.addSeries(
         LineSeries,
         {
           ...subLineOpts,
@@ -1673,7 +1675,7 @@ function syncSubPaneIndicators(times, closes, highs, lows, vols) {
         paneIdx,
       )
       ind.stochRsi.setData(toLineData(times, k))
-      stochRsiD.setData(toLineData(times, d))
+      ind.stochRsiD.setData(toLineData(times, d))
     } else if (key === 'cmf') {
       const cmf = cmfValues(highs, lows, closes, vols, 20)
       ind.cmf = chart.addSeries(
@@ -1956,11 +1958,13 @@ function syncIndicators() {
 
   if (showSupertrend.value) {
     const { supertrend: stVal, direction } = supertrendValues(highs, lows, closes, 10, 3)
-    ind.supertrend = chart.addSeries(
-      LineSeries,
-      { ...lineCommon, lineWidth: 2, title: 'ST(10,3)' },
-      0,
-    )
+    if (!ind.supertrend) {
+      ind.supertrend = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 2, title: 'ST(10,3)' },
+        0,
+      )
+    }
     const stData = []
     for (let i = 0; i < times.length; i++) {
       if (stVal[i] != null) {
@@ -2052,17 +2056,19 @@ function syncIndicators() {
 
   if (showSAR.value) {
     const { sar, direction } = sarValues(highs, lows, closes, 0.02, 0.2)
-    ind.sar = chart.addSeries(
-      LineSeries,
-      {
-        ...lineCommon,
-        lineWidth: 0,
-        pointMarkersVisible: true,
-        pointMarkersRadius: 3,
-        title: 'SAR',
-      },
-      0,
-    )
+    if (!ind.sar) {
+      ind.sar = chart.addSeries(
+        LineSeries,
+        {
+          ...lineCommon,
+          lineWidth: 0,
+          pointMarkersVisible: true,
+          pointMarkersRadius: 3,
+          title: 'SAR',
+        },
+        0,
+      )
+    }
     const sarData = []
     for (let i = 0; i < times.length; i++) {
       if (sar[i] != null) {
@@ -2176,19 +2182,21 @@ function syncIndicators() {
 
   if (showZigZag.value) {
     const { zigzag, directions } = zigzagValues(highs, lows, closes, 5)
-    ind.zigzag = chart.addSeries(
-      LineSeries,
-      {
-        ...lineCommon,
-        lineWidth: 2,
-        lineStyle: LineStyle.Dashed,
-        color: '#f59e0b',
-        pointMarkersVisible: true,
-        pointMarkersRadius: 4,
-        title: 'ZigZag',
-      },
-      0,
-    )
+    if (!ind.zigzag) {
+      ind.zigzag = chart.addSeries(
+        LineSeries,
+        {
+          ...lineCommon,
+          lineWidth: 2,
+          lineStyle: LineStyle.Dashed,
+          color: '#f59e0b',
+          pointMarkersVisible: true,
+          pointMarkersRadius: 4,
+          title: 'ZigZag',
+        },
+        0,
+      )
+    }
     const zzData = []
     for (let i = 0; i < times.length; i++) {
       if (zigzag[i] != null) {
@@ -2206,11 +2214,13 @@ function syncIndicators() {
 
   if (showSATS.value) {
     const { stLine, upper, lower, direction, tqi } = satsValues(highs, lows, closes, vols)
-    ind.satsLine = chart.addSeries(
-      LineSeries,
-      { ...lineCommon, lineWidth: 2, title: 'SATS' },
-      0,
-    )
+    if (!ind.satsLine) {
+      ind.satsLine = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 2, title: 'SATS' },
+        0,
+      )
+    }
     const satsData = []
     for (let i = 0; i < times.length; i++) {
       if (stLine[i] != null) {
@@ -2222,16 +2232,20 @@ function syncIndicators() {
       }
     }
     ind.satsLine.setData(satsData)
-    ind.satsUpper = chart.addSeries(
-      LineSeries,
-      { ...lineCommon, lineWidth: 1, lineStyle: LineStyle.Dashed, color: 'rgba(148,163,184,0.35)', title: 'SATS上' },
-      0,
-    )
-    ind.satsLower = chart.addSeries(
-      LineSeries,
-      { ...lineCommon, lineWidth: 1, lineStyle: LineStyle.Dashed, color: 'rgba(148,163,184,0.35)', title: 'SATS下' },
-      0,
-    )
+    if (!ind.satsUpper) {
+      ind.satsUpper = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 1, lineStyle: LineStyle.Dashed, color: 'rgba(148,163,184,0.35)', title: 'SATS上' },
+        0,
+      )
+    }
+    if (!ind.satsLower) {
+      ind.satsLower = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 1, lineStyle: LineStyle.Dashed, color: 'rgba(148,163,184,0.35)', title: 'SATS下' },
+        0,
+      )
+    }
     ind.satsUpper.setData(toLineData(times, upper))
     ind.satsLower.setData(toLineData(times, lower))
   } else {
@@ -3091,6 +3105,7 @@ function disposeChart() {
   ind.adx = ind.adxDiP = ind.adxDiM = null
   ind.williamsR = null
   ind.stochRsi = null
+  ind.stochRsiD = null
   ind.cmf = null
   ind.aroonUp = ind.aroonDown = null
   ind.cmo = null
