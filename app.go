@@ -313,7 +313,11 @@ func (a *App) CheckUpdate(flag int) {
 		downloadUrl := ""
 		assetName := ""
 		if IsWindows() {
-			assetName = "go-stock-windows-amd64.exe"
+			if IsArm64() {
+				assetName = "go-stock-windows-arm64.exe"
+			} else {
+				assetName = "go-stock-windows-amd64.exe"
+			}
 		} else if IsMacOS() {
 			assetName = "go-stock-darwin-universal"
 		} else if IsLinux() {
@@ -470,14 +474,18 @@ func (a *App) isVip(sponsorCode string, downloadUrl string, releaseVersion *mode
 		}
 
 		if IsWindows() {
+			winAssetName := "go-stock-windows-amd64.exe"
+			if IsArm64() {
+				winAssetName = "go-stock-windows-arm64.exe"
+			}
 			if isVip {
 				if a.SponsorInfo["winDownUrl"] == nil {
-					downloadUrl = fmt.Sprintf("https://gh.927223.xyz/https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-windows-amd64.exe", releaseVersion.TagName)
+					downloadUrl = fmt.Sprintf("https://gh.927223.xyz/https://github.com/ArvinLovegood/go-stock/releases/download/%s/%s", releaseVersion.TagName, winAssetName)
 				} else {
 					downloadUrl = a.SponsorInfo["winDownUrl"].(string)
 				}
 			} else {
-				downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/go-stock-windows-amd64.exe", releaseVersion.TagName)
+				downloadUrl = fmt.Sprintf("https://github.com/ArvinLovegood/go-stock/releases/download/%s/%s", releaseVersion.TagName, winAssetName)
 			}
 		}
 		if IsMacOS() {

@@ -34,7 +34,7 @@ jobs:
             platform: 'darwin/universal'
             os: 'macos-latest'
           - name: 'go-stock-darwin-intel'
-            platform: 'darwin'
+            platform: 'darwin/amd64'
             os: 'macos-latest'
           - name: 'go-stock-darwin-arm64'
             platform: 'darwin/arm64'
