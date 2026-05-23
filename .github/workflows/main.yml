@@ -86,39 +86,6 @@ jobs:
           node-version: '22.22.2'
           wails-version: 'v2.11.0'
 
-      - name: Install UPX
-        if: runner.os == 'Windows'
-        uses: crazy-max/ghaction-upx@v3
-        with:
-          install-only: true
-
-      - name: Compress Windows binary with UPX
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          BINARY_PATH="./build/bin/${{ matrix.build.name }}"
-          if [ -f "$BINARY_PATH" ]; then
-            ORIG_SIZE=$(wc -c < "$BINARY_PATH")
-            echo "Original size: $ORIG_SIZE bytes"
-            upx -9 "$BINARY_PATH"
-            COMP_SIZE=$(wc -c < "$BINARY_PATH")
-            echo "Compressed size: $COMP_SIZE bytes"
-            RATIO=$((100 - COMP_SIZE * 100 / ORIG_SIZE))
-            echo "Compression ratio: ${RATIO}%"
-          else
-            echo "Binary not found at $BINARY_PATH, searching..."
-            find ./build/bin -type f -name "*.exe" 2>/dev/null || true
-            echo "ERROR: Binary not found, skipping UPX compression"
-            exit 1
-          fi
-
-      - name: Re-upload compressed binary to release
-        if: runner.os == 'Windows'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          files: ./build/bin/${{ matrix.build.name }}
-
       - name: Update release for channel
         if: steps.channel.outputs.channel != 'release'
         uses: actions/github-script@v7
