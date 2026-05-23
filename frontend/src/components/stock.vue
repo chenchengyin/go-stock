@@ -22,6 +22,7 @@ import {
   OpenURL,
   RemoveGroup,
   RemoveStockGroup,
+  RestartAsAdmin,
   SaveAIResponseResult,
   SaveAsMarkdown,
   SaveImage,
@@ -480,6 +481,36 @@ onBeforeMount(() => {
     })
   })
 
+  EventsOn("updateNeedAdmin", (msg) => {
+    notify.warning({
+      avatar: () =>
+          h(NAvatar, {
+            size: 'small',
+            round: false,
+            src: icon.value
+          }),
+      title: '更新需要管理员权限',
+      content: () => {
+        return h('div', {
+          style: {
+            'text-align': 'left',
+            'font-size': '14px',
+          }
+        }, { default: () => '新版本 ' + (msg.version || '') + ' 下载完成，但自动替换文件需要管理员权限。请以管理员身份重启程序后再次检查更新。' })
+      },
+      duration: 15000,
+      action: () => {
+        return h(NButton, {
+          type: 'warning',
+          size: 'small',
+          onClick: () => {
+            RestartAsAdmin()
+          }
+        }, { default: () => '以管理员身份重启' })
+      }
+    })
+  })
+
   EventsOn("warnMsg", async (msg) => {
     notify.error({
       avatar: () =>
@@ -631,6 +662,7 @@ onBeforeUnmount(() => {
   EventsOff("newChatStream")
   EventsOff("changeTab")
   EventsOff("updateVersion")
+  EventsOff("updateNeedAdmin")
   EventsOff("warnMsg")
   EventsOff("loadingDone")
 

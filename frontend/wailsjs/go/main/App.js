@@ -602,6 +602,10 @@ export function RemoveStockGroup(arg1, arg2, arg3) {
   return window['go']['main']['App']['RemoveStockGroup'](arg1, arg2, arg3);
 }
 
+export function RestartAsAdmin() {
+  return window['go']['main']['App']['RestartAsAdmin']();
+}
+
 export function SaveAIResponseResult(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['SaveAIResponseResult'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
