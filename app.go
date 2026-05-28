@@ -26,7 +26,6 @@ import (
 	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/coocood/freecache"
 	"github.com/duke-git/lancet/v2/convertor"
 	"github.com/duke-git/lancet/v2/mathutil"
@@ -989,24 +988,42 @@ func (a *App) AddCronTask(follow data.FollowedStock) func() {
 }
 
 func refreshTelegraphList() *[]string {
-	url := "https://www.cls.cn/telegraph"
+	clsURL := "https://www.cls.cn/api/cache?app=CailianpressWeb&name=telegraph&os=web&sv=8.7.9"
 	response, err := data.SharedHTTPClient.R().
 		SetHeader("Referer", "https://www.cls.cn/").
-		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").
-		Get(url)
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0").
+		Get(clsURL)
 	if err != nil {
 		return &[]string{}
 	}
-	//logger.SugaredLogger.Info(string(response.Body()))
-	document, err := goquery.NewDocumentFromReader(strings.NewReader(string(response.Body())))
-	if err != nil {
+	res := map[string]any{}
+	if err := json.Unmarshal(response.Body(), &res); err != nil {
 		return &[]string{}
 	}
 	var telegraph []string
-	document.Find("div.telegraph-content-box").Each(func(i int, selection *goquery.Selection) {
-		//logger.SugaredLogger.Info(selection.Text())
-		telegraph = append(telegraph, selection.Text())
-	})
+	if v, _ := convertor.ToInt(res["errno"]); v == 0 {
+		if res["data"] == nil {
+			return &[]string{}
+		}
+		dataMap, ok := res["data"].(map[string]any)
+		if !ok {
+			return &[]string{}
+		}
+		rollData, ok := dataMap["roll_data"].([]any)
+		if !ok {
+			return &[]string{}
+		}
+		for _, v := range rollData {
+			news, ok := v.(map[string]any)
+			if !ok {
+				continue
+			}
+			content, _ := news["content"].(string)
+			if content != "" {
+				telegraph = append(telegraph, content)
+			}
+		}
+	}
 	return &telegraph
 }
 
