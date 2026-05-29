@@ -14,7 +14,7 @@
 <tr>
 <td width="180">
 <a href="https://open.anspire.cn/?share_code=OMSTE9LW">
-<img src="build/screenshot/anspireLogo.png" alt="Anspire" width="150">
+<img src="build/screenshot/anspire-logo.png" alt="Anspire" width="150">
 </a>
 </td>
 <td>
