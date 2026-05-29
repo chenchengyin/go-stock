@@ -316,22 +316,17 @@ function handleTabDragEnd(event) {
 onBeforeMount(() => {
   GetGroupList().then(result => {
     groupList.value = result
-    // 检查是否存在相同的序号
     const sorts = result.map(item => item.sort);
     const uniqueSorts = new Set(sorts);
-    // 如果存在重复的序号，则重新初始化序号
     if (sorts.length !== uniqueSorts.size) {
-      // 调用InitializeGroupSort重新初始化序号
-      // 然后重新获取分组列表
       fetchGroupList();
     } else {
-      // 没有重复序号，继续正常流程
       if (route.query.groupId) {
         message.success("切换分组:" + route.query.groupName)
         currentGroupId.value = Number(route.query.groupId)
       }
     }
-  })
+  }).catch(err => { console.error("GetGroupList error:", err) })
   GetStockList("").then(result => {
     stockList.value = result
     options.value = result.map(item => {
@@ -340,7 +335,7 @@ onBeforeMount(() => {
         value: item.ts_code
       }
     })
-  })
+  }).catch(err => { console.error("GetStockList error:", err) })
   GetConfig().then(result => {
     if (result.openAiEnable) {
       data.openAiEnable = true
@@ -351,19 +346,21 @@ onBeforeMount(() => {
     if (result.darkTheme) {
       data.darkTheme = true
     }
-  })
+  }).catch(err => { console.error("GetConfig error:", err) })
   GetPromptTemplates("", "").then(res => {
     promptTemplates.value = res
 
     sysPromptOptions.value = promptTemplates.value.filter(item => item.type === '模型系统Prompt')
     userPromptOptions.value = promptTemplates.value.filter(item => item.type === '模型用户Prompt')
 
-  })
+  }).catch(err => { console.error("GetPromptTemplates error:", err) })
 
   GetAiConfigs().then(res => {
     aiConfigs.value = res
-    data.aiConfigId = res[0].ID
-  })
+    if (res && res.length > 0) {
+      data.aiConfigId = res[0].ID
+    }
+  }).catch(err => { console.error("GetAiConfigs error:", err) })
 
   EventsOn("loadingDone", (data) => {
     message.loading("刷新股票基础数据...")

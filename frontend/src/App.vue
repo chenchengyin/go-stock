@@ -946,6 +946,14 @@ EventsOn("loadingMsg", (data) => {
   }
 })
 
+setTimeout(() => {
+  if (loading.value) {
+    loading.value = false
+    loadingMsg.value = "加载完成..."
+    EventsEmit("loadingDone", "app")
+  }
+}, 8000)
+
 onBeforeUnmount(() => {
   if (marketStatusTimer) {
     clearInterval(marketStatusTimer)
@@ -977,12 +985,13 @@ onBeforeMount(() => {
     }
     officialStatement.value = result.officialStatement || ""
     updateMarketStatus()
+  }).catch(err => {
+    console.error("GetVersionInfo error:", err)
   })
 
   GetGroupList().then(result => {
     groupList.value = result
     menuOptions.value.map((item) => {
-      //console.log(item)
       if (item.key === 'stock') {
         item.children.push(...groupList.value.map(item => {
           return {
@@ -993,7 +1002,6 @@ onBeforeMount(() => {
                       href: '#',
                       type: 'info',
                       onClick: () => {
-                        //console.log("push",item)
                         router.push({
                           name: 'stock',
                           query: {
@@ -1020,11 +1028,12 @@ onBeforeMount(() => {
         }))
       }
     })
+  }).catch(err => {
+    console.error("GetGroupList error:", err)
   })
 
 
   GetConfig().then((res) => {
-    //console.log(res)
     enableFund.value = res.enableFund
     enableAgent.value = res.enableAgent
 
@@ -1042,6 +1051,8 @@ onBeforeMount(() => {
     } else {
       enableDarkTheme.value = null
     }
+  }).catch(err => {
+    console.error("GetConfig error:", err)
   })
 })
 
@@ -1094,6 +1105,8 @@ onMounted(() => {
         })
       }
     })
+  }).catch(err => {
+    console.error("GetConfig(onMounted) error:", err)
   })
 })
 </script>
