@@ -8,13 +8,13 @@
 
 ## 💖 赞助商 (Sponsors)
 ### 🌟[Anspire开放平台](https://open.anspire.cn/?share_code=OMSTE9LW)，一Key同时启用全球热门大模型和联网搜索，无需科学上网，含免费额度
-[![Anspire开放平台](build/screenshot/anspire-ai.png)](https://open.anspire.cn/?share_code=OMSTE9LW)
+[![Anspire开放平台](./build/screenshot/anspire-ai.png)](https://open.anspire.cn/?share_code=OMSTE9LW)
 
 <table>
 <tr>
 <td width="180">
 <a href="https://open.anspire.cn/?share_code=OMSTE9LW">
-<img src="build/screenshot/anspire-logo.png" alt="Anspire" width="150">
+<img src="./build/screenshot/anspire-logo.png" alt="Anspire" width="150">
 </a>
 </td>
 <td>
@@ -23,7 +23,7 @@
 <tr>
 <td width="180">
 <a href="https://www.compshare.cn/?ytag=GPU_YY_YX_git_go-stock">
-<img src="build/screenshot/uclound.png" alt="UCloud" width="150">
+<img src="./build/screenshot/uclound.png" alt="UCloud" width="150">
 </a>
 </td>
 <td>
