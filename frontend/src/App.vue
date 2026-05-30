@@ -26,6 +26,7 @@ import {
   SettingsOutline, ServerOutline, Skull, SkullOutline, SkullSharp,
   SparklesOutline, FlashOutline, Star,
   StarOutline,
+  StatsChartOutline,
   Wallet, WarningOutline, TimeOutline, SearchOutline,
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList, GetVersionInfo, IsTradingTime, IsHKTradingTime, IsUSTradingTime} from "../wailsjs/go/main/App";
@@ -420,6 +421,23 @@ const menuOptions = ref([
         icon: renderIcon(FirefoxBrowser),
       },
     ]
+  },
+  {
+    label: () =>
+        h(
+            RouterLink,
+            {
+              to: {
+                name: 'klineAnalysis',
+              },
+              onClick: () => {
+                activeKey.value = 'klineAnalysis'
+              },
+            },
+            {default: () => 'K线分析'}
+        ),
+    key: 'klineAnalysis',
+    icon: renderIcon(StatsChartOutline),
   },
   {
     label: () =>
