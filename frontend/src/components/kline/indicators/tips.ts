@@ -45,4 +45,5 @@ export const indicatorTips = {
   coppock: '底部探测 | Coppock Curve(10,14,11)\n✅ 专门判断长期底部\n✅ 零轴下上穿=历史大底信号\n✅ 月线级别最有效，A股熊转牛强力信号\n✅ 不适合短线，适合判断大周期拐点\n🔄 组合：Coppock+CMO动量确认，Coppock+Pivot支撑位',
   tema: '三重指数均线 | TEMA(21)\n✅ EMA→DEMA→TEMA：滞后性递减\n✅ 比DEMA更灵敏，是终极低滞后均线\n✅ 价格在TEMA上方=多头，下方=空头\n✅ 适合需要快速响应的交易策略\n🔄 组合：TEMA+DEMA双均线，TEMA+MACD过滤假信号',
   smi: '随机动量 | SMI(14,3,3)\n✅ StochRSI的改良版：信号更平滑，噪声更少\n✅ 范围-100~+100，0轴即多空分界\n✅ +40以上超买，-40以下超卖\n✅ SMI上穿Signal=买入，下穿=卖出\n🔄 组合：SMI+StochRSI双重确认，SMI+MACD趋势过滤',
+  smc: '聪明钱概念 | Smart Money Concepts\n🔴红大点=摆动高点(50期) 🟢绿大点=摆动低点(50期)\n🔴浅红小点=内部高点(5期) 🟢浅绿小点=内部低点(5期)\n🔵蓝色圆点=BOS 结构突破，趋势延续信号\n🟡黄色圆点=CHoCH 特征转变，趋势反转信号\n🟣靛蓝大点=SwBOS 大级别结构突破\n🟡金色大点=SwCHoCH 大级别特征转变\n🔴红点=FVG/OB看涨 🟢绿点=FVG/OB看跌\n🔄 组合：SMC+MACD确认结构突破，SMC+VWAP机构成本追踪',
 }

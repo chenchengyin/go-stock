@@ -18,6 +18,7 @@ import {
   zigzagValues, satsValues, alligatorValues, aoValues, hullMaValues, adValues,
   trixValues, rocValues, fractalValues, chopValues, elderRayValues, chaikinOscValues,
   vwapBandsValues, massIndexValues, ulcerIndexValues, coppockValues, temaValues, smiValues,
+  smcValues,
 } from './kline/calc'
 import { makeToggle } from './kline/indicators/toggle'
 import { parseNumStr, formatPrice2, formatVolumeCn, formatAmountCn, formatPctField, formatSigned2 } from './kline/format'
@@ -108,6 +109,7 @@ const showUlcerIndex = ref(false)
 const showCoppock = ref(false)
 const showTEMA = ref(false)
 const showSMI = ref(false)
+const showSMC = ref(false)
 const showChip = ref(false)
 const chipBins = ref(80)
 const chipCanvasRef = ref(null)
@@ -257,6 +259,18 @@ const ind = {
   temaLine: null,
   smiLine: null,
   smiSignal: null,
+  smcSwingHigh: null,
+  smcSwingLow: null,
+  smcIntHigh: null,
+  smcIntLow: null,
+  smcBos: null,
+  smcChoch: null,
+  smcSwingBos: null,
+  smcSwingChoch: null,
+  smcFvgTop: null,
+  smcFvgBot: null,
+  smcObTop: null,
+  smcObBot: null,
 }
 
 import { indicatorTips } from './kline/indicators/tips'
@@ -276,6 +290,7 @@ function removeSeriesSafe(api) {
 function extractOHLCV(rows) {
   const sorted = [...(rows || [])].sort((a, b) => sortKey(a.day) - sortKey(b.day))
   const times = []
+  const opens = []
   const closes = []
   const highs = []
   const lows = []
@@ -291,6 +306,7 @@ function extractOHLCV(rows) {
     const v = Number(r.volume)
     if (![o, h, l, c].every(Number.isFinite)) continue
     times.push(t)
+    opens.push(o)
     closes.push(c)
     highs.push(h)
     lows.push(l)
@@ -298,7 +314,7 @@ function extractOHLCV(rows) {
     const rawAmp = parseNumStr(r.amplitude)
     amplitudes.push(Number.isFinite(rawAmp) ? rawAmp : (o > 0 ? (h - l) / o * 100 : NaN))
   }
-  return { times, closes, highs, lows, vols, amplitudes }
+  return { times, opens, closes, highs, lows, vols, amplitudes }
 }
 
 function avgAmplitude(amplitudes, period) {
@@ -1065,7 +1081,7 @@ function syncSubPaneIndicators(times, closes, highs, lows, vols) {
 function syncIndicators() {
   if (!chart || !candleSeries) return
 
-  const { times, closes, highs, lows, vols } = extractOHLCV(mergedRawRows)
+  const { times, opens, closes, highs, lows, vols } = extractOHLCV(mergedRawRows)
   if (!times.length) {
     ind.ma5 = removeSeriesSafe(ind.ma5)
     ind.ma10 = removeSeriesSafe(ind.ma10)
@@ -1114,6 +1130,18 @@ function syncIndicators() {
     ind.vwapBandsM = removeSeriesSafe(ind.vwapBandsM)
     ind.vwapBandsL = removeSeriesSafe(ind.vwapBandsL)
     ind.temaLine = removeSeriesSafe(ind.temaLine)
+    ind.smcSwingHigh = removeSeriesSafe(ind.smcSwingHigh)
+    ind.smcSwingLow = removeSeriesSafe(ind.smcSwingLow)
+    ind.smcIntHigh = removeSeriesSafe(ind.smcIntHigh)
+    ind.smcIntLow = removeSeriesSafe(ind.smcIntLow)
+    ind.smcBos = removeSeriesSafe(ind.smcBos)
+    ind.smcChoch = removeSeriesSafe(ind.smcChoch)
+    ind.smcSwingBos = removeSeriesSafe(ind.smcSwingBos)
+    ind.smcSwingChoch = removeSeriesSafe(ind.smcSwingChoch)
+    ind.smcFvgTop = removeSeriesSafe(ind.smcFvgTop)
+    ind.smcFvgBot = removeSeriesSafe(ind.smcFvgBot)
+    ind.smcObTop = removeSeriesSafe(ind.smcObTop)
+    ind.smcObBot = removeSeriesSafe(ind.smcObBot)
     tearDownAllSubPanes()
     return
   }
@@ -1715,6 +1743,163 @@ function syncIndicators() {
     ind.temaLine.setData(toLineData(times, tema))
   } else {
     ind.temaLine = removeSeriesSafe(ind.temaLine)
+  }
+
+  if (showSMC.value) {
+    const smc = smcValues(highs, lows, closes, opens)
+    if (!ind.smcSwingHigh) {
+      ind.smcSwingHigh = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 6, color: '#ef4444', title: 'SwH' },
+        0,
+      )
+    }
+    if (!ind.smcSwingLow) {
+      ind.smcSwingLow = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 6, color: '#22c55e', title: 'SwL' },
+        0,
+      )
+    }
+    if (!ind.smcIntHigh) {
+      ind.smcIntHigh = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 3, color: '#f87171', title: 'iH' },
+        0,
+      )
+    }
+    if (!ind.smcIntLow) {
+      ind.smcIntLow = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 3, color: '#4ade80', title: 'iL' },
+        0,
+      )
+    }
+    ind.smcSwingHigh.setData(toLineData(times, smc.swingHighs))
+    ind.smcSwingLow.setData(toLineData(times, smc.swingLows))
+    ind.smcIntHigh.setData(toLineData(times, smc.intHighs))
+    ind.smcIntLow.setData(toLineData(times, smc.intLows))
+
+    const bosData = []
+    for (const b of smc.bosLines) {
+      bosData.push({ time: times[b.toIdx], value: b.toPrice, color: '#3b82f6' })
+    }
+    bosData.sort((a, b) => a.time - b.time)
+    if (!ind.smcBos) {
+      ind.smcBos = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 4, color: '#3b82f6', title: 'BOS' },
+        0,
+      )
+    }
+    ind.smcBos.setData(bosData)
+
+    const chochData = []
+    for (const c of smc.chochLines) {
+      chochData.push({ time: times[c.toIdx], value: c.toPrice, color: '#f59e0b' })
+    }
+    chochData.sort((a, b) => a.time - b.time)
+    if (!ind.smcChoch) {
+      ind.smcChoch = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 4, color: '#f59e0b', title: 'CHoCH' },
+        0,
+      )
+    }
+    ind.smcChoch.setData(chochData)
+
+    const swingBosData = []
+    for (const b of smc.swingBosLines) {
+      swingBosData.push({ time: times[b.toIdx], value: b.toPrice, color: '#6366f1' })
+    }
+    swingBosData.sort((a, b) => a.time - b.time)
+    if (!ind.smcSwingBos) {
+      ind.smcSwingBos = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 5, color: '#6366f1', title: 'SwBOS' },
+        0,
+      )
+    }
+    ind.smcSwingBos.setData(swingBosData)
+
+    const swingChochData = []
+    for (const c of smc.swingChochLines) {
+      swingChochData.push({ time: times[c.toIdx], value: c.toPrice, color: '#eab308' })
+    }
+    swingChochData.sort((a, b) => a.time - b.time)
+    if (!ind.smcSwingChoch) {
+      ind.smcSwingChoch = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 5, color: '#eab308', title: 'SwCHoCH' },
+        0,
+      )
+    }
+    ind.smcSwingChoch.setData(swingChochData)
+
+    const fvgTopData = []
+    const fvgBotData = []
+    for (const fz of smc.fvgZones) {
+      if (fz.mitigated) continue
+      fvgTopData.push({ time: times[fz.startIdx], value: fz.top, color: fz.bull ? '#ef4444' : '#22c55e' })
+      fvgBotData.push({ time: times[fz.startIdx], value: fz.bot, color: fz.bull ? '#ef4444' : '#22c55e' })
+    }
+    fvgTopData.sort((a, b) => a.time - b.time)
+    fvgBotData.sort((a, b) => a.time - b.time)
+    if (!ind.smcFvgTop) {
+      ind.smcFvgTop = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 3, color: '#ef4444', title: 'FVG上' },
+        0,
+      )
+    }
+    if (!ind.smcFvgBot) {
+      ind.smcFvgBot = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 3, color: '#22c55e', title: 'FVG下' },
+        0,
+      )
+    }
+    ind.smcFvgTop.setData(fvgTopData)
+    ind.smcFvgBot.setData(fvgBotData)
+
+    const obTopData = []
+    const obBotData = []
+    for (const ob of smc.orderBlocks) {
+      if (ob.mitigated) continue
+      obTopData.push({ time: times[ob.idx], value: ob.top, color: ob.bull ? '#ef4444' : '#22c55e' })
+      obBotData.push({ time: times[ob.idx], value: ob.bot, color: ob.bull ? '#ef4444' : '#22c55e' })
+    }
+    obTopData.sort((a, b) => a.time - b.time)
+    obBotData.sort((a, b) => a.time - b.time)
+    if (!ind.smcObTop) {
+      ind.smcObTop = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 4, color: '#ef4444', title: 'OB上' },
+        0,
+      )
+    }
+    if (!ind.smcObBot) {
+      ind.smcObBot = chart.addSeries(
+        LineSeries,
+        { ...lineCommon, lineWidth: 0, pointMarkersVisible: true, pointMarkersRadius: 4, color: '#22c55e', title: 'OB下' },
+        0,
+      )
+    }
+    ind.smcObTop.setData(obTopData)
+    ind.smcObBot.setData(obBotData)
+  } else {
+    ind.smcSwingHigh = removeSeriesSafe(ind.smcSwingHigh)
+    ind.smcSwingLow = removeSeriesSafe(ind.smcSwingLow)
+    ind.smcIntHigh = removeSeriesSafe(ind.smcIntHigh)
+    ind.smcIntLow = removeSeriesSafe(ind.smcIntLow)
+    ind.smcBos = removeSeriesSafe(ind.smcBos)
+    ind.smcChoch = removeSeriesSafe(ind.smcChoch)
+    ind.smcSwingBos = removeSeriesSafe(ind.smcSwingBos)
+    ind.smcSwingChoch = removeSeriesSafe(ind.smcSwingChoch)
+    ind.smcFvgTop = removeSeriesSafe(ind.smcFvgTop)
+    ind.smcFvgBot = removeSeriesSafe(ind.smcFvgBot)
+    ind.smcObTop = removeSeriesSafe(ind.smcObTop)
+    ind.smcObBot = removeSeriesSafe(ind.smcObBot)
   }
 
   syncSubPaneIndicators(times, closes, highs, lows, vols)
@@ -2400,6 +2585,18 @@ function disposeChart() {
   ind.satsLine = null
   ind.satsUpper = null
   ind.satsLower = null
+  ind.smcSwingHigh = null
+  ind.smcSwingLow = null
+  ind.smcIntHigh = null
+  ind.smcIntLow = null
+  ind.smcBos = null
+  ind.smcChoch = null
+  ind.smcSwingBos = null
+  ind.smcSwingChoch = null
+  ind.smcFvgTop = null
+  ind.smcFvgBot = null
+  ind.smcObTop = null
+  ind.smcObBot = null
 }
 
 function scheduleLoadOlderDebounced() {
@@ -2735,6 +2932,7 @@ const toggleUlcerIndex = makeToggle(showUlcerIndex, syncIndicators)
 const toggleCoppock = makeToggle(showCoppock, syncIndicators)
 const toggleTEMA = makeToggle(showTEMA, syncIndicators)
 const toggleSMI = makeToggle(showSMI, syncIndicators)
+const toggleSMC = makeToggle(showSMC, syncIndicators)
 let chipUpdateTimer = null
 
 function toggleChip() {
@@ -3081,6 +3279,12 @@ watch(showLongPosition, (newVal) => {
                     <NButton size="tiny" :type="showMassIndex ? 'primary' : 'default'" :secondary="!showMassIndex" @click="toggleMassIndex">Mass</NButton>
                   </template>
                   <span style="white-space: pre-line; text-align: left">{{ indicatorTips.massIndex }}</span>
+                </NTooltip>
+                <NTooltip :delay="500" placement="right-start">
+                  <template #trigger>
+                    <NButton size="tiny" :type="showSMC ? 'primary' : 'default'" :secondary="!showSMC" @click="toggleSMC">SMC</NButton>
+                  </template>
+                  <span style="white-space: pre-line; text-align: left">{{ indicatorTips.smc }}</span>
                 </NTooltip>
               </NFlex>
             </div>

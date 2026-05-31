@@ -1178,3 +1178,196 @@ export function smiValues(highs, lows, closes, kPeriod = 14, dPeriod = 3, emaPer
   const signalLine = emaFinite(smiLine.map(v => v == null ? NaN : v), dPeriod)
   return { smi: smiLine, signal: signalLine }
 }
+
+export function smcValues(highs, lows, closes, opens, internalLen = 5, swingLen = 50) {
+  const len = closes.length
+  const swingHighs = new Array(len).fill(null)
+  const swingLows = new Array(len).fill(null)
+  for (let i = swingLen; i < len - swingLen; i++) {
+    let isHigh = true
+    let isLow = true
+    for (let j = 1; j <= swingLen; j++) {
+      if (highs[i] <= highs[i - j] || highs[i] <= highs[i + j]) isHigh = false
+      if (lows[i] >= lows[i - j] || lows[i] >= lows[i + j]) isLow = false
+      if (!isHigh && !isLow) break
+    }
+    if (isHigh) swingHighs[i] = highs[i]
+    if (isLow) swingLows[i] = lows[i]
+  }
+  const intHighs = new Array(len).fill(null)
+  const intLows = new Array(len).fill(null)
+  for (let i = internalLen; i < len - internalLen; i++) {
+    let isHigh = true
+    let isLow = true
+    for (let j = 1; j <= internalLen; j++) {
+      if (highs[i] <= highs[i - j] || highs[i] <= highs[i + j]) isHigh = false
+      if (lows[i] >= lows[i - j] || lows[i] >= lows[i + j]) isLow = false
+      if (!isHigh && !isLow) break
+    }
+    if (isHigh) intHighs[i] = highs[i]
+    if (isLow) intLows[i] = lows[i]
+  }
+  const bosLines = []
+  const chochLines = []
+  let lastHighIdx = -1
+  let lastLowIdx = -1
+  let lastHighVal = -Infinity
+  let lastLowVal = Infinity
+  let trend = 0
+  for (let i = 0; i < len; i++) {
+    if (intHighs[i] != null) {
+      if (lastHighIdx >= 0 && intHighs[i] > lastHighVal) {
+        if (trend === -1) {
+          chochLines.push({ time: i, fromIdx: lastHighIdx, fromPrice: lastHighVal, toIdx: i, toPrice: intHighs[i], type: 'choch', bull: true })
+          trend = 1
+        } else if (trend === 1) {
+          bosLines.push({ time: i, fromIdx: lastHighIdx, fromPrice: lastHighVal, toIdx: i, toPrice: intHighs[i], type: 'bos', bull: true })
+        }
+        if (trend === 0) trend = 1
+      }
+      lastHighIdx = i
+      lastHighVal = intHighs[i]
+    }
+    if (intLows[i] != null) {
+      if (lastLowIdx >= 0 && intLows[i] < lastLowVal) {
+        if (trend === 1) {
+          chochLines.push({ time: i, fromIdx: lastLowIdx, fromPrice: lastLowVal, toIdx: i, toPrice: intLows[i], type: 'choch', bull: false })
+          trend = -1
+        } else if (trend === -1) {
+          bosLines.push({ time: i, fromIdx: lastLowIdx, fromPrice: lastLowVal, toIdx: i, toPrice: intLows[i], type: 'bos', bull: false })
+        }
+        if (trend === 0) trend = -1
+      }
+      lastLowIdx = i
+      lastLowVal = intLows[i]
+    }
+  }
+  const swingBosLines = []
+  const swingChochLines = []
+  let sLastHighIdx = -1
+  let sLastLowIdx = -1
+  let sLastHighVal = -Infinity
+  let sLastLowVal = Infinity
+  let sTrend = 0
+  for (let i = 0; i < len; i++) {
+    if (swingHighs[i] != null) {
+      if (sLastHighIdx >= 0 && swingHighs[i] > sLastHighVal) {
+        if (sTrend === -1) {
+          swingChochLines.push({ time: i, fromIdx: sLastHighIdx, fromPrice: sLastHighVal, toIdx: i, toPrice: swingHighs[i], type: 'choch', bull: true })
+          sTrend = 1
+        } else if (sTrend === 1) {
+          swingBosLines.push({ time: i, fromIdx: sLastHighIdx, fromPrice: sLastHighVal, toIdx: i, toPrice: swingHighs[i], type: 'bos', bull: true })
+        }
+        if (sTrend === 0) sTrend = 1
+      }
+      sLastHighIdx = i
+      sLastHighVal = swingHighs[i]
+    }
+    if (swingLows[i] != null) {
+      if (sLastLowIdx >= 0 && swingLows[i] < sLastLowVal) {
+        if (sTrend === 1) {
+          swingChochLines.push({ time: i, fromIdx: sLastLowIdx, fromPrice: sLastLowVal, toIdx: i, toPrice: swingLows[i], type: 'choch', bull: false })
+          sTrend = -1
+        } else if (sTrend === -1) {
+          swingBosLines.push({ time: i, fromIdx: sLastLowIdx, fromPrice: sLastLowVal, toIdx: i, toPrice: swingLows[i], type: 'bos', bull: false })
+        }
+        if (sTrend === 0) sTrend = -1
+      }
+      sLastLowIdx = i
+      sLastLowVal = swingLows[i]
+    }
+  }
+  const fvgZones = []
+  for (let i = 2; i < len; i++) {
+    const bullFvgTop = lows[i]
+    const bullFvgBot = highs[i - 2]
+    if (bullFvgTop > bullFvgBot) {
+      fvgZones.push({ startIdx: i - 2, endIdx: i, top: bullFvgTop, bot: bullFvgBot, bull: true, mitigated: false, mitigatedIdx: null })
+    }
+    const bearFvgBot = highs[i]
+    const bearFvgTop = lows[i - 2]
+    if (bearFvgBot < bearFvgTop) {
+      fvgZones.push({ startIdx: i - 2, endIdx: i, top: bearFvgTop, bot: bearFvgBot, bull: false, mitigated: false, mitigatedIdx: null })
+    }
+  }
+  for (let fi = 0; fi < fvgZones.length; fi++) {
+    const fz = fvgZones[fi]
+    for (let k = fz.endIdx + 1; k < len; k++) {
+      if (fz.bull && lows[k] <= fz.bot) {
+        fz.mitigated = true
+        fz.mitigatedIdx = k
+        break
+      }
+      if (!fz.bull && highs[k] >= fz.top) {
+        fz.mitigated = true
+        fz.mitigatedIdx = k
+        break
+      }
+    }
+  }
+  const atrArr = atrValues(highs, lows, closes, 14)
+  const orderBlocks = []
+  for (let i = 1; i < len; i++) {
+    const isBullOB = closes[i] > highs[i - 1] && closes[i - 1] < opens[i - 1]
+    const isBearOB = closes[i] < lows[i - 1] && closes[i - 1] > opens[i - 1]
+    if (isBullOB) {
+      const obTop = Math.max(opens[i - 1], closes[i - 1])
+      const obBot = lows[i - 1]
+      const atrVal = atrArr[i] != null ? atrArr[i] : 0
+      if (obTop - obBot <= 3 * atrVal || atrVal === 0) {
+        orderBlocks.push({ idx: i - 1, top: obTop, bot: obBot, bull: true, mitigated: false, mitigatedIdx: null })
+      }
+    }
+    if (isBearOB) {
+      const obTop = highs[i - 1]
+      const obBot = Math.min(opens[i - 1], closes[i - 1])
+      const atrVal = atrArr[i] != null ? atrArr[i] : 0
+      if (obTop - obBot <= 3 * atrVal || atrVal === 0) {
+        orderBlocks.push({ idx: i - 1, top: obTop, bot: obBot, bull: false, mitigated: false, mitigatedIdx: null })
+      }
+    }
+  }
+  for (let oi = 0; oi < orderBlocks.length; oi++) {
+    const ob = orderBlocks[oi]
+    for (let k = ob.idx + 2; k < len; k++) {
+      if (ob.bull && lows[k] <= ob.bot) {
+        ob.mitigated = true
+        ob.mitigatedIdx = k
+        break
+      }
+      if (!ob.bull && highs[k] >= ob.top) {
+        ob.mitigated = true
+        ob.mitigatedIdx = k
+        break
+      }
+    }
+  }
+  const swingHighPoints = []
+  const swingLowPoints = []
+  for (let i = 0; i < len; i++) {
+    if (swingHighs[i] != null) swingHighPoints.push({ idx: i, price: swingHighs[i] })
+    if (swingLows[i] != null) swingLowPoints.push({ idx: i, price: swingLows[i] })
+  }
+  const intHighPoints = []
+  const intLowPoints = []
+  for (let i = 0; i < len; i++) {
+    if (intHighs[i] != null) intHighPoints.push({ idx: i, price: intHighs[i] })
+    if (intLows[i] != null) intLowPoints.push({ idx: i, price: intLows[i] })
+  }
+  return {
+    swingHighs,
+    swingLows,
+    intHighs,
+    intLows,
+    bosLines,
+    chochLines,
+    swingBosLines,
+    swingChochLines,
+    fvgZones,
+    orderBlocks,
+    swingHighPoints,
+    swingLowPoints,
+    intHighPoints,
+    intLowPoints,
+  }
+}
