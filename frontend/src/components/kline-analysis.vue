@@ -32,6 +32,7 @@ function toEastMoneyCode(code) {
   if (lower.startsWith('bj')) return lower.slice(2) + '.BJ'
   if (lower.startsWith('hk')) return lower.slice(2).toUpperCase() + '.HK'
   if (/^\d+$/.test(c)) {
+
     const d = c[0]
     if (d === '6') return c + '.SH'
     if (d === '0' || d === '3') return c + '.SZ'
@@ -212,16 +213,22 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <n-modal v-model:show="showVipModal" :close-on-esc="false" :mask-closable="false" :z-index="9999">
-      <n-card style="max-width: 420px" :theme-overrides="darkTheme ? { color: '#1e1e1e', textColor: '#e2e8f0' } : {}" role="dialog" aria-modal="true">
-        <NFlex vertical align="center" :size="16">
-          <NText style="font-size: 28px">🔒</NText>
-          <NText :depth="darkTheme ? 1 : 3" style="font-size: 16px; font-weight: 700">K线技术分析需要 VIP2 及以上等级</NText>
-          <NText depth="3" style="font-size: 13px; text-align: center; line-height: 1.8">
-            K线技术分析功能仅限 VIP2 及以上赞助用户使用。<br/>
-            当前等级：<NText type="warning">VIP{{ vipLevel }}</NText><br/>
-            请前往「关于」页面了解赞助详情，升级后即可使用。
+    <n-modal v-model:show="showVipModal" :close-on-esc="true" :mask-closable="true" :z-index="9999">
+      <n-card style="max-width: 440px; border-radius: 16px; padding: 24px" :theme-overrides="darkTheme ? { color: '#1e1e1e', textColor: '#e2e8f0' } : {}" role="dialog" aria-modal="true">
+        <NFlex vertical align="center" :size="20">
+          <NText style="font-size: 40px">🌟</NText>
+          <NText :depth="darkTheme ? 1 : 3" style="font-size: 17px; font-weight: 700">K线技术分析 · VIP专属功能</NText>
+          <NText depth="3" style="font-size: 13px; text-align: center; line-height: 2">
+            K线技术分析为 <NText type="warning" style="font-weight:600">VIP2</NText> 及以上赞助用户专属功能<br/>
+            当前等级：<NText type="warning" style="font-weight:600">VIP{{ vipLevel }}</NText>
           </NText>
+          <NText depth="3" style="font-size: 12px; text-align: center; line-height: 2; color: #888">
+            开源不易，您的赞助是对作者最大的鼓励，也是项目持续迭代的动力 ❤️<br/>
+            前往「关于」页面了解赞助详情，升级后即可解锁完整功能。
+          </NText>
+          <NButton type="primary" size="large" round style="width: 200px; margin-top: 4px" @click="showVipModal = false">
+            我知道了
+          </NButton>
         </NFlex>
       </n-card>
     </n-modal>
