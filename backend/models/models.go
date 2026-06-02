@@ -1607,6 +1607,8 @@ type MCPServer struct {
 	Name        string    `json:"name" gorm:"size:255;not null"`
 	Description string    `json:"description" gorm:"size:500"`
 	URL         string    `json:"url" gorm:"size:500"`
+	Type        string    `json:"type" gorm:"size:20;default:streamable-http"`
+	Headers     string    `json:"headers" gorm:"type:text"`
 	Command     string    `json:"command" gorm:"size:500"`
 	Args        string    `json:"args" gorm:"type:text"`
 	Env         string    `json:"env" gorm:"type:text"`

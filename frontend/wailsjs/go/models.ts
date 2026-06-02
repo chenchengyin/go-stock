@@ -2355,6 +2355,8 @@ export namespace models {
 	    name: string;
 	    description: string;
 	    url: string;
+	    type: string;
+	    headers: string;
 	    command: string;
 	    args: string;
 	    env: string;
@@ -2374,6 +2376,8 @@ export namespace models {
 	        this.name = source["name"];
 	        this.description = source["description"];
 	        this.url = source["url"];
+	        this.type = source["type"];
+	        this.headers = source["headers"];
 	        this.command = source["command"];
 	        this.args = source["args"];
 	        this.env = source["env"];
