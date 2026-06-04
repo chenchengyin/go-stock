@@ -1797,6 +1797,16 @@ func (a *App) SendDingDingMessageByType(message string, stockCode string, msgTyp
 }
 
 func (a *App) NewChatStream(stock, stockCode, question string, aiConfigId int, sysPromptId *int, enableTools bool, think bool) {
+	defer func() {
+		if err := recover(); err != nil {
+			logger.SugaredLogger.Errorf("NewChatStream panic: %v", err)
+			runtime.EventsEmit(a.ctx, "newChatStream", map[string]any{
+				"code":    0,
+				"content": fmt.Sprintf("AI分析异常: %v", err),
+			})
+			runtime.EventsEmit(a.ctx, "newChatStream", "DONE")
+		}
+	}()
 	var msgs <-chan map[string]any
 	if enableTools {
 		msgs = data.NewDeepSeekOpenAi(a.ctx, aiConfigId).NewChatStream(stock, stockCode, question, sysPromptId, a.AiTools, think)

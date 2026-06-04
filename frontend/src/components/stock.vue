@@ -162,11 +162,13 @@ const data = reactive({
   airesult: "",
   openAiEnable: false,
   loading: true,
+  analysisStatus: "",
   enableDanmu: false,
   darkTheme: false,
   changePercent: 0
 })
 const feishiInterval = ref(null)
+const aiAnalysisTimeout = ref(null)
 
 
 const currentGroupId = ref(0)
@@ -394,10 +396,23 @@ onBeforeMount(() => {
 
   EventsOn("newChatStream", async (msg) => {
     if (msg === "DONE") {
+      // 清除超时定时器
+      if (aiAnalysisTimeout.value) {
+        clearTimeout(aiAnalysisTimeout.value)
+        aiAnalysisTimeout.value = null
+      }
       SaveAIResponseResult(data.code, data.name, data.airesult, data.chatId, data.question, data.aiConfigId)
-      message.info("AI分析完成！")
-      message.destroyAll()
       data.loading = false
+      data.analysisStatus = "分析完成"
+      message.destroyAll()
+      notify.success({
+        title: 'AI分析完成',
+        content: `[${data.name}] 分析已完成`,
+        duration: 3000,
+      })
+      setTimeout(() => {
+        data.analysisStatus = ""
+      }, 3000)
     } else {
       if (msg.chatId) {
         data.chatId = msg.chatId
@@ -406,6 +421,9 @@ onBeforeMount(() => {
         data.question = msg.question
       }
       if (msg.content || msg.reasoning_content || msg.extraContent) {
+        if (!data.airesult) {
+          data.analysisStatus = "AI正在分析中..."
+        }
         data.loading = false
       }
       if (msg.content) {
@@ -646,6 +664,11 @@ onBeforeUnmount(() => {
   message.destroyAll()
   notify.destroyAll()
   clearInterval(feishiInterval.value)
+  // 清理 AI 分析超时定时器
+  if (aiAnalysisTimeout.value) {
+    clearTimeout(aiAnalysisTimeout.value)
+    aiAnalysisTimeout.value = null
+  }
   // 清理多周期 K 线自动关闭定时器
   if (klineAutoCloseTimer.value) {
     clearTimeout(klineAutoCloseTimer.value)
@@ -1889,6 +1912,15 @@ function checkPriceLineAlerts(result) {
 }
 
 function aiReCheckStock(stock, stockCode) {
+  if (!data.aiConfigId) {
+    message.error("请先选择AI模型配置")
+    return
+  }
+  // 清除之前的超时定时器
+  if (aiAnalysisTimeout.value) {
+    clearTimeout(aiAnalysisTimeout.value)
+    aiAnalysisTimeout.value = null
+  }
   data.modelName = ""
   data.airesult = ""
   data.time = ""
@@ -1896,6 +1928,7 @@ function aiReCheckStock(stock, stockCode) {
   data.code = stockCode
   data.loading = true
   modalShow4.value = true
+  data.analysisStatus = "正在连接AI服务..."
   message.loading("ai检测中...", {
     duration: 0,
   })
@@ -1903,6 +1936,28 @@ function aiReCheckStock(stock, stockCode) {
 
   //message.info("sysPromptId:"+data.sysPromptId)
   NewChatStream(stock, stockCode, data.question, data.aiConfigId, data.sysPromptId, enableTools.value,thinkingMode.value)
+    .catch(err => {
+      data.loading = false
+      data.analysisStatus = ""
+      message.destroyAll()
+      const errMsg = err?.message || err || "未知错误"
+      message.error("AI分析请求失败: " + errMsg)
+      data.airesult = "❌ AI分析请求失败: " + errMsg
+    })
+
+  // 设置超时兜底（5分钟）
+  aiAnalysisTimeout.value = setTimeout(() => {
+    if (data.loading) {
+      data.loading = false
+      data.analysisStatus = ""
+      message.destroyAll()
+      message.error("AI分析超时，请检查网络连接或AI服务配置")
+      if (!data.airesult) {
+        data.airesult = "❌ AI分析超时，请检查网络连接或AI服务配置是否正确。"
+      }
+    }
+    aiAnalysisTimeout.value = null
+  }, 5 * 60 * 1000)
 }
 
 function aiCheckStock(stock, stockCode) {
@@ -2746,7 +2801,7 @@ watch(modalShow6, (newVal) => {
 
   <n-modal transform-origin="center" v-model:show="modalShow4" preset="card" style="width: 800px;max-width: calc(100vw - 32px);"
            :title="'['+data.name+']AI分析'">
-    <n-spin size="small" :show="data.loading">
+    <n-spin size="small" :show="data.loading && !data.airesult">
       <MdEditor v-if="enableEditor" :toolbars="toolbars" ref="mdEditorRef" style="height: 440px;max-height: 60vh;text-align: left"
                 :modelValue="data.airesult" :theme="theme">
         <template #defToolbars>
@@ -2766,6 +2821,7 @@ watch(modalShow6, (newVal) => {
           </n-tag>
           {{ data.time }}
         </n-text>
+        <n-text type="success" v-if="data.analysisStatus">{{ data.analysisStatus }}</n-text>
         <n-text type="error">*AI分析结果仅供参考，请以实际行情为准。投资需谨慎，风险自担。</n-text>
       </n-flex>
     </template>
