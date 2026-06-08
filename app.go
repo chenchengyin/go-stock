@@ -775,6 +775,20 @@ func (a *App) domReady(ctx context.Context) {
 			a.setCronEntry("FetchAndSaveMarketStatistic", idMarketStat)
 		}
 	}()
+	// 板块资金流向数据采集（交易日每60秒）
+	go func() {
+		data.NewBKFundFlowApi().FetchAndSave()
+		idBKFundFlow, err := a.cron.AddFunc("@every 60s", func() {
+			if a.IsTradingTime() {
+				data.NewBKFundFlowApi().FetchAndSave()
+			}
+		})
+		if err != nil {
+			logger.SugaredLogger.Errorf("AddFunc BKFundFlowFetchAndSave error:%s", err.Error())
+		} else {
+			a.setCronEntry("BKFundFlowFetchAndSave", idBKFundFlow)
+		}
+	}()
 	//检查新版本
 	go func() {
 		a.CheckUpdate(0)
@@ -2416,6 +2430,16 @@ func (a *App) GetStockMoneyTrendByDay(stockCode string, days int) []map[string]a
 	res := data.NewMarketNewsApi().GetStockMoneyTrendByDay(stockCode, days)
 	slice.Reverse(res)
 	return res
+}
+
+// GetBKFundFlowListByDate 获取某个板块指定日期的资金流向历史数据
+func (a *App) GetBKFundFlowListByDate(code string, date string) []models.BKFundFlowPoint {
+	return data.NewBKFundFlowApi().GetBKFundFlowListByDate(code, date)
+}
+
+// GetBKFundFlowTopListByDate 获取指定日期最新快照的板块资金排名
+func (a *App) GetBKFundFlowTopListByDate(date string, topN int) []models.BKFundFlow {
+	return data.NewBKFundFlowApi().GetBKFundFlowTopListByDate(date, topN)
 }
 
 // OpenURL
