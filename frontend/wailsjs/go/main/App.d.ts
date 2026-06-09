@@ -110,6 +110,8 @@ export function GetAiConfigs():Promise<Array<data.AIConfig>>;
 
 export function GetAiRecommendStocksList(arg1:models.AiRecommendStocksQuery):Promise<models.AiRecommendStocksPageData>;
 
+export function GetAllBKCodes():Promise<Array<Record<string, string>>>;
+
 export function GetAllConcepts():Promise<Array<string>>;
 
 export function GetAllCustomStrategies():Promise<any>;
@@ -130,7 +132,11 @@ export function GetAllStockInfoList(arg1:data.AllStockInfoQuery):Promise<data.Al
 
 export function GetAllStocks(arg1:number,arg2:number,arg3:string,arg4:models.TechnicalIndicators):Promise<models.AllStocksResp>;
 
+export function GetBKFundFlowList(arg1:string,arg2:number):Promise<Array<models.BKFundFlowPoint>>;
+
 export function GetBKFundFlowListByDate(arg1:string,arg2:string):Promise<Array<models.BKFundFlowPoint>>;
+
+export function GetBKFundFlowTopList(arg1:number):Promise<Array<models.BKFundFlow>>;
 
 export function GetBKFundFlowTopListByDate(arg1:string,arg2:number):Promise<Array<models.BKFundFlow>>;
 

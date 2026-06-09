@@ -2432,16 +2432,6 @@ func (a *App) GetStockMoneyTrendByDay(stockCode string, days int) []map[string]a
 	return res
 }
 
-// GetBKFundFlowListByDate 获取某个板块指定日期的资金流向历史数据
-func (a *App) GetBKFundFlowListByDate(code string, date string) []models.BKFundFlowPoint {
-	return data.NewBKFundFlowApi().GetBKFundFlowListByDate(code, date)
-}
-
-// GetBKFundFlowTopListByDate 获取指定日期最新快照的板块资金排名
-func (a *App) GetBKFundFlowTopListByDate(date string, topN int) []models.BKFundFlow {
-	return data.NewBKFundFlowApi().GetBKFundFlowTopListByDate(date, topN)
-}
-
 // OpenURL
 //
 //	@Description:  跨平台打开默认浏览器

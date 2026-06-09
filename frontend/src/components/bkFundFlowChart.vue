@@ -1,6 +1,6 @@
-<script setup>
+<script setup lang="ts">
 import {onBeforeUnmount, onMounted, ref, watch, computed} from "vue";
-import {GetBKFundFlowListByDate, GetBKFundFlowTopListByDate} from "../../wailsjs/go/main/App";
+import {GetBKFundFlowListByDate, GetBKFundFlowTopListByDate, GetAllBKCodes} from "../../wailsjs/go/main/App";
 import * as echarts from "echarts";
 
 const props = defineProps({
@@ -15,10 +15,25 @@ const props = defineProps({
 })
 
 const chartRef = ref(null)
-const topList = ref([])
+const topList = ref<any[]>([])
 const loading = ref(false)
-const refreshInterval = ref(null)
-let chart = null
+const refreshInterval = ref<any>(null)
+let chart: echarts.ECharts | null = null
+
+// 临时添加的板块
+const extraSectors = ref<any[]>([])
+const addCodeInput = ref('')
+const allBKCodes = ref<any[]>([])
+const addCodeOptions = computed(() => {
+  const existCodes = new Set([
+    ...inflowList.value.map((i: any) => i.code),
+    ...outflowList.value.map((i: any) => i.code),
+    ...extraSectors.value.map((i: any) => i.code)
+  ])
+  return allBKCodes.value
+    .filter((i: any) => !existCodes.has(i.code))
+    .map((i: any) => ({label: `${i.name} (${i.code})`, value: i.code, name: i.name}))
+})
 
 // 默认当天日期，格式 YYYY-MM-DD
 const today = new Date()
@@ -31,12 +46,16 @@ const selectedDate = ref(todayStr)
 const isToday = computed(() => selectedDate.value === todayStr)
 
 // 流入前20
-const inflowList = computed(() => topList.value.filter((item) => item.netInflow > 0).slice(0, 20))
+const inflowList = computed(() => topList.value.filter((item: any) => item.netInflow > 0).slice(0, 20))
 // 流出前20
-const outflowList = computed(() => topList.value.filter((item) => item.netInflow < 0).slice(-20).reverse())
+const outflowList = computed(() => topList.value.filter((item: any) => item.netInflow < 0).slice(-20).reverse())
 
 onMounted(async () => {
   try {
+    // 加载所有板块代码（供临时添加使用）
+    const codes = await GetAllBKCodes()
+    if (codes && Array.isArray(codes)) allBKCodes.value = codes
+
     await loadAllData()
     // 交易时间每分钟刷新（仅当天）
     refreshInterval.value = setInterval(async () => {
@@ -58,7 +77,7 @@ onBeforeUnmount(() => {
   }
 })
 
-function isTradingTime() {
+function isTradingTime(): boolean {
   const now = new Date()
   const h = now.getHours()
   const m = now.getMinutes()
@@ -68,7 +87,7 @@ function isTradingTime() {
 }
 
 // 流入前20用红色系，流出前20用绿色系
-function getSeriesColor(index, isInflow) {
+function getSeriesColor(index: number, isInflow: boolean): string {
   const redShades = [
     '#ee6666', '#d14a61', '#fc8452', '#e8534e', '#c23531',
     '#f4755e', '#d4816a', '#e76f51', '#ef6c4a', '#d9534f',
@@ -85,7 +104,7 @@ function getSeriesColor(index, isInflow) {
 }
 
 // 日期禁用：不能选未来日期
-function isDateDisabled(ts) {
+function isDateDisabled(ts: number): boolean {
   return ts > Date.now()
 }
 
@@ -102,17 +121,17 @@ async function loadAllData() {
     topList.value = res
 
     // 流入前20 和 流出前20
-    const inflowTop = res.filter((item) => item.netInflow > 0).slice(0, 20)
-    const outflowTop = res.filter((item) => item.netInflow < 0).slice(-20).reverse()
-    const sectors = [...inflowTop, ...outflowTop]
+    const inflowTop = res.filter((item: any) => item.netInflow > 0).slice(0, 20)
+    const outflowTop = res.filter((item: any) => item.netInflow < 0).slice(-20).reverse()
+    const sectors = [...inflowTop, ...outflowTop, ...extraSectors.value]
 
     const allData = await Promise.all(
-      sectors.map(async (item) => {
+      sectors.map(async (item: any) => {
         const points = await GetBKFundFlowListByDate(item.code, date)
         return {
           code: item.code,
           name: item.name,
-          isInflow: item.netInflow > 0,
+          isInflow: item.isInflow !== undefined ? item.isInflow : item.netInflow > 0,
           points: points || []
         }
       })
@@ -126,11 +145,11 @@ async function loadAllData() {
   }
 }
 
-function renderChart(allData) {
+function renderChart(allData: { code: string; name: string; isInflow: boolean; points: any[] }[]) {
   if (!allData || allData.length === 0) return
 
   // 收集所有时间点，去重并排序
-  const timeSet = new Set()
+  const timeSet = new Set<string>()
   for (const sector of allData) {
     for (const pt of sector.points) {
       const t = extractTime(pt.snapTime)
@@ -144,17 +163,17 @@ function renderChart(allData) {
   let outflowIdx = 0
 
   // 构建每个板块的 series 数据，对齐到统一时间轴
-  const seriesList = []
+  const seriesList: any[] = []
   for (let i = 0; i < allData.length; i++) {
     const sector = allData[i]
-    const dataMap = new Map()
+    const dataMap = new Map<string, number>()
     for (const pt of sector.points) {
       const t = extractTime(pt.snapTime)
       if (t) dataMap.set(t, pt.netInflow || 0)
     }
 
     // 对齐到统一时间轴，缺失的时间点用 null
-    const values = times.map(t => dataMap.has(t) ? dataMap.get(t) : null)
+    const values = times.map(t => dataMap.has(t) ? dataMap.get(t)! : null)
 
     const color = getSeriesColor(sector.isInflow ? inflowIdx++ : outflowIdx++, sector.isInflow)
 
@@ -191,7 +210,7 @@ function renderChart(allData) {
   const bgColor = props.darkTheme ? '#1a1a2e' : '#fff'
   const dateLabel = selectedDate.value
 
-  const option = {
+  const option: echarts.EChartsOption = {
     backgroundColor: bgColor,
     title: {
       text: `${dateLabel} 板块资金流向 - 多板块对比`,
@@ -206,14 +225,14 @@ function renderChart(allData) {
       backgroundColor: props.darkTheme ? 'rgba(30,30,60,0.9)' : 'rgba(255,255,255,0.95)',
       padding: 10,
       textStyle: {color: props.darkTheme ? '#ccc' : '#333', fontSize: 12},
-      formatter: (params) => {
+      formatter: (params: any) => {
         if (!Array.isArray(params)) return ''
-        const inflowItems = params.filter((p) => p.value != null && p.value > 0)
-          .sort((a, b) => (b.value || 0) - (a.value || 0))
-        const outflowItems = params.filter((p) => p.value != null && p.value < 0)
-          .sort((a, b) => (a.value || 0) - (b.value || 0))
+        const inflowItems = params.filter((p: any) => p.value != null && p.value > 0)
+          .sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
+        const outflowItems = params.filter((p: any) => p.value != null && p.value < 0)
+          .sort((a: any, b: any) => (a.value || 0) - (b.value || 0))
 
-        const renderList = (items) => items.map((p) => {
+        const renderList = (items: any[]) => items.map((p: any) => {
           const val = (p.value / 100000000).toFixed(2)
           const sign = p.value > 0 ? '+' : ''
           return `${p.marker} ${p.seriesName} <b>${sign}${val}</b>`
@@ -227,11 +246,23 @@ function renderChart(allData) {
         return html
       }
     },
+    legend: {
+      type: 'plain',
+      left: 0,
+      top: 30,
+      orient: 'horizontal',
+      align: 'left',
+      itemWidth: 14,
+      itemHeight: 10,
+      itemGap: 8,
+      textStyle: {color: textColor, fontSize: 11},
+      icon: 'roundRect'
+    },
     grid: {
       left: '8%',
       right: '12%',
-      top: 80,
-      height: '58%'
+      top: 120,
+      height: '52%'
     },
     xAxis: {
       type: 'category',
@@ -256,7 +287,7 @@ function renderChart(allData) {
       axisLabel: {
         color: textColor,
         fontSize: 11,
-        formatter: (v) => (v / 100000000).toFixed(2)
+        formatter: (v: number) => (v / 100000000).toFixed(2)
       }
     },
     series: seriesList,
@@ -264,7 +295,7 @@ function renderChart(allData) {
       {
         type: 'inside',
         xAxisIndex: [0],
-        start: Math.max(0, 100 - Math.min(100, 120 / times.length * 100)),
+        start: 0,
         end: 100
       },
       {
@@ -272,7 +303,7 @@ function renderChart(allData) {
         xAxisIndex: [0],
         type: 'slider',
         top: '88%',
-        start: Math.max(0, 100 - Math.min(100, 120 / times.length * 100)),
+        start: 0,
         end: 100,
         borderColor: props.darkTheme ? '#444' : '#ccc',
         fillerColor: props.darkTheme ? 'rgba(100,100,200,0.2)' : 'rgba(100,100,200,0.15)',
@@ -286,10 +317,36 @@ function renderChart(allData) {
   chart.resize()
 }
 
-function extractTime(snapTime) {
+function extractTime(snapTime: string): string {
   if (!snapTime || typeof snapTime !== 'string') return ''
   if (snapTime.length >= 16) return snapTime.substring(11, 16)
   return String(snapTime)
+}
+
+function addExtraSector(code: string) {
+  if (!code) return
+  const found = allBKCodes.value.find((i: any) => i.code === code)
+  if (!found) return
+  // 避免重复
+  if (extraSectors.value.some((i: any) => i.code === code)) return
+  // 只排除已显示在图上的（流入前20+流出前20）
+  const displayCodes = new Set([
+    ...inflowList.value.map((i: any) => i.code),
+    ...outflowList.value.map((i: any) => i.code)
+  ])
+  if (displayCodes.has(code)) {
+    // 已在图中显示，无需重复添加
+    addCodeInput.value = ''
+    return
+  }
+  extraSectors.value.push({code: found.code, name: found.name, netInflow: 0, isInflow: true})
+  addCodeInput.value = ''
+  loadAllData()
+}
+
+function removeExtraSector(code: string) {
+  extraSectors.value = extraSectors.value.filter((i: any) => i.code !== code)
+  loadAllData()
 }
 
 function onDateChange() {
@@ -322,6 +379,24 @@ watch(() => props.chartHeight, () => {
       <n-button size="small" :loading="loading" @click="loadAllData">
         刷新
       </n-button>
+      <n-select
+          v-model:value="addCodeInput"
+          :options="addCodeOptions"
+          filterable
+          placeholder="添加板块"
+          style="width: 180px"
+          @update:value="addExtraSector"
+      />
+      <n-tag
+          v-for="item in extraSectors"
+          :key="item.code"
+          closable
+          size="small"
+          type="warning"
+          @close="removeExtraSector(item.code)"
+      >
+        {{ item.name }}
+      </n-tag>
       <n-text v-if="isToday" :depth="3" style="font-size: 12px; margin-left: auto;">
         交易时间自动每分钟刷新 (9:30-15:00)
       </n-text>
