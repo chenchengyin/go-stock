@@ -13,10 +13,12 @@ class RadarPage extends StatelessWidget {
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: const Text('交易雷达'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: vm.load,
-          child: const Icon(CupertinoIcons.refresh, size: 22),
+        trailing: GestureDetector(
+          onTap: vm.load,
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Icon(CupertinoIcons.refresh, size: 20),
+          ),
         ),
       ),
       child: _buildBody(vm),
@@ -24,34 +26,18 @@ class RadarPage extends StatelessWidget {
   }
 
   Widget _buildBody(RadarViewModel vm) {
-    return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          // 监控摘要
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: _AlertSummary(stocks: vm.stocks.length),
-            ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      children: [
+        _AlertSummary(stocks: vm.stocks.length),
+        const _SectionHeader(title: '持仓 / 特别关注'),
+        ...vm.stocks.map(
+          (stock) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _StockCard(stock: stock),
           ),
-          // 标题
-          const SliverToBoxAdapter(
-            child: _SectionHeader(title: '持仓 / 特别关注'),
-          ),
-          // 股票列表
-          SliverList.builder(
-            itemCount: vm.stocks.length,
-            itemBuilder: (context, index) {
-              final stock = vm.stocks[index];
-              final isUp = stock.changePercent >= 0;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: _StockCard(stock: stock, isUp: isUp),
-              );
-            },
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -63,7 +49,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
       child: Text(
         title,
         style: const TextStyle(
@@ -86,13 +72,35 @@ class _AlertSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: CupertinoColors.systemGrey5,
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xffe53935).withValues(alpha: 0.08),
+            CupertinoColors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(CupertinoIcons.bell_solid, size: 28,
-              color: CupertinoColors.systemRed),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xffe53935).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(CupertinoIcons.bell_solid,
+                size: 20, color: Color(0xffe53935)),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -101,8 +109,8 @@ class _AlertSummary extends StatelessWidget {
                 const Text('高频异动盯盘已开启',
                     style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 15)),
-                const SizedBox(height: 4),
-                Text('正在监控 $stocks 只股票的价格波动、成交量异动、跳水与急拉。',
+                const SizedBox(height: 2),
+                Text('正在监控 $stocks 只股票',
                     style: const TextStyle(
                         fontSize: 13,
                         color: CupertinoColors.systemGrey)),
@@ -116,69 +124,81 @@ class _AlertSummary extends StatelessWidget {
 }
 
 class _StockCard extends StatelessWidget {
-  const _StockCard({required this.stock, required this.isUp});
+  const _StockCard({required this.stock});
   final WatchStock stock;
-  final bool isUp;
 
   @override
   Widget build(BuildContext context) {
+    final isUp = stock.changePercent >= 0;
+    final changeColor = isUp
+        ? const Color(0xffe53935)
+        : const Color(0xff0d904f);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: CupertinoColors.systemGrey5),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${stock.name} ${stock.symbol}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      stock.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      stock.symbol,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: CupertinoColors.systemGrey),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  '现价 ${stock.price.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
               Text(
                 '${isUp ? '+' : ''}${stock.changePercent.toStringAsFixed(2)}%',
                 style: TextStyle(
-                  color: isUp
-                      ? CupertinoColors.systemRed
-                      : CupertinoColors.systemGreen,
+                  color: changeColor,
                   fontWeight: FontWeight.w700,
-                  fontSize: 16,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '量比 ${stock.volumeRatio.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: CupertinoColors.systemGrey,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-              '现价 ${stock.price.toStringAsFixed(2)}  量比 ${stock.volumeRatio.toStringAsFixed(2)}'),
-          if (stock.alerts.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: stock.alerts
-                  .map(
-                    (rule) => Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.systemGrey5,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${rule.type.label} ${rule.windowSeconds}s / ${rule.thresholdPercent}%',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
         ],
       ),
     );

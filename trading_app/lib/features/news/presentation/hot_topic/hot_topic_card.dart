@@ -1,4 +1,4 @@
-/// 热门话题卡片 — Cupertino 风格
+/// 热门话题卡片 — 简洁卡片风格
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -13,43 +13,36 @@ class HotTopicCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: CupertinoColors.systemGrey5),
-      ),
-      child: CupertinoButton(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        pressedOpacity: 0.7,
-        onPressed: onTap,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: CupertinoColors.white,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: CupertinoColors.systemGrey4.withValues(alpha: 0.3),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 左侧头像/图片
-            if (item.squareImg != null && item.squareImg!.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Image.network(
-                  item.squareImg!,
-                  width: 60,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (_, child, progress) =>
-                      progress == null ? child : _buildPlaceholder(),
-                  errorBuilder: (_, __, ___) => _buildPlaceholder(),
-                ),
-              )
-            else
-              _buildPlaceholder(),
-            const SizedBox(width: 10),
+            // 左侧图片
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _buildImage(),
+            ),
+            const SizedBox(width: 12),
             // 右侧内容
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 标题
                   Text(
                     item.nickname,
                     style: const TextStyle(
@@ -62,7 +55,6 @@ class HotTopicCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  // 描述
                   Text(
                     item.desc,
                     style: const TextStyle(
@@ -73,25 +65,26 @@ class HotTopicCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
-                  // 底部：讨论数 + 浏览量 + 股票标签
+                  const SizedBox(height: 8),
                   Row(
                     children: [
-                      _buildBadge(CupertinoIcons.chat_bubble_2,
-                          _formatNum(item.postNumber),
-                          CupertinoColors.systemOrange),
-                      const SizedBox(width: 8),
-                      _buildBadge(CupertinoIcons.eye,
-                          _formatNum(item.clickNumber),
-                          CupertinoColors.systemOrange),
+                      _Badge(
+                        icon: CupertinoIcons.chat_bubble_2,
+                        text: _formatNum(item.postNumber),
+                      ),
+                      const SizedBox(width: 12),
+                      _Badge(
+                        icon: CupertinoIcons.eye,
+                        text: _formatNum(item.clickNumber),
+                      ),
                       const Spacer(),
                       if (item.stockList.isNotEmpty)
                         Flexible(
                           child: Text(
                             item.stockList.take(3).join(' '),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 10,
-                              color: CupertinoColors.systemBlue,
+                              color: CupertinoColors.systemGrey,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -100,27 +93,12 @@ class HotTopicCard extends StatelessWidget {
                     ],
                   ),
                   if (item.stockList.length > 3) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 4,
-                      runSpacing: 2,
+                      runSpacing: 4,
                       children: item.stockList.take(6).map((s) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: CupertinoColors.systemBlue
-                                .withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            s,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: CupertinoColors.systemBlue,
-                            ),
-                          ),
-                        );
+                        return _StockPill(text: s);
                       }).toList(),
                     ),
                   ],
@@ -133,33 +111,34 @@ class HotTopicCard extends StatelessWidget {
     );
   }
 
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: CupertinoColors.systemGrey5,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Icon(CupertinoIcons.doc_text,
-          size: 28, color: CupertinoColors.systemGrey4),
-    );
+  Widget _buildImage() {
+    if (item.squareImg != null && item.squareImg!.isNotEmpty) {
+      return Image.network(
+        item.squareImg!,
+        width: 68,
+        height: 68,
+        fit: BoxFit.cover,
+        loadingBuilder: (_, child, progress) =>
+            progress == null ? child : _placeholder(),
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+    return _placeholder();
   }
 
-  Widget _buildBadge(IconData icon, String text, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 2),
-        Text(
-          text,
-          style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.w500),
-        ),
-      ],
+  Widget _placeholder() {
+    return Container(
+      width: 68,
+      height: 68,
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemGrey6,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        CupertinoIcons.doc_text,
+        size: 28,
+        color: CupertinoColors.systemGrey4,
+      ),
     );
   }
 
@@ -168,5 +147,54 @@ class HotTopicCard extends StatelessWidget {
       return '${(num / 10000).toStringAsFixed(num >= 100000 ? 0 : 1)}万';
     }
     return num.toString();
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: CupertinoColors.systemGrey),
+        const SizedBox(width: 3),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            color: CupertinoColors.systemGrey,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StockPill extends StatelessWidget {
+  const _StockPill({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xffe53935).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 10,
+          color: Color(0xffe53935),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 }

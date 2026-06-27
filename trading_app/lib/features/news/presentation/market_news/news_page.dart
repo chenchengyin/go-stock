@@ -1,4 +1,4 @@
-/// 市场快讯页面 — Cupertino 风格 Tab 切换
+/// 市场快讯页面 — 可滚动 Tab 栏 + 卡片列表
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -44,21 +44,17 @@ class _NewsPageState extends State<NewsPage> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<NewsViewModel>();
-    final tabs = [
-      '重要 (${vm.importantNews.length})',
-      '热门话题 (${vm.hotTopics.length})',
-      '财联社 (${vm.cailianpressNews.length})',
-      '新浪 (${vm.sinaNews.length})',
-      '外媒 (${vm.foreignNews.length})',
-    ];
+    final tabs = ['重要', '热门话题', '财联社', '新浪', '外媒'];
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         middle: const Text('市场快讯'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _onRefresh,
-          child: const Icon(CupertinoIcons.refresh, size: 22),
+        trailing: GestureDetector(
+          onTap: _onRefresh,
+          child: const Padding(
+            padding: EdgeInsets.all(8),
+            child: Icon(CupertinoIcons.refresh, size: 20),
+          ),
         ),
       ),
       child: _buildBody(vm, tabs),
@@ -90,35 +86,54 @@ class _NewsPageState extends State<NewsPage> {
       );
     }
 
-    return SafeArea(
-      child: Column(
-        children: [
-          // iOS 风格分段选择器
-          _buildSegmentedControl(tabs),
-          // 内容
-          Expanded(
-            child: _buildTabContent(vm, _selectedTab),
-          ),
-        ],
-      ),
+    return Column(
+      children: [
+        _buildTabBar(tabs),
+        Expanded(child: _buildTabContent(vm, _selectedTab)),
+      ],
     );
   }
 
-  Widget _buildSegmentedControl(List<String> tabs) {
-    return SizedBox(
-      width: double.infinity,
-      child: CupertinoSegmentedControl<int>(
-        groupValue: _selectedTab,
-        selectedColor: CupertinoColors.systemRed,
-        unselectedColor: CupertinoColors.systemGrey5,
-        onValueChanged: (v) => setState(() => _selectedTab = v),
-        children: {
-          for (var i = 0; i < tabs.length; i++)
-            i: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Text(tabs[i], style: const TextStyle(fontSize: 12)),
-            ),
-        },
+  Widget _buildTabBar(List<String> tabs) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        border: Border(
+          bottom: BorderSide(color: CupertinoColors.systemGrey5.withValues(alpha: 0.5)),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: List.generate(tabs.length, (i) {
+            final isSelected = i == _selectedTab;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedTab = i),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xffe53935)
+                      : CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  tabs[i],
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected
+                        ? CupertinoColors.white
+                        : CupertinoColors.black,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -149,7 +164,7 @@ class _NewsPageState extends State<NewsPage> {
     }
     return CupertinoScrollbar(
       child: ListView.builder(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.only(top: 8, bottom: 16),
         itemCount: items.length,
         itemBuilder: (_, i) => NewsCard(item: items[i]),
       ),
@@ -165,7 +180,7 @@ class _NewsPageState extends State<NewsPage> {
     }
     return CupertinoScrollbar(
       child: ListView.builder(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.only(top: 8, bottom: 16),
         itemCount: items.length,
         itemBuilder: (_, i) => HotTopicCard(
           item: items[i],

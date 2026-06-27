@@ -32,75 +32,74 @@ class _ProfilePageState extends State<ProfilePage> {
       navigationBar: const CupertinoNavigationBar(
         middle: Text('我的'),
       ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          children: [
-            if (auth.isLoggedIn)
-              _ProfileCard(auth: auth, nicknameController: _nicknameController)
-            else
-              _AuthCard(
-                isRegister: _isRegister,
-                phoneController: _phoneController,
-                passwordController: _passwordController,
-                nicknameController: _nicknameController,
-                isLoading: auth.state.isLoading,
-                errorMessage: auth.state.status == ViewStatus.error
-                    ? auth.state.message
-                    : '',
-                onToggleMode: () =>
-                    setState(() => _isRegister = !_isRegister),
-                onSubmit: () {
-                  if (_isRegister) {
-                    auth.register(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        children: [
+          if (auth.isLoggedIn)
+            _ProfileCard(auth: auth, nicknameController: _nicknameController)
+          else
+            _AuthCard(
+              isRegister: _isRegister,
+              phoneController: _phoneController,
+              passwordController: _passwordController,
+              nicknameController: _nicknameController,
+              isLoading: auth.state.isLoading,
+              errorMessage: auth.state.status == ViewStatus.error
+                  ? auth.state.message
+                  : '',
+              onToggleMode: () =>
+                  setState(() => _isRegister = !_isRegister),
+              onSubmit: () {
+                if (_isRegister) {
+                  auth.register(
+                    phone: _phoneController.text,
+                    password: _passwordController.text,
+                    nickname: _nicknameController.text,
+                  );
+                } else {
+                  auth.login(
                       phone: _phoneController.text,
-                      password: _passwordController.text,
-                      nickname: _nicknameController.text,
-                    );
-                  } else {
-                    auth.login(
-                        phone: _phoneController.text,
-                        password: _passwordController.text);
-                  }
-                },
-              ),
-            const SizedBox(height: 12),
-            // 设置列表
-            Container(
-              decoration: BoxDecoration(
-                color: CupertinoColors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: CupertinoColors.systemGrey5),
-              ),
-              child: Column(
-                children: [
-                  _SettingsRow(
-                    icon: CupertinoIcons.bell,
-                    title: '推送设置',
-                    subtitle: '环信/厂商推送适配预留',
-                  ),
-                  CupertinoTheme(
-                    data: const CupertinoThemeData(brightness: Brightness.light),
-                    child: Container(height: 1,
-                        color: CupertinoColors.systemGrey5),
-                  ),
-                  _SettingsRow(
-                    icon: CupertinoIcons.tray_full,
-                    title: '本地缓存',
-                    subtitle: '登录态、自选股、资讯、热榜、通知历史',
-                  ),
-                  Container(height: 1,
-                      color: CupertinoColors.systemGrey5),
-                  _SettingsRow(
-                    icon: CupertinoIcons.settings,
-                    title: '系统设置',
-                    subtitle: '主题、弱网策略、数据刷新频率',
-                  ),
-                ],
-              ),
+                      password: _passwordController.text);
+                }
+              },
             ),
-          ],
-        ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: CupertinoColors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Column(
+              children: [
+                _SettingsRow(
+                  icon: CupertinoIcons.bell,
+                  title: '推送设置',
+                  subtitle: '环信/厂商推送适配预留',
+                  showDivider: true,
+                ),
+                _SettingsRow(
+                  icon: CupertinoIcons.tray_full,
+                  title: '本地缓存',
+                  subtitle: '登录态、自选股、资讯、热榜、通知历史',
+                  showDivider: true,
+                ),
+                _SettingsRow(
+                  icon: CupertinoIcons.settings,
+                  title: '系统设置',
+                  subtitle: '主题、弱网策略、数据刷新频率',
+                  showDivider: false,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -111,39 +110,51 @@ class _SettingsRow extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.showDivider,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Icon(icon, size: 24, color: CupertinoColors.systemGrey),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 15)),
-                const SizedBox(height: 2),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        color: CupertinoColors.systemGrey)),
-              ],
-            ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: CupertinoColors.systemGrey),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: CupertinoColors.systemGrey)),
+                  ],
+                ),
+              ),
+              const Icon(CupertinoIcons.chevron_right,
+                  size: 16, color: CupertinoColors.systemGrey3),
+            ],
           ),
-          const Icon(CupertinoIcons.chevron_right,
-              size: 16, color: CupertinoColors.systemGrey3),
-        ],
-      ),
+        ),
+        if (showDivider)
+          Container(
+            margin: const EdgeInsets.only(left: 14, right: 14),
+            height: 0.5,
+            color: CupertinoColors.systemGrey5,
+          ),
+      ],
     );
   }
 }
@@ -176,7 +187,13 @@ class _AuthCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: CupertinoColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: CupertinoColors.systemGrey5),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -262,7 +279,13 @@ class _ProfileCardState extends State<_ProfileCard> {
       decoration: BoxDecoration(
         color: CupertinoColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: CupertinoColors.systemGrey5),
+        boxShadow: [
+          BoxShadow(
+            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,10 +317,17 @@ class _ProfileCardState extends State<_ProfileCard> {
                   ],
                 ),
               ),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                onPressed: widget.auth.logout,
-                child: const Text('退出'),
+              GestureDetector(
+                onTap: widget.auth.logout,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Text('退出',
+                      style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                ),
               ),
             ],
           ),
