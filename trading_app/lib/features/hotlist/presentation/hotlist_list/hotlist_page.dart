@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
-import '../view_models/hotlist_view_model.dart';
+import 'hotlist_view_model.dart';
 
 class HotlistPage extends StatelessWidget {
   const HotlistPage({super.key});

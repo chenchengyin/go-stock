@@ -4,7 +4,7 @@ library;
 import 'package:flutter/cupertino.dart';
 
 import '../../features/news/domain/news_models.dart';
-import '../../features/news/presentation/pages/news_detail_page.dart';
+import '../../features/news/presentation/news_detail/news_detail_page.dart';
 
 class NewsCard extends StatelessWidget {
   const NewsCard({super.key, required this.item});

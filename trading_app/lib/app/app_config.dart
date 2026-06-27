@@ -7,14 +7,14 @@ import 'package:flutter/widgets.dart';
 import '../core/network/api_client.dart';
 import '../core/storage/local_cache.dart';
 import '../features/auth/data/auth_repository.dart';
-import '../features/auth/presentation/view_models/auth_view_model.dart';
+import '../features/auth/presentation/auth_view_model.dart';
 import '../features/hotlist/data/hotlist_repository.dart';
-import '../features/hotlist/presentation/view_models/hotlist_view_model.dart';
+import '../features/hotlist/presentation/hotlist_list/hotlist_view_model.dart';
 import '../features/news/data/news_remote_datasource.dart';
 import '../features/news/data/news_repository.dart';
-import '../features/news/presentation/view_models/news_view_model.dart';
+import '../features/news/presentation/market_news/news_view_model.dart';
 import '../features/radar/data/radar_repository.dart';
-import '../features/radar/presentation/view_models/radar_view_model.dart';
+import '../features/radar/presentation/radar_list/radar_view_model.dart';
 
 /// 创建所有 Provider 并返回 MultiProvider
 class AppDependencies extends StatelessWidget {

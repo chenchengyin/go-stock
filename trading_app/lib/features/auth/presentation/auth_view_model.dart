@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../../shared/view_state.dart';
-import '../../data/auth_repository.dart';
-import '../../domain/auth_models.dart';
+import '../../../shared/view_state.dart';
+import '../data/auth_repository.dart';
+import '../domain/auth_models.dart';
 
 class AuthViewModel extends ChangeNotifier {
   AuthViewModel(this._repository);

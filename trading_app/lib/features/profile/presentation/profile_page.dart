@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../shared/view_state.dart';
-import '../../../auth/presentation/view_models/auth_view_model.dart';
+import '../../../shared/view_state.dart';
+import '../../auth/presentation/auth_view_model.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});

@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 
-import '../features/hotlist/presentation/pages/hotlist_page.dart';
-import '../features/news/presentation/pages/news_page.dart';
-import '../features/profile/presentation/pages/profile_page.dart';
-import '../features/radar/presentation/pages/radar_page.dart';
+import '../features/hotlist/presentation/hotlist_list/hotlist_page.dart';
+import '../features/news/presentation/market_news/news_page.dart';
+import '../features/profile/presentation/profile_page.dart';
+import '../features/radar/presentation/radar_list/radar_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});

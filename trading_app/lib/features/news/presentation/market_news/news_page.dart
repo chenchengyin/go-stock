@@ -4,11 +4,11 @@ library;
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
-import '../view_models/news_view_model.dart';
+import 'news_view_model.dart';
 import '../../domain/news_models.dart';
 import 'package:trading_app/shared/widgets/news_card.dart';
-import '../widgets/hot_topic_card.dart';
-import 'hot_topic_detail_page.dart';
+import '../hot_topic/hot_topic_card.dart';
+import '../hot_topic/hot_topic_detail_page.dart';
 
 class NewsPage extends StatefulWidget {
   const NewsPage({super.key});

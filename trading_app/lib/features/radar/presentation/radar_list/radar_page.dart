@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/radar_models.dart';
-import '../view_models/radar_view_model.dart';
+import 'radar_view_model.dart';
 
 class RadarPage extends StatelessWidget {
   const RadarPage({super.key});
