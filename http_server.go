@@ -1,11 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +48,15 @@ func StartHTTPServer() {
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks) // GET /api/industry-ranks?sort=0&limit=150
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)         // GET /api/hot-topics?limit=10
 	mux.HandleFunc("/api/strategy", handleStrategy)            // GET/POST /api/strategy（策略吧）
+	mux.HandleFunc("/api/upload", handleFileUpload)            // POST /api/upload 文件上传
 	mux.HandleFunc("/api/health", handleHealth)                // GET /api/health
+
+	// ---- 静态文件服务（上传的图片） ----
+	uploadDir := filepath.Join("data", "uploads")
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		logger.SugaredLogger.Errorf("创建上传目录失败: %v", err)
+	}
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 
 	// ---- WebSocket ----
 	mux.HandleFunc("/ws", handleWebSocket)
@@ -319,6 +332,65 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		logger.SugaredLogger.Errorf("writeJSON error: %v", err)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// 文件上传 Handler
+// ---------------------------------------------------------------------------
+
+// handleFileUpload 上传图片
+// POST /api/upload (multipart/form-data, field: "file")
+// 返回: {"url": "http://localhost:8080/uploads/xxx.jpg"}
+func handleFileUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 限制 10MB
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "文件太大或格式错误", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "读取文件失败", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// 校验文件类型
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowed[ext] {
+		http.Error(w, "不支持的文件格式，仅支持 jpg/png/gif/webp", http.StatusBadRequest)
+		return
+	}
+
+	// 生成唯一文件名
+	randBytes := make([]byte, 8)
+	rand.Read(randBytes)
+	filename := hex.EncodeToString(randBytes) + ext
+
+	uploadDir := filepath.Join("data", "uploads")
+	os.MkdirAll(uploadDir, 0755)
+	dst, err := os.Create(filepath.Join(uploadDir, filename))
+	if err != nil {
+		http.Error(w, "保存文件失败", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		http.Error(w, "写入文件失败", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]string{
+		"url": fmt.Sprintf("http://localhost:%d/uploads/%s", defaultHTTPServerPort, filename),
+	})
 }
 
 // ---------------------------------------------------------------------------

@@ -45,7 +45,7 @@ class AppDependencies extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(
-          create: (_) => StrategyViewModel(dio: dio)..load(),
+          create: (_) => StrategyViewModel(dio: dio),
         ),
       ],
       child: child,

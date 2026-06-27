@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import 'strategy_view_model.dart';
 
 class CreatePostPage extends StatefulWidget {
@@ -13,8 +17,9 @@ class CreatePostPage extends StatefulWidget {
 class _CreatePostPageState extends State<CreatePostPage> {
   final _contentController = TextEditingController();
   final _titleController = TextEditingController();
-  final List<String> _images = [];
+  final List<XFile> _selectedImages = [];
   bool _isSubmitting = false;
+  bool _isUploading = false;
 
   @override
   void dispose() {
@@ -23,28 +28,65 @@ class _CreatePostPageState extends State<CreatePostPage> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1920, maxHeight: 1920);
+    if (file != null && _selectedImages.length < 6) {
+      setState(() => _selectedImages.add(file));
+    }
+  }
+
+  Future<String?> _uploadImage(XFile file) async {
+    try {
+      final dio = createApiClient();
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(file.path, filename: file.name),
+      });
+      final resp = await dio.post('/api/upload', data: formData);
+      return resp.data['url'] as String?;
+    } catch (e) {
+      debugPrint('上传失败: $e');
+      return null;
+    }
+  }
+
   Future<void> _submit() async {
-    if (_contentController.text.trim().isEmpty && _images.isEmpty) {
-      _showToast('请输入内容或选择图片');
+    if (_contentController.text.trim().isEmpty && _selectedImages.isEmpty) {
+      _showToast('请输入内容');
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _isUploading = _selectedImages.isNotEmpty;
+    });
+
+    // 上传图片
+    final uploadedUrls = <String>[];
+    for (final img in _selectedImages) {
+      final url = await _uploadImage(img);
+      if (url != null) {
+        uploadedUrls.add(url);
+      }
+    }
+    setState(() => _isUploading = false);
 
     final vm = context.read<StrategyViewModel>();
     final post = await vm.createPost(
       title: _titleController.text.trim(),
       content: _contentController.text.trim(),
-      images: _images,
+      images: uploadedUrls,
     );
 
     setState(() => _isSubmitting = false);
+
+    if (!mounted) return;
 
     if (post != null && mounted) {
       _showToast('发布成功');
       Navigator.of(context).pop(true);
     } else if (mounted) {
-      _showToast('发布失败');
+      _showToast('发布失败，请检查网络连接后重试');
     }
   }
 
@@ -114,23 +156,52 @@ class _CreatePostPageState extends State<CreatePostPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // 图片（暂时不支持上传，后续对接）
+            // 图片选择
+            const Text('配图（最多6张）', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ..._selectedImages.map((file) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(File(file.path), width: 80, height: 80, fit: BoxFit.cover),
+                        ),
+                        Positioned(
+                          top: -4, right: -4,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedImages.remove(file)),
+                            child: const Icon(CupertinoIcons.xmark_circle_fill, size: 20, color: CupertinoColors.systemRed),
+                          ),
+                        ),
+                      ],
+                    )),
+                if (_selectedImages.length < 6)
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: Container(
+                      width: 80, height: 80,
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemGrey6,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(CupertinoIcons.camera_viewfinder, color: CupertinoColors.systemGrey, size: 28),
+                    ),
+                  ),
+              ],
+            ),
+            if (_isUploading) ...[
+              const SizedBox(height: 12),
+              const Row(
                 children: [
-                  Icon(CupertinoIcons.photo_on_rectangle, color: CupertinoColors.systemGrey, size: 20),
+                  CupertinoActivityIndicator(),
                   SizedBox(width: 8),
-                  Text('图片功能开发中', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                  Text('正在上传图片...', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
                 ],
               ),
-            ),
+            ],
           ],
         ),
       ),

@@ -1,7 +1,7 @@
-/// 新闻详情页 — Cupertino 风格
+/// 新闻详情页 — Material 风格
 library;
 
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/news_models.dart';
@@ -13,12 +13,20 @@ class NewsDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('详情'),
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('详情'),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        surfaceTintColor: Colors.white,
+        elevation: 0.5,
+        shadowColor: Colors.black12,
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: Column(
           children: [
             Expanded(
@@ -33,15 +41,17 @@ class NewsDetailPage extends StatelessWidget {
                         if (item.isRed)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: CupertinoColors.systemRed.withValues(alpha: 0.12),
+                              color: Colors.red.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text(
                               '重要',
                               style: TextStyle(
-                                color: CupertinoColors.systemRed,
+                                color: Colors.red,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -51,15 +61,17 @@ class NewsDetailPage extends StatelessWidget {
                         Text(
                           item.source,
                           style: const TextStyle(
-                              fontSize: 13,
-                              color: CupertinoColors.systemGrey),
+                            fontSize: 13,
+                            color: Colors.grey,
+                          ),
                         ),
                         const Spacer(),
                         Text(
                           item.time,
                           style: const TextStyle(
-                              fontSize: 12,
-                              color: CupertinoColors.systemGrey),
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -72,17 +84,22 @@ class NewsDetailPage extends StatelessWidget {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           height: 1.3,
+                          color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 12),
                     ],
                     // 分隔线
-                    Container(height: 1, color: CupertinoColors.systemGrey5),
+                    const Divider(height: 1),
                     const SizedBox(height: 12),
                     // 正文
                     Text(
                       item.content,
-                      style: const TextStyle(fontSize: 15, height: 1.6),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.6,
+                        color: Colors.black87,
+                      ),
                     ),
                     // 题材标签
                     if (item.subjects.isNotEmpty) ...[
@@ -93,13 +110,20 @@ class NewsDetailPage extends StatelessWidget {
                         children: item.subjects.map((subject) {
                           return Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: CupertinoColors.systemGrey5,
+                              color: Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(subject,
-                                style: const TextStyle(fontSize: 12)),
+                            child: Text(
+                              subject,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black87,
+                              ),
+                            ),
                           );
                         }).toList(),
                       ),
@@ -116,9 +140,16 @@ class NewsDetailPage extends StatelessWidget {
                   child: SizedBox(
                     width: double.infinity,
                     height: 44,
-                    child: CupertinoButton.filled(
-                      child: const Text('查看原文'),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                       onPressed: () => _openInBrowser(context),
+                      child: const Text('查看原文'),
                     ),
                   ),
                 ),
