@@ -1,0 +1,13 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:trading_app/main.dart';
+
+void main() {
+  testWidgets('App should display bottom navigation', (WidgetTester tester) async {
+    await tester.pumpWidget(const TradingRadarApp());
+
+    // 验证底部导航存在
+    expect(find.byType(NavigationBar), findsOneWidget);
+  });
+}

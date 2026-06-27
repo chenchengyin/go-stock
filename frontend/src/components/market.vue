@@ -247,15 +247,30 @@ function changeIndustryRankSort() {
 }
 
 function industryRank() {
+  // 从 HTTP API 获取行业排名（含市值数据）
+  fetch('http://localhost:8080/api/industry-ranks?sort=' + sort.value + '&limit=150')
+    .then(res => res.json())
+    .then(result => {
+      if (result.data && result.data.length > 0) {
+        industryRanks.value = result.data
+      }
+    })
+    .catch(() => {
+      // 降级：使用 Wails 绑定获取（无市值）
+      GetIndustryRank(sort.value, 150).then(result => {
+        if (result.length > 0) {
+          industryRanks.value = result
+        }
+      })
+    })
+}
 
-  GetIndustryRank(sort.value, 150).then(result => {
-    if (result.length > 0) {
-      //console.log(result)
-      industryRanks.value = result
-    } else {
-      message.info("暂无数据")
-    }
-  })
+function formatMarketCap(cap) {
+  if (!cap) return '-'
+  if (cap >= 1e12) return (cap / 1e12).toFixed(2) + '万亿'
+  if (cap >= 1e8) return (cap / 1e8).toFixed(2) + '亿'
+  if (cap >= 1e4) return (cap / 1e4).toFixed(2) + '万'
+  return cap.toFixed(0)
 }
 
 function reAiSummary() {
@@ -589,6 +604,7 @@ function ReFlesh(source) {
               <n-thead>
                 <n-tr>
                   <n-th>行业名称</n-th>
+                  <n-th>总市值</n-th>
                   <n-th @click="changeIndustryRankSort">行业涨幅
                     <n-icon v-if="sort==='0'" :component="CaretDown"/>
                     <n-icon v-if="sort==='1'" :component="CaretUp"/>
@@ -604,6 +620,9 @@ function ReFlesh(source) {
                 <n-tr v-for="item in industryRanks" :key="item.bd_code">
                   <n-td>
                     <n-tag :bordered=false type="info">{{ item.bd_name }}</n-tag>
+                  </n-td>
+                  <n-td>
+                    <n-text type="info">{{ formatMarketCap(item.market_cap) }}</n-text>
                   </n-td>
                   <n-td>
                     <n-text :type="item.bd_zdf>0?'error':'success'">{{ item.bd_zdf }}%</n-text>
@@ -632,6 +651,7 @@ function ReFlesh(source) {
               <n-thead>
                 <n-tr>
                   <n-th>行业名称</n-th>
+                  <n-th>总市值</n-th>
                   <n-th @click="changeIndustryRankSort">行业涨幅
                     <n-icon v-if="sort==='0'" :component="CaretDown"/>
                     <n-icon v-if="sort==='1'" :component="CaretUp"/>
@@ -647,6 +667,9 @@ function ReFlesh(source) {
                 <n-tr v-for="item in industryRanks" :key="item.bd_code">
                   <n-td>
                     <n-tag :bordered=false type="info">{{ item.bd_name }}</n-tag>
+                  </n-td>
+                  <n-td>
+                    <n-text type="info">{{ formatMarketCap(item.market_cap) }}</n-text>
                   </n-td>
                   <n-td>
                     <n-text :type="item.bd_zdf>0?'error':'success'">{{ item.bd_zdf }}%</n-text>

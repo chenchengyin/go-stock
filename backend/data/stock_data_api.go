@@ -2243,6 +2243,44 @@ func (receiver StockDataApi) GetIndustryValuation(bkName string) *models.Industr
 	return &data
 }
 
+// GetAllIndustryValuation 批量获取所有行业市值数据
+func (receiver StockDataApi) GetAllIndustryValuation() *models.IndustryValuationResp {
+	url := "https://datacenter-web.eastmoney.com/api/data/v1/get?callback=data&reportName=RPT_VALUEINDUSTRY_STA&columns=ALL&quoteColumns=&source=WEB&client=WEB&pageNumber=1&pageSize=500&_=" + strconv.Itoa(time.Now().Nanosecond())
+	resp, err := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut)*time.Second).R().
+		SetHeader("Host", "datacenter-web.eastmoney.com").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetAllIndustryValuation err:%v", err)
+		return &models.IndustryValuationResp{}
+	}
+	body := string(resp.Body())
+	vm := otto.New()
+	vm.Run("function data(res){return res};")
+	val, err := vm.Run(body)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetAllIndustryValuation otto run err:%v", err)
+		return &models.IndustryValuationResp{}
+	}
+	value, err := val.Export()
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetAllIndustryValuation export err:%v", err)
+		return &models.IndustryValuationResp{}
+	}
+	marshal, err := json.Marshal(value)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetAllIndustryValuation marshal err:%v", err)
+		return &models.IndustryValuationResp{}
+	}
+	data := models.IndustryValuationResp{}
+	err = json.Unmarshal(marshal, &data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("GetAllIndustryValuation unmarshal err:%v", err)
+		return &models.IndustryValuationResp{}
+	}
+	return &data
+}
+
 func (receiver StockDataApi) GetAllStocks(page int, pageSize int, name string, technicalIndicators models.TechnicalIndicators) *models.AllStocksResp {
 	indicators := ""
 	// 将 TechnicalIndicators 转换为 map 并遍历构建查询条件

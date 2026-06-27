@@ -653,6 +653,7 @@ func (a *App) domReady(ctx context.Context) {
 				go a.NewsPush(news)
 			}
 			go runtime.EventsEmit(a.ctx, "newTelegraph", news)
+			go Broadcast("newTelegraph", news)
 		})
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
@@ -666,6 +667,7 @@ func (a *App) domReady(ctx context.Context) {
 				go a.NewsPush(news)
 			}
 			go runtime.EventsEmit(a.ctx, "newSinaNews", news)
+			go Broadcast("newSinaNews", news)
 		})
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())
@@ -679,6 +681,7 @@ func (a *App) domReady(ctx context.Context) {
 				go a.NewsPush(news)
 			}
 			go runtime.EventsEmit(a.ctx, "tradingViewNews", news)
+			go Broadcast("tradingViewNews", news)
 		})
 		if err != nil {
 			logger.SugaredLogger.Errorf("AddFunc error:%s", err.Error())

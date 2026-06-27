@@ -169,6 +169,10 @@ func main() {
 		}
 	}()
 
+	// 启动 HTTP Server，为 Flutter 前端提供 REST API + WebSocket 实时推送
+	// 端口默认 8080，完全独立于 Wails，不影响原有 Vue 前端。
+	go StartHTTPServer()
+
 	// Create application with options
 	err = wails.Run(&options.App{
 		Title: "go-stock：AI赋能股票分析✨ " + OFFICIAL_STATEMENT,
