@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../features/hotlist/presentation/hotlist_list/hotlist_page.dart';
+import '../features/strategy/presentation/strategy_page.dart';
 import '../features/news/presentation/market_news/news_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/radar/presentation/radar_list/radar_page.dart';
@@ -18,7 +18,7 @@ class _AppShellState extends State<AppShell> {
   static const _pages = <Widget>[
     RadarPage(),
     NewsPage(),
-    HotlistPage(),
+    StrategyPage(),
     ProfilePage(),
   ];
 
@@ -36,7 +36,7 @@ class _AppShellState extends State<AppShell> {
     BottomNavigationBarItem(
       icon: Icon(Icons.local_fire_department_outlined),
       activeIcon: Icon(Icons.local_fire_department),
-      label: '热榜',
+      label: '策略吧',
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.person_outline),

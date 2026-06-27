@@ -305,6 +305,12 @@ func AutoMigrate() {
 	db.Dao.AutoMigrate(&models.Skill{})
 	db.Dao.AutoMigrate(&models.CustomStrategy{})
 	db.Dao.AutoMigrate(&models.BKFundFlow{})
+	db.Dao.AutoMigrate(&data.StrategyUser{})
+	db.Dao.AutoMigrate(&data.StrategyPost{})
+	db.Dao.AutoMigrate(&data.StrategyComment{})
+	db.Dao.AutoMigrate(&data.StrategyLike{})
+	db.Dao.AutoMigrate(&data.StrategyCheckIn{})
+	db.Dao.AutoMigrate(&data.StrategyPointsLog{})
 
 	//updateMultipleModel()
 

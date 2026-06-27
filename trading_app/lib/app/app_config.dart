@@ -8,8 +8,7 @@ import '../core/network/api_client.dart';
 import '../core/storage/local_cache.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/auth_view_model.dart';
-import '../features/hotlist/data/hotlist_repository.dart';
-import '../features/hotlist/presentation/hotlist_list/hotlist_view_model.dart';
+import '../features/strategy/presentation/strategy_view_model.dart';
 import '../features/news/data/news_remote_datasource.dart';
 import '../features/news/data/news_repository.dart';
 import '../features/news/presentation/market_news/news_view_model.dart';
@@ -46,7 +45,7 @@ class AppDependencies extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(
-          create: (_) => HotlistViewModel(MockHotlistRepository(cache))..load(),
+          create: (_) => StrategyViewModel(dio: dio)..load(),
         ),
       ],
       child: child,

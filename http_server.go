@@ -42,6 +42,7 @@ func StartHTTPServer() {
 	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes) // GET /api/global-indexes
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks) // GET /api/industry-ranks?sort=0&limit=150
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)         // GET /api/hot-topics?limit=10
+	mux.HandleFunc("/api/strategy", handleStrategy)            // GET/POST /api/strategy（策略吧）
 	mux.HandleFunc("/api/health", handleHealth)                // GET /api/health
 
 	// ---- WebSocket ----
@@ -317,5 +318,210 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		logger.SugaredLogger.Errorf("writeJSON error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 策略吧 API Handler
+// ---------------------------------------------------------------------------
+
+// handleStrategy 策略吧 API 路由分发
+// GET /api/strategy?action=list&page=1&pageSize=20
+// GET /api/strategy?action=detail&postId=1
+// GET /api/strategy?action=points&userId=xxx
+// GET /api/strategy?action=checkin_status&userId=xxx
+// GET /api/strategy?action=comments&postId=1
+// POST /api/strategy (body JSON)
+func handleStrategy(w http.ResponseWriter, r *http.Request) {
+	api := data.NewStrategyAPI()
+
+	switch r.Method {
+	case http.MethodGet:
+		action := r.URL.Query().Get("action")
+		switch action {
+		case "list":
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
+			posts, total := api.GetPosts(page, pageSize)
+			writeJSON(w, map[string]interface{}{
+				"posts": posts,
+				"total": total,
+			})
+
+		case "detail":
+			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
+			post, err := api.GetPostDetail(uint(postID))
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, post)
+
+		case "points":
+			userID := r.URL.Query().Get("userId")
+			u, err := api.GetUserPoints(userID)
+			if err != nil {
+				writeJSON(w, map[string]interface{}{
+					"points":   0,
+					"totalIn":  0,
+					"totalOut": 0,
+				})
+				return
+			}
+			writeJSON(w, u)
+
+		case "checkin_status":
+			userID := r.URL.Query().Get("userId")
+			checked := api.HasCheckedIn(userID)
+			writeJSON(w, map[string]bool{"checkedIn": checked})
+
+		case "comments":
+			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
+			comments, err := api.GetComments(uint(postID))
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, comments)
+
+		case "liked":
+			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
+			userID := r.URL.Query().Get("userId")
+			liked := api.HasLiked(uint(postID), userID)
+			viewed := api.HasViewed(uint(postID), userID)
+			writeJSON(w, map[string]bool{"liked": liked, "viewed": viewed})
+
+		case "today_reply_points":
+			userID := r.URL.Query().Get("userId")
+			total := api.GetTodayReplyPoints(userID)
+			writeJSON(w, map[string]int64{"todayReplyPoints": total})
+
+		default:
+			http.Error(w, "unknown action", http.StatusBadRequest)
+		}
+
+	case http.MethodPost:
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+
+		action, _ := req["action"].(string)
+		userID, _ := req["userId"].(string)
+		nickname, _ := req["nickname"].(string)
+
+		switch action {
+		case "create_post":
+			title, _ := req["title"].(string)
+			content, _ := req["content"].(string)
+			imagesRaw, _ := req["images"].([]interface{})
+			var images []string
+			for _, img := range imagesRaw {
+				if s, ok := img.(string); ok {
+					images = append(images, s)
+				}
+			}
+			post, err := api.CreatePost(userID, nickname, title, content, images)
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, post)
+
+		case "checkin":
+			u, ok, err := api.CheckIn(userID, nickname)
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]interface{}{
+				"checkedIn": ok,
+				"points":    u.Points,
+			})
+
+		case "view_post":
+			postID, _ := req["postId"].(float64)
+			post, deducted, remain, err := api.ViewPost(uint(postID), userID, nickname)
+			if err != nil {
+				writeJSON(w, map[string]interface{}{"error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]interface{}{
+				"post":     post,
+				"deducted": deducted,
+				"remain":   remain,
+			})
+
+		case "toggle_like":
+			postID, _ := req["postId"].(float64)
+			isLiked, count, err := api.ToggleLike(uint(postID), userID)
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]interface{}{
+				"liked":     isLiked,
+				"likeCount": count,
+			})
+
+		case "add_comment":
+			postID, _ := req["postId"].(float64)
+			content, _ := req["content"].(string)
+			imagesRaw, _ := req["images"].([]interface{})
+			var images []string
+			for _, img := range imagesRaw {
+				if s, ok := img.(string); ok {
+					images = append(images, s)
+				}
+			}
+			var parentID *uint
+			if pid, ok := req["parentId"].(float64); ok && pid > 0 {
+				p := uint(pid)
+				parentID = &p
+			}
+			var replyToUID, replyToName *string
+			if ruid, ok := req["replyToUid"].(string); ok && ruid != "" {
+				replyToUID = &ruid
+			}
+			if rname, ok := req["replyToName"].(string); ok && rname != "" {
+				replyToName = &rname
+			}
+
+			comment, added, remain, err := api.CreateComment(uint(postID), parentID, userID, nickname, content, images, replyToUID, replyToName)
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]interface{}{
+				"comment":     comment,
+				"addedPoints": added,
+				"remain":      remain,
+			})
+
+		case "delete_comment":
+			commentID, _ := req["commentId"].(float64)
+			err := api.DeleteComment(uint(commentID), userID)
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]string{"status": "ok"})
+
+		case "delete_post":
+			postID, _ := req["postId"].(float64)
+			err := api.DeletePost(uint(postID), userID)
+			if err != nil {
+				writeJSON(w, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, map[string]string{"status": "ok"})
+
+		default:
+			http.Error(w, "unknown action", http.StatusBadRequest)
+		}
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
