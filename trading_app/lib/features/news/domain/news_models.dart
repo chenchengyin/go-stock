@@ -13,6 +13,7 @@ class NewsItem {
     required this.sentimentResult,
     this.subjects = const [],
     this.dataTime,
+    this.aiOpinion = '',
   });
 
   final int id;
@@ -25,6 +26,7 @@ class NewsItem {
   final String sentimentResult;
   final List<String> subjects;
   final String? dataTime;
+  final String aiOpinion;
 
   /// 从 Go 后端 /api/news 返回的 JSON 创建
   factory NewsItem.fromJson(Map<String, dynamic> json) {
@@ -42,6 +44,7 @@ class NewsItem {
               .toList() ??
           [],
       dataTime: json['dataTime'] as String?,
+      aiOpinion: json['aiOpinion'] as String? ?? '',
     );
   }
 }

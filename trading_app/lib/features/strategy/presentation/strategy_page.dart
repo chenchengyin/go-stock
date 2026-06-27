@@ -114,7 +114,7 @@ class _StrategyPageState extends State<StrategyPage> {
             itemBuilder: (context, index) {
               if (index == vm.posts.length) {
                 if (vm.hasMore) {
-                  vm.load();
+                  WidgetsBinding.instance.addPostFrameCallback((_) => vm.load());
                   return const Padding(
                     padding: EdgeInsets.all(16),
                     child: Center(child: CupertinoActivityIndicator()),

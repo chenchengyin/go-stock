@@ -95,6 +95,14 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 			}
 			telegraphs = append(telegraphs, telegraph)
 			db.Dao.Model(&models.Telegraph{}).Create(&telegraph)
+
+			// 异步调用 AI 分析新闻并保存意见
+			go func(tid uint, tContent string) {
+				if opinion := GetAIAnalysisForNews(tContent); opinion != "" {
+					db.Dao.Model(&models.Telegraph{}).Where("id = ?", tid).Update("ai_opinion", opinion)
+				}
+			}(telegraph.ID, telegraph.Content+". "+telegraph.Url)
+
 			if news["subjects"] == nil {
 				continue
 			}

@@ -101,6 +101,50 @@ class NewsDetailPage extends StatelessWidget {
                         color: Colors.black87,
                       ),
                     ),
+                    // AI 意见区块
+                    if (item.aiOpinion.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xfff0f5ff),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xff2364aa).withValues(alpha: 0.15),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.auto_awesome,
+                                    size: 16, color: const Color(0xff2364aa)),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'AI 分析意见',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xff2364aa),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              item.aiOpinion,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                height: 1.6,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     // 题材标签
                     if (item.subjects.isNotEmpty) ...[
                       const SizedBox(height: 16),
@@ -128,6 +172,8 @@ class NewsDetailPage extends StatelessWidget {
                         }).toList(),
                       ),
                     ],
+                    // 底部留白
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
