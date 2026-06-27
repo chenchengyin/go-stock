@@ -22,6 +22,8 @@ class NewsCard extends StatelessWidget {
     return const Color(0xff4caf50);
   }
 
+  Color get _titleColor => item.isRed ? const Color(0xffb71c1c) : CupertinoColors.black;
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -58,11 +60,11 @@ class NewsCard extends StatelessWidget {
                   if (item.title.isNotEmpty)
                     Text(
                       item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                         height: 1.35,
-                        color: CupertinoColors.black,
+                        color: _titleColor,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -70,11 +72,11 @@ class NewsCard extends StatelessWidget {
                   else
                     Text(
                       item.content,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                         height: 1.35,
-                        color: CupertinoColors.black,
+                        color: _titleColor,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
