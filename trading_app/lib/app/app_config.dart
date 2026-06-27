@@ -3,16 +3,16 @@ library;
 
 import 'package:provider/provider.dart';
 import 'package:flutter/widgets.dart';
-
-import '../core/storage/local_cache.dart';
-import '../features/auth/data/auth_repository.dart';
-import '../features/auth/presentation/auth_view_model.dart';
-import '../features/strategy/presentation/strategy_view_model.dart';
-import '../features/news/data/news_remote_datasource.dart';
-import '../features/news/data/news_repository.dart';
-import '../features/news/presentation/market_news/news_view_model.dart';
-import '../features/radar/data/radar_repository.dart';
-import '../features/radar/presentation/radar_list/radar_view_model.dart';
+import 'package:trading_app/core/network/api_client.dart';
+import 'package:trading_app/core/storage/local_cache.dart';
+import 'package:trading_app/features/auth/data/auth_repository.dart';
+import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
+import 'package:trading_app/features/strategy/presentation/strategy_view_model.dart';
+import 'package:trading_app/features/news/data/news_remote_datasource.dart';
+import 'package:trading_app/features/news/data/news_repository.dart';
+import 'package:trading_app/features/news/presentation/market_news/news_view_model.dart';
+import 'package:trading_app/features/radar/data/radar_repository.dart';
+import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
 
 /// 创建所有 Provider 并返回 MultiProvider
 class AppDependencies extends StatelessWidget {
@@ -30,7 +30,11 @@ class AppDependencies extends StatelessWidget {
           create: (_) => AuthViewModel(MockAuthRepository(cache))..restore(),
         ),
         ChangeNotifierProvider(
-          create: (_) => RadarViewModel(MockRadarRepository(cache))..load(),
+          create: (_) => RadarViewModel(
+              RadarRepositoryImpl(
+                  dio: createApiClient(), baseUrl: 'http://localhost:8080'))
+            ..loadMonitoredStocks()
+            ..loadLatestChanges(),
         ),
         ChangeNotifierProvider(
           create: (_) {
