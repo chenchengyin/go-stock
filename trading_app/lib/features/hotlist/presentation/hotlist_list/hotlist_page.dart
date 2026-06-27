@@ -16,7 +16,7 @@ class HotlistPage extends StatelessWidget {
           onTap: vm.load,
           child: const Padding(
             padding: EdgeInsets.all(8),
-            child: Icon(CupertinoIcons.refresh, size: 20),
+            child: Icon(CupertinoIcons.refresh, size: 22, color: CupertinoColors.systemBlue),
           ),
         ),
       ),
@@ -26,7 +26,7 @@ class HotlistPage extends StatelessWidget {
 
   Widget _buildBody(HotlistViewModel vm) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: EdgeInsets.zero,
       itemCount: vm.stocks.length,
       itemBuilder: (context, index) {
         final stock = vm.stocks[index];
@@ -36,37 +36,24 @@ class HotlistPage extends StatelessWidget {
             : CupertinoColors.systemGrey;
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: const BoxDecoration(
             color: CupertinoColors.white,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            border: Border(
+              bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+            ),
           ),
           child: Row(
             children: [
               // 排名
-              Container(
+              SizedBox(
                 width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: rankColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    '${stock.rank}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: rankColor,
-                    ),
+                child: Text(
+                  '${stock.rank}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: rankColor,
                   ),
                 ),
               ),
@@ -78,9 +65,9 @@ class HotlistPage extends StatelessWidget {
                     Text(
                       '${stock.name} ${stock.symbol}',
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14),
+                          fontWeight: FontWeight.w600, fontSize: 15),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(stock.reason,
                         style: const TextStyle(
                             fontSize: 12,
@@ -97,7 +84,7 @@ class HotlistPage extends StatelessWidget {
                   Text(
                     stock.heatScore.toStringAsFixed(1),
                     style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14),
+                        fontWeight: FontWeight.w600, fontSize: 15),
                   ),
                   Text(
                     '${isUp ? '+' : ''}${stock.changePercent.toStringAsFixed(2)}%',
@@ -106,7 +93,7 @@ class HotlistPage extends StatelessWidget {
                           ? const Color(0xffe53935)
                           : const Color(0xff0d904f),
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],

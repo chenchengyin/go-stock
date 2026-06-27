@@ -1,4 +1,4 @@
-/// 热门话题卡片 — 简洁卡片风格
+/// 热门话题卡片 — iOS 原生资讯列表风格
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -16,25 +16,19 @@ class HotTopicCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: const BoxDecoration(
           color: CupertinoColors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: CupertinoColors.systemGrey4.withValues(alpha: 0.3),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border(
+            bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 左侧图片
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               child: _buildImage(),
             ),
             const SizedBox(width: 12),
@@ -46,9 +40,9 @@ class HotTopicCard extends StatelessWidget {
                   Text(
                     item.nickname,
                     style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
                       color: CupertinoColors.black,
                     ),
                     maxLines: 2,
@@ -58,7 +52,7 @@ class HotTopicCard extends StatelessWidget {
                   Text(
                     item.desc,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: CupertinoColors.systemGrey,
                       height: 1.4,
                     ),
@@ -83,7 +77,7 @@ class HotTopicCard extends StatelessWidget {
                           child: Text(
                             item.stockList.take(3).join(' '),
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: 11,
                               color: CupertinoColors.systemGrey,
                             ),
                             maxLines: 1,
@@ -92,16 +86,6 @@ class HotTopicCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (item.stockList.length > 3) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: item.stockList.take(6).map((s) {
-                        return _StockPill(text: s);
-                      }).toList(),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -132,9 +116,9 @@ class HotTopicCard extends StatelessWidget {
       height: 68,
       decoration: BoxDecoration(
         color: CupertinoColors.systemGrey6,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
       ),
-      child: Icon(
+      child: const Icon(
         CupertinoIcons.doc_text,
         size: 28,
         color: CupertinoColors.systemGrey4,
@@ -171,30 +155,6 @@ class _Badge extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _StockPill extends StatelessWidget {
-  const _StockPill({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xffe53935).withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 10,
-          color: Color(0xffe53935),
-          fontWeight: FontWeight.w500,
-        ),
-      ),
     );
   }
 }

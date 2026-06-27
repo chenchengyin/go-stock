@@ -17,7 +17,7 @@ class RadarPage extends StatelessWidget {
           onTap: vm.load,
           child: const Padding(
             padding: EdgeInsets.all(8),
-            child: Icon(CupertinoIcons.refresh, size: 20),
+            child: Icon(CupertinoIcons.refresh, size: 22, color: CupertinoColors.systemBlue),
           ),
         ),
       ),
@@ -27,15 +27,12 @@ class RadarPage extends StatelessWidget {
 
   Widget _buildBody(RadarViewModel vm) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: EdgeInsets.zero,
       children: [
         _AlertSummary(stocks: vm.stocks.length),
         const _SectionHeader(title: '持仓 / 特别关注'),
         ...vm.stocks.map(
-          (stock) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _StockCard(stock: stock),
-          ),
+          (stock) => _StockRow(stock: stock),
         ),
       ],
     );
@@ -49,7 +46,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Text(
         title,
         style: const TextStyle(
@@ -70,24 +67,11 @@ class _AlertSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xffe53935).withValues(alpha: 0.08),
-            CupertinoColors.white,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: CupertinoColors.systemBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
@@ -95,11 +79,11 @@ class _AlertSummary extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: const Color(0xffe53935).withValues(alpha: 0.15),
+              color: CupertinoColors.systemBlue.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(CupertinoIcons.bell_solid,
-                size: 20, color: Color(0xffe53935)),
+                size: 20, color: CupertinoColors.systemBlue),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -108,7 +92,7 @@ class _AlertSummary extends StatelessWidget {
               children: [
                 const Text('高频异动盯盘已开启',
                     style: TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 15)),
+                        fontWeight: FontWeight.w600, fontSize: 15)),
                 const SizedBox(height: 2),
                 Text('正在监控 $stocks 只股票',
                     style: const TextStyle(
@@ -123,8 +107,8 @@ class _AlertSummary extends StatelessWidget {
   }
 }
 
-class _StockCard extends StatelessWidget {
-  const _StockCard({required this.stock});
+class _StockRow extends StatelessWidget {
+  const _StockRow({required this.stock});
   final WatchStock stock;
 
   @override
@@ -135,17 +119,12 @@ class _StockCard extends StatelessWidget {
         : const Color(0xff0d904f);
 
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
         color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border(
+          bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,7 +138,7 @@ class _StockCard extends StatelessWidget {
                     Text(
                       stock.name,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15),
+                          fontWeight: FontWeight.w600, fontSize: 16),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -173,7 +152,10 @@ class _StockCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '现价 ${stock.price.toStringAsFixed(2)}',
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: CupertinoColors.systemGrey,
+                  ),
                 ),
               ],
             ),
@@ -185,8 +167,8 @@ class _StockCard extends StatelessWidget {
                 '${isUp ? '+' : ''}${stock.changePercent.toStringAsFixed(2)}%',
                 style: TextStyle(
                   color: changeColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17,
                 ),
               ),
               const SizedBox(height: 2),

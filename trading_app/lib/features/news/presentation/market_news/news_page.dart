@@ -1,4 +1,4 @@
-/// 市场快讯页面 — 可滚动 Tab 栏 + 卡片列表
+/// 市场快讯页面 — iOS 原生资讯风格
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -53,15 +53,20 @@ class _NewsPageState extends State<NewsPage> {
           onTap: _onRefresh,
           child: const Padding(
             padding: EdgeInsets.all(8),
-            child: Icon(CupertinoIcons.refresh, size: 20),
+            child: Icon(CupertinoIcons.refresh, size: 22, color: CupertinoColors.systemBlue),
           ),
         ),
+        bottom: _TabBar(
+          tabs: tabs,
+          selectedIndex: _selectedTab,
+          onSelect: (i) => setState(() => _selectedTab = i),
+        ),
       ),
-      child: _buildBody(vm, tabs),
+      child: _buildBody(vm),
     );
   }
 
-  Widget _buildBody(NewsViewModel vm, List<String> tabs) {
+  Widget _buildBody(NewsViewModel vm) {
     if (vm.state.isLoading && vm.totalCount == 0 && vm.hotTopics.isEmpty) {
       return const Center(child: CupertinoActivityIndicator());
     }
@@ -86,56 +91,7 @@ class _NewsPageState extends State<NewsPage> {
       );
     }
 
-    return Column(
-      children: [
-        _buildTabBar(tabs),
-        Expanded(child: _buildTabContent(vm, _selectedTab)),
-      ],
-    );
-  }
-
-  Widget _buildTabBar(List<String> tabs) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        border: Border(
-          bottom: BorderSide(color: CupertinoColors.systemGrey5.withValues(alpha: 0.5)),
-        ),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: List.generate(tabs.length, (i) {
-            final isSelected = i == _selectedTab;
-            return GestureDetector(
-              onTap: () => setState(() => _selectedTab = i),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xffe53935)
-                      : CupertinoColors.systemGrey6,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  tabs[i],
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    color: isSelected
-                        ? CupertinoColors.white
-                        : CupertinoColors.black,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-      ),
-    );
+    return _buildTabContent(vm, _selectedTab);
   }
 
   Widget _buildTabContent(NewsViewModel vm, int index) {
@@ -164,7 +120,7 @@ class _NewsPageState extends State<NewsPage> {
     }
     return CupertinoScrollbar(
       child: ListView.builder(
-        padding: const EdgeInsets.only(top: 8, bottom: 16),
+        padding: EdgeInsets.zero,
         itemCount: items.length,
         itemBuilder: (_, i) => NewsCard(item: items[i]),
       ),
@@ -180,12 +136,83 @@ class _NewsPageState extends State<NewsPage> {
     }
     return CupertinoScrollbar(
       child: ListView.builder(
-        padding: const EdgeInsets.only(top: 8, bottom: 16),
+        padding: EdgeInsets.zero,
         itemCount: items.length,
         itemBuilder: (_, i) => HotTopicCard(
           item: items[i],
           onTap: () => _openTopic(items[i]),
         ),
+      ),
+    );
+  }
+}
+
+class _TabBar extends StatelessWidget implements PreferredSizeWidget {
+  const _TabBar({
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final List<String> tabs;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(42);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: CupertinoColors.white,
+      child: Column(
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: List.generate(tabs.length, (i) {
+                final isSelected = i == selectedIndex;
+                return GestureDetector(
+                  onTap: () => onSelect(i),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 8),
+                        Text(
+                          tabs[i],
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected
+                                ? CupertinoColors.systemBlue
+                                : CupertinoColors.systemGrey,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: 2,
+                          width: 24,
+                          decoration: BoxDecoration(
+                            color: isSelected ? CupertinoColors.systemBlue : CupertinoColors.transparent,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          Container(
+            height: 0.5,
+            color: CupertinoColors.systemGrey5,
+          ),
+        ],
       ),
     );
   }

@@ -33,7 +33,7 @@ class _ProfilePageState extends State<ProfilePage> {
         middle: Text('我的'),
       ),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        padding: EdgeInsets.zero,
         children: [
           if (auth.isLoggedIn)
             _ProfileCard(auth: auth, nicknameController: _nicknameController)
@@ -63,19 +63,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 }
               },
             ),
-          const SizedBox(height: 16),
+          const _SectionHeader(title: '设置'),
           Container(
-            decoration: BoxDecoration(
-              color: CupertinoColors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
+            color: CupertinoColors.white,
             child: const Column(
               children: [
                 _SettingsRow(
@@ -105,6 +95,27 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: CupertinoColors.systemGrey,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsRow extends StatelessWidget {
   const _SettingsRow({
     required this.icon,
@@ -123,7 +134,7 @@ class _SettingsRow extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Icon(icon, size: 22, color: CupertinoColors.systemGrey),
@@ -134,7 +145,7 @@ class _SettingsRow extends StatelessWidget {
                   children: [
                     Text(title,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 15)),
+                            fontWeight: FontWeight.w500, fontSize: 15)),
                     const SizedBox(height: 2),
                     Text(subtitle,
                         style: const TextStyle(
@@ -150,7 +161,7 @@ class _SettingsRow extends StatelessWidget {
         ),
         if (showDivider)
           Container(
-            margin: const EdgeInsets.only(left: 14, right: 14),
+            margin: const EdgeInsets.only(left: 16, right: 16),
             height: 0.5,
             color: CupertinoColors.systemGrey5,
           ),
@@ -183,25 +194,15 @@ class _AuthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      color: CupertinoColors.white,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             isRegister ? '注册交易雷达账号' : '登录交易雷达',
             style: const TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 18),
+                fontWeight: FontWeight.w600, fontSize: 18),
           ),
           const SizedBox(height: 16),
           CupertinoTextField(
@@ -275,18 +276,8 @@ class _ProfileCardState extends State<_ProfileCard> {
   Widget build(BuildContext context) {
     final user = widget.auth.user!;
     return Container(
+      color: CupertinoColors.white,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.systemGrey4.withValues(alpha: 0.25),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -309,7 +300,7 @@ class _ProfileCardState extends State<_ProfileCard> {
                   children: [
                     Text(user.nickname,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16)),
+                            fontWeight: FontWeight.w600, fontSize: 16)),
                     Text('${user.phone} · ${user.role}',
                         style: const TextStyle(
                             fontSize: 13,

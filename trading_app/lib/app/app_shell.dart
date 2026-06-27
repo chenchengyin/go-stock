@@ -20,11 +20,22 @@ class _AppShellState extends State<AppShell> {
     ProfilePage(),
   ];
 
+  final _controller = CupertinoTabController(initialIndex: 0);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoTabScaffold(
+      controller: _controller,
+      resizeToAvoidBottomInset: true,
       tabBar: CupertinoTabBar(
-        activeColor: CupertinoColors.systemRed,
+        backgroundColor: CupertinoColors.white,
+        activeColor: CupertinoColors.systemBlue,
         inactiveColor: CupertinoColors.systemGrey,
         items: const [
           BottomNavigationBarItem(

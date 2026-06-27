@@ -1,4 +1,4 @@
-/// 新闻卡片 — 简洁卡片风格
+/// 新闻卡片 — iOS 原生资讯列表风格
 library;
 
 import 'package:flutter/cupertino.dart';
@@ -11,96 +11,96 @@ class NewsCard extends StatelessWidget {
 
   final NewsItem item;
 
-  Color get _accentColor =>
-      item.isRed ? const Color(0xffe53935) : const Color(0xff1a73e8);
+  Color get _sourceColor {
+    final s = item.source;
+    if (s.contains('新浪') || s.contains('财联社')) {
+      return const Color(0xff1a73e8);
+    }
+    if (s.contains('外媒') || s.contains('国际')) {
+      return const Color(0xffff9800);
+    }
+    return const Color(0xff4caf50);
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => _navigateToDetail(context),
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        decoration: BoxDecoration(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: const BoxDecoration(
           color: CupertinoColors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: CupertinoColors.systemGrey4.withValues(alpha: 0.3),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border(
+            bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+          ),
         ),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 第一行：时间 + 来源 + 重要标记
-            Row(
-              children: [
-                _TimeBadge(time: item.time, color: _accentColor),
-                if (item.isRed) ...[
-                  const SizedBox(width: 6),
-                  _Tag(
-                    text: '重要',
-                    textColor: const Color(0xffe53935),
-                    bgColor: const Color(0xffe53935).withValues(alpha: 0.08),
-                  ),
-                ],
-                const Spacer(),
-                Text(
-                  item.source,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: CupertinoColors.systemGrey,
-                  ),
+            // 左侧时间
+            SizedBox(
+              width: 56,
+              child: Text(
+                item.time,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: CupertinoColors.systemGrey,
+                  fontFeatures: [FontFeature.tabularFigures()],
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 8),
-            // 正文（标题或内容）
-            if (item.title.isNotEmpty)
-              Text(
-                item.title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  height: 1.4,
-                  color: CupertinoColors.black,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              )
-            else
-              Text(
-                item.content,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: CupertinoColors.black,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            // 标签行
-            if (item.subjects.isNotEmpty || item.sentimentResult.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
+            const SizedBox(width: 12),
+            // 右侧标题 + 标签
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ...item.subjects.take(4).map(
-                        (s) => _Tag(
-                          text: s,
-                          textColor: const Color(0xff0d904f),
-                          bgColor: const Color(0xff0d904f).withValues(alpha: 0.08),
-                        ),
+                  if (item.title.isNotEmpty)
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                        color: CupertinoColors.black,
                       ),
-                  if (item.sentimentResult.isNotEmpty)
-                    _buildSentimentTag(item.sentimentResult),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    Text(
+                      item.content,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                        color: CupertinoColors.black,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (item.subjects.isNotEmpty ||
+                      item.sentimentResult.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        ...item.subjects.take(3).map(
+                              (s) => _Tag(
+                                text: s,
+                                textColor: _sourceColor,
+                                bgColor: _sourceColor.withValues(alpha: 0.08),
+                              ),
+                            ),
+                        if (item.sentimentResult.isNotEmpty)
+                          _buildSentimentTag(item.sentimentResult),
+                      ],
+                    ),
+                  ],
                 ],
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -109,9 +109,18 @@ class NewsCard extends StatelessWidget {
 
   Widget _buildSentimentTag(String sentiment) {
     final (Color textColor, Color bgColor) = switch (sentiment) {
-      '看涨' => (const Color(0xffe53935), const Color(0xffe53935).withValues(alpha: 0.08)),
-      '看跌' => (const Color(0xff0d904f), const Color(0xff0d904f).withValues(alpha: 0.08)),
-      _ => (CupertinoColors.systemGrey, CupertinoColors.systemGrey5),
+      '看涨' => (
+          const Color(0xffe53935),
+          const Color(0xffe53935).withValues(alpha: 0.08)
+        ),
+      '看跌' => (
+          const Color(0xff0d904f),
+          const Color(0xff0d904f).withValues(alpha: 0.08)
+        ),
+      _ => (
+          CupertinoColors.systemGrey,
+          CupertinoColors.systemGrey6
+        ),
     };
     return _Tag(text: sentiment, textColor: textColor, bgColor: bgColor);
   }
@@ -120,32 +129,6 @@ class NewsCard extends StatelessWidget {
     Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (context) => NewsDetailPage(item: item),
-      ),
-    );
-  }
-}
-
-class _TimeBadge extends StatelessWidget {
-  const _TimeBadge({required this.time, required this.color});
-  final String time;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        time,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
       ),
     );
   }
@@ -164,7 +147,7 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(4),
@@ -174,7 +157,7 @@ class _Tag extends StatelessWidget {
         style: TextStyle(
           fontSize: 10,
           color: textColor,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
