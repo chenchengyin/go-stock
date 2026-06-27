@@ -29,6 +29,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
     return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.white,
       navigationBar: const CupertinoNavigationBar(
         middle: Text('我的'),
       ),

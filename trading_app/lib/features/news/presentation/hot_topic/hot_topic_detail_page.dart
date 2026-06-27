@@ -17,6 +17,7 @@ class HotTopicDetailPage extends StatelessWidget {
         'https://gubatopic.eastmoney.com/topic_v3.html?htid=${item.htid}';
 
     return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.white,
       navigationBar: const CupertinoNavigationBar(
         middle: Text('热门话题'),
       ),

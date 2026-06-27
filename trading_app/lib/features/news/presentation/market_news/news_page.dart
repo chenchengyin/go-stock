@@ -44,18 +44,19 @@ class _NewsPageState extends State<NewsPage> {
     final vm = context.watch<NewsViewModel>();
     final tabs = ['重要', '热门话题', '财联社', '新浪', '外媒'];
 
-    return CupertinoPageScaffold(
+    return Container(
+      color: CupertinoColors.white,
       child: SafeArea(
         bottom: false,
         child: Column(
           children: [
             _Header(onRefresh: _onRefresh),
-            _TabBar(
-              tabs: tabs,
-              selectedIndex: _selectedTab,
-              onSelect: (i) => setState(() => _selectedTab = i),
-            ),
-            Expanded(child: _buildBody(vm)),
+          _TabBar(
+            tabs: tabs,
+            selectedIndex: _selectedTab,
+            onSelect: (i) => setState(() => _selectedTab = i),
+          ),
+          Expanded(child: _buildBody(vm)),
           ],
         ),
       ),

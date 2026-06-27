@@ -10,6 +10,7 @@ class HotlistPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<HotlistViewModel>();
     return CupertinoPageScaffold(
+      backgroundColor: CupertinoColors.white,
       // navigationBar: CupertinoNavigationBar(
       //   middle: const Text('全网热榜'),
       //   trailing: GestureDetector(

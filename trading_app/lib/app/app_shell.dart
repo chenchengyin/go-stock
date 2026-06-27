@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 import '../features/hotlist/presentation/hotlist_list/hotlist_page.dart';
 import '../features/news/presentation/market_news/news_page.dart';
@@ -33,7 +34,7 @@ class _AppShellState extends State<AppShell> {
     return CupertinoTabScaffold(
       controller: _controller,
       resizeToAvoidBottomInset: true,
-      backgroundColor: CupertinoColors.white,
+      backgroundColor: Colors.white,
       tabBar: CupertinoTabBar(
         backgroundColor: CupertinoColors.white,
         activeColor: CupertinoColors.systemBlue,

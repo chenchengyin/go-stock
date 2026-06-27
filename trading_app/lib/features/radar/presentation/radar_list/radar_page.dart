@@ -10,32 +10,23 @@ class RadarPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<RadarViewModel>();
-    return CupertinoPageScaffold(
-      // navigationBar: CupertinoNavigationBar(
-      //   middle: const Text('交易雷达'),
-      //   trailing: GestureDetector(
-      //     onTap: vm.load,
-      //     child: const Padding(
-      //       padding: EdgeInsets.all(8),
-      //       child: Icon(CupertinoIcons.refresh, size: 22, color: CupertinoColors.systemBlue),
-      //     ),
-      //   ),
-      // ),
-      child: _buildBody(vm),
-    );
+    return _buildBody(vm);
   }
 
   Widget _buildBody(RadarViewModel vm) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
+    return Container(
+      color: CupertinoColors.white,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
         _AlertSummary(stocks: vm.stocks.length),
         const _SectionHeader(title: '持仓 / 特别关注'),
         ...vm.stocks.map(
           (stock) => _StockRow(stock: stock),
         ),
-      ],
-    );
+          ],
+        ),
+      );
   }
 }
 
