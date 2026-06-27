@@ -6,11 +6,8 @@ import '../domain/strategy_models.dart';
 import '../data/strategy_repository.dart';
 
 class StrategyViewModel extends ChangeNotifier {
-  StrategyViewModel({
-    Dio? dio,
-    this.currentUserId,
-    this.currentNickname,
-  }) : _repo = StrategyRepository(dio: dio);
+  StrategyViewModel({Dio? dio, this.currentUserId, this.currentNickname})
+    : _repo = StrategyRepository(dio: dio);
 
   final StrategyRepository _repo;
 
@@ -22,6 +19,9 @@ class StrategyViewModel extends ChangeNotifier {
   int total = 0;
   int page = 1;
   bool hasMore = true;
+  bool _isLoading = false;
+
+  bool get isLoading => _isLoading;
 
   /// 当前用户
   String? currentUserId;
@@ -41,17 +41,23 @@ class StrategyViewModel extends ChangeNotifier {
   }
 
   Future<void> load({bool refresh = false}) async {
+    if (_isLoading) return;
     if (refresh) {
       page = 1;
       hasMore = true;
     }
     if (!hasMore && !refresh) return;
 
+    _isLoading = true;
     state = const ViewState(status: ViewStatus.loading);
     notifyListeners();
     try {
       final result = await _repo.getPosts(page: page);
-      final list = (result['posts'] as List?)?.map((e) => StrategyPost.fromJson(e)).toList() ?? <StrategyPost>[];
+      final list =
+          (result['posts'] as List?)
+              ?.map((e) => StrategyPost.fromJson(e))
+              .toList() ??
+          <StrategyPost>[];
       total = (result['total'] ?? 0).toInt();
 
       if (refresh) {
@@ -65,6 +71,27 @@ class StrategyViewModel extends ChangeNotifier {
     } catch (error) {
       state = ViewState(status: ViewStatus.error, message: error.toString());
     }
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void updatePostViewCount(int postId, int viewCount) {
+    final idx = posts.indexWhere((p) => p.id == postId);
+    if (idx < 0) return;
+
+    final old = posts[idx];
+    posts[idx] = StrategyPost(
+      id: old.id,
+      userId: old.userId,
+      nickname: old.nickname,
+      title: old.title,
+      content: old.content,
+      images: old.images,
+      likeCount: old.likeCount,
+      viewCount: viewCount,
+      commentCnt: old.commentCnt,
+      createdAt: old.createdAt,
+    );
     notifyListeners();
   }
 
@@ -121,7 +148,11 @@ class StrategyViewModel extends ChangeNotifier {
     if (currentUserId == null || currentUserId!.isEmpty) {
       return {'post': null, 'deducted': false, 'remain': 0};
     }
-    return await _repo.viewPost(postId, currentUserId!, currentNickname ?? '用户');
+    return await _repo.viewPost(
+      postId,
+      currentUserId!,
+      currentNickname ?? '用户',
+    );
   }
 
   Future<bool> toggleLike(int postId) async {

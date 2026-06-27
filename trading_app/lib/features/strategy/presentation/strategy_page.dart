@@ -39,26 +39,36 @@ class _StrategyPageState extends State<StrategyPage> {
       backgroundColor: CupertinoColors.white,
       navigationBar: CupertinoNavigationBar(
         backgroundColor: CupertinoColors.white,
-        middle: const Text('策略吧', style: TextStyle(fontWeight: FontWeight.w600)),
+        middle: const Text(
+          '策略吧',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             // 签到按钮
             GestureDetector(
-              onTap: vm.currentUserId != null && vm.currentUserId!.isNotEmpty && !vm.checkedInToday
+              onTap:
+                  vm.currentUserId != null &&
+                      vm.currentUserId!.isNotEmpty &&
+                      !vm.checkedInToday
                   ? () => vm.checkIn()
                   : null,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: vm.checkedInToday ? CupertinoColors.systemGrey5 : const Color(0xffe53935),
+                  color: vm.checkedInToday
+                      ? CupertinoColors.systemGrey5
+                      : const Color(0xffe53935),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   vm.checkedInToday ? '已签到' : '签到+3',
                   style: TextStyle(
                     fontSize: 11,
-                    color: vm.checkedInToday ? CupertinoColors.systemGrey : CupertinoColors.white,
+                    color: vm.checkedInToday
+                        ? CupertinoColors.systemGrey
+                        : CupertinoColors.white,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -74,7 +84,10 @@ class _StrategyPageState extends State<StrategyPage> {
               ),
               child: Text(
                 '💎 ${vm.pointsInfo.points}',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -90,7 +103,10 @@ class _StrategyPageState extends State<StrategyPage> {
               color: CupertinoColors.systemGreen.withValues(alpha: 0.08),
               child: Text(
                 '今日回复获得 ${vm.todayReplyPoints}/10 积分',
-                style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGreen),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: CupertinoColors.systemGreen,
+                ),
               ),
             ),
           Expanded(child: _buildList(vm)),
@@ -114,7 +130,11 @@ class _StrategyPageState extends State<StrategyPage> {
             itemBuilder: (context, index) {
               if (index == vm.posts.length) {
                 if (vm.hasMore) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => vm.load());
+                  if (!vm.isLoading) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) vm.load();
+                    });
+                  }
                   return const Padding(
                     padding: EdgeInsets.all(16),
                     child: Center(child: CupertinoActivityIndicator()),
@@ -160,7 +180,11 @@ class _StrategyPageState extends State<StrategyPage> {
                   ),
                 ],
               ),
-              child: const Icon(CupertinoIcons.pencil, color: CupertinoColors.white, size: 22),
+              child: const Icon(
+                CupertinoIcons.pencil,
+                color: CupertinoColors.white,
+                size: 22,
+              ),
             ),
           ),
         ),
@@ -169,9 +193,9 @@ class _StrategyPageState extends State<StrategyPage> {
   }
 
   void _openDetail(BuildContext context, int postId) {
-    Navigator.of(context).push(
-      CupertinoPageRoute(builder: (_) => PostDetailPage(postId: postId)),
-    );
+    Navigator.of(
+      context,
+    ).push(CupertinoPageRoute(builder: (_) => PostDetailPage(postId: postId)));
   }
 
   void _deletePost(BuildContext context, StrategyViewModel vm, int postId) {
@@ -181,7 +205,10 @@ class _StrategyPageState extends State<StrategyPage> {
         title: const Text('确认删除'),
         content: const Text('删除后无法恢复'),
         actions: [
-          CupertinoDialogAction(child: const Text('取消'), onPressed: () => Navigator.of(ctx).pop()),
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             child: const Text('删除'),
@@ -217,7 +244,9 @@ class _PostCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
           color: CupertinoColors.white,
-          border: Border(bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5)),
+          border: Border(
+            bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +255,8 @@ class _PostCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 28, height: 28,
+                  width: 28,
+                  height: 28,
                   decoration: const BoxDecoration(
                     color: CupertinoColors.systemGrey5,
                     shape: BoxShape.circle,
@@ -234,21 +264,37 @@ class _PostCard extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     post.nickname.isNotEmpty ? post.nickname[0] : '?',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(post.nickname, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(
+                  post.nickname,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const Spacer(),
                 Text(
                   _formatTime(post.createdAt),
-                  style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: CupertinoColors.systemGrey,
+                  ),
                 ),
                 if (isOwner) ...[
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: onDelete,
-                    child: const Icon(CupertinoIcons.trash, size: 14, color: CupertinoColors.systemGrey),
+                    child: const Icon(
+                      CupertinoIcons.trash,
+                      size: 14,
+                      color: CupertinoColors.systemGrey,
+                    ),
                   ),
                 ],
               ],
@@ -268,7 +314,10 @@ class _PostCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 post.title!,
-                style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: CupertinoColors.systemGrey,
+                ),
               ),
             ],
             // 图片（仅展示第一张）
@@ -291,7 +340,10 @@ class _PostCard extends StatelessWidget {
               children: [
                 _ActionIcon(icon: CupertinoIcons.heart, count: post.likeCount),
                 const SizedBox(width: 24),
-                _ActionIcon(icon: CupertinoIcons.bubble_left_bubble_right, count: post.commentCnt),
+                _ActionIcon(
+                  icon: CupertinoIcons.bubble_left_bubble_right,
+                  count: post.commentCnt,
+                ),
                 const SizedBox(width: 24),
                 _ActionIcon(icon: CupertinoIcons.eye, count: post.viewCount),
               ],
@@ -330,7 +382,10 @@ class _ActionIcon extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           count > 999 ? '999+' : count.toString(),
-          style: const TextStyle(fontSize: 12, color: CupertinoColors.systemGrey),
+          style: const TextStyle(
+            fontSize: 12,
+            color: CupertinoColors.systemGrey,
+          ),
         ),
       ],
     );

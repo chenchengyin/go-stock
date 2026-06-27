@@ -62,12 +62,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
       // 加载点赞状态
       if (vm.currentUserId != null && vm.currentUserId!.isNotEmpty) {
-        final status = await vm.repository.getLikeStatus(widget.postId, vm.currentUserId!);
+        final status = await vm.repository.getLikeStatus(
+          widget.postId,
+          vm.currentUserId!,
+        );
         _liked = status['liked'] ?? false;
       }
 
-      // 更新帖子列表中的查看数
-      vm.load(refresh: true);
+      if (_post != null) {
+        vm.updatePostViewCount(widget.postId, _post!.viewCount);
+      }
 
       setState(() => _loading = false);
     } catch (e) {
@@ -130,7 +134,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
     _cancelReply();
 
     if (result['comment'] != null) {
-      final comment = StrategyComment.fromJson(Map<String, dynamic>.from(result['comment']));
+      final comment = StrategyComment.fromJson(
+        Map<String, dynamic>.from(result['comment']),
+      );
       setState(() => _comments.add(comment));
       if (_post != null) {
         _post = StrategyPost(
@@ -159,7 +165,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: Text(msg),
-        actions: [CupertinoDialogAction(child: const Text('确定'), onPressed: () => Navigator.of(ctx).pop())],
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('确定'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
       ),
     );
   }
@@ -170,47 +181,63 @@ class _PostDetailPageState extends State<PostDetailPage> {
       backgroundColor: CupertinoColors.white,
       navigationBar: CupertinoNavigationBar(
         backgroundColor: CupertinoColors.white,
-        middle: const Text('帖子详情', style: TextStyle(fontWeight: FontWeight.w600)),
+        middle: const Text(
+          '帖子详情',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
       child: _loading
           ? const Center(child: CupertinoActivityIndicator())
           : _post == null
-              ? const Center(child: Text('帖子不存在'))
-              : Column(
-                  children: [
-                    // 扣分提示
-                    if (_showDeductedTip)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        color: CupertinoColors.systemYellow.withValues(alpha: 0.15),
-                        child: Consumer<StrategyViewModel>(
-                          builder: (_, vm, __) => Text(
-                            '首次阅读 -1 积分，剩余 ${vm.pointsInfo.points} 积分',
-                            style: const TextStyle(fontSize: 12, color: Color(0xffb71c1c)),
-                          ),
+          ? const Center(child: Text('帖子不存在'))
+          : Column(
+              children: [
+                // 扣分提示
+                if (_showDeductedTip)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    color: CupertinoColors.systemYellow.withValues(alpha: 0.15),
+                    child: Consumer<StrategyViewModel>(
+                      builder: (_, vm, __) => Text(
+                        '首次阅读 -1 积分，剩余 ${vm.pointsInfo.points} 积分',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xffb71c1c),
                         ),
                       ),
-                    // 帖子内容
-                    Expanded(
-                      child: ListView(
-                        padding: EdgeInsets.zero,
-                        children: [
-                          _buildPostContent(),
-                          if (_comments.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                              child: Text('评论', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey, fontWeight: FontWeight.w600)),
-                            ),
-                            ..._comments.map((c) => _buildComment(c)),
-                          ],
-                        ],
-                      ),
                     ),
-                    // 底部输入栏
-                    _buildBottomBar(),
-                  ],
+                  ),
+                // 帖子内容
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      _buildPostContent(),
+                      if (_comments.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            '评论',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.systemGrey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        ..._comments.map((c) => _buildComment(c)),
+                      ],
+                    ],
+                  ),
                 ),
+                // 底部输入栏
+                _buildBottomBar(),
+              ],
+            ),
     );
   }
 
@@ -224,7 +251,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
           Row(
             children: [
               Container(
-                width: 32, height: 32,
+                width: 32,
+                height: 32,
                 decoration: const BoxDecoration(
                   color: CupertinoColors.systemGrey5,
                   shape: BoxShape.circle,
@@ -232,30 +260,55 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 alignment: Alignment.center,
                 child: Text(
                   _post!.nickname.isNotEmpty ? _post!.nickname[0] : '?',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              Text(_post!.nickname, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              Text(
+                _post!.nickname,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
-              Text(_formatTime(_post!.createdAt), style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey)),
+              Text(
+                _formatTime(_post!.createdAt),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: CupertinoColors.systemGrey,
+                ),
+              ),
             ],
           ),
           // 内容
           if (_post!.content != null && _post!.content!.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(_post!.content!, style: const TextStyle(fontSize: 16, height: 1.5)),
+            Text(
+              _post!.content!,
+              style: const TextStyle(fontSize: 16, height: 1.5),
+            ),
           ],
           // 图片
           if (_post!.images.isNotEmpty) ...[
             const SizedBox(height: 12),
-            ..._post!.images.map((url) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(url, width: double.infinity, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+            ..._post!.images.map(
+              (url) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    url,
+                    width: double.infinity,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
-                )),
+                ),
+              ),
+            ),
           ],
           // 操作
           const SizedBox(height: 16),
@@ -265,19 +318,42 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 onTap: _toggleLike,
                 child: Row(
                   children: [
-                    Icon(_liked ? CupertinoIcons.heart_fill : CupertinoIcons.heart, size: 20,
-                        color: _liked ? const Color(0xffe53935) : CupertinoColors.systemGrey),
+                    Icon(
+                      _liked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                      size: 20,
+                      color: _liked
+                          ? const Color(0xffe53935)
+                          : CupertinoColors.systemGrey,
+                    ),
                     const SizedBox(width: 4),
-                    Text(_post!.likeCount.toString(), style: TextStyle(fontSize: 13, color: _liked ? const Color(0xffe53935) : CupertinoColors.systemGrey)),
+                    Text(
+                      _post!.likeCount.toString(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _liked
+                            ? const Color(0xffe53935)
+                            : CupertinoColors.systemGrey,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(width: 24),
               Row(
                 children: [
-                  const Icon(CupertinoIcons.bubble_left_bubble_right, size: 20, color: CupertinoColors.systemGrey),
+                  const Icon(
+                    CupertinoIcons.bubble_left_bubble_right,
+                    size: 20,
+                    color: CupertinoColors.systemGrey,
+                  ),
                   const SizedBox(width: 4),
-                  Text(_post!.commentCnt.toString(), style: const TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                  Text(
+                    _post!.commentCnt.toString(),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.systemGrey,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -291,40 +367,83 @@ class _PostDetailPageState extends State<PostDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: CupertinoColors.systemGrey6, width: 0.5)),
+        border: Border(
+          bottom: BorderSide(color: CupertinoColors.systemGrey6, width: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text(comment.nickname, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              Text(
+                comment.nickname,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               if (comment.replyToName != null) ...[
-                const Text(' 回复 ', style: TextStyle(fontSize: 12, color: CupertinoColors.systemGrey)),
-                Text(comment.replyToName!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const Text(
+                  ' 回复 ',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.systemGrey,
+                  ),
+                ),
+                Text(
+                  comment.replyToName!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
               const SizedBox(width: 8),
-              Text(_formatTime(comment.createdAt), style: const TextStyle(fontSize: 10, color: CupertinoColors.systemGrey)),
+              Text(
+                _formatTime(comment.createdAt),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: CupertinoColors.systemGrey,
+                ),
+              ),
               const Spacer(),
               GestureDetector(
-                onTap: () => _startReply(comment.id, comment.userId, comment.nickname),
-                child: const Icon(CupertinoIcons.reply, size: 14, color: CupertinoColors.systemGrey),
+                onTap: () =>
+                    _startReply(comment.id, comment.userId, comment.nickname),
+                child: const Icon(
+                  CupertinoIcons.reply,
+                  size: 14,
+                  color: CupertinoColors.systemGrey,
+                ),
               ),
             ],
           ),
           if (comment.content != null && comment.content!.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(comment.content!, style: const TextStyle(fontSize: 14, height: 1.3)),
+            Text(
+              comment.content!,
+              style: const TextStyle(fontSize: 14, height: 1.3),
+            ),
           ],
           if (comment.images.isNotEmpty) ...[
             const SizedBox(height: 4),
             Wrap(
               spacing: 4,
-              children: comment.images.map((url) => ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(url, width: 60, height: 60, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-              )).toList(),
+              children: comment.images
+                  .map(
+                    (url) => ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        url,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ],
@@ -335,12 +454,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget _buildBottomBar() {
     return Container(
       padding: EdgeInsets.only(
-        left: 12, right: 12, top: 8,
+        left: 12,
+        right: 12,
+        top: 8,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
       decoration: const BoxDecoration(
         color: CupertinoColors.white,
-        border: Border(top: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5)),
+        border: Border(
+          top: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+        ),
       ),
       child: Row(
         children: [
@@ -349,13 +472,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
               onTap: _cancelReply,
               child: const Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: Icon(CupertinoIcons.xmark_circle, size: 18, color: CupertinoColors.systemGrey),
+                child: Icon(
+                  CupertinoIcons.xmark_circle,
+                  size: 18,
+                  color: CupertinoColors.systemGrey,
+                ),
               ),
             ),
           Expanded(
             child: CupertinoTextField(
               controller: _replyController,
-              placeholder: _replyToName != null ? '回复 $_replyToName...' : '写评论...',
+              placeholder: _replyToName != null
+                  ? '回复 $_replyToName...'
+                  : '写评论...',
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: CupertinoColors.systemGrey6,
@@ -373,7 +502,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 color: Color(0xff2364aa),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(CupertinoIcons.arrow_up, size: 16, color: CupertinoColors.white),
+              child: const Icon(
+                CupertinoIcons.arrow_up,
+                size: 16,
+                color: CupertinoColors.white,
+              ),
             ),
           ),
         ],

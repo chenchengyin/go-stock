@@ -228,9 +228,14 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.w400,
-                            color: isSelected
-                                ? CupertinoColors.destructiveRed
-                                : CupertinoColors.destructiveRed,
+                            // color: i == 0 && isSelected
+                            //     ? CupertinoColors.systemRed: isSelected ?
+                            //     CupertinoColors.activeBlue
+                            //     : CupertinoColors.darkBackgroundGray,
+                            color: i == 0
+                                ? CupertinoColors.systemRed: isSelected ?
+                            CupertinoColors.activeBlue
+                                : CupertinoColors.darkBackgroundGray,
                           ),
                         ),
                         const SizedBox(height: 4),

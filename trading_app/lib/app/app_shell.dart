@@ -14,13 +14,17 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
+  final Set<int> _visitedIndexes = {0};
 
-  static const _pages = <Widget>[
-    RadarPage(),
-    NewsPage(),
-    StrategyPage(),
-    ProfilePage(),
-  ];
+  static Widget _buildPage(int index) {
+    return switch (index) {
+      0 => const RadarPage(),
+      1 => const NewsPage(),
+      2 => const StrategyPage(),
+      3 => const ProfilePage(),
+      _ => const SizedBox.shrink(),
+    };
+  }
 
   static const _items = [
     BottomNavigationBarItem(
@@ -50,11 +54,21 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _pages,
+        children: List.generate(_items.length, (index) {
+          if (!_visitedIndexes.contains(index)) {
+            return const SizedBox.shrink();
+          }
+          return _buildPage(index);
+        }),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+            _visitedIndexes.add(index);
+          });
+        },
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
         selectedItemColor: Colors.blue,
