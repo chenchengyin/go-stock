@@ -31,8 +31,14 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoTabScaffold(
-      controller: _controller,
+    return DefaultTextStyle(
+      style: const TextStyle(
+        fontFamily: 'PingFang SC',
+        fontFamilyFallback: ['Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'],
+        decoration: TextDecoration.none,
+      ),
+      child: CupertinoTabScaffold(
+        controller: _controller,
       resizeToAvoidBottomInset: true,
       backgroundColor: Colors.white,
       tabBar: CupertinoTabBar(
@@ -63,6 +69,7 @@ class _AppShellState extends State<AppShell> {
           builder: (_) => _pages[index],
         );
       },
+      ),
     );
   }
 }
