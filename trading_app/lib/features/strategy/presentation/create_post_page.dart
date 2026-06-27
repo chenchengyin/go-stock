@@ -30,7 +30,11 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1920, maxHeight: 1920);
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
     if (file != null && _selectedImages.length < 6) {
       setState(() => _selectedImages.add(file));
     }
@@ -56,6 +60,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
       return;
     }
 
+    final vm = context.read<StrategyViewModel>();
+
     setState(() {
       _isSubmitting = true;
       _isUploading = _selectedImages.isNotEmpty;
@@ -71,7 +77,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
     }
     setState(() => _isUploading = false);
 
-    final vm = context.read<StrategyViewModel>();
     final post = await vm.createPost(
       title: _titleController.text.trim(),
       content: _contentController.text.trim(),
@@ -95,7 +100,12 @@ class _CreatePostPageState extends State<CreatePostPage> {
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: Text(msg),
-        actions: [CupertinoDialogAction(child: const Text('确定'), onPressed: () => Navigator.of(ctx).pop())],
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('确定'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
       ),
     );
   }
@@ -113,18 +123,33 @@ class _CreatePostPageState extends State<CreatePostPage> {
             child: Icon(CupertinoIcons.clear_thick, size: 20),
           ),
         ),
-        middle: const Text('发布策略', style: TextStyle(fontWeight: FontWeight.w600)),
+        middle: const Text(
+          '发布策略',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         trailing: GestureDetector(
           onTap: _isSubmitting ? null : _submit,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: _isSubmitting ? CupertinoColors.systemGrey5 : const Color(0xff2364aa),
+              color: _isSubmitting
+                  ? CupertinoColors.systemGrey5
+                  : const Color(0xff2364aa),
               borderRadius: BorderRadius.circular(16),
             ),
             child: _isSubmitting
-                ? const SizedBox(width: 16, height: 16, child: CupertinoActivityIndicator())
-                : const Text('发布', style: TextStyle(color: CupertinoColors.white, fontSize: 14)),
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CupertinoActivityIndicator(),
+                  )
+                : const Text(
+                    '发布',
+                    style: TextStyle(
+                      color: CupertinoColors.white,
+                      fontSize: 14,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -157,37 +182,58 @@ class _CreatePostPageState extends State<CreatePostPage> {
             ),
             const SizedBox(height: 16),
             // 图片选择
-            const Text('配图（最多6张）', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+            const Text(
+              '配图（最多6张）',
+              style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                ..._selectedImages.map((file) => Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(File(file.path), width: 80, height: 80, fit: BoxFit.cover),
+                ..._selectedImages.map(
+                  (file) => Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(file.path),
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
                         ),
-                        Positioned(
-                          top: -4, right: -4,
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedImages.remove(file)),
-                            child: const Icon(CupertinoIcons.xmark_circle_fill, size: 20, color: CupertinoColors.systemRed),
+                      ),
+                      Positioned(
+                        top: -4,
+                        right: -4,
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedImages.remove(file)),
+                          child: const Icon(
+                            CupertinoIcons.xmark_circle_fill,
+                            size: 20,
+                            color: CupertinoColors.systemRed,
                           ),
                         ),
-                      ],
-                    )),
+                      ),
+                    ],
+                  ),
+                ),
                 if (_selectedImages.length < 6)
                   GestureDetector(
                     onTap: _pickImage,
                     child: Container(
-                      width: 80, height: 80,
+                      width: 80,
+                      height: 80,
                       decoration: BoxDecoration(
                         color: CupertinoColors.systemGrey6,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(CupertinoIcons.camera_viewfinder, color: CupertinoColors.systemGrey, size: 28),
+                      child: const Icon(
+                        CupertinoIcons.camera_viewfinder,
+                        color: CupertinoColors.systemGrey,
+                        size: 28,
+                      ),
                     ),
                   ),
               ],
@@ -198,7 +244,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 children: [
                   CupertinoActivityIndicator(),
                   SizedBox(width: 8),
-                  Text('正在上传图片...', style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+                  Text(
+                    '正在上传图片...',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: CupertinoColors.systemGrey,
+                    ),
+                  ),
                 ],
               ),
             ],

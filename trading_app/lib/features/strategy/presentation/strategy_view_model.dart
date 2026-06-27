@@ -126,7 +126,11 @@ class StrategyViewModel extends ChangeNotifier {
     String? content,
     List<String> images = const [],
   }) async {
-    if (currentUserId == null || currentUserId!.isEmpty) return null;
+    debugPrint('[createPost] currentUserId=$currentUserId nickname=$currentNickname');
+    if (currentUserId == null || currentUserId!.isEmpty) {
+      debugPrint('[createPost] ERROR: currentUserId is empty');
+      return null;
+    }
     try {
       final post = await _repo.createPost(
         userId: currentUserId!,
@@ -138,7 +142,8 @@ class StrategyViewModel extends ChangeNotifier {
       posts.insert(0, post);
       notifyListeners();
       return post;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('createPost error: $e\n$st');
       return null;
     }
   }

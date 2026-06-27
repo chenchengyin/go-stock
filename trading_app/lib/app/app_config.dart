@@ -4,7 +4,6 @@ library;
 import 'package:provider/provider.dart';
 import 'package:flutter/widgets.dart';
 
-import '../core/network/api_client.dart';
 import '../core/storage/local_cache.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/presentation/auth_view_model.dart';
@@ -24,7 +23,6 @@ class AppDependencies extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cache = MemoryLocalCache();
-    final dio = createApiClient();
 
     return MultiProvider(
       providers: [
@@ -36,7 +34,7 @@ class AppDependencies extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) {
-            final remote = NewsRemoteDataSource(dio: dio);
+            final remote = NewsRemoteDataSource();
             final repo = NewsRepositoryImpl(
               cache: cache,
               remoteDataSource: remote,
@@ -44,9 +42,7 @@ class AppDependencies extends StatelessWidget {
             return NewsViewModel(repo)..load();
           },
         ),
-        ChangeNotifierProvider(
-          create: (_) => StrategyViewModel(dio: dio),
-        ),
+        ChangeNotifierProvider(create: (_) => StrategyViewModel()),
       ],
       child: child,
     );

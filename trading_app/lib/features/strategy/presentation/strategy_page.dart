@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../auth/presentation/auth_view_model.dart';
+import '../../auth/presentation/login_page.dart';
 import '../domain/strategy_models.dart';
 import 'strategy_view_model.dart';
 import 'create_post_page.dart';
@@ -24,9 +25,9 @@ class _StrategyPageState extends State<StrategyPage> {
       final auth = context.read<AuthViewModel>();
       if (auth.user != null) {
         vm.setCurrentUser(auth.user!.id, auth.user!.nickname);
-      }
-      if (vm.posts.isEmpty) {
-        vm.load();
+        if (vm.posts.isEmpty) {
+          vm.load();
+        }
       }
     });
   }
@@ -34,6 +35,33 @@ class _StrategyPageState extends State<StrategyPage> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<StrategyViewModel>();
+    final auth = context.watch<AuthViewModel>();
+
+    // 未登录则显示登录引导
+    if (auth.user == null) {
+      return CupertinoPageScaffold(
+        backgroundColor: CupertinoColors.white,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CupertinoActivityIndicator(),
+              const SizedBox(height: 16),
+              const Text('请先登录', style: TextStyle(fontSize: 16)),
+              const SizedBox(height: 16),
+              CupertinoButton.filled(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(builder: (_) => const LoginPage()),
+                  );
+                },
+                child: const Text('去登录'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.white,
@@ -76,17 +104,19 @@ class _StrategyPageState extends State<StrategyPage> {
             ),
             const SizedBox(width: 8),
             // 积分显示
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '💎 ${vm.pointsInfo.points}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '💎 ${vm.pointsInfo.points}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -159,6 +189,24 @@ class _StrategyPageState extends State<StrategyPage> {
           bottom: 16,
           child: GestureDetector(
             onTap: () async {
+              final auth = context.read<AuthViewModel>();
+              if (auth.user == null) {
+                // 未登录，跳转登录页
+                await Navigator.of(context).push(
+                  CupertinoPageRoute(builder: (_) => const LoginPage()),
+                );
+                // 登录成功后返回，如果已登录再跳转发帖页
+                if (context.mounted && auth.user != null) {
+                  final result = await Navigator.of(context).push<bool>(
+                    CupertinoPageRoute(builder: (_) => const CreatePostPage()),
+                  );
+                  if (result == true && mounted) {
+                    vm.load(refresh: true);
+                  }
+                }
+                return;
+              }
+              // 已登录，直接跳转发帖页
               final result = await Navigator.of(context).push<bool>(
                 CupertinoPageRoute(builder: (_) => const CreatePostPage()),
               );

@@ -39,9 +39,9 @@ class NewsRepositoryImpl implements NewsRepository {
   Future<Map<String, List<NewsItem>>> fetchAllNews() async {
     // 并行获取三个数据源
     final results = await Future.wait([
-      fetchNews('财联社电报', limit: 30),
-      fetchNews('新浪财经', limit: 30),
-      fetchNews('外媒', limit: 10),
+      fetchNews('财联社电报', limit: 100),
+      fetchNews('新浪财经', limit: 100),
+      fetchNews('外媒', limit: 100),
     ]);
 
     return {
