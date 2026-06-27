@@ -15,7 +15,7 @@ class TradingRadarApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppDependencies(
       child: MaterialApp(
-        title: '交易雷达',
+        // title: '交易雷达',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         home: const AppShell(),

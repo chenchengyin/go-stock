@@ -34,11 +34,9 @@ class _NewsPageState extends State<NewsPage> {
   }
 
   void _openTopic(HotTopicItem item) {
-    Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (_) => HotTopicDetailPage(item: item),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(CupertinoPageRoute(builder: (_) => HotTopicDetailPage(item: item)));
   }
 
   @override
@@ -47,22 +45,20 @@ class _NewsPageState extends State<NewsPage> {
     final tabs = ['重要', '热门话题', '财联社', '新浪', '外媒'];
 
     return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: const Text('市场快讯'),
-        trailing: GestureDetector(
-          onTap: _onRefresh,
-          child: const Padding(
-            padding: EdgeInsets.all(8),
-            child: Icon(CupertinoIcons.refresh, size: 22, color: CupertinoColors.systemBlue),
-          ),
-        ),
-        bottom: _TabBar(
-          tabs: tabs,
-          selectedIndex: _selectedTab,
-          onSelect: (i) => setState(() => _selectedTab = i),
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _Header(onRefresh: _onRefresh),
+            _TabBar(
+              tabs: tabs,
+              selectedIndex: _selectedTab,
+              onSelect: (i) => setState(() => _selectedTab = i),
+            ),
+            Expanded(child: _buildBody(vm)),
+          ],
         ),
       ),
-      child: _buildBody(vm),
     );
   }
 
@@ -71,16 +67,23 @@ class _NewsPageState extends State<NewsPage> {
       return const Center(child: CupertinoActivityIndicator());
     }
 
-    if (vm.state.status.name == 'error' && vm.totalCount == 0 && vm.hotTopics.isEmpty) {
+    if (vm.state.status.name == 'error' &&
+        vm.totalCount == 0 &&
+        vm.hotTopics.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(CupertinoIcons.exclamationmark_triangle, size: 48,
-                color: CupertinoColors.systemGrey),
+            const Icon(
+              CupertinoIcons.exclamationmark_triangle,
+              size: 48,
+              color: CupertinoColors.systemGrey,
+            ),
             const SizedBox(height: 16),
-            Text(vm.state.message,
-                style: const TextStyle(color: CupertinoColors.systemGrey)),
+            Text(
+              vm.state.message,
+              style: const TextStyle(color: CupertinoColors.systemGrey),
+            ),
             const SizedBox(height: 16),
             CupertinoButton.filled(
               onPressed: _onRefresh,
@@ -114,34 +117,70 @@ class _NewsPageState extends State<NewsPage> {
   Widget _buildNewsList(List<NewsItem> items) {
     if (items.isEmpty) {
       return const Center(
-        child: Text('暂无数据',
-            style: TextStyle(color: CupertinoColors.systemGrey)),
+        child: Text(
+          '暂无数据',
+          style: TextStyle(color: CupertinoColors.systemGrey),
+        ),
       );
     }
-    return CupertinoScrollbar(
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: items.length,
-        itemBuilder: (_, i) => NewsCard(item: items[i]),
-      ),
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: items.length,
+      itemBuilder: (_, i) => NewsCard(item: items[i]),
     );
   }
 
   Widget _buildHotTopicsList(List<HotTopicItem> items) {
     if (items.isEmpty) {
       return const Center(
-        child: Text('暂无热门话题',
-            style: TextStyle(color: CupertinoColors.systemGrey)),
+        child: Text(
+          '暂无热门话题',
+          style: TextStyle(color: CupertinoColors.systemGrey),
+        ),
       );
     }
-    return CupertinoScrollbar(
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: items.length,
-        itemBuilder: (_, i) => HotTopicCard(
-          item: items[i],
-          onTap: () => _openTopic(items[i]),
-        ),
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: items.length,
+      itemBuilder: (_, i) =>
+          HotTopicCard(item: items[i], onTap: () => _openTopic(items[i])),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.onRefresh});
+
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      color: CupertinoColors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Text(
+            '市场快讯',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
+              onTap: onRefresh,
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(
+                  CupertinoIcons.refresh,
+                  size: 22,
+                  color: CupertinoColors.systemBlue,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -185,7 +224,9 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
                           tabs[i],
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
                             color: isSelected
                                 ? CupertinoColors.systemBlue
                                 : CupertinoColors.systemGrey,
@@ -196,7 +237,9 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
                           height: 2,
                           width: 24,
                           decoration: BoxDecoration(
-                            color: isSelected ? CupertinoColors.systemBlue : CupertinoColors.transparent,
+                            color: isSelected
+                                ? CupertinoColors.systemBlue
+                                : CupertinoColors.transparent,
                             borderRadius: BorderRadius.circular(1),
                           ),
                         ),
@@ -208,10 +251,7 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
               }),
             ),
           ),
-          Container(
-            height: 0.5,
-            color: CupertinoColors.systemGrey5,
-          ),
+          Container(height: 0.5, color: CupertinoColors.systemGrey5),
         ],
       ),
     );
