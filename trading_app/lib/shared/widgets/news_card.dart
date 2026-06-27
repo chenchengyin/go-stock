@@ -36,73 +36,67 @@ class NewsCard extends StatelessWidget {
             bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
           ),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 左侧时间
-            SizedBox(
-              width: 56,
-              child: Text(
-                item.time,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: CupertinoColors.systemGrey,
-                  fontFeatures: [FontFeature.tabularFigures()],
+            // 标题 + 时间
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: item.title.isNotEmpty
+                      ? Text(
+                          item.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
+                            color: _titleColor,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : Text(
+                          item.content,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
+                            color: _titleColor,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Text(
+                  item.time,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: CupertinoColors.systemGrey2,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            // 右侧标题 + 标签
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (item.subjects.isNotEmpty ||
+                item.sentimentResult.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
                 children: [
-                  if (item.title.isNotEmpty)
-                    Text(
-                      item.title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
-                        color: _titleColor,
+                  ...item.subjects.take(3).map(
+                        (s) => _Tag(
+                          text: s,
+                          textColor: _sourceColor,
+                          bgColor: _sourceColor.withValues(alpha: 0.08),
+                        ),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else
-                    Text(
-                      item.content,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        height: 1.35,
-                        color: _titleColor,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  if (item.subjects.isNotEmpty ||
-                      item.sentimentResult.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        ...item.subjects.take(3).map(
-                              (s) => _Tag(
-                                text: s,
-                                textColor: _sourceColor,
-                                bgColor: _sourceColor.withValues(alpha: 0.08),
-                              ),
-                            ),
-                        if (item.sentimentResult.isNotEmpty)
-                          _buildSentimentTag(item.sentimentResult),
-                      ],
-                    ),
-                  ],
+                  if (item.sentimentResult.isNotEmpty)
+                    _buildSentimentTag(item.sentimentResult),
                 ],
               ),
-            ),
+            ],
           ],
         ),
       ),

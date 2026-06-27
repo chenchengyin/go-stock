@@ -21,7 +21,7 @@ class NewsRemoteDataSource implements INewsRemoteDataSource {
   final Dio _dio;
 
   @override
-  Future<NewsListResult> fetchNews(String source, {int limit = 50}) async {
+  Future<NewsListResult> fetchNews(String source, {int limit = 500}) async {
     final response = await _dio.get(
       '/api/news',
       queryParameters: {
