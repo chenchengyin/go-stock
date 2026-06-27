@@ -43,6 +43,7 @@ func Start() {
 	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)
+	mux.HandleFunc("/api/stock-changes", handleStockChanges)
 	mux.HandleFunc("/api/strategy", handleStrategy)
 	mux.HandleFunc("/api/upload", handleFileUpload)
 	mux.HandleFunc("/api/health", handleHealth)
@@ -198,6 +199,29 @@ func handleHotTopics(w http.ResponseWriter, r *http.Request) {
 	}
 	topics := data.NewMarketNewsApi().HotTopic(limit)
 	writeJSON(w, topics)
+}
+
+func handleStockChanges(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	codes := r.URL.Query().Get("codes")
+	if codes == "" {
+		writeJSON(w, map[string]interface{}{"data": []interface{}{}, "totalCount": 0})
+		return
+	}
+	service := data.NewStockChangeHistoryService()
+	query := data.StockChangeCodesQuery{
+		StockCodes: strings.Split(codes, ","),
+		PageSize:   100,
+	}
+	result, err := service.GetLatestByStockCodes(query)
+	if err != nil {
+		writeJSON(w, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, result)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {

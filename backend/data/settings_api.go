@@ -41,6 +41,7 @@ type Settings struct {
 	QgqpBId                string `json:"qgqpBId" gorm:"column:qgqp_b_id"`
 	IwencaiApiKey          string `json:"iwencaiApiKey" gorm:"column:iwencai_api_key"`
 	EmApiKey               string `json:"emApiKey" gorm:"column:em_api_key"`
+	StockChangeIntervalSec int64  `json:"stockChangeIntervalSec" gorm:"column:stock_change_interval_sec"`
 	WindowWidth            int    `json:"windowWidth"`
 	WindowHeight           int    `json:"windowHeight"`
 	PromptPlazaApiBase     string `json:"promptPlazaApiBase" gorm:"column:prompt_plaza_api_base"`
@@ -138,6 +139,7 @@ func UpdateConfig(s *SettingConfig) string {
 			"qgqp_b_id":                  s.QgqpBId,
 			"iwencai_api_key":            s.IwencaiApiKey,
 			"em_api_key":                 s.EmApiKey,
+			"stock_change_interval_sec":  s.StockChangeIntervalSec,
 			"window_width":               s.WindowWidth,
 			"window_height":              s.WindowHeight,
 			"prompt_plaza_api_base":      s.PromptPlazaApiBase,

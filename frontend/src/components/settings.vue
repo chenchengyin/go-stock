@@ -34,6 +34,7 @@ const formValue = ref({
   },
   updateBasicInfoOnStart: false,
   refreshInterval: 1,
+  stockChangeIntervalSec: 60,
   openAI: {
     enable: false,
     aiConfigs: [], // AI配置列表
@@ -211,6 +212,7 @@ onMounted(() => {
     }
     formValue.value.updateBasicInfoOnStart = res.updateBasicInfoOnStart
     formValue.value.refreshInterval = res.refreshInterval
+    formValue.value.stockChangeIntervalSec = res.stockChangeIntervalSec || 60
     // 加载AI配置
     formValue.value.openAI = {
       enable: res.openAiEnable,
@@ -259,6 +261,7 @@ function saveConfig() {
     localPushEnable: formValue.value.localPush.enable,
     updateBasicInfoOnStart: formValue.value.updateBasicInfoOnStart,
     refreshInterval: formValue.value.refreshInterval,
+    stockChangeIntervalSec: formValue.value.stockChangeIntervalSec,
     openAiEnable: formValue.value.openAI.enable,
     aiConfigs: formValue.value.openAI.aiConfigs,
     // 序列化aiConfigs列表以传递给后端
@@ -354,6 +357,7 @@ function importConfig() {
       }
       formValue.value.updateBasicInfoOnStart = config.updateBasicInfoOnStart
       formValue.value.refreshInterval = config.refreshInterval
+      formValue.value.stockChangeIntervalSec = config.stockChangeIntervalSec || 60
       // 导入AI配置
       formValue.value.openAI = {
         enable: config.openAiEnable,
@@ -454,6 +458,11 @@ function deletePrompt(ID) {
             </n-form-item-gi>
             <n-form-item-gi :span="4" label="数据刷新间隔：" path="refreshInterval">
               <n-input-number v-model:value="formValue.refreshInterval" placeholder="请输入数据刷新间隔(秒)">
+                <template #suffix>秒</template>
+              </n-input-number>
+            </n-form-item-gi>
+            <n-form-item-gi :span="4" label="异动轮询间隔：" path="stockChangeIntervalSec">
+              <n-input-number v-model:value="formValue.stockChangeIntervalSec" placeholder="异动数据轮询间隔(秒)" :min="30" :max="300" :step="10">
                 <template #suffix>秒</template>
               </n-input-number>
             </n-form-item-gi>

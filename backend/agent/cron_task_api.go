@@ -8,6 +8,7 @@ import (
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -391,6 +392,21 @@ func (a *CronTaskApi) executeStockChangeSave(ctx context.Context, task *models.C
 	if !isTradingTime() {
 		logger.SugaredLogger.Info("当前不在A股交易时间，跳过异动数据保存")
 		return nil
+	}
+
+	// 从 settings 读取轮询间隔（秒），默认 60 秒
+	intervalSec := int64(60)
+	var settings data.Settings
+	if err := db.Dao.First(&settings).Error; err == nil && settings.StockChangeIntervalSec > 0 {
+		intervalSec = settings.StockChangeIntervalSec
+	}
+	logger.SugaredLogger.Infof("异动轮询间隔: %d 秒", intervalSec)
+
+	// 添加随机延迟（0 ~ intervalSec/2 秒），避免集中请求触发风控
+	randomDelay := time.Duration(rand.Int63n(intervalSec/2)) * time.Second
+	if randomDelay > 0 {
+		logger.SugaredLogger.Infof("随机延迟 %.1f 秒后请求东财接口", randomDelay.Seconds())
+		time.Sleep(randomDelay)
 	}
 
 	var params struct {
