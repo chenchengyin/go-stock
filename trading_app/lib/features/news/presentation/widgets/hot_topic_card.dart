@@ -1,142 +1,133 @@
-/// 热门话题卡片 — 匹配前端 HotTopics.vue 风格
+/// 热门话题卡片 — Cupertino 风格
 library;
 
-import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../domain/news_models.dart';
 
 class HotTopicCard extends StatelessWidget {
-  const HotTopicCard({
-    super.key,
-    required this.item,
-    this.onTap,
-  });
+  const HotTopicCard({super.key, required this.item, this.onTap});
 
   final HotTopicItem item;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.12)),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: CupertinoColors.systemGrey5),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 左侧头像/图片（使用 CachedNetworkImage）
-              if (item.squareImg != null && item.squareImg!.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: CachedNetworkImage(
-                    imageUrl: item.squareImg!,
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => _buildPlaceholder(),
-                    errorWidget: (_, __, ___) => _buildPlaceholder(),
+      child: CupertinoButton(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        pressedOpacity: 0.7,
+        onPressed: onTap,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 左侧头像/图片
+            if (item.squareImg != null && item.squareImg!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.network(
+                  item.squareImg!,
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (_, child, progress) =>
+                      progress == null ? child : _buildPlaceholder(),
+                  errorBuilder: (_, __, ___) => _buildPlaceholder(),
+                ),
+              )
+            else
+              _buildPlaceholder(),
+            const SizedBox(width: 10),
+            // 右侧内容
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 标题
+                  Text(
+                    item.nickname,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                      color: CupertinoColors.black,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                )
-              else
-                _buildPlaceholder(),
-              const SizedBox(width: 10),
-              // 右侧内容
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 标题
-                    Text(
-                      item.nickname,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 4),
+                  // 描述
+                  Text(
+                    item.desc,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: CupertinoColors.systemGrey,
+                      height: 1.4,
                     ),
-                    const SizedBox(height: 4),
-                    // 描述
-                    Text(
-                      item.desc,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    // 底部：讨论数 + 浏览量 + 股票标签
-                    Row(
-                      children: [
-                        _buildBadge(
-                          Icons.chat_bubble_outline,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  // 底部：讨论数 + 浏览量 + 股票标签
+                  Row(
+                    children: [
+                      _buildBadge(CupertinoIcons.chat_bubble_2,
                           _formatNum(item.postNumber),
-                          Colors.orange,
-                        ),
-                        const SizedBox(width: 8),
-                        _buildBadge(
-                          Icons.visibility_outlined,
+                          CupertinoColors.systemOrange),
+                      const SizedBox(width: 8),
+                      _buildBadge(CupertinoIcons.eye,
                           _formatNum(item.clickNumber),
-                          Colors.orange,
+                          CupertinoColors.systemOrange),
+                      const Spacer(),
+                      if (item.stockList.isNotEmpty)
+                        Flexible(
+                          child: Text(
+                            item.stockList.take(3).join(' '),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: CupertinoColors.systemBlue,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        const Spacer(),
-                        if (item.stockList.isNotEmpty)
-                          Flexible(
-                            child: Text(
-                              item.stockList.take(3).join(' '),
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.blue.shade600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                    ],
+                  ),
+                  if (item.stockList.length > 3) ...[
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 2,
+                      children: item.stockList.take(6).map((s) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.systemBlue
+                                .withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            s,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: CupertinoColors.systemBlue,
                             ),
                           ),
-                      ],
+                        );
+                      }).toList(),
                     ),
-                    // 股票标签
-                    if (item.stockList.length > 3) ...[
-                      const SizedBox(height: 4),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 2,
-                        children: item.stockList.take(6).map((s) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              s,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.blue.shade600,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -147,10 +138,11 @@ class HotTopicCard extends StatelessWidget {
       width: 60,
       height: 60,
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: CupertinoColors.systemGrey5,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Icon(Icons.forum_outlined, size: 28, color: Colors.grey.shade300),
+      child: Icon(CupertinoIcons.doc_text,
+          size: 28, color: CupertinoColors.systemGrey4),
     );
   }
 
@@ -162,7 +154,10 @@ class HotTopicCard extends StatelessWidget {
         const SizedBox(width: 2),
         Text(
           text,
-          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500),
+          style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w500),
         ),
       ],
     );

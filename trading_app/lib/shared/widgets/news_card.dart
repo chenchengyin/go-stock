@@ -1,53 +1,52 @@
-/// 新闻卡片 — 匹配 go-stock 桌面端样式
+/// 新闻卡片 — Cupertino 风格
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../../features/news/domain/news_models.dart';
 import '../../features/news/presentation/pages/news_detail_page.dart';
 
 class NewsCard extends StatelessWidget {
-  const NewsCard({
-    super.key,
-    required this.item,
-  });
+  const NewsCard({super.key, required this.item});
 
   final NewsItem item;
 
-  Color get _textColor => item.isRed ? Colors.red.shade700 : Colors.black87;
-  Color get _timeColor => item.isRed ? Colors.red : Colors.orange;
+  Color get _textColor =>
+      item.isRed ? CupertinoColors.systemRed : CupertinoColors.black;
+  Color get _timeColor =>
+      item.isRed ? CupertinoColors.systemRed : CupertinoColors.systemOrange;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 4),
-      elevation: 0.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(
-          color: item.isRed ? Colors.red.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: item.isRed
+              ? CupertinoColors.systemRed.withValues(alpha: 0.2)
+              : CupertinoColors.systemGrey5,
         ),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: () => _navigateToDetail(context),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 第一行：时间标签 + 内容
-              _buildContentLine(context),
-              // 底部标签行
-              _buildTagsRow(context),
-            ],
-          ),
+      child: CupertinoButton(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        pressedOpacity: 0.7,
+        onPressed: () => _navigateToDetail(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildContentLine(context),
+            if (_hasTags) _buildTagsRow(context),
+          ],
         ),
       ),
     );
   }
 
-  /// 时间标签 + 标题/内容
+  bool get _hasTags =>
+      item.subjects.isNotEmpty || item.sentimentResult.isNotEmpty;
+
   Widget _buildContentLine(BuildContext context) {
     final Widget timeBadge = Container(
       margin: const EdgeInsets.only(right: 6, bottom: 2),
@@ -68,12 +67,12 @@ class NewsCard extends StatelessWidget {
     );
 
     if (item.title.isNotEmpty) {
-      // 有标题 → 时间标签 + 标题
-      return Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           timeBadge,
-          Flexible(
+          const SizedBox(width: 4),
+          Expanded(
             child: Text(
               item.title,
               style: TextStyle(
@@ -90,7 +89,6 @@ class NewsCard extends StatelessWidget {
       );
     }
 
-    // 无标题 → 时间标签 + 内容摘要
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -100,15 +98,16 @@ class NewsCard extends StatelessWidget {
             if (item.isRed)
               Container(
                 margin: const EdgeInsets.only(left: 2),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.12),
+                  color: CupertinoColors.systemRed.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
                   '重要',
                   style: TextStyle(
-                    color: Colors.red,
+                    color: CupertinoColors.systemRed,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
@@ -131,34 +130,28 @@ class NewsCard extends StatelessWidget {
     );
   }
 
-  /// 底部标签行：题材标签 + 情感 + 股票
   Widget _buildTagsRow(BuildContext context) {
     final List<Widget> chips = [];
 
-    // 题材标签（绿色）
     for (final sub in item.subjects.take(5)) {
-      chips.add(_buildTag(sub, Colors.green.shade700, Colors.green.shade50));
+      chips.add(_buildTag(sub, CupertinoColors.systemGreen.darkColor,
+          CupertinoColors.systemGreen.withValues(alpha: 0.1)));
     }
 
-    // 情感标签
     if (item.sentimentResult.isNotEmpty) {
-      final (Color textColor, Color bgColor) = switch (item.sentimentResult) {
-        '看涨' => (Colors.red.shade700, Colors.red.shade50),
-        '看跌' => (Colors.green.shade700, Colors.green.shade50),
-        _ => (Colors.grey.shade700, Colors.grey.shade100),
+      final (Color, Color) colors = switch (item.sentimentResult) {
+        '看涨' => (CupertinoColors.systemRed, CupertinoColors.systemRed.withValues(alpha: 0.1)),
+        '看跌' => (CupertinoColors.systemGreen, CupertinoColors.systemGreen.withValues(alpha: 0.1)),
+        _ => (CupertinoColors.systemGrey, CupertinoColors.systemGrey5),
       };
-      chips.add(_buildTag(item.sentimentResult, textColor, bgColor));
+      chips.add(_buildTag(item.sentimentResult, colors.$1, colors.$2));
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        children: chips,
-      ),
+      child: Wrap(spacing: 4, runSpacing: 4, children: chips),
     );
   }
 
@@ -182,7 +175,7 @@ class NewsCard extends StatelessWidget {
 
   void _navigateToDetail(BuildContext context) {
     Navigator.of(context).push(
-      MaterialPageRoute(
+      CupertinoPageRoute(
         builder: (context) => NewsDetailPage(item: item),
       ),
     );

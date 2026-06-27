@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 import '../features/hotlist/presentation/pages/hotlist_page.dart';
 import '../features/news/presentation/pages/news_page.dart';
@@ -13,9 +13,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _index = 0;
-
-  static const _pages = [
+  static const _pages = <Widget>[
     RadarPage(),
     NewsPage(),
     HotlistPage(),
@@ -24,19 +22,34 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(child: _pages[_index]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.radar), label: '雷达'),
-          NavigationDestination(icon: Icon(Icons.article_outlined), label: '市场快讯'),
-          NavigationDestination(icon: Icon(Icons.local_fire_department_outlined), label: '热榜'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: '我的'),
+    return CupertinoTabScaffold(
+      tabBar: CupertinoTabBar(
+        activeColor: CupertinoColors.systemRed,
+        inactiveColor: CupertinoColors.systemGrey,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.antenna_radiowaves_left_right),
+            label: '雷达',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.doc_text),
+            label: '市场快讯',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.flame),
+            label: '热榜',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(CupertinoIcons.person),
+            label: '我的',
+          ),
         ],
       ),
+      tabBuilder: (context, index) {
+        return CupertinoTabView(
+          builder: (_) => _pages[index],
+        );
+      },
     );
   }
 }
-

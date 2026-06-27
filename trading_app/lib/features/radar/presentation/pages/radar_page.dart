@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../shared/widgets/section_header.dart';
 import '../../domain/radar_models.dart';
 import '../view_models/radar_view_model.dart';
 
@@ -11,109 +10,176 @@ class RadarPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<RadarViewModel>();
-    return CustomScrollView(
-      slivers: [
-        SliverAppBar(
-          title: const Text('交易雷达'),
-          floating: true,
-          actions: [
-            IconButton(
-              tooltip: '刷新',
-              onPressed: vm.load,
-              icon: const Icon(Icons.refresh),
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: const Text('交易雷达'),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: vm.load,
+          child: const Icon(CupertinoIcons.refresh, size: 22),
+        ),
+      ),
+      child: _buildBody(vm),
+    );
+  }
+
+  Widget _buildBody(RadarViewModel vm) {
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: [
+          // 监控摘要
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: _AlertSummary(stocks: vm.stocks.length),
             ),
-          ],
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: _AlertSummary(stocks: vm.stocks.length),
           ),
+          // 标题
+          const SliverToBoxAdapter(
+            child: _SectionHeader(title: '持仓 / 特别关注'),
+          ),
+          // 股票列表
+          SliverList.builder(
+            itemCount: vm.stocks.length,
+            itemBuilder: (context, index) {
+              final stock = vm.stocks[index];
+              final isUp = stock.changePercent >= 0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: _StockCard(stock: stock, isUp: isUp),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: CupertinoColors.systemGrey,
+          letterSpacing: 0.3,
         ),
-        const SliverToBoxAdapter(child: SectionHeader(title: '持仓 / 特别关注')),
-        SliverList.builder(
-          itemCount: vm.stocks.length,
-          itemBuilder: (context, index) {
-            final stock = vm.stocks[index];
-            final isUp = stock.changePercent >= 0;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${stock.name} ${stock.symbol}',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          Text(
-                            '${isUp ? '+' : ''}${stock.changePercent.toStringAsFixed(2)}%',
-                            style: TextStyle(
-                              color: isUp ? const Color(0xffd93025) : const Color(0xff188038),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text('现价 ${stock.price.toStringAsFixed(2)}  量比 ${stock.volumeRatio.toStringAsFixed(2)}'),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: stock.alerts
-                            .map(
-                              (rule) => Chip(
-                                label: Text('${rule.type.label} ${rule.windowSeconds}s / ${rule.thresholdPercent}%'),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _AlertSummary extends StatelessWidget {
   const _AlertSummary({required this.stocks});
-
   final int stocks;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.notifications_active_outlined, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('高频异动盯盘已开启', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text('正在监控 $stocks 只股票的价格波动、成交量异动、跳水与急拉。'),
-                ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: CupertinoColors.systemGrey5,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.bell_solid, size: 28,
+              color: CupertinoColors.systemRed),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('高频异动盯盘已开启',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text('正在监控 $stocks 只股票的价格波动、成交量异动、跳水与急拉。',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color: CupertinoColors.systemGrey)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockCard extends StatelessWidget {
+  const _StockCard({required this.stock, required this.isUp});
+  final WatchStock stock;
+  final bool isUp;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: CupertinoColors.systemGrey5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${stock.name} ${stock.symbol}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15),
+                ),
               ),
+              Text(
+                '${isUp ? '+' : ''}${stock.changePercent.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  color: isUp
+                      ? CupertinoColors.systemRed
+                      : CupertinoColors.systemGreen,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+              '现价 ${stock.price.toStringAsFixed(2)}  量比 ${stock.volumeRatio.toStringAsFixed(2)}'),
+          if (stock.alerts.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: stock.alerts
+                  .map(
+                    (rule) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: CupertinoColors.systemGrey5,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${rule.type.label} ${rule.windowSeconds}s / ${rule.thresholdPercent}%',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

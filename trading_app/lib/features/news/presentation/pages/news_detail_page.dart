@@ -1,7 +1,7 @@
-/// 新闻详情页
+/// 新闻详情页 — Cupertino 风格
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/news_models.dart';
@@ -13,107 +13,115 @@ class NewsDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xfff6f8fb),
-      appBar: AppBar(
-        title: const Text('详情'),
-        actions: [
-          if (item.url.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.open_in_new),
-              tooltip: '在浏览器中打开',
-              onPressed: () => _openInBrowser(context),
-            ),
-        ],
+    return CupertinoPageScaffold(
+      navigationBar: const CupertinoNavigationBar(
+        middle: Text('详情'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 头部
-            Row(
-              children: [
-                if (item.isRed)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 头部
+                    Row(
+                      children: [
+                        if (item.isRed)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.systemRed.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              '重要',
+                              style: TextStyle(
+                                color: CupertinoColors.systemRed,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        if (item.isRed) const SizedBox(width: 8),
+                        Text(
+                          item.source,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: CupertinoColors.systemGrey),
+                        ),
+                        const Spacer(),
+                        Text(
+                          item.time,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: CupertinoColors.systemGrey),
+                        ),
+                      ],
                     ),
-                    child: const Text(
-                      '重要',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                    const SizedBox(height: 12),
+                    // 标题
+                    if (item.title.isNotEmpty) ...[
+                      Text(
+                        item.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          height: 1.3,
+                        ),
                       ),
+                      const SizedBox(height: 12),
+                    ],
+                    // 分隔线
+                    Container(height: 1, color: CupertinoColors.systemGrey5),
+                    const SizedBox(height: 12),
+                    // 正文
+                    Text(
+                      item.content,
+                      style: const TextStyle(fontSize: 15, height: 1.6),
+                    ),
+                    // 题材标签
+                    if (item.subjects.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: item.subjects.map((subject) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.systemGrey5,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(subject,
+                                style: const TextStyle(fontSize: 12)),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (item.url.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: CupertinoButton.filled(
+                      child: const Text('查看原文'),
+                      onPressed: () => _openInBrowser(context),
                     ),
                   ),
-                if (item.isRed) const SizedBox(width: 8),
-                Text(
-                  item.source,
-                  style: const TextStyle(fontSize: 13, color: Color(0xff5f6368)),
-                ),
-                const Spacer(),
-                Text(
-                  item.time,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // 标题
-            if (item.title.isNotEmpty) ...[
-              Text(
-                item.title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  height: 1.3,
                 ),
               ),
-              const SizedBox(height: 12),
-            ],
-
-            // 分隔线
-            const Divider(height: 1),
-
-            // 正文
-            const SizedBox(height: 12),
-            Text(
-              item.content,
-              style: const TextStyle(fontSize: 15, height: 1.6),
-            ),
-
-            // 题材标签
-            if (item.subjects.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: item.subjects.map((subject) {
-                  return Chip(
-                    label: Text(subject, style: const TextStyle(fontSize: 12)),
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  );
-                }).toList(),
-              ),
-            ],
-
-            if (item.url.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _openInBrowser(context),
-                  icon: const Icon(Icons.open_in_browser),
-                  label: const Text('查看原文'),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -125,17 +133,7 @@ class NewsDetailPage extends StatelessWidget {
     try {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法打开链接')),
-        );
       }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开失败: $e')),
-        );
-      }
-    }
+    } catch (_) {}
   }
 }

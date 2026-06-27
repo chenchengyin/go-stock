@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
+/// Material 主题（Cupertino 组件不需要 ThemeData, 这里保持 minimal）
 class AppTheme {
   static ThemeData light() {
-    const seed = Color(0xff2364aa);
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: seed,
+        seedColor: const Color(0xff2364aa),
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: const Color(0xfff6f8fb),
@@ -24,4 +24,3 @@ class AppTheme {
     );
   }
 }
-
