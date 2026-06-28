@@ -5,6 +5,160 @@ import 'radar_view_model.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 import '../../data/notification_util.dart';
 
+/// 盘口语言标签类型
+enum PanKouTag {
+  /// 对子顶：当前价 = 最高价
+  duiZiDing,
+  /// 对子底：当前价 = 最低价
+  duiZiDi,
+  /// 光头阳线：收盘 > 开盘 且 收盘 = 最高
+  guangTouYang,
+  /// 光脚阴线：收盘 < 开盘 且 收盘 = 最低
+  guangJiaoYin,
+  /// 一字板：开盘 = 收盘 = 最高 = 最低
+  yiZiBan,
+  /// 跳空高开：开盘 > 昨收
+  tiaoKongGaoKai,
+  /// 跳空低开：开盘 < 昨收
+  tiaoKongDiKai,
+  /// 涨停
+  zhangTing,
+  /// 跌停
+  dieTing,
+  /// 接近涨停：涨幅 >= 9%
+  jieJinZhangTing,
+  /// 接近跌停：跌幅 <= -9%
+  jieJinDieTing,
+}
+
+/// 盘口语言分析器
+class PanKouAnalyzer {
+  /// 根据股票数据生成盘口语言标签
+  static List<PanKouTag> analyzeTags(MonitoredStock stock) {
+    final tags = <PanKouTag>[];
+    if (stock.price <= 0 || stock.open <= 0) return tags;
+
+    final price = stock.price;
+    final open = stock.open;
+    final high = stock.high;
+    final low = stock.low;
+    final preClose = stock.preClose;
+    final changePercent = stock.changePercent;
+
+    // 一字板：开盘 = 收盘 = 最高 = 最低
+    if (high > 0 && low > 0 && open == price && high == price && low == price) {
+      tags.add(PanKouTag.yiZiBan);
+      return tags; // 一字板直接返回
+    }
+
+    // 对子顶：当前价 = 最高价
+    if (high > 0 && (price - high).abs() < 0.01) {
+      tags.add(PanKouTag.duiZiDing);
+    }
+
+    // 对子底：当前价 = 最低价
+    if (low > 0 && (price - low).abs() < 0.01) {
+      tags.add(PanKouTag.duiZiDi);
+    }
+
+    // 光头阳线：收盘 > 开盘 且 收盘 = 最高
+    if (price > open && high > 0 && (price - high).abs() < 0.01) {
+      tags.add(PanKouTag.guangTouYang);
+    }
+
+    // 光脚阴线：收盘 < 开盘 且 收盘 = 最低
+    if (price < open && low > 0 && (price - low).abs() < 0.01) {
+      tags.add(PanKouTag.guangJiaoYin);
+    }
+
+    // 跳空高开：开盘 > 昨收
+    if (preClose > 0 && open > preClose) {
+      tags.add(PanKouTag.tiaoKongGaoKai);
+    }
+
+    // 跳空低开：开盘 < 昨收
+    if (preClose > 0 && open < preClose) {
+      tags.add(PanKouTag.tiaoKongDiKai);
+    }
+
+    // 涨停（主板10%，创业板/科创板20%）
+    if (preClose > 0) {
+      final limitUp = high > 0 && (high - preClose * 1.1).abs() < 0.01;
+      final limitUp20 = high > 0 && (high - preClose * 1.2).abs() < 0.01;
+      if (limitUp || limitUp20) {
+        tags.add(PanKouTag.zhangTing);
+      }
+
+      // 跌停
+      final limitDown = low > 0 && (low - preClose * 0.9).abs() < 0.01;
+      final limitDown20 = low > 0 && (low - preClose * 0.8).abs() < 0.01;
+      if (limitDown || limitDown20) {
+        tags.add(PanKouTag.dieTing);
+      }
+
+      // 接近涨停：涨幅 >= 9%
+      if (changePercent >= 9 && !(limitUp || limitUp20)) {
+        tags.add(PanKouTag.jieJinZhangTing);
+      }
+
+      // 接近跌停：跌幅 <= -9%
+      if (changePercent <= -9 && !(limitDown || limitDown20)) {
+        tags.add(PanKouTag.jieJinDieTing);
+      }
+    }
+
+    return tags;
+  }
+
+  /// 获取标签显示名称
+  static String getTagName(PanKouTag tag) {
+    switch (tag) {
+      case PanKouTag.duiZiDing:
+        return '对子顶';
+      case PanKouTag.duiZiDi:
+        return '对子底';
+      case PanKouTag.guangTouYang:
+        return '光头阳';
+      case PanKouTag.guangJiaoYin:
+        return '光脚阴';
+      case PanKouTag.yiZiBan:
+        return '一字板';
+      case PanKouTag.tiaoKongGaoKai:
+        return '跳空高开';
+      case PanKouTag.tiaoKongDiKai:
+        return '跳空低开';
+      case PanKouTag.zhangTing:
+        return '涨停';
+      case PanKouTag.dieTing:
+        return '跌停';
+      case PanKouTag.jieJinZhangTing:
+        return '接近涨停';
+      case PanKouTag.jieJinDieTing:
+        return '接近跌停';
+    }
+  }
+
+  /// 获取标签颜色
+  static Color getTagColor(PanKouTag tag) {
+    switch (tag) {
+      case PanKouTag.duiZiDing:
+      case PanKouTag.guangTouYang:
+      case PanKouTag.zhangTing:
+      case PanKouTag.jieJinZhangTing:
+      case PanKouTag.tiaoKongGaoKai:
+        return const Color(0xffe53935); // 红色
+      case PanKouTag.duiZiDi:
+      case PanKouTag.guangJiaoYin:
+      case PanKouTag.dieTing:
+      case PanKouTag.jieJinDieTing:
+      case PanKouTag.tiaoKongDiKai:
+        return const Color(0xff0d904f); // 绿色
+      case PanKouTag.yiZiBan:
+        return const Color(0xff9c27b0); // 紫色
+    }
+  }
+}
+
 class RadarPage extends StatelessWidget {
   const RadarPage({super.key});
 
@@ -299,17 +453,19 @@ class RadarPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   // K线指标行：今开 昨收 最高 最低
-                  // Row(
-                  //   children: [
-                  //     _buildKLineItem('今开', stock.open.toStringAsFixed(2)),
-                  //     const SizedBox(width: 12),
-                  //     _buildKLineItem('昨收', stock.preClose.toStringAsFixed(2)),
-                  //     const SizedBox(width: 12),
-                  //     _buildKLineItem('最高', stock.high.toStringAsFixed(2)),
-                  //     const SizedBox(width: 12),
-                  //     _buildKLineItem('最低', stock.low.toStringAsFixed(2)),
-                  //   ],
-                  // ),
+                  Row(
+                    children: [
+                      _buildKLineItem('今开', stock.open.toStringAsFixed(2)),
+                      const SizedBox(width: 12),
+                      _buildKLineItem('昨收', stock.preClose.toStringAsFixed(2)),
+                      const SizedBox(width: 12),
+                      _buildKLineItem('最高', stock.high.toStringAsFixed(2)),
+                      const SizedBox(width: 12),
+                      _buildKLineItem('最低', stock.low.toStringAsFixed(2)),
+                    ],
+                  ),
+                  // 盘口语言标签
+                  _buildPanKouTags(stock),
                   const SizedBox(height: 4),
                   // 成交额
                   if (stock.amount > 0)
@@ -508,6 +664,65 @@ class RadarPage extends StatelessWidget {
       default:
         return Colors.orange;
     }
+  }
+
+  Widget _buildKLineItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[500],
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 构建盘口语言标签行
+  Widget _buildPanKouTags(MonitoredStock stock) {
+    final tags = PanKouAnalyzer.analyzeTags(stock);
+    if (tags.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: tags.map((tag) {
+          final color = PanKouAnalyzer.getTagColor(tag);
+          final name = PanKouAnalyzer.getTagName(tag);
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              name,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   String _formatAmount(double amount) {
