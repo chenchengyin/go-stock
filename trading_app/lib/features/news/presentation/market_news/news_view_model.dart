@@ -20,6 +20,9 @@ class NewsViewModel extends ChangeNotifier {
   /// 外媒列表
   List<NewsItem> foreignNews = [];
 
+  /// 国内新闻列表（财联社+新浪，按时间倒序）
+  List<NewsItem> domesticNews = [];
+
   /// 是否有外媒数据（影响三栏/两栏布局）
   bool get hasForeignNews => foreignNews.isNotEmpty;
 
@@ -29,17 +32,6 @@ class NewsViewModel extends ChangeNotifier {
   /// 所有新闻总数
   int get totalCount =>
       cailianpressNews.length + sinaNews.length + foreignNews.length;
-
-  /// 国内新闻（财联社+新浪，按时间倒序）
-  List<NewsItem> get domesticNews {
-    final merged = [...cailianpressNews, ...sinaNews];
-    merged.sort((a, b) {
-      final aTime = a.dataTime ?? a.time;
-      final bTime = b.dataTime ?? b.time;
-      return bTime.compareTo(aTime);
-    });
-    return merged;
-  }
 
   /// 重要新闻汇总（从所有来源中筛选 isRed=true）
   List<NewsItem> get importantNews =>
@@ -71,6 +63,12 @@ class NewsViewModel extends ChangeNotifier {
     } catch (error) {
       state = ViewState(status: ViewStatus.error, message: error.toString());
     }
+    notifyListeners();
+  }
+
+  /// 加载国内新闻
+  Future<void> loadDomesticNews() async {
+    domesticNews = await _repository.fetchDomesticNews(limit: 100);
     notifyListeners();
   }
 

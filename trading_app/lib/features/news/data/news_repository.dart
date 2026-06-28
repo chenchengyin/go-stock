@@ -9,6 +9,9 @@ abstract class NewsRepository {
   /// 获取所有来源的新闻（三栏展示）
   Future<Map<String, List<NewsItem>>> fetchAllNews();
 
+  /// 获取国内新闻（财联社+新浪，按时间倒序）
+  Future<List<NewsItem>> fetchDomesticNews({int limit = 100});
+
   /// 获取热门话题
   Future<List<HotTopicItem>> fetchHotTopics({int limit = 10});
 }
@@ -49,6 +52,15 @@ class NewsRepositoryImpl implements NewsRepository {
       'sina': results[1].items,
       'foreign': results[2].items,
     };
+  }
+
+  @override
+  Future<List<NewsItem>> fetchDomesticNews({int limit = 100}) async {
+    try {
+      return await _remote.fetchDomesticNews(limit: limit);
+    } catch (e) {
+      return [];
+    }
   }
 
   @override

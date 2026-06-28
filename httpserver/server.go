@@ -39,6 +39,7 @@ func Start() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/news", handleGetNews)
+	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
 	mux.HandleFunc("/api/kline", handleGetKLine)
 	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
@@ -106,6 +107,22 @@ func handleGetNews(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	news := data.NewMarketNewsApi().GetNewsList(source, limit)
+	writeJSON(w, news)
+}
+
+func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	limitStr := r.URL.Query().Get("limit")
+	limit := 100
+	if limitStr != "" {
+		if v, err := strconv.Atoi(limitStr); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	news := data.NewMarketNewsApi().GetDomesticNews(limit)
 	writeJSON(w, news)
 }
 

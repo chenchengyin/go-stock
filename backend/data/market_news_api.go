@@ -271,6 +271,25 @@ func (m MarketNewsApi) GetNewsList2(source string, limit int) *[]*models.Telegra
 	return news
 }
 
+// GetDomesticNews 获取国内新闻（财联社+新浪），按时间倒序合并
+func (m MarketNewsApi) GetDomesticNews(limit int) *[]*models.Telegraph {
+	news := &[]*models.Telegraph{}
+	db.Dao.Model(news).Preload("TelegraphTags").
+		Where("source IN ?", []string{"财联社电报", "新浪财经"}).
+		Order("data_time desc,time desc").Limit(limit).Find(news)
+	for _, item := range *news {
+		tags := &[]models.Tags{}
+		db.Dao.Model(&models.Tags{}).Where("id in ?", lo.Map(item.TelegraphTags, func(item models.TelegraphTags, index int) uint {
+			return item.TagId
+		})).Find(&tags)
+		tagNames := lo.Map(*tags, func(item models.Tags, index int) string {
+			return item.Name
+		})
+		item.SubjectTags = tagNames
+	}
+	return news
+}
+
 func (m MarketNewsApi) GetTelegraphList(source string) *[]*models.Telegraph {
 	news := &[]*models.Telegraph{}
 	if source != "" {

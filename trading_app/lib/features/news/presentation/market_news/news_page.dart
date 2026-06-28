@@ -54,7 +54,13 @@ class _NewsPageState extends State<NewsPage> {
           _TabBar(
             tabs: tabs,
             selectedIndex: _selectedTab,
-            onSelect: (i) => setState(() => _selectedTab = i),
+            onSelect: (i) => setState(() {
+              _selectedTab = i;
+              // 切到"国内新闻"tab 时异步加载
+              if (i == 2 && vm.domesticNews.isEmpty) {
+                context.read<NewsViewModel>().loadDomesticNews();
+              }
+            }),
           ),
           Expanded(child: _buildBody(vm)),
           ],

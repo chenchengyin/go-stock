@@ -10,6 +10,9 @@ abstract class INewsRemoteDataSource {
   /// 获取指定来源的新闻列表
   Future<NewsListResult> fetchNews(String source, {int limit = 50});
 
+  /// 获取国内新闻（财联社+新浪，按时间倒序）
+  Future<List<NewsItem>> fetchDomesticNews({int limit = 100});
+
   /// 获取热门话题
   Future<List<HotTopicItem>> fetchHotTopics({int limit = 10});
 }
@@ -39,6 +42,27 @@ class NewsRemoteDataSource implements INewsRemoteDataSource {
     }
 
     throw Exception('获取新闻失败: ${response.statusCode}');
+  }
+
+  @override
+  Future<List<NewsItem>> fetchDomesticNews({int limit = 100}) async {
+    final response = await _dio.get(
+      '/api/news/domestic',
+      queryParameters: {'limit': limit.toString()},
+    );
+
+    if (response.statusCode == 200) {
+      final data = response.data;
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map((e) => NewsItem.fromJson(e))
+            .toList();
+      }
+      return [];
+    }
+
+    throw Exception('获取国内新闻失败: ${response.statusCode}');
   }
 
   @override
