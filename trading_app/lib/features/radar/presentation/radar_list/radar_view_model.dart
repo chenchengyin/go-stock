@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
@@ -20,14 +21,17 @@ class RadarViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 添加监控股票
+  /// 添加监控股票（只检查本地是否已存在，不弹提示）
   Future<bool> addMonitoredStock(MonitoredStock stock) async {
     if (monitoredStocks.any((s) => s.code == stock.code)) {
       return false;
     }
-    await _repository.addMonitoredStock(stock);
-    await loadMonitoredStocks();
-    return true;
+    final result = await _repository.addMonitoredStock(stock);
+    if (result == '关注成功') {
+      await loadMonitoredStocks();
+      return true;
+    }
+    return false;
   }
 
   /// 移除监控股票

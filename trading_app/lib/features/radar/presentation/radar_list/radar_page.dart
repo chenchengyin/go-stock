@@ -433,12 +433,29 @@ class _AddStockDialogState extends State<_AddStockDialog> {
                       title: Text(item['name'] ?? ''),
                       subtitle: Text(item['code'] ?? ''),
                       trailing: ElevatedButton(
-                        onPressed: () {
-                          widget.vm.addMonitoredStock(MonitoredStock(
-                            code: item['code']!,
-                            name: item['name']!,
-                          ));
-                          Navigator.of(context).pop();
+                        onPressed: () async {
+                          final code = item['code']!;
+                          final name = item['name']!;
+                          // 检查是否已关注
+                          if (widget.vm.monitoredStocks.any((s) => s.code == code)) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('已关注: $name')),
+                              );
+                            }
+                            return;
+                          }
+                          final success = await widget.vm.addMonitoredStock(
+                            MonitoredStock(code: code, name: name),
+                          );
+                          if (mounted) {
+                            Navigator.of(context).pop();
+                            if (!success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('添加失败，请稍后重试')),
+                              );
+                            }
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(

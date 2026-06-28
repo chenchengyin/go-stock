@@ -25,9 +25,9 @@ class _StrategyPageState extends State<StrategyPage> {
       final auth = context.read<AuthViewModel>();
       if (auth.user != null) {
         vm.setCurrentUser(auth.user!.id, auth.user!.nickname);
-        if (vm.posts.isEmpty) {
-          vm.load();
-        }
+      }
+      if (vm.posts.isEmpty) {
+        vm.load();
       }
     });
   }
@@ -36,32 +36,8 @@ class _StrategyPageState extends State<StrategyPage> {
   Widget build(BuildContext context) {
     final vm = context.watch<StrategyViewModel>();
     final auth = context.watch<AuthViewModel>();
-
-    // 未登录则显示登录引导
-    if (auth.user == null) {
-      return CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.white,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CupertinoActivityIndicator(),
-              const SizedBox(height: 16),
-              const Text('请先登录', style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 16),
-              CupertinoButton.filled(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    CupertinoPageRoute(builder: (_) => const LoginPage()),
-                  );
-                },
-                child: const Text('去登录'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final isLoggedIn = auth.user != null;
+    _syncCurrentUser(auth, vm);
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.white,
@@ -75,58 +51,66 @@ class _StrategyPageState extends State<StrategyPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // 签到按钮
-            GestureDetector(
-              onTap:
-                  vm.currentUserId != null &&
-                      vm.currentUserId!.isNotEmpty &&
-                      !vm.checkedInToday
-                  ? () => vm.checkIn()
-                  : null,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: vm.checkedInToday
-                      ? CupertinoColors.systemGrey5
-                      : const Color(0xffe53935),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  vm.checkedInToday ? '已签到' : '签到+3',
-                  style: TextStyle(
-                    fontSize: 11,
+            if (isLoggedIn) ...[
+              GestureDetector(
+                onTap:
+                    vm.currentUserId != null &&
+                        vm.currentUserId!.isNotEmpty &&
+                        !vm.checkedInToday
+                    ? () => vm.checkIn()
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
                     color: vm.checkedInToday
-                        ? CupertinoColors.systemGrey
-                        : CupertinoColors.white,
-                    fontWeight: FontWeight.w600,
+                        ? CupertinoColors.systemGrey5
+                        : const Color(0xffe53935),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    vm.checkedInToday ? '已签到' : '签到+3',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: vm.checkedInToday
+                          ? CupertinoColors.systemGrey
+                          : CupertinoColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            // 积分显示
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '💎 ${vm.pointsInfo.points}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+              const SizedBox(width: 8),
+              // 积分显示
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '💎 ${vm.pointsInfo.points}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
       child: Column(
         children: [
           // 积分提示条
-          if (vm.checkedInToday && vm.todayReplyPoints > 0)
+          if (isLoggedIn && vm.checkedInToday && vm.todayReplyPoints > 0)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -196,7 +180,14 @@ class _StrategyPageState extends State<StrategyPage> {
                   CupertinoPageRoute(builder: (_) => const LoginPage()),
                 );
                 // 登录成功后返回，如果已登录再跳转发帖页
-                if (context.mounted && auth.user != null) {
+                if (context.mounted) {
+                  final latestAuth = context.read<AuthViewModel>();
+                  if (latestAuth.user == null) return;
+
+                  vm.setCurrentUser(
+                    latestAuth.user!.id,
+                    latestAuth.user!.nickname,
+                  );
                   final result = await Navigator.of(context).push<bool>(
                     CupertinoPageRoute(builder: (_) => const CreatePostPage()),
                   );
@@ -238,6 +229,23 @@ class _StrategyPageState extends State<StrategyPage> {
         ),
       ],
     );
+  }
+
+  void _syncCurrentUser(AuthViewModel auth, StrategyViewModel vm) {
+    final user = auth.user;
+    if (user != null && vm.currentUserId != user.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          vm.setCurrentUser(user.id, user.nickname);
+        }
+      });
+    } else if (user == null && vm.currentUserId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          vm.clearCurrentUser();
+        }
+      });
+    }
   }
 
   void _openDetail(BuildContext context, int postId) {

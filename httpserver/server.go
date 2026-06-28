@@ -44,6 +44,9 @@ func Start() {
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)
 	mux.HandleFunc("/api/stock-changes", handleStockChanges)
+	mux.HandleFunc("/api/follow", handleFollow)
+	mux.HandleFunc("/api/unfollow", handleUnfollow)
+	mux.HandleFunc("/api/follow-list", handleGetFollowList)
 	mux.HandleFunc("/api/strategy", handleStrategy)
 	mux.HandleFunc("/api/upload", handleFileUpload)
 	mux.HandleFunc("/api/health", handleHealth)
@@ -221,6 +224,56 @@ func handleStockChanges(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]string{"error": err.Error()})
 		return
 	}
+	writeJSON(w, result)
+}
+
+func handleFollow(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		StockCode string `json:"stockCode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, map[string]string{"result": "参数错误"})
+		return
+	}
+	if req.StockCode == "" {
+		writeJSON(w, map[string]string{"result": "股票代码不能为空"})
+		return
+	}
+	result := data.NewStockDataApi().Follow(req.StockCode)
+	writeJSON(w, map[string]string{"result": result})
+}
+
+func handleUnfollow(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		StockCode string `json:"stockCode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, map[string]string{"result": "参数错误"})
+		return
+	}
+	if req.StockCode == "" {
+		writeJSON(w, map[string]string{"result": "股票代码不能为空"})
+		return
+	}
+	result := data.NewStockDataApi().UnFollow(req.StockCode)
+	writeJSON(w, map[string]string{"result": result})
+}
+
+func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	groupId, _ := strconv.Atoi(r.URL.Query().Get("groupId"))
+	result := data.NewStockDataApi().GetFollowList(groupId)
 	writeJSON(w, result)
 }
 

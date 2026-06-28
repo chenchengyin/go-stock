@@ -38,6 +38,21 @@ class StrategyPost {
       createdAt: json['createdAt'] ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': userId,
+      'nickname': nickname,
+      'title': title,
+      'content': content,
+      'images': images,
+      'likeCount': likeCount,
+      'viewCount': viewCount,
+      'commentCnt': commentCnt,
+      'createdAt': createdAt,
+    };
+  }
 }
 
 class StrategyComment {

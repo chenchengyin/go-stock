@@ -40,6 +40,15 @@ class StrategyViewModel extends ChangeNotifier {
     }
   }
 
+  void clearCurrentUser() {
+    currentUserId = null;
+    currentNickname = null;
+    pointsInfo = const StrategyUser();
+    checkedInToday = false;
+    todayReplyPoints = 0;
+    notifyListeners();
+  }
+
   Future<void> load({bool refresh = false}) async {
     if (_isLoading) return;
     if (refresh) {
@@ -151,7 +160,8 @@ class StrategyViewModel extends ChangeNotifier {
   /// 查看帖子（含扣分逻辑）
   Future<Map<String, dynamic>> viewPost(int postId) async {
     if (currentUserId == null || currentUserId!.isEmpty) {
-      return {'post': null, 'deducted': false, 'remain': 0};
+      final post = await _repo.getPostDetail(postId);
+      return {'post': post.toJson(), 'deducted': false, 'remain': 0};
     }
     return await _repo.viewPost(
       postId,
