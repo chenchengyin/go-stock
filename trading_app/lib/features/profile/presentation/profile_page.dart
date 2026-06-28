@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../auth/presentation/auth_view_model.dart';
 import '../../auth/presentation/login_page.dart';
 import '../../auth/presentation/register_page.dart';
+import 'edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,11 +14,8 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _nicknameController = TextEditingController(text: 'Colin');
-
   @override
   void dispose() {
-    _nicknameController.dispose();
     super.dispose();
   }
 
@@ -33,7 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
         padding: EdgeInsets.zero,
         children: [
           if (auth.isLoggedIn)
-            _ProfileCard(auth: auth, nicknameController: _nicknameController)
+            _ProfileCard(auth: auth)
           else
             _LoginPrompt(),
           const _SectionHeader(title: '设置'),
@@ -185,11 +183,9 @@ class _LoginPrompt extends StatelessWidget {
 class _ProfileCard extends StatefulWidget {
   const _ProfileCard({
     required this.auth,
-    required this.nicknameController,
   });
 
   final AuthViewModel auth;
-  final TextEditingController nicknameController;
 
   @override
   State<_ProfileCard> createState() => _ProfileCardState();
@@ -199,71 +195,57 @@ class _ProfileCardState extends State<_ProfileCard> {
   @override
   Widget build(BuildContext context) {
     final user = widget.auth.user!;
-    return Container(
-      color: CupertinoColors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey5,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(CupertinoIcons.person,
-                    size: 24, color: CupertinoColors.systemGrey),
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          CupertinoPageRoute(builder: (_) => const EditProfilePage()),
+        );
+      },
+      child: Container(
+        color: CupertinoColors.white,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: CupertinoColors.systemGrey5,
+                borderRadius: BorderRadius.circular(24),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.nickname,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 16)),
-                    Text('${user.phone} · ${user.role}',
-                        style: const TextStyle(
-                            fontSize: 13,
-                            color: CupertinoColors.systemGrey)),
-                  ],
-                ),
-              ),
-              GestureDetector(
-                onTap: widget.auth.logout,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Text('退出',
-                      style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          CupertinoTextField(
-            controller: widget.nicknameController,
-            placeholder: '修改昵称',
-            prefix: const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: Icon(CupertinoIcons.pencil, size: 20),
+              child: const Icon(CupertinoIcons.person,
+                  size: 24, color: CupertinoColors.systemGrey),
             ),
-          ),
-          const SizedBox(height: 10),
-          CupertinoButton.filled(
-            onPressed: widget.auth.state.isLoading
-                ? null
-                : () =>
-                    widget.auth.updateNickname(widget.nicknameController.text),
-            child: Text(widget.auth.state.isLoading ? '保存中...' : '保存资料'),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user.nickname,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 16)),
+                  const SizedBox(height: 2),
+                  Text('${user.phone} · ${user.role}',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: CupertinoColors.systemGrey)),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: widget.auth.logout,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text('退出',
+                    style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
