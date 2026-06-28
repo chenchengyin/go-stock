@@ -4,7 +4,9 @@ import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 
 class RadarViewModel extends ChangeNotifier {
-  RadarViewModel(this._repository);
+  RadarViewModel(this._repository) {
+    _startPeriodicRefresh();
+  }
 
   final RadarRepository _repository;
 
@@ -21,6 +23,54 @@ class RadarViewModel extends ChangeNotifier {
   }
 
   Timer? _debounce;
+  Timer? _refreshTimer;
+  static const _refreshInterval = Duration(seconds: 10);
+
+  void _startPeriodicRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) async {
+      await _refreshData();
+    });
+  }
+
+  Future<void> _refreshData() async {
+    try {
+      // 批量获取：监控列表 + 异动数据
+      final results = await Future.wait([
+        _repository.getMonitoredStocks(),
+        _repository.getLatestChanges(
+            monitoredStocks.map((s) => s.code).toList()),
+      ]);
+      monitoredStocks = results[0] as List<MonitoredStock>;
+      latestChanges = results[1] as List<StockChange>;
+
+      // 再拉实时行情补充价格/涨幅/成交额
+      if (monitoredStocks.isNotEmpty) {
+        final codes =
+            monitoredStocks.map((s) => s.code).toList();
+        final quotes = await _repository.fetchRealtimeQuotes(codes);
+        if (quotes.isNotEmpty) {
+          monitoredStocks = monitoredStocks.map((s) {
+            final q = quotes[s.code];
+            if (q != null) {
+              return MonitoredStock(
+                code: s.code,
+                name: q['name'] as String? ?? s.name,
+                price: (q['price'] as num?)?.toDouble() ?? s.price,
+                changePercent: (q['changePercent'] as num?)?.toDouble() ?? s.changePercent,
+                volume: (q['volume'] as num?)?.toInt() ?? s.volume,
+                amount: (q['amount'] as num?)?.toDouble() ?? s.amount,
+                changeTypes: s.changeTypes,
+              );
+            }
+            return s;
+          }).toList();
+        }
+      }
+
+      notifyListeners();
+    } catch (_) {}
+  }
 
   void _onSearchChanged(String keyword) {
     _debounce?.cancel();
@@ -51,6 +101,27 @@ class RadarViewModel extends ChangeNotifier {
   /// 加载监控股票列表
   Future<void> loadMonitoredStocks() async {
     monitoredStocks = await _repository.getMonitoredStocks();
+    if (monitoredStocks.isNotEmpty) {
+      final codes = monitoredStocks.map((s) => s.code).toList();
+      final quotes = await _repository.fetchRealtimeQuotes(codes);
+      if (quotes.isNotEmpty) {
+        monitoredStocks = monitoredStocks.map((s) {
+          final q = quotes[s.code];
+          if (q != null) {
+            return MonitoredStock(
+              code: s.code,
+              name: q['name'] as String? ?? s.name,
+              price: (q['price'] as num?)?.toDouble() ?? s.price,
+              changePercent: (q['changePercent'] as num?)?.toDouble() ?? s.changePercent,
+              volume: (q['volume'] as num?)?.toInt() ?? s.volume,
+              amount: (q['amount'] as num?)?.toDouble() ?? s.amount,
+              changeTypes: s.changeTypes,
+            );
+          }
+          return s;
+        }).toList();
+      }
+    }
     notifyListeners();
   }
 
@@ -83,6 +154,7 @@ class RadarViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _debounce?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 }

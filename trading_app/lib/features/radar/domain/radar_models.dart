@@ -43,11 +43,15 @@ class StockChange {
   final double amount;
 }
 
-/// 监控股票配置
+/// 监控股票配置（含实时行情）
 class MonitoredStock {
   const MonitoredStock({
     required this.code,
     required this.name,
+    this.price = 0,
+    this.changePercent = 0,
+    this.volume = 0,
+    this.amount = 0,
     this.changeTypes = '',
   });
 
@@ -56,6 +60,10 @@ class MonitoredStock {
       code: json['code'] as String? ?? '',
       name: json['name'] as String? ?? '',
       changeTypes: json['changeTypes'] as String? ?? '',
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      changePercent: (json['changePercent'] as num?)?.toDouble() ?? 0.0,
+      volume: (json['volume'] as num?)?.toInt() ?? 0,
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -63,10 +71,18 @@ class MonitoredStock {
         'code': code,
         'name': name,
         'changeTypes': changeTypes,
+        'price': price,
+        'changePercent': changePercent,
+        'volume': volume,
+        'amount': amount,
       };
 
   final String code;
   final String name;
+  final double price;
+  final double changePercent;
+  final int volume;
+  final double amount;
   final String changeTypes;
 
   List<int> get changeTypeCodes =>

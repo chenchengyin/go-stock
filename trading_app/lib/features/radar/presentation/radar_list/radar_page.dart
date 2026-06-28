@@ -173,6 +173,9 @@ class RadarPage extends StatelessWidget {
   }
 
   Widget _buildStockCard(BuildContext context, MonitoredStock stock) {
+    final isUp = stock.changePercent >= 0;
+    final changeColor = isUp ? const Color(0xffe53935) : const Color(0xff0d904f);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
@@ -187,6 +190,7 @@ class RadarPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // 名称 + 代码
                 Row(
                   children: [
                     Text(
@@ -206,6 +210,38 @@ class RadarPage extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                // 价格 + 涨幅
+                Row(
+                  children: [
+                    Text(
+                      '¥${stock.price.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${isUp ? "+" : ""}${stock.changePercent.toStringAsFixed(2)}%',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: changeColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // 成交额
+                if (stock.amount > 0)
+                  Text(
+                    '成交额 ${_formatAmount(stock.amount)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
               ],
             ),
           ),

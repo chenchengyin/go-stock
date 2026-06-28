@@ -6,6 +6,7 @@ abstract class RadarRepository {
   Future<String> removeMonitoredStock(String code);
   Future<List<StockChange>> getLatestChanges(List<String> codes);
   Future<List<Map<String, String>>> searchStocks(String keyword);
+  Future<Map<String, Map<String, dynamic>>> fetchRealtimeQuotes(List<String> codes);
 }
 
 class RadarRepositoryImpl implements RadarRepository {
@@ -24,7 +25,12 @@ class RadarRepositoryImpl implements RadarRepository {
     return list
         .map((e) => MonitoredStock(
             code: e['stockCode'] as String? ?? '',
-            name: e['name'] as String? ?? ''))
+            name: e['name'] as String? ?? '',
+            price: (e['price'] as num?)?.toDouble() ?? 0.0,
+            changePercent: (e['changePercent'] as num?)?.toDouble() ?? 0.0,
+            volume: (e['volume'] as num?)?.toInt() ?? 0,
+            amount: (e['amount'] as num?)?.toDouble() ?? 0.0,
+        ))
         .toList();
   }
 
@@ -77,5 +83,24 @@ class RadarRepositoryImpl implements RadarRepository {
         'name': map['name'] as String? ?? '',
       };
     }).toList();
+  }
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> fetchRealtimeQuotes(
+      List<String> codes) async {
+    if (codes.isEmpty) return {};
+    final response = await dio.get('$_baseUrl/stock-realtime',
+        queryParameters: {'codes': codes.join(',')});
+    if (response.statusCode != 200) return {};
+    final list = response.data as List<dynamic>? ?? [];
+    final map = <String, Map<String, dynamic>>{};
+    for (final item in list) {
+      final m = Map<String, dynamic>.from(item as Map<dynamic, dynamic>);
+      final code = m['code'] as String? ?? '';
+      if (code.isNotEmpty) {
+        map[code] = m;
+      }
+    }
+    return map;
   }
 }

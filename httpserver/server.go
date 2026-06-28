@@ -48,6 +48,7 @@ func Start() {
 	mux.HandleFunc("/api/unfollow", handleUnfollow)
 	mux.HandleFunc("/api/follow-list", handleGetFollowList)
 	mux.HandleFunc("/api/stock-search", handleStockSearch)
+	mux.HandleFunc("/api/stock-realtime", handleStockRealtime)
 	mux.HandleFunc("/api/strategy", handleStrategy)
 	mux.HandleFunc("/api/upload", handleFileUpload)
 	mux.HandleFunc("/api/health", handleHealth)
@@ -275,7 +276,6 @@ func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 	}
 	groupId, _ := strconv.Atoi(r.URL.Query().Get("groupId"))
 	result := data.NewStockDataApi().GetFollowList(groupId)
-	// 转小写字段名，方便 Flutter 消费
 	type FollowItem struct {
 		StockCode          string  `json:"stockCode"`
 		Name               string  `json:"name"`
@@ -296,6 +296,47 @@ func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 				Time:               s.Time.Format("2006-01-02 15:04:05"),
 			})
 		}
+	}
+	writeJSON(w, items)
+}
+
+func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	codesParam := r.URL.Query().Get("codes")
+	if codesParam == "" {
+		writeJSON(w, []map[string]any{})
+		return
+	}
+	codes := strings.Split(codesParam, ",")
+	result, err := data.NewStockDataApi().GetStockCodeRealTimeData(codes...)
+	if err != nil || result == nil {
+		writeJSON(w, []map[string]any{})
+		return
+	}
+	type RealtimeItem struct {
+		Code          string  `json:"code"`
+		Name          string  `json:"name"`
+		Price         float64 `json:"price"`
+		ChangePercent float64 `json:"changePercent"`
+		Volume        int64   `json:"volume"`
+		Amount        float64 `json:"amount"`
+	}
+	var items []RealtimeItem
+	for _, s := range *result {
+		price, _ := strconv.ParseFloat(s.Price, 64)
+		volume, _ := strconv.ParseFloat(s.Volume, 64)
+		amount, _ := strconv.ParseFloat(s.Amount, 64)
+		items = append(items, RealtimeItem{
+			Code:          s.Code,
+			Name:          s.Name,
+			Price:         price,
+			ChangePercent: s.ChangePercent,
+			Volume:        int64(volume),
+			Amount:        amount,
+		})
 	}
 	writeJSON(w, items)
 }
