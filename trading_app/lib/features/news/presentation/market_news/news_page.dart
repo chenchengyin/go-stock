@@ -57,7 +57,7 @@ class _NewsPageState extends State<NewsPage>
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<NewsViewModel>();
-    final tabs = ['重要', '热门话题', '国内新闻', '外媒'];
+    final tabs = ['重要', '国内资讯', '热门话题', '外媒'];
 
     return Container(
       color: CupertinoColors.white,
@@ -74,8 +74,8 @@ class _NewsPageState extends State<NewsPage>
             selectedIndex: _selectedTab,
             onSelect: (i) => setState(() {
               _selectedTab = i;
-              // 切到"国内新闻"tab 时异步加载
-              if (i == 2 && vm.domesticNews.isEmpty) {
+              // 切到"国内资讯"tab 时异步加载
+              if (i == 1 && vm.domesticNews.isEmpty) {
                 context.read<NewsViewModel>().loadDomesticNews();
               }
             }),
@@ -127,9 +127,9 @@ class _NewsPageState extends State<NewsPage>
       case 0:
         return _buildNewsList(vm.importantNews);
       case 1:
-        return _buildHotTopicsList(vm.hotTopics);
-      case 2:
         return _buildNewsList(vm.domesticNews);
+      case 2:
+        return _buildHotTopicsList(vm.hotTopics);
       case 3:
         return _buildNewsList(vm.foreignNews);
       default:

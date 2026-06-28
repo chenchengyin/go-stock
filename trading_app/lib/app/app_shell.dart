@@ -15,11 +15,12 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _currentIndex = 0;
   final Set<int> _visitedIndexes = {0};
+  int _newsKey = 0;
 
-  static Widget _buildPage(int index) {
+  static Widget _buildPage(int index, {Key? newsKey}) {
     return switch (index) {
       0 => const RadarPage(),
-      1 => const NewsPage(),
+      1 => NewsPage(key: newsKey),
       2 => const StrategyPage(),
       3 => const ProfilePage(),
       _ => const SizedBox.shrink(),
@@ -58,13 +59,16 @@ class _AppShellState extends State<AppShell> {
           if (!_visitedIndexes.contains(index)) {
             return const SizedBox.shrink();
           }
-          return _buildPage(index);
+          return _buildPage(index, newsKey: index == 1 ? ValueKey(_newsKey) : null);
         }),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {
+            if (index == 1 && index == _currentIndex) {
+              _newsKey++;
+            }
             _currentIndex = index;
             _visitedIndexes.add(index);
           });
