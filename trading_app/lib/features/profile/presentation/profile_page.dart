@@ -5,6 +5,7 @@ import '../../auth/presentation/auth_view_model.dart';
 import '../../auth/presentation/login_page.dart';
 import '../../auth/presentation/register_page.dart';
 import 'edit_profile_page.dart';
+import 'system_settings_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -40,7 +41,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const _SectionHeader(title: '设置'),
                   Container(
                     color: CupertinoColors.white,
-                    child: const Column(
+                    child: Column(
                       children: [
                         _SettingsRow(
                           icon: CupertinoIcons.bell,
@@ -59,6 +60,11 @@ class _ProfilePageState extends State<ProfilePage> {
                           title: '系统设置',
                           subtitle: '主题、弱网策略、数据刷新频率',
                           showDivider: false,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              CupertinoPageRoute(builder: (_) => const SystemSettingsPage()),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -100,50 +106,55 @@ class _SettingsRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.showDivider,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final bool showDivider;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(icon, size: 22, color: CupertinoColors.systemGrey),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: CupertinoColors.systemGrey)),
-                  ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(icon, size: 22, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 15)),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: CupertinoColors.systemGrey)),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(CupertinoIcons.chevron_right,
-                  size: 16, color: CupertinoColors.systemGrey3),
-            ],
+                const Icon(CupertinoIcons.chevron_right,
+                    size: 16, color: CupertinoColors.systemGrey3),
+              ],
+            ),
           ),
-        ),
-        if (showDivider)
-          Container(
-            margin: const EdgeInsets.only(left: 16, right: 16),
-            height: 0.5,
-            color: CupertinoColors.systemGrey5,
-          ),
-      ],
+          if (showDivider)
+            Container(
+              margin: const EdgeInsets.only(left: 16, right: 16),
+              height: 0.5,
+              color: CupertinoColors.systemGrey5,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -254,18 +265,6 @@ class _ProfileCardState extends State<_ProfileCard> {
                           fontSize: 13,
                           color: CupertinoColors.systemGrey)),
                 ],
-              ),
-            ),
-            GestureDetector(
-              onTap: widget.auth.logout,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Text('退出',
-                    style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey)),
               ),
             ),
           ],
