@@ -336,17 +336,16 @@ type Prompt struct {
 type Telegraph struct {
 	gorm.Model
 	Time            string          `json:"time"`
-	DataTime        *time.Time      `json:"dataTime" gorm:"uniqueIndex:idx_telegraph_unique;index"`
-	Title           string          `json:"title" gorm:"uniqueIndex:idx_telegraph_unique;index"`
+	DataTime        *time.Time      `json:"dataTime" gorm:"index"`
+	Title           string          `json:"title" gorm:"index"`
 	Content         string          `json:"content" gorm:"index"`
 	SubjectTags     []string        `json:"subjects" gorm:"-:all"`
 	StocksTags      []string        `json:"stocks" gorm:"-:all"`
 	IsRed           bool            `json:"isRed" gorm:"index"`
 	Url             string          `json:"url"`
-	Source          string          `json:"source" gorm:"uniqueIndex:idx_telegraph_unique;index"`
+	Source          string          `json:"source" gorm:"index"`
 	TelegraphTags   []TelegraphTags `json:"tags" gorm:"-:migration;foreignKey:TelegraphId"`
 	SentimentResult string          `json:"sentimentResult" gorm:"index"`
-	AiOpinion       string          `json:"aiOpinion" gorm:"type:text"`
 }
 type TelegraphTags struct {
 	gorm.Model
@@ -1725,6 +1724,26 @@ func (BKFundFlow) TableName() string {
 
 // BKFundFlowPoint 板块资金流向数据点（前端折线图用）
 type BKFundFlowPoint struct {
+	SnapTime  string `json:"snapTime"`
+	NetInflow int64  `json:"netInflow"`
+}
+
+// ConceptFundFlow 概念资金流向数据
+type ConceptFundFlow struct {
+	ID        uint      `json:"id" gorm:"primarykey"`
+	Code      string    `json:"code" gorm:"size:20;index:idx_concept_code_time"`     // 概念代码
+	Name      string    `json:"name" gorm:"size:50"`                                 // 概念名称
+	NetInflow int64     `json:"netInflow"`                                           // 主力净流入金额（元）
+	SnapTime  string    `json:"snapTime" gorm:"size:19;index:idx_concept_code_time"` // 快照时间 YYYY-MM-DD HH:MM:SS
+	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
+}
+
+func (ConceptFundFlow) TableName() string {
+	return "concept_fund_flow"
+}
+
+// ConceptFundFlowPoint 概念资金流向数据点（前端折线图用）
+type ConceptFundFlowPoint struct {
 	SnapTime  string `json:"snapTime"`
 	NetInflow int64  `json:"netInflow"`
 }

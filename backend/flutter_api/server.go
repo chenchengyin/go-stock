@@ -8,7 +8,6 @@ import (
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
-	"go-stock/backend/models"
 	"io"
 	"net/http"
 	"os"
@@ -33,10 +32,24 @@ func AutoMigrate() {
 		&StrategyLike{},
 		&StrategyCheckIn{},
 		&StrategyPointsLog{},
-		&models.Telegraph{},
 	)
-	// Telegraph 表已由原项目迁移，仅补充 ai_opinion 列（如不存在）
+	// Telegraph 表由原项目管理，不在 flutter_api 层修改模型
+	// 仅通过 SQL 迁移补充必要的索引和字段
+	runTelegraphMigrations()
+}
+
+// runTelegraphMigrations 执行 Telegraph 表的 SQL 迁移（避免修改原模型）
+func runTelegraphMigrations() {
+	// 添加 ai_opinion 字段（如不存在）
 	db.Dao.Exec("ALTER TABLE telegraphs ADD COLUMN IF NOT EXISTS ai_opinion text;")
+
+	// 添加复合唯一索引防止重复数据（如不存在）
+	// 索名：idx_telegraph_unique，包含 source+title+data_time
+	db.Dao.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_telegraph_unique
+		ON telegraphs (source, title, data_time)
+		WHERE title IS NOT NULL AND data_time IS NOT NULL;
+	`)
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +156,8 @@ func handleGetNews(w http.ResponseWriter, r *http.Request) {
 			limit = v
 		}
 	}
-	news := data.NewMarketNewsApi().GetNewsList(source, limit)
+	// 使用 NewsWrapper 在 flutter_api 层做去重
+	news := NewNewsWrapper().GetNewsList(source, limit)
 	writeJSON(w, news)
 }
 
@@ -160,27 +174,9 @@ func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
 			limit = v
 		}
 	}
-	news := getDomesticNews(limit)
+	// 使用 NewsWrapper 在 flutter_api 层做去重
+	news := NewNewsWrapper().GetDomesticNews(limit)
 	writeJSON(w, news)
-}
-
-// getDomesticNews 从数据库查询财联社+新浪新闻，按时间倒序
-func getDomesticNews(limit int) *[]*models.Telegraph {
-	news := &[]*models.Telegraph{}
-	db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").
-		Where("source IN ?", []string{"财联社电报", "新浪财经"}).
-		Order("data_time desc,time desc").Limit(limit).Find(news)
-	for _, item := range *news {
-		tags := &[]models.Tags{}
-		db.Dao.Model(&models.Tags{}).Where("id in ?", loMap(item.TelegraphTags, func(item models.TelegraphTags, index int) uint {
-			return item.TagId
-		})).Find(&tags)
-		tagNames := loMap(*tags, func(item models.Tags, index int) string {
-			return item.Name
-		})
-		item.SubjectTags = tagNames
-	}
-	return news
 }
 
 func handleGetKLine(w http.ResponseWriter, r *http.Request) {
