@@ -30,6 +30,17 @@ class NewsViewModel extends ChangeNotifier {
   int get totalCount =>
       cailianpressNews.length + sinaNews.length + foreignNews.length;
 
+  /// 国内新闻（财联社+新浪，按时间倒序）
+  List<NewsItem> get domesticNews {
+    final merged = [...cailianpressNews, ...sinaNews];
+    merged.sort((a, b) {
+      final aTime = a.dataTime ?? a.time;
+      final bTime = b.dataTime ?? b.time;
+      return bTime.compareTo(aTime);
+    });
+    return merged;
+  }
+
   /// 重要新闻汇总（从所有来源中筛选 isRed=true）
   List<NewsItem> get importantNews =>
       [...cailianpressNews, ...sinaNews, ...foreignNews]

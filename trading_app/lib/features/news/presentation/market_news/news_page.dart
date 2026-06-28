@@ -42,7 +42,7 @@ class _NewsPageState extends State<NewsPage> {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<NewsViewModel>();
-    final tabs = ['重要', '热门话题', '财联社', '新浪', '外媒'];
+    final tabs = ['重要', '热门话题', '国内新闻', '外媒'];
 
     return Container(
       color: CupertinoColors.white,
@@ -105,10 +105,8 @@ class _NewsPageState extends State<NewsPage> {
       case 1:
         return _buildHotTopicsList(vm.hotTopics);
       case 2:
-        return _buildNewsList(vm.cailianpressNews);
+        return _buildNewsList(vm.domesticNews);
       case 3:
-        return _buildNewsList(vm.sinaNews);
-      case 4:
         return _buildNewsList(vm.foreignNews);
       default:
         return _buildNewsList(vm.importantNews);

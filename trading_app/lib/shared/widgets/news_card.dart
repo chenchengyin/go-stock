@@ -69,12 +69,9 @@ class NewsCard extends StatelessWidget {
                         ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  item.time,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: CupertinoColors.systemGrey2,
-                  ),
+                _TimeColumn(
+                  time: item.time,
+                  dataTime: item.dataTime,
                 ),
               ],
             ),
@@ -85,26 +82,22 @@ class NewsCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  // 把"抗涨抗跌"标签排在第一位
-                  ...() {
-                    final sorted = [...item.subjects];
-                    final idx = sorted.indexWhere(
-                      (s) => s.contains('抗涨') || s.contains('抗跌'),
-                    );
-                    if (idx > 0) {
-                      final tag = sorted.removeAt(idx);
-                      sorted.insert(0, tag);
-                    }
-                    return sorted.take(3).map(
-                      (s) => _Tag(
-                        text: s,
-                        textColor: _sourceColor,
-                        bgColor: _sourceColor.withValues(alpha: 0.08),
-                      ),
-                    );
-                  }(),
+                  // 来源标签
+                  _Tag(
+                    text: item.source,
+                    textColor: _sourceColor,
+                    bgColor: _sourceColor.withValues(alpha: 0.08),
+                  ),
+                  // 看涨/看跌标签排在第二位
                   if (item.sentimentResult.isNotEmpty)
                     _buildSentimentTag(item.sentimentResult),
+                  ...item.subjects.take(3).map(
+                    (s) => _Tag(
+                      text: s,
+                      textColor: _sourceColor,
+                      bgColor: _sourceColor.withValues(alpha: 0.08),
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -137,6 +130,64 @@ class NewsCard extends StatelessWidget {
       CupertinoPageRoute(
         builder: (context) => NewsDetailPage(item: item),
       ),
+    );
+  }
+}
+
+class _TimeColumn extends StatelessWidget {
+  const _TimeColumn({required this.time, this.dataTime});
+
+  final String time;
+  final String? dataTime;
+
+  @override
+  Widget build(BuildContext context) {
+    String date = '';
+    String hms = time;
+    // 从 dataTime 解析日期部分
+    if (dataTime != null && dataTime!.contains('T')) {
+      date = dataTime!.split('T')[0];
+    }
+    // 如果 time 是完整格式（含空格），切分
+    if (time.contains(' ')) {
+      final parts = time.split(' ');
+      date = parts[0];
+      hms = parts.length > 1 ? parts[1] : '';
+    }
+    // 转成"今天"/"昨天"
+    String displayLabel = date;
+    if (date.isNotEmpty) {
+      final now = DateTime.now();
+      final dateObj = DateTime.tryParse(date);
+      if (dateObj != null) {
+        final diff = now.difference(dateObj).inDays;
+        if (diff == 0) {
+          displayLabel = '今天';
+        } else if (diff == 1) {
+          displayLabel = '昨天';
+        }
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (displayLabel.isNotEmpty)
+          Text(
+            displayLabel,
+            style: const TextStyle(
+              fontSize: 11,
+              color: CupertinoColors.systemGrey2,
+            ),
+          ),
+        if (hms.isNotEmpty)
+          Text(
+            hms,
+            style: const TextStyle(
+              fontSize: 11,
+              color: CupertinoColors.systemGrey2,
+            ),
+          ),
+      ],
     );
   }
 }
