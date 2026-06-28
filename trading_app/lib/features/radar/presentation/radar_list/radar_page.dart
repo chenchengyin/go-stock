@@ -19,28 +19,49 @@ class RadarPage extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: TextField(
                   decoration: InputDecoration(
-                    hintText: '搜索股票代码/名称',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: vm.monitoredStocks.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.add_circle),
-                            onPressed: () => _showAddStockDialog(context),
-                            tooltip: '添加监控股票',
+                    hintText: '搜索股票代码/名称，点击 + 添加监控',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: vm.isSearching
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                           )
-                        : null,
+                        : (vm.searchKeyword.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  vm.searchKeyword = '';
+                                },
+                              )
+                            : null),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
                     fillColor: Colors.grey[100],
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                   onChanged: (val) => vm.searchKeyword = val,
                 ),
               ),
             ),
 
+            // 搜索结果
+            if (vm.searchKeyword.trim().isNotEmpty)
+              SliverToBoxAdapter(
+                child: _SearchResultsPanel(vm: vm),
+              ),
+
             // 统计卡片
-            if (vm.monitoredStocks.isNotEmpty)
+            if (vm.monitoredStocks.isNotEmpty &&
+                vm.searchKeyword.trim().isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -62,7 +83,8 @@ class RadarPage extends StatelessWidget {
                             color: const Color(0xff2364aa).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Icon(Icons.radar, size: 20, color: Color(0xff2364aa)),
+                          child: const Icon(Icons.radar,
+                              size: 20, color: Color(0xff2364aa)),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -93,44 +115,8 @@ class RadarPage extends StatelessWidget {
                 ),
               ),
 
-            // 异动列表
-            if (vm.latestChanges.isEmpty && vm.monitoredStocks.isNotEmpty)
-              const SliverToBoxAdapter(
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Text(
-                      '暂无异动',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                ),
-              ),
-
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index < vm.monitoredStocks.length) {
-                      // 监控股票列表
-                      final stock = vm.monitoredStocks[index];
-                      return _buildStockCard(context, stock);
-                    }
-                    final changeIndex = index - vm.monitoredStocks.length;
-                    if (changeIndex < vm.latestChanges.length) {
-                      // 异动记录列表
-                      return _buildChangeCard(vm.latestChanges[changeIndex]);
-                    }
-                    return null;
-                  },
-                  childCount: vm.monitoredStocks.length + vm.latestChanges.length,
-                ),
-              ),
-            ),
-
             // 空状态
-            if (vm.monitoredStocks.isEmpty)
+            if (vm.monitoredStocks.isEmpty && vm.searchKeyword.trim().isEmpty)
               const SliverToBoxAdapter(
                 child: Center(
                   child: Padding(
@@ -150,11 +136,33 @@ class RadarPage extends StatelessWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          '点击右上角 + 添加股票',
+                          '在上方搜索框搜索股票并添加监控',
                           style: TextStyle(fontSize: 13, color: Colors.grey),
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ),
+
+            // 监控股票列表 + 异动列表
+            if (vm.searchKeyword.trim().isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index < vm.monitoredStocks.length) {
+                        return _buildStockCard(context, vm.monitoredStocks[index]);
+                      }
+                      final changeIndex = index - vm.monitoredStocks.length;
+                      if (changeIndex < vm.latestChanges.length) {
+                        return _buildChangeCard(vm.latestChanges[changeIndex]);
+                      }
+                      return null;
+                    },
+                    childCount:
+                        vm.monitoredStocks.length + vm.latestChanges.length,
                   ),
                 ),
               ),
@@ -203,7 +211,8 @@ class RadarPage extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-            onPressed: () => context.read<RadarViewModel>().removeMonitoredStock(stock.code),
+            onPressed: () =>
+                context.read<RadarViewModel>().removeMonitoredStock(stock.code),
             tooltip: '移除监控',
           ),
         ],
@@ -226,7 +235,6 @@ class RadarPage extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 左侧信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,12 +288,12 @@ class RadarPage extends StatelessWidget {
               ],
             ),
           ),
-          // 右侧标签
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: typeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
@@ -319,25 +327,25 @@ class RadarPage extends StatelessWidget {
 
   Color _getTypeColor(int changeType) {
     switch (changeType) {
-      case 8201: // 火箭发射
+      case 8201:
         return const Color(0xffff5722);
-      case 8202: // 快速反弹
+      case 8202:
         return const Color(0xff4caf50);
-      case 8204: // 加速下跌
+      case 8204:
         return const Color(0xff2196f3);
-      case 8203: // 高台跳水
+      case 8203:
         return const Color(0xff9c27b0);
-      case 8193: // 大笔买入
+      case 8193:
         return const Color(0xffe91e63);
-      case 8194: // 大笔卖出
+      case 8194:
         return const Color(0xff795548);
-      case 4: // 封涨停板
+      case 4:
         return const Color(0xffff5722);
-      case 8: // 封跌停板
+      case 8:
         return const Color(0xff2196f3);
-      case 64: // 有大买盘
+      case 64:
         return const Color(0xff4caf50);
-      case 128: // 有大卖盘
+      case 128:
         return const Color(0xff9c27b0);
       default:
         return Colors.orange;
@@ -352,132 +360,182 @@ class RadarPage extends StatelessWidget {
     }
     return amount.toStringAsFixed(0);
   }
-
-  void _showAddStockDialog(BuildContext context) {
-    final vm = context.read<RadarViewModel>();
-    showDialog(
-      context: context,
-      builder: (ctx) => _AddStockDialog(vm: vm),
-    );
-  }
 }
 
-// 添加股票的弹窗
-class _AddStockDialog extends StatefulWidget {
-  const _AddStockDialog({required this.vm});
+/// 搜索结果显示面板
+class _SearchResultsPanel extends StatefulWidget {
+  const _SearchResultsPanel({required this.vm});
   final RadarViewModel vm;
 
   @override
-  State<_AddStockDialog> createState() => _AddStockDialogState();
+  State<_SearchResultsPanel> createState() => _SearchResultsPanelState();
 }
 
-class _AddStockDialogState extends State<_AddStockDialog> {
-  final TextEditingController _controller = TextEditingController();
-  List<Map<String, String>> searchResults = [];
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search() async {
-    final keyword = _controller.text.trim();
-    if (keyword.isEmpty) {
-      setState(() => searchResults = []);
-      return;
-    }
-    setState(() => _isLoading = true);
-    final results = await widget.vm.searchStocks(keyword);
-    setState(() {
-      searchResults = results;
-      _isLoading = false;
-    });
-  }
+class _SearchResultsPanelState extends State<_SearchResultsPanel> {
+  /// 记录当前操作中的股票code，用于显示加载状态
+  final Set<String> _addingCodes = {};
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('添加监控股票'),
-      content: SizedBox(
-        width: 300,
+    final results = widget.vm.searchResults;
+    final vm = widget.vm;
+
+    if (results.isEmpty && !vm.isSearching) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                '未找到匹配的股票',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                hintText: '输入股票代码或名称',
-                suffixIcon: _isLoading
-                    ? const CircularProgressIndicator(strokeWidth: 2)
-                    : IconButton(
-                        icon: const Icon(Icons.search),
-                        onPressed: _search,
-                      ),
-                border: const OutlineInputBorder(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                '搜索结果（${results.length}）',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              onChanged: (val) => _search(),
-              onSubmitted: (_) => _search(),
             ),
-            const SizedBox(height: 12),
-            if (searchResults.isNotEmpty)
+            ...results.map((item) => _buildResultItem(item)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultItem(Map<String, String> item) {
+    final code = item['code']!;
+    final name = item['name']!;
+    final isAlreadyAdded = widget.vm.monitoredStocks.any((s) => s.code == code);
+    final isLoading = _addingCodes.contains(code);
+
+    return InkWell(
+      onTap: isAlreadyAdded || isLoading ? null : () => _addStock(code, name),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    code,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isAlreadyAdded)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  '已添加',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.green,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )
+            else
               SizedBox(
-                height: 200,
-                child: ListView.builder(
-                  itemCount: searchResults.length,
-                  itemBuilder: (context, index) {
-                    final item = searchResults[index];
-                    return ListTile(
-                      dense: true,
-                      title: Text(item['name'] ?? ''),
-                      subtitle: Text(item['code'] ?? ''),
-                      trailing: ElevatedButton(
-                        onPressed: () async {
-                          final code = item['code']!;
-                          final name = item['name']!;
-                          // 检查是否已关注
-                          if (widget.vm.monitoredStocks.any((s) => s.code == code)) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('已关注: $name')),
-                              );
-                            }
-                            return;
-                          }
-                          final success = await widget.vm.addMonitoredStock(
-                            MonitoredStock(code: code, name: name),
-                          );
-                          if (mounted) {
-                            Navigator.of(context).pop();
-                            if (!success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('添加失败，请稍后重试')),
-                              );
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text('添加'),
-                      ),
-                    );
-                  },
+                height: 32,
+                child: ElevatedButton.icon(
+                  onPressed: isLoading ? null : () => _addStock(code, name),
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add, size: 16),
+                  label: Text(isLoading ? '添加中' : '添加'),
+                  style: ElevatedButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                    textStyle: const TextStyle(fontSize: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
                 ),
               ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-      ],
     );
+  }
+
+  Future<void> _addStock(String code, String name) async {
+    setState(() => _addingCodes.add(code));
+    try {
+      final success = await widget.vm.addMonitoredStock(
+        MonitoredStock(code: code, name: name),
+      );
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已添加: $name'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('添加失败，请稍后重试'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _addingCodes.remove(code));
+      }
+    }
   }
 }

@@ -47,6 +47,7 @@ func Start() {
 	mux.HandleFunc("/api/follow", handleFollow)
 	mux.HandleFunc("/api/unfollow", handleUnfollow)
 	mux.HandleFunc("/api/follow-list", handleGetFollowList)
+	mux.HandleFunc("/api/stock-search", handleStockSearch)
 	mux.HandleFunc("/api/strategy", handleStrategy)
 	mux.HandleFunc("/api/upload", handleFileUpload)
 	mux.HandleFunc("/api/health", handleHealth)
@@ -295,6 +296,33 @@ func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 				Time:               s.Time.Format("2006-01-02 15:04:05"),
 			})
 		}
+	}
+	writeJSON(w, items)
+}
+
+func handleStockSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	keyword := r.URL.Query().Get("keyword")
+	if keyword == "" {
+		writeJSON(w, []map[string]string{})
+		return
+	}
+	result := data.NewStockDataApi().GetStockList(keyword)
+	type SearchItem struct {
+		StockCode string `json:"stockCode"`
+		Name      string `json:"name"`
+		Market    string `json:"market"`
+	}
+	var items []SearchItem
+	for _, s := range result {
+		items = append(items, SearchItem{
+			StockCode: data.ConvertTushareCodeToStockCode(s.TsCode),
+			Name:      s.Name,
+			Market:    s.Market,
+		})
 	}
 	writeJSON(w, items)
 }

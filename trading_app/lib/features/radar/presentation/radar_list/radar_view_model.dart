@@ -1,9 +1,7 @@
-import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:trading_app/core/network/api_client.dart';
-import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
+import 'package:trading_app/features/radar/data/radar_repository.dart';
 
 class RadarViewModel extends ChangeNotifier {
   RadarViewModel(this._repository);
@@ -12,8 +10,43 @@ class RadarViewModel extends ChangeNotifier {
 
   List<MonitoredStock> monitoredStocks = [];
   List<StockChange> latestChanges = [];
-  String searchKeyword = '';
+  List<Map<String, String>> searchResults = [];
   bool isSearching = false;
+  String _searchKeyword = '';
+
+  String get searchKeyword => _searchKeyword;
+  set searchKeyword(String val) {
+    _searchKeyword = val;
+    _onSearchChanged(val);
+  }
+
+  Timer? _debounce;
+
+  void _onSearchChanged(String keyword) {
+    _debounce?.cancel();
+    if (keyword.trim().isEmpty) {
+      searchResults = [];
+      isSearching = false;
+      notifyListeners();
+      return;
+    }
+    isSearching = true;
+    notifyListeners();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _doSearch(keyword.trim());
+    });
+  }
+
+  Future<void> _doSearch(String keyword) async {
+    try {
+      searchResults = await _repository.searchStocks(keyword);
+    } catch (e) {
+      if (kDebugMode) print('搜索股票失败: $e');
+      searchResults = [];
+    }
+    isSearching = false;
+    notifyListeners();
+  }
 
   /// 加载监控股票列表
   Future<void> loadMonitoredStocks() async {
@@ -21,7 +54,7 @@ class RadarViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 添加监控股票（只检查本地是否已存在，不弹提示）
+  /// 添加监控股票
   Future<bool> addMonitoredStock(MonitoredStock stock) async {
     if (monitoredStocks.any((s) => s.code == stock.code)) {
       return false;
@@ -47,43 +80,9 @@ class RadarViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 搜索股票
-  Future<List<Map<String, String>>> searchStocks(String keyword) async {
-    if (keyword.isEmpty) return [];
-    try {
-      final response = await createApiClient().get(
-        '/security_depth',
-        queryParameters: {
-          'secid': _toSecid(keyword),
-          'fields': 'f1,f2,f3,f4,f5,f6',
-        },
-      );
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data is String && data.contains('{')) {
-          final jsonStr = data.substring(
-              data.indexOf('{'), data.lastIndexOf('}') + 1);
-          final json = Map<String, dynamic>.from(
-              jsonDecode(jsonStr) as Map<String, dynamic>);
-          final result = json['data']?['result'] as List<dynamic>? ?? [];
-          return result
-              .take(10)
-              .map((e) => {
-                    'code': e['sec_code'] as String? ?? '',
-                    'name': e['sec_name'] as String? ?? '',
-                  })
-              .toList();
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) print('搜索股票失败: $e');
-    }
-    return [];
-  }
-
-  String _toSecid(String code) {
-    if (code.startsWith('6')) return '1.$code';
-    if (code.startsWith('0') || code.startsWith('3')) return '0.$code';
-    return '0.$code';
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 }
