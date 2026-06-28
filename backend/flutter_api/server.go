@@ -1,4 +1,4 @@
-package httpserver
+package flutter_api
 
 import (
 	"crypto/rand"
@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-stock/backend/data"
+	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
 	"io"
 	"net/http"
 	"os"
@@ -18,6 +20,23 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+// ---------------------------------------------------------------------------
+// 自动建表
+// ---------------------------------------------------------------------------
+
+func AutoMigrate() {
+	db.Dao.AutoMigrate(
+		&StrategyUser{},
+		&StrategyPost{},
+		&StrategyComment{},
+		&StrategyLike{},
+		&StrategyCheckIn{},
+		&StrategyPointsLog{},
+	)
+	// Telegraph 表已由原项目迁移，仅补充 ai_opinion 列（如不存在）
+	db.Dao.Exec("ALTER TABLE telegraphs ADD COLUMN IF NOT EXISTS ai_opinion text;")
+}
 
 // ---------------------------------------------------------------------------
 // HTTP Server — 为 Flutter 前端提供 REST API + WebSocket 实时推送
@@ -65,7 +84,6 @@ func Start() {
 	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
 	go func() {
 		newsApi := data.NewMarketNewsApi()
-		// 启动时先抓一次
 		logger.SugaredLogger.Info("[定时任务] 启动新闻抓取...")
 		newsApi.TelegraphList(30)
 		newsApi.GetSinaNews(30)
@@ -128,6 +146,7 @@ func handleGetNews(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, news)
 }
 
+// handleGetDomesticNews 获取国内新闻（财联社+新浪，按时间倒序）
 func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -140,8 +159,27 @@ func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
 			limit = v
 		}
 	}
-	news := data.NewMarketNewsApi().GetDomesticNews(limit)
+	news := getDomesticNews(limit)
 	writeJSON(w, news)
+}
+
+// getDomesticNews 从数据库查询财联社+新浪新闻，按时间倒序
+func getDomesticNews(limit int) *[]*models.Telegraph {
+	news := &[]*models.Telegraph{}
+	db.Dao.Model(news).Preload("TelegraphTags").
+		Where("source IN ?", []string{"财联社电报", "新浪财经"}).
+		Order("data_time desc,time desc").Limit(limit).Find(news)
+	for _, item := range *news {
+		tags := &[]models.Tags{}
+		db.Dao.Model(&models.Tags{}).Where("id in ?", loMap(item.TelegraphTags, func(item models.TelegraphTags, index int) uint {
+			return item.TagId
+		})).Find(&tags)
+		tagNames := loMap(*tags, func(item models.Tags, index int) string {
+			return item.Name
+		})
+		item.SubjectTags = tagNames
+	}
+	return news
 }
 
 func handleGetKLine(w http.ResponseWriter, r *http.Request) {
@@ -195,7 +233,7 @@ func handleIndustryRanks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rankData := data.NewMarketNewsApi().GetIndustryRank(sort, limit)
-	valuationResp := data.NewStockDataApi().GetAllIndustryValuation()
+	valuationResp := getAllIndustryValuation()
 	valMap := make(map[string]float64)
 	if valuationResp != nil && valuationResp.Result.Data != nil {
 		for _, v := range valuationResp.Result.Data {
@@ -515,7 +553,7 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleStrategy(w http.ResponseWriter, r *http.Request) {
-	api := data.NewStrategyAPI()
+	api := NewStrategyAPI()
 	switch r.Method {
 	case http.MethodGet:
 		action := r.URL.Query().Get("action")
@@ -665,4 +703,58 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// 辅助函数
+// ---------------------------------------------------------------------------
+
+// loMap 替代 github.com/samber/lo.Map 简化依赖
+func loMap[T any, R any](collection []T, iteratee func(T, int) R) []R {
+	result := make([]R, len(collection))
+	for i, item := range collection {
+		result[i] = iteratee(item, i)
+	}
+	return result
+}
+
+// getAllIndustryValuation 获取所有行业市值数据（替代 data.NewStockDataApi().GetAllIndustryValuation）
+func getAllIndustryValuation() *IndustryValuationResp {
+	url := "https://datacenter-web.eastmoney.com/api/data/v1/get?callback=data&reportName=RPT_VALUEINDUSTRY_STA&columns=ALL&quoteColumns=&source=WEB&client=WEB&pageNumber=1&pageSize=500&_=" + strconv.Itoa(time.Now().Nanosecond())
+	client := data.CreateHTTPClientWithTimeout(30 * time.Second)
+	resp, err := client.R().
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("getAllIndustryValuation err:%v", err)
+		return nil
+	}
+	body := string(resp.Body())
+	// 提取 JSON: data({...})
+	start := strings.Index(body, "(")
+	end := strings.LastIndex(body, ")")
+	if start == -1 || end == -1 || end <= start {
+		logger.SugaredLogger.Errorf("getAllIndustryValuation parse error: no brackets")
+		return nil
+	}
+	result := &IndustryValuationResp{}
+	if err := json.Unmarshal([]byte(body[start+1:end]), result); err != nil {
+		logger.SugaredLogger.Errorf("getAllIndustryValuation unmarshal err:%v", err)
+		return nil
+	}
+	return result
+}
+
+// IndustryValuationResp 行业估值响应
+type IndustryValuationResp struct {
+	Result IndustryValuationData `json:"result"`
+}
+
+type IndustryValuationData struct {
+	Data []IndustryValuationItem `json:"data"`
+}
+
+type IndustryValuationItem struct {
+	BOARDNAME    string  `json:"BOARDNAME"`
+	MARKETCAPVAG float64 `json:"MARKETCAPVAG"`
 }
