@@ -15,12 +15,14 @@ class RadarViewModel extends ChangeNotifier {
   List<Map<String, String>> searchResults = [];
   bool isSearching = false;
   String _searchKeyword = '';
-
   String get searchKeyword => _searchKeyword;
   set searchKeyword(String val) {
     _searchKeyword = val;
-    _onSearchChanged(val);
+    _triggerSearch();
   }
+
+  /// 搜索版本号，用于取消过期请求
+  int _searchVersion = 0;
 
   Timer? _debounce;
   Timer? _refreshTimer;
@@ -73,28 +75,37 @@ class RadarViewModel extends ChangeNotifier {
     } catch (_) {}
   }
 
-  void _onSearchChanged(String keyword) {
+  /// 每次输入时触发，启动 debounce，不立即 notifyListeners
+  void _triggerSearch() {
     _debounce?.cancel();
-    if (keyword.trim().isEmpty) {
+    if (_searchKeyword.trim().isEmpty) {
       searchResults = [];
       isSearching = false;
       notifyListeners();
       return;
     }
-    isSearching = true;
-    notifyListeners();
+    // 不立即设置 isSearching=true 和 notifyListeners
+    // 等 debounce 结束后再触发搜索和 UI 更新
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      _doSearch(keyword.trim());
+      _doSearch(_searchKeyword.trim());
     });
   }
 
   Future<void> _doSearch(String keyword) async {
+    final version = ++_searchVersion;
+    isSearching = true;
+    notifyListeners();
     try {
-      searchResults = await _repository.searchStocks(keyword);
+      final results = await _repository.searchStocks(keyword);
+      // 只应用最新版本的搜索结果，过期请求丢弃
+      if (version != _searchVersion) return;
+      searchResults = results;
     } catch (e) {
+      if (version != _searchVersion) return;
       if (kDebugMode) print('搜索股票失败: $e');
       searchResults = [];
     }
+    if (version != _searchVersion) return;
     isSearching = false;
     notifyListeners();
   }
