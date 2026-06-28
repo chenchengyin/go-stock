@@ -176,24 +176,24 @@ class _StrategyPageState extends State<StrategyPage> {
               final auth = context.read<AuthViewModel>();
               if (auth.user == null) {
                 // 未登录，跳转登录页
-                await Navigator.of(context).push(
-                  CupertinoPageRoute(builder: (_) => const LoginPage()),
-                );
+                await Navigator.of(
+                  context,
+                ).push(CupertinoPageRoute(builder: (_) => const LoginPage()));
                 // 登录成功后返回，如果已登录再跳转发帖页
-                if (context.mounted) {
-                  final latestAuth = context.read<AuthViewModel>();
-                  if (latestAuth.user == null) return;
+                if (!mounted) return;
 
-                  vm.setCurrentUser(
-                    latestAuth.user!.id,
-                    latestAuth.user!.nickname,
-                  );
-                  final result = await Navigator.of(context).push<bool>(
-                    CupertinoPageRoute(builder: (_) => const CreatePostPage()),
-                  );
-                  if (result == true && mounted) {
-                    vm.load(refresh: true);
-                  }
+                final latestAuth = context.read<AuthViewModel>();
+                if (latestAuth.user == null) return;
+
+                vm.setCurrentUser(
+                  latestAuth.user!.id,
+                  latestAuth.user!.nickname,
+                );
+                final result = await Navigator.of(context).push<bool>(
+                  CupertinoPageRoute(builder: (_) => const CreatePostPage()),
+                );
+                if (result == true && mounted) {
+                  vm.load(refresh: true);
                 }
                 return;
               }

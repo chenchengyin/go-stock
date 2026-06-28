@@ -236,7 +236,8 @@ func main() {
 	})
 
 	if err != nil {
-		log.SugaredLogger.Fatal(err)
+		log.SugaredLogger.Errorf("Wails app run error: %v (HTTP server still running on :8080)", err)
+		select {}
 	}
 
 }

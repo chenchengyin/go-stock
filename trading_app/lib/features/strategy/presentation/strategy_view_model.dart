@@ -135,7 +135,9 @@ class StrategyViewModel extends ChangeNotifier {
     String? content,
     List<String> images = const [],
   }) async {
-    debugPrint('[createPost] currentUserId=$currentUserId nickname=$currentNickname');
+    debugPrint(
+      '[createPost] currentUserId=$currentUserId nickname=$currentNickname',
+    );
     if (currentUserId == null || currentUserId!.isEmpty) {
       debugPrint('[createPost] ERROR: currentUserId is empty');
       return null;

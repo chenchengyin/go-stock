@@ -323,19 +323,35 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		ChangePercent float64 `json:"changePercent"`
 		Volume        int64   `json:"volume"`
 		Amount        float64 `json:"amount"`
+		Open          float64 `json:"open"`
+		PreClose      float64 `json:"preClose"`
+		High          float64 `json:"high"`
+		Low           float64 `json:"low"`
 	}
 	var items []RealtimeItem
 	for _, s := range *result {
 		price, _ := strconv.ParseFloat(s.Price, 64)
 		volume, _ := strconv.ParseFloat(s.Volume, 64)
 		amount, _ := strconv.ParseFloat(s.Amount, 64)
+		open, _ := strconv.ParseFloat(s.Open, 64)
+		preClose, _ := strconv.ParseFloat(s.PreClose, 64)
+		high, _ := strconv.ParseFloat(s.High, 64)
+		low, _ := strconv.ParseFloat(s.Low, 64)
+		changePct := 0.0
+		if preClose > 0 {
+			changePct = (price - preClose) / preClose * 100
+		}
 		items = append(items, RealtimeItem{
 			Code:          s.Code,
 			Name:          s.Name,
 			Price:         price,
-			ChangePercent: s.ChangePercent,
+			ChangePercent: changePct,
 			Volume:        int64(volume),
 			Amount:        amount,
+			Open:          open,
+			PreClose:      preClose,
+			High:          high,
+			Low:           low,
 		})
 	}
 	writeJSON(w, items)

@@ -36,6 +36,37 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    window.triggerNotification = function(title, body) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body: body, icon: '/favicon.png' });
+      } else {
+        Notification.requestPermission().then(function(perm) {
+          if (perm === 'granted') {
+            new Notification(title, { body: body, icon: '/favicon.png' });
+          }
+        });
+      }
+    };
+    window.triggerNotification2 = function(data) {
+      var title = data.title || '';
+      var body = data.body || '';
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body: body, icon: '/favicon.png' });
+      } else {
+        Notification.requestPermission().then(function(perm) {
+          if (perm === 'granted') {
+            new Notification(title, { body: body, icon: '/favicon.png' });
+          }
+        });
+      }
+    };
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'showNotification') {
+        window.triggerNotification(event.data.title, event.data.body);
+      }
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

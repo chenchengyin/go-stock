@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'app/app_config.dart';
 import 'app/app_shell.dart';
 import 'core/theme/app_theme.dart';
+import 'features/radar/data/notification_util.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initNotifications();
   runApp(const TradingRadarApp());
 }
 

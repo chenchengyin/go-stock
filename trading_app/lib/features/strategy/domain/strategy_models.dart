@@ -31,7 +31,8 @@ class StrategyPost {
       nickname: json['nickname'] ?? '',
       title: json['title'],
       content: json['content'],
-      images: (json['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      images:
+          (json['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
       likeCount: (json['likeCount'] ?? 0).toInt(),
       viewCount: (json['viewCount'] ?? 0).toInt(),
       commentCnt: (json['commentCnt'] ?? 0).toInt(),
@@ -90,7 +91,8 @@ class StrategyComment {
       userId: json['userId'] ?? '',
       nickname: json['nickname'] ?? '',
       content: json['content'],
-      images: (json['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      images:
+          (json['images'] as List?)?.map((e) => e.toString()).toList() ?? [],
       createdAt: json['createdAt'] ?? '',
     );
   }

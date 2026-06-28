@@ -3,7 +3,6 @@ library;
 
 import 'package:provider/provider.dart';
 import 'package:flutter/widgets.dart';
-import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/core/storage/local_cache.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
@@ -23,8 +22,7 @@ class AppDependencies extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cache = MemoryLocalCache();
-    final radarRepo = RadarRepositoryImpl(
-        dio: createApiClient(), baseUrl: 'http://localhost:8080');
+    final radarRepo = RadarRepositoryImpl();
 
     return MultiProvider(
       providers: [
@@ -32,7 +30,7 @@ class AppDependencies extends StatelessWidget {
           create: (_) => AuthViewModel(MockAuthRepository(cache))..restore(),
         ),
         ChangeNotifierProvider(
-          create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks()..loadLatestChanges(),
+          create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks(),
         ),
         Provider<RadarRepository>(create: (_) => radarRepo),
         ChangeNotifierProvider(
