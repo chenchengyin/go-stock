@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
-        android:label="trading_app"
+        android:label="盘达"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
