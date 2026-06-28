@@ -55,6 +55,10 @@ class _CreatePostPageState extends State<CreatePostPage> {
   }
 
   Future<void> _submit() async {
+    if (_titleController.text.trim().isEmpty) {
+      _showToast('请输入标题');
+      return;
+    }
     if (_contentController.text.trim().isEmpty && _selectedImages.isEmpty) {
       _showToast('请输入内容');
       return;
@@ -154,7 +158,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
               children: [
                 CupertinoTextField(
                   controller: _titleController,
-                  placeholder: '标题',
+                  placeholder: '标题（必填）',
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: CupertinoColors.systemGrey6,
@@ -164,7 +168,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 const SizedBox(height: 12),
                 CupertinoTextField(
                   controller: _contentController,
-                  placeholder: '分享你的策略思路...',
+                  placeholder: '分享你的策略思路...（必填）',
                   maxLines: 8,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
