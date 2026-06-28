@@ -336,14 +336,14 @@ type Prompt struct {
 type Telegraph struct {
 	gorm.Model
 	Time            string          `json:"time"`
-	DataTime        *time.Time      `json:"dataTime" gorm:"index"`
-	Title           string          `json:"title" gorm:"index"`
+	DataTime        *time.Time      `json:"dataTime" gorm:"uniqueIndex:idx_telegraph_unique;index"`
+	Title           string          `json:"title" gorm:"uniqueIndex:idx_telegraph_unique;index"`
 	Content         string          `json:"content" gorm:"index"`
 	SubjectTags     []string        `json:"subjects" gorm:"-:all"`
 	StocksTags      []string        `json:"stocks" gorm:"-:all"`
 	IsRed           bool            `json:"isRed" gorm:"index"`
 	Url             string          `json:"url"`
-	Source          string          `json:"source" gorm:"index"`
+	Source          string          `json:"source" gorm:"uniqueIndex:idx_telegraph_unique;index"`
 	TelegraphTags   []TelegraphTags `json:"tags" gorm:"-:migration;foreignKey:TelegraphId"`
 	SentimentResult string          `json:"sentimentResult" gorm:"index"`
 	AiOpinion       string          `json:"aiOpinion" gorm:"type:text"`

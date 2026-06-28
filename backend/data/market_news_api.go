@@ -84,13 +84,14 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 				IsRed:           level != "C",
 				SentimentResult: AnalyzeSentiment(content).Description,
 			}
-			cnt := int64(0)
+			var existing models.Telegraph
+			query := db.Dao.Model(&models.Telegraph{})
 			if telegraph.Title == "" {
-				db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+				query = query.Where("content=?", telegraph.Content)
 			} else {
-				db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+				query = query.Where("title=? AND source=?", telegraph.Title, telegraph.Source)
 			}
-			if cnt > 0 {
+			if err := query.First(&existing).Error; err == nil {
 				continue
 			}
 			telegraphs = append(telegraphs, telegraph)
@@ -188,13 +189,14 @@ func (m MarketNewsApi) GetNewTelegraph(crawlTimeOut int64) *[]models.Telegraph {
 				IsRed:           level != "C",
 				SentimentResult: AnalyzeSentiment(content).Description,
 			}
-			cnt := int64(0)
+			var existing models.Telegraph
+			query := db.Dao.Model(&models.Telegraph{})
 			if telegraph.Title == "" {
-				db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+				query = query.Where("content=?", telegraph.Content)
 			} else {
-				db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+				query = query.Where("title=? AND source=?", telegraph.Title, telegraph.Source)
 			}
-			if cnt > 0 {
+			if err := query.First(&existing).Error; err == nil {
 				continue
 			}
 			telegraphs = append(telegraphs, telegraph)
@@ -232,9 +234,9 @@ func (m MarketNewsApi) GetNewTelegraph(crawlTimeOut int64) *[]models.Telegraph {
 func (m MarketNewsApi) GetNewsList(source string, limit int) *[]*models.Telegraph {
 	news := &[]*models.Telegraph{}
 	if source != "" {
-		db.Dao.Model(news).Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(limit).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(limit).Find(news)
 	} else {
-		db.Dao.Model(news).Preload("TelegraphTags").Order("data_time desc,time desc").Limit(limit).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Order("data_time desc,time desc").Limit(limit).Find(news)
 	}
 	for _, item := range *news {
 		tags := &[]models.Tags{}
@@ -253,9 +255,9 @@ func (m MarketNewsApi) GetNewsList2(source string, limit int) *[]*models.Telegra
 	NewMarketNewsApi().TelegraphList(30)
 	news := &[]*models.Telegraph{}
 	if source != "" {
-		db.Dao.Model(news).Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,is_red desc").Limit(limit).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,is_red desc").Limit(limit).Find(news)
 	} else {
-		db.Dao.Model(news).Preload("TelegraphTags").Order("data_time desc,is_red desc").Limit(limit).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Order("data_time desc,is_red desc").Limit(limit).Find(news)
 	}
 	for _, item := range *news {
 		tags := &[]models.Tags{}
@@ -274,7 +276,7 @@ func (m MarketNewsApi) GetNewsList2(source string, limit int) *[]*models.Telegra
 // GetDomesticNews 获取国内新闻（财联社+新浪），按时间倒序合并
 func (m MarketNewsApi) GetDomesticNews(limit int) *[]*models.Telegraph {
 	news := &[]*models.Telegraph{}
-	db.Dao.Model(news).Preload("TelegraphTags").
+	db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").
 		Where("source IN ?", []string{"财联社电报", "新浪财经"}).
 		Order("data_time desc,time desc").Limit(limit).Find(news)
 	for _, item := range *news {
@@ -293,9 +295,9 @@ func (m MarketNewsApi) GetDomesticNews(limit int) *[]*models.Telegraph {
 func (m MarketNewsApi) GetTelegraphList(source string) *[]*models.Telegraph {
 	news := &[]*models.Telegraph{}
 	if source != "" {
-		db.Dao.Model(news).Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(50).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(50).Find(news)
 	} else {
-		db.Dao.Model(news).Preload("TelegraphTags").Order("data_time desc,time desc").Limit(50).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Order("data_time desc,time desc").Limit(50).Find(news)
 	}
 	for _, item := range *news {
 		tags := &[]models.Tags{}
@@ -316,9 +318,9 @@ func (m MarketNewsApi) GetTelegraphListWithPaging(source string, page, pageSize 
 
 	news := &[]*models.Telegraph{}
 	if source != "" {
-		db.Dao.Model(news).Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(pageSize).Offset(offset).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Where("source=?", source).Order("data_time desc,time desc").Limit(pageSize).Offset(offset).Find(news)
 	} else {
-		db.Dao.Model(news).Preload("TelegraphTags").Order("data_time desc,time desc").Limit(pageSize).Offset(offset).Find(news)
+		db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").Order("data_time desc,time desc").Limit(pageSize).Offset(offset).Find(news)
 	}
 	for _, item := range *news {
 		tags := &[]models.Tags{}
@@ -397,13 +399,14 @@ func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 
 			if telegraph.Content != "" {
 				telegraph.SentimentResult = AnalyzeSentiment(telegraph.Content).Description
-				cnt := int64(0)
+				var existing models.Telegraph
+				query := db.Dao.Model(&models.Telegraph{})
 				if telegraph.Title == "" {
-					db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+					query = query.Where("content=?", telegraph.Content)
 				} else {
-					db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+					query = query.Where("title=? AND source=?", telegraph.Title, telegraph.Source)
 				}
-				if cnt == 0 {
+				if err := query.First(&existing).Error; err != nil {
 					db.Dao.Create(&telegraph)
 					telegraphs = append(telegraphs, telegraph)
 					for _, tag := range telegraph.SubjectTags {
@@ -1035,16 +1038,17 @@ func (m MarketNewsApi) TradingViewNews() *[]models.Telegraph {
 			Url:             fmt.Sprintf("https://cn.tradingview.com/news/%s", a.Id),
 			SentimentResult: sentimentResult,
 		}
-		cnt := int64(0)
+		var existing models.Telegraph
+		query := db.Dao.Model(&models.Telegraph{})
 		if telegraph.Title == "" {
-			db.Dao.Model(telegraph).Where("content=?", telegraph.Content).Count(&cnt)
+			query = query.Where("content=?", telegraph.Content)
 		} else {
-			db.Dao.Model(telegraph).Where("title=?", telegraph.Title).Count(&cnt)
+			query = query.Where("title=? AND source=?", telegraph.Title, telegraph.Source)
 		}
-		if cnt > 0 {
+		if err := query.First(&existing).Error; err == nil {
 			continue
 		}
-		db.Dao.Model(&models.Telegraph{}).Where("time=? and title=? and source=?", telegraph.Time, telegraph.Title, "外媒").FirstOrCreate(&telegraph)
+		db.Dao.Model(&models.Telegraph{}).Create(&telegraph)
 		*news = append(*news, *telegraph)
 	}
 	return news

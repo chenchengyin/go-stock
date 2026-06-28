@@ -33,6 +33,7 @@ func AutoMigrate() {
 		&StrategyLike{},
 		&StrategyCheckIn{},
 		&StrategyPointsLog{},
+		&models.Telegraph{},
 	)
 	// Telegraph 表已由原项目迁移，仅补充 ai_opinion 列（如不存在）
 	db.Dao.Exec("ALTER TABLE telegraphs ADD COLUMN IF NOT EXISTS ai_opinion text;")
@@ -166,7 +167,7 @@ func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
 // getDomesticNews 从数据库查询财联社+新浪新闻，按时间倒序
 func getDomesticNews(limit int) *[]*models.Telegraph {
 	news := &[]*models.Telegraph{}
-	db.Dao.Model(news).Preload("TelegraphTags").
+	db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").
 		Where("source IN ?", []string{"财联社电报", "新浪财经"}).
 		Order("data_time desc,time desc").Limit(limit).Find(news)
 	for _, item := range *news {
