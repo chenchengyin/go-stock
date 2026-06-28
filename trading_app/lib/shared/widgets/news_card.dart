@@ -85,13 +85,24 @@ class NewsCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  ...item.subjects.take(3).map(
-                        (s) => _Tag(
-                          text: s,
-                          textColor: _sourceColor,
-                          bgColor: _sourceColor.withValues(alpha: 0.08),
-                        ),
+                  // 把"抗涨抗跌"标签排在第一位
+                  ...() {
+                    final sorted = [...item.subjects];
+                    final idx = sorted.indexWhere(
+                      (s) => s.contains('抗涨') || s.contains('抗跌'),
+                    );
+                    if (idx > 0) {
+                      final tag = sorted.removeAt(idx);
+                      sorted.insert(0, tag);
+                    }
+                    return sorted.take(3).map(
+                      (s) => _Tag(
+                        text: s,
+                        textColor: _sourceColor,
+                        bgColor: _sourceColor.withValues(alpha: 0.08),
                       ),
+                    );
+                  }(),
                   if (item.sentimentResult.isNotEmpty)
                     _buildSentimentTag(item.sentimentResult),
                 ],
