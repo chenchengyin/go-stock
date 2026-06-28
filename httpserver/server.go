@@ -274,7 +274,29 @@ func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 	}
 	groupId, _ := strconv.Atoi(r.URL.Query().Get("groupId"))
 	result := data.NewStockDataApi().GetFollowList(groupId)
-	writeJSON(w, result)
+	// 转小写字段名，方便 Flutter 消费
+	type FollowItem struct {
+		StockCode          string  `json:"stockCode"`
+		Name               string  `json:"name"`
+		Price              float64 `json:"price"`
+		ChangePercent      float64 `json:"changePercent"`
+		AlarmChangePercent float64 `json:"alarmChangePercent"`
+		Time               string  `json:"time"`
+	}
+	var items []FollowItem
+	if result != nil {
+		for _, s := range *result {
+			items = append(items, FollowItem{
+				StockCode:          s.StockCode,
+				Name:               s.Name,
+				Price:              s.Price,
+				ChangePercent:      s.ChangePercent,
+				AlarmChangePercent: s.AlarmChangePercent,
+				Time:               s.Time.Format("2006-01-02 15:04:05"),
+			})
+		}
+	}
+	writeJSON(w, items)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
