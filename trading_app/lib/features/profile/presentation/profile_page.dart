@@ -170,10 +170,10 @@ class _LoginPrompt extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '登录交易雷达',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
-          ),
+          // const Text(
+          //   '登录掌盘',
+          //   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+          // ),
           const SizedBox(height: 16),
           CupertinoButton.filled(
             onPressed: () {
@@ -232,9 +232,14 @@ class _ProfileCardState extends State<_ProfileCard> {
     final user = widget.auth.user!;
     return GestureDetector(
       onTap: () {
+        // Navigator.of(context).push(
+        //   PageRouteBuilder(
+        //     pageBuilder: (context, animation, secondaryAnimation) => EditProfilePage(),
+        //   ),
+        // );
         Navigator.of(context).push(
-          CupertinoPageRoute(builder: (_) => const EditProfilePage()),
-        );
+                              CupertinoPageRoute(builder: (_) => const EditProfilePage()),
+                            );
       },
       child: Container(
         color: CupertinoColors.white,

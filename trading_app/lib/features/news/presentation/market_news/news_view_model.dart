@@ -34,10 +34,9 @@ class NewsViewModel extends ChangeNotifier {
       cailianpressNews.length + sinaNews.length + foreignNews.length;
 
   /// 重要新闻汇总（从所有来源中筛选 isRed=true）
-  List<NewsItem> get importantNews =>
-      [...cailianpressNews, ...sinaNews, ...foreignNews]
-          .where((n) => n.isRed)
-          .toList();
+  List<NewsItem> get importantNews => _dedupeNews(
+    [...cailianpressNews, ...sinaNews, ...foreignNews].where((n) => n.isRed),
+  );
 
   /// 热门话题列表
   List<HotTopicItem> hotTopics = [];
@@ -55,9 +54,14 @@ class NewsViewModel extends ChangeNotifier {
         _repository.fetchHotTopics(),
       ]);
       final allNews = results[0] as Map<String, List<NewsItem>>;
-      cailianpressNews = allNews['cailianpress'] ?? [];
-      sinaNews = allNews['sina'] ?? [];
-      foreignNews = allNews['foreign'] ?? [];
+      cailianpressNews = _dedupeNews(allNews['cailianpress'] ?? []);
+      sinaNews = _dedupeNews(allNews['sina'] ?? []);
+      foreignNews = _dedupeNews(allNews['foreign'] ?? []);
+      if (domesticNews.isNotEmpty || forceRefresh) {
+        domesticNews = _dedupeNews(
+          await _repository.fetchDomesticNews(limit: 100),
+        );
+      }
       hotTopics = results[1] as List<HotTopicItem>;
       state = const ViewState(status: ViewStatus.ready);
     } catch (error) {
@@ -68,12 +72,34 @@ class NewsViewModel extends ChangeNotifier {
 
   /// 加载国内新闻
   Future<void> loadDomesticNews() async {
-    domesticNews = await _repository.fetchDomesticNews(limit: 100);
+    domesticNews = _dedupeNews(await _repository.fetchDomesticNews(limit: 100));
     notifyListeners();
   }
 
   /// 刷新数据
   Future<void> refresh() async {
     await load(forceRefresh: true);
+  }
+
+  static List<NewsItem> _dedupeNews(Iterable<NewsItem> items) {
+    final seen = <String>{};
+    final result = <NewsItem>[];
+
+    for (final item in items) {
+      final key = _dedupeKey(item);
+      if (key.isEmpty || seen.add(key)) {
+        result.add(item);
+      }
+    }
+
+    return result;
+  }
+
+  static String _dedupeKey(NewsItem item) {
+    final text = item.title.trim().isNotEmpty ? item.title : item.content;
+    return text
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '')
+        .replaceAll(RegExp(r'[，。！？、,.!?:：；;“”"‘’（）()\[\]【】]'), '');
   }
 }

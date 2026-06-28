@@ -906,6 +906,7 @@ export namespace data {
 	    qgqpBId: string;
 	    iwencaiApiKey: string;
 	    emApiKey: string;
+	    stockChangeIntervalSec: number;
 	    windowWidth: number;
 	    windowHeight: number;
 	    promptPlazaApiBase: string;
@@ -949,6 +950,7 @@ export namespace data {
 	        this.qgqpBId = source["qgqpBId"];
 	        this.iwencaiApiKey = source["iwencaiApiKey"];
 	        this.emApiKey = source["emApiKey"];
+	        this.stockChangeIntervalSec = source["stockChangeIntervalSec"];
 	        this.windowWidth = source["windowWidth"];
 	        this.windowHeight = source["windowHeight"];
 	        this.promptPlazaApiBase = source["promptPlazaApiBase"];

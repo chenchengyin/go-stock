@@ -222,7 +222,7 @@ class _StrategyPageState extends State<StrategyPage> {
               child: const Icon(
                 CupertinoIcons.pencil,
                 color: CupertinoColors.white,
-                size: 22,
+                size: 28,
               ),
             ),
           ),

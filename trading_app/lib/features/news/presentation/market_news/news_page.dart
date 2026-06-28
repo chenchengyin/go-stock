@@ -253,7 +253,7 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
                         Text(
                           tabs[i],
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.w400,

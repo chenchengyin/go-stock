@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../shared/view_state.dart';
@@ -51,12 +52,12 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
 
-    return CupertinoPageScaffold(
+    return Scaffold(
       backgroundColor: CupertinoColors.white,
-      navigationBar: const CupertinoNavigationBar(
+      appBar: const CupertinoNavigationBar(
         middle: Text('登录'),
       ),
-      child: SafeArea(
+      body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
