@@ -22,45 +22,52 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
-      navigationBar: const CupertinoNavigationBar(
-        middle: Text('我的'),
-      ),
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          if (auth.isLoggedIn)
-            _ProfileCard(auth: auth)
-          else
-            _LoginPrompt(),
-          const _SectionHeader(title: '设置'),
-          Container(
-            color: CupertinoColors.white,
-            child: const Column(
-              children: [
-                _SettingsRow(
-                  icon: CupertinoIcons.bell,
-                  title: '推送设置',
-                  subtitle: '环信/厂商推送适配预留',
-                  showDivider: true,
-                ),
-                _SettingsRow(
-                  icon: CupertinoIcons.tray_full,
-                  title: '本地缓存',
-                  subtitle: '登录态、自选股、资讯、热榜、通知历史',
-                  showDivider: true,
-                ),
-                _SettingsRow(
-                  icon: CupertinoIcons.settings,
-                  title: '系统设置',
-                  subtitle: '主题、弱网策略、数据刷新频率',
-                  showDivider: false,
-                ),
-              ],
+    return Container(
+      color: CupertinoColors.white,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const _Header(),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  if (auth.isLoggedIn)
+                    _ProfileCard(auth: auth)
+                  else
+                    _LoginPrompt(),
+                  const _SectionHeader(title: '设置'),
+                  Container(
+                    color: CupertinoColors.white,
+                    child: const Column(
+                      children: [
+                        _SettingsRow(
+                          icon: CupertinoIcons.bell,
+                          title: '推送设置',
+                          subtitle: '环信/厂商推送适配预留',
+                          showDivider: true,
+                        ),
+                        _SettingsRow(
+                          icon: CupertinoIcons.tray_full,
+                          title: '本地缓存',
+                          subtitle: '登录态、自选股、资讯、热榜、通知历史',
+                          showDivider: true,
+                        ),
+                        _SettingsRow(
+                          icon: CupertinoIcons.settings,
+                          title: '系统设置',
+                          subtitle: '主题、弱网策略、数据刷新频率',
+                          showDivider: false,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -175,6 +182,23 @@ class _LoginPrompt extends StatelessWidget {
             child: const Text('没有账号？去注册'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      color: CupertinoColors.white,
+      alignment: Alignment.center,
+      child: const Text(
+        '我的',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
       ),
     );
   }
