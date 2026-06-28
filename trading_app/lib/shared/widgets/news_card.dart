@@ -82,13 +82,7 @@ class NewsCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  // 来源标签
-                  _Tag(
-                    text: item.source,
-                    textColor: _sourceColor,
-                    bgColor: _sourceColor.withValues(alpha: 0.08),
-                  ),
-                  // 看涨/看跌标签排在第二位
+                  // 看涨/看跌标签排在第一位
                   if (item.sentimentResult.isNotEmpty)
                     _buildSentimentTag(item.sentimentResult),
                   ...item.subjects.take(3).map(
@@ -97,6 +91,12 @@ class NewsCard extends StatelessWidget {
                       textColor: _sourceColor,
                       bgColor: _sourceColor.withValues(alpha: 0.08),
                     ),
+                  ),
+                  // 来源标签放在最后
+                  _Tag(
+                    text: item.source,
+                    textColor: _sourceColor,
+                    bgColor: _sourceColor.withValues(alpha: 0.08),
                   ),
                 ],
               ),

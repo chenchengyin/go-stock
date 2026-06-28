@@ -62,6 +62,24 @@ func Start() {
 
 	mux.HandleFunc("/ws", handleWebSocket)
 
+	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
+	go func() {
+		newsApi := data.NewMarketNewsApi()
+		// 启动时先抓一次
+		logger.SugaredLogger.Info("[定时任务] 启动新闻抓取...")
+		newsApi.TelegraphList(30)
+		newsApi.GetSinaNews(30)
+		logger.SugaredLogger.Info("[定时任务] 新闻抓取完成")
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			logger.SugaredLogger.Info("[定时任务] 开始抓取新闻...")
+			newsApi.TelegraphList(30)
+			newsApi.GetSinaNews(30)
+			logger.SugaredLogger.Info("[定时任务] 新闻抓取完成")
+		}
+	}()
+
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 

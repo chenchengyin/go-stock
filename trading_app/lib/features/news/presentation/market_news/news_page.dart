@@ -17,20 +17,35 @@ class NewsPage extends StatefulWidget {
   State<NewsPage> createState() => _NewsPageState();
 }
 
-class _NewsPageState extends State<NewsPage> {
+class _NewsPageState extends State<NewsPage>
+    with SingleTickerProviderStateMixin {
   int _selectedTab = 0;
+  late AnimationController _refreshController;
 
   @override
   void initState() {
     super.initState();
+    _refreshController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NewsViewModel>().load();
     });
   }
 
+  @override
+  void dispose() {
+    _refreshController.dispose();
+    super.dispose();
+  }
+
   Future<void> _onRefresh() async {
+    _refreshController.repeat();
     final vm = context.read<NewsViewModel>();
     await vm.refresh();
+    _refreshController.stop();
+    _refreshController.reset();
   }
 
   void _openTopic(HotTopicItem item) {
@@ -50,7 +65,10 @@ class _NewsPageState extends State<NewsPage> {
         bottom: false,
         child: Column(
           children: [
-            _Header(onRefresh: _onRefresh),
+            _Header(
+              onRefresh: _onRefresh,
+              refreshController: _refreshController,
+            ),
           _TabBar(
             tabs: tabs,
             selectedIndex: _selectedTab,
@@ -154,9 +172,13 @@ class _NewsPageState extends State<NewsPage> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onRefresh});
+  const _Header({
+    required this.onRefresh,
+    required this.refreshController,
+  });
 
   final VoidCallback onRefresh;
+  final AnimationController refreshController;
 
   @override
   Widget build(BuildContext context) {
@@ -175,12 +197,15 @@ class _Header extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: GestureDetector(
               onTap: onRefresh,
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: Icon(
-                  CupertinoIcons.refresh,
-                  size: 22,
-                  color: CupertinoColors.systemBlue,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: RotationTransition(
+                  turns: refreshController,
+                  child: const Icon(
+                    CupertinoIcons.refresh,
+                    size: 22,
+                    color: CupertinoColors.systemBlue,
+                  ),
                 ),
               ),
             ),
