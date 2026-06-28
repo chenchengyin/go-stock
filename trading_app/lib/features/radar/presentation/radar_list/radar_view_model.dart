@@ -35,20 +35,18 @@ class RadarViewModel extends ChangeNotifier {
 
   Future<void> _refreshData() async {
     try {
-      // 批量获取：监控列表 + 异动数据
-      final results = await Future.wait([
-        _repository.getMonitoredStocks(),
-        _repository.getLatestChanges(
-            monitoredStocks.map((s) => s.code).toList()),
-      ]);
-      monitoredStocks = results[0] as List<MonitoredStock>;
-      latestChanges = results[1] as List<StockChange>;
-
-      // 再拉实时行情补充价格/涨幅/成交额
+      // 只拉实时行情合并到本地监控列表 + 拉异动
+      // 不重新拉 follow-list，避免多余请求
       if (monitoredStocks.isNotEmpty) {
-        final codes =
-            monitoredStocks.map((s) => s.code).toList();
-        final quotes = await _repository.fetchRealtimeQuotes(codes);
+        final results = await Future.wait([
+          _repository.fetchRealtimeQuotes(
+              monitoredStocks.map((s) => s.code).toList()),
+          _repository.getLatestChanges(
+              monitoredStocks.map((s) => s.code).toList()),
+        ]);
+        final quotes = results[0] as Map<String, Map<String, dynamic>>;
+        latestChanges = results[1] as List<StockChange>;
+
         if (quotes.isNotEmpty) {
           monitoredStocks = monitoredStocks.map((s) {
             final q = quotes[s.code];
@@ -57,7 +55,8 @@ class RadarViewModel extends ChangeNotifier {
                 code: s.code,
                 name: q['name'] as String? ?? s.name,
                 price: (q['price'] as num?)?.toDouble() ?? s.price,
-                changePercent: (q['changePercent'] as num?)?.toDouble() ?? s.changePercent,
+                changePercent:
+                    (q['changePercent'] as num?)?.toDouble() ?? s.changePercent,
                 volume: (q['volume'] as num?)?.toInt() ?? s.volume,
                 amount: (q['amount'] as num?)?.toDouble() ?? s.amount,
                 changeTypes: s.changeTypes,
@@ -66,6 +65,8 @@ class RadarViewModel extends ChangeNotifier {
             return s;
           }).toList();
         }
+      } else {
+        latestChanges = await _repository.getLatestChanges([]);
       }
 
       notifyListeners();
