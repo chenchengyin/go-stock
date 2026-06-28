@@ -73,6 +73,7 @@ func Start() {
 
 	mux.HandleFunc("/api/news", handleGetNews)
 	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
+	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)
 	mux.HandleFunc("/api/kline", handleGetKLine)
 	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
@@ -177,6 +178,38 @@ func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
 	// 使用 NewsWrapper 在 flutter_api 层做去重
 	news := NewNewsWrapper().GetDomesticNews(limit)
 	writeJSON(w, news)
+}
+
+// handleCleanDuplicateNews 清理重复新闻数据
+func handleCleanDuplicateNews(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 使用 SQL 删除重复数据，保留 ID 最小的记录
+	// 对于有标题的记录，按 source+title+data_time 去重
+	// 表名是 telegraph_list（GORM 默认表名）
+	result := db.Dao.Exec(`
+		DELETE FROM telegraph_list 
+		WHERE id NOT IN (
+			SELECT MIN(id) 
+			FROM telegraph_list 
+			WHERE title != '' 
+			GROUP BY source, title, data_time
+		) 
+		AND title != ''
+	`)
+
+	if result.Error != nil {
+		http.Error(w, "Clean duplicate error: "+result.Error.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, map[string]interface{}{
+		"deleted": result.RowsAffected,
+		"message": "Duplicate news cleaned successfully",
+	})
 }
 
 func handleGetKLine(w http.ResponseWriter, r *http.Request) {

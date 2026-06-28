@@ -3,11 +3,10 @@
 package flutter_api
 
 import (
+	"fmt"
 	"go-stock/backend/data"
-	"go-stock/backend/db"
 	"go-stock/backend/models"
-
-	"github.com/samber/lo"
+	"sort"
 )
 
 // NewsWrapper 新闻数据包装器，在查询层做去重处理
@@ -34,24 +33,31 @@ func (w *NewsWrapper) GetNewsList2(source string, limit int) *[]*models.Telegrap
 
 // GetDomesticNews 获取国内新闻（财联社+新浪，去重版）
 func (w *NewsWrapper) GetDomesticNews(limit int) *[]*models.Telegraph {
-	// 直接查询数据库并去重
-	news := &[]*models.Telegraph{}
-	db.Dao.Model(news).Distinct("telegraphs.id").Preload("TelegraphTags").
-		Where("source IN ?", []string{"财联社电报", "新浪财经"}).
-		Order("data_time desc,time desc").Limit(limit).Find(news)
+	// 使用原项目的查询方式，不在数据库层去重
+	// 先查财联社
+	clsNews := w.api.GetNewsList("财联社电报", limit)
+	// 再查新浪财经
+	sinaNews := w.api.GetNewsList("新浪财经", limit)
 
-	// 加载标签名称
-	for _, item := range *news {
-		tags := &[]models.Tags{}
-		db.Dao.Model(&models.Tags{}).Where("id in ?", lo.Map(item.TelegraphTags, func(item models.TelegraphTags, index int) uint {
-			return item.TagId
-		})).Find(&tags)
-		item.SubjectTags = lo.Map(*tags, func(item models.Tags, index int) string {
-			return item.Name
-		})
+	// 合并后去重
+	allNews := make([]*models.Telegraph, 0, len(*clsNews)+len(*sinaNews))
+	allNews = append(allNews, *clsNews...)
+	allNews = append(allNews, *sinaNews...)
+
+	// 按时间排序
+	sort.Slice(allNews, func(i, j int) bool {
+		if allNews[i].DataTime != nil && allNews[j].DataTime != nil {
+			return allNews[i].DataTime.After(*allNews[j].DataTime)
+		}
+		return allNews[i].Time > allNews[j].Time
+	})
+
+	// 截取前 limit 条
+	if len(allNews) > limit {
+		allNews = allNews[:limit]
 	}
 
-	return dedupeNews(news)
+	return dedupeNews(&allNews)
 }
 
 // GetTelegraphList 获取电报列表（去重版）
@@ -94,8 +100,20 @@ func dedupeKey(item *models.Telegraph) string {
 	if text == "" {
 		text = item.Content
 	}
+
+	// 如果 title 和 content 都为空，使用 ID 作为 key，确保每条记录都保留
+	if text == "" {
+		return fmt.Sprintf("id:%d", item.ID)
+	}
+
 	// 去掉空格和标点符号
 	key := cleanText(text)
+
+	// 如果清理后仍为空，使用 ID
+	if key == "" {
+		return fmt.Sprintf("id:%d", item.ID)
+	}
+
 	return item.Source + ":" + key
 }
 
