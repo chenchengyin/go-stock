@@ -1,8 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
-import '../../../shared/view_state.dart';
 import '../../auth/presentation/auth_view_model.dart';
+import '../../auth/presentation/login_page.dart';
+import '../../auth/presentation/register_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,15 +13,10 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _phoneController = TextEditingController(text: '13800000000');
-  final _passwordController = TextEditingController(text: 'secret123');
   final _nicknameController = TextEditingController(text: 'Colin');
-  bool _isRegister = false;
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _passwordController.dispose();
     _nicknameController.dispose();
     super.dispose();
   }
@@ -39,31 +35,7 @@ class _ProfilePageState extends State<ProfilePage> {
           if (auth.isLoggedIn)
             _ProfileCard(auth: auth, nicknameController: _nicknameController)
           else
-            _AuthCard(
-              isRegister: _isRegister,
-              phoneController: _phoneController,
-              passwordController: _passwordController,
-              nicknameController: _nicknameController,
-              isLoading: auth.state.isLoading,
-              errorMessage: auth.state.status == ViewStatus.error
-                  ? auth.state.message
-                  : '',
-              onToggleMode: () =>
-                  setState(() => _isRegister = !_isRegister),
-              onSubmit: () {
-                if (_isRegister) {
-                  auth.register(
-                    phone: _phoneController.text,
-                    password: _passwordController.text,
-                    nickname: _nicknameController.text,
-                  );
-                } else {
-                  auth.login(
-                      phone: _phoneController.text,
-                      password: _passwordController.text);
-                }
-              },
-            ),
+            _LoginPrompt(),
           const _SectionHeader(title: '设置'),
           Container(
             color: CupertinoColors.white,
@@ -171,26 +143,8 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
-class _AuthCard extends StatelessWidget {
-  const _AuthCard({
-    required this.isRegister,
-    required this.phoneController,
-    required this.passwordController,
-    required this.nicknameController,
-    required this.isLoading,
-    required this.errorMessage,
-    required this.onToggleMode,
-    required this.onSubmit,
-  });
-
-  final bool isRegister;
-  final TextEditingController phoneController;
-  final TextEditingController passwordController;
-  final TextEditingController nicknameController;
-  final bool isLoading;
-  final String errorMessage;
-  final VoidCallback onToggleMode;
-  final VoidCallback onSubmit;
+class _LoginPrompt extends StatelessWidget {
+  const _LoginPrompt();
 
   @override
   Widget build(BuildContext context) {
@@ -200,58 +154,27 @@ class _AuthCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            isRegister ? '注册交易雷达账号' : '登录交易雷达',
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 18),
+          const Text(
+            '登录交易雷达',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
           ),
-          const SizedBox(height: 16),
-          CupertinoTextField(
-            controller: phoneController,
-            placeholder: '手机号/账号',
-            prefix: const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: Icon(CupertinoIcons.phone, size: 20),
-            ),
-          ),
-          const SizedBox(height: 10),
-          CupertinoTextField(
-            controller: passwordController,
-            obscureText: true,
-            placeholder: '密码',
-            prefix: const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: Icon(CupertinoIcons.lock, size: 20),
-            ),
-          ),
-          if (isRegister) ...[
-            const SizedBox(height: 10),
-            CupertinoTextField(
-              controller: nicknameController,
-              placeholder: '昵称',
-              prefix: const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Icon(CupertinoIcons.person, size: 20),
-              ),
-            ),
-          ],
-          if (errorMessage.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(errorMessage,
-                style: const TextStyle(
-                    color: CupertinoColors.systemRed)),
-          ],
           const SizedBox(height: 16),
           CupertinoButton.filled(
-            onPressed: isLoading ? null : onSubmit,
-            child: isLoading
-                ? const CupertinoActivityIndicator(
-                    color: CupertinoColors.white)
-                : Text(isRegister ? '注册并登录' : '登录'),
+            onPressed: () {
+              Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const LoginPage()),
+              );
+            },
+            child: const Text('登录'),
           ),
+          const SizedBox(height: 8),
           CupertinoButton(
-            onPressed: isLoading ? null : onToggleMode,
-            child: Text(isRegister ? '已有账号，去登录' : '没有账号，去注册'),
+            onPressed: () {
+              Navigator.of(context).push(
+                CupertinoPageRoute(builder: (_) => const RegisterPage()),
+              );
+            },
+            child: const Text('没有账号？去注册'),
           ),
         ],
       ),
