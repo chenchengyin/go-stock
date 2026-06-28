@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'radar_view_model.dart';
+import '../stock_change_detail/stock_change_detail_page.dart';
 
 class RadarPage extends StatelessWidget {
   const RadarPage({super.key});
@@ -173,86 +174,162 @@ class RadarPage extends StatelessWidget {
   }
 
   Widget _buildStockCard(BuildContext context, MonitoredStock stock) {
+    final vm = context.read<RadarViewModel>();
     final isUp = stock.changePercent >= 0;
     final changeColor = isUp ? const Color(0xffe53935) : const Color(0xff0d904f);
+    final hasNew = vm.hasNewChanges(stock.code);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 名称 + 代码
-                Row(
-                  children: [
-                    Text(
-                      stock.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => StockChangeDetailPage(
+              stockCode: stock.code,
+              stockName: stock.name,
+              onChangesSeen: () => vm.markChangesSeen(stock.code),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            // 小红点
+            if (hasNew)
+              Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 名称 + 代码
+                  Row(
+                    children: [
+                      Text(
+                        stock.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
+                      Text(
+                        stock.code,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // 价格 + 涨幅
+                  Row(
+                    children: [
+                      Text(
+                        '¥${stock.price.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${isUp ? "+" : ""}${stock.changePercent.toStringAsFixed(2)}%',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: changeColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  // K线指标行：今开 昨收 最高 最低
+                  Row(
+                    children: [
+                      _buildKLineItem('今开', stock.open.toStringAsFixed(2)),
+                      const SizedBox(width: 12),
+                      _buildKLineItem('昨收', stock.preClose.toStringAsFixed(2)),
+                      const SizedBox(width: 12),
+                      _buildKLineItem('最高', stock.high.toStringAsFixed(2)),
+                      const SizedBox(width: 12),
+                      _buildKLineItem('最低', stock.low.toStringAsFixed(2)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // 成交额
+                  if (stock.amount > 0)
                     Text(
-                      stock.code,
+                      '成交额 ${_formatAmount(stock.amount)}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: Colors.grey[600],
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // 价格 + 涨幅
-                Row(
-                  children: [
-                    Text(
-                      '¥${stock.price.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      '${isUp ? "+" : ""}${stock.changePercent.toStringAsFixed(2)}%',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: changeColor,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // 成交额
-                if (stock.amount > 0)
-                  Text(
-                    '成交额 ${_formatAmount(stock.amount)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StockChangeDetailPage(
+                      stockCode: stock.code,
+                      stockName: stock.name,
+                      onChangesSeen: () => vm.markChangesSeen(stock.code),
                     ),
                   ),
-              ],
+                );
+              },
+              tooltip: '查看异动详情',
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-            onPressed: () =>
-                context.read<RadarViewModel>().removeMonitoredStock(stock.code),
-            tooltip: '移除监控',
-          ),
-        ],
+            IconButton(
+              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+              onPressed: () => vm.removeMonitoredStock(stock.code),
+              tooltip: '移除监控',
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildKLineItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[500],
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 

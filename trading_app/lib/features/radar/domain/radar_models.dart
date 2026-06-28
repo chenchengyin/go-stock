@@ -52,6 +52,10 @@ class MonitoredStock {
     this.changePercent = 0,
     this.volume = 0,
     this.amount = 0,
+    this.open = 0,
+    this.preClose = 0,
+    this.high = 0,
+    this.low = 0,
     this.changeTypes = '',
   });
 
@@ -64,6 +68,10 @@ class MonitoredStock {
       changePercent: (json['changePercent'] as num?)?.toDouble() ?? 0.0,
       volume: (json['volume'] as num?)?.toInt() ?? 0,
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      open: (json['open'] as num?)?.toDouble() ?? 0.0,
+      preClose: (json['preClose'] as num?)?.toDouble() ?? 0.0,
+      high: (json['high'] as num?)?.toDouble() ?? 0.0,
+      low: (json['low'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -75,6 +83,10 @@ class MonitoredStock {
         'changePercent': changePercent,
         'volume': volume,
         'amount': amount,
+        'open': open,
+        'preClose': preClose,
+        'high': high,
+        'low': low,
       };
 
   final String code;
@@ -83,6 +95,10 @@ class MonitoredStock {
   final double changePercent;
   final int volume;
   final double amount;
+  final double open;
+  final double preClose;
+  final double high;
+  final double low;
   final String changeTypes;
 
   List<int> get changeTypeCodes =>

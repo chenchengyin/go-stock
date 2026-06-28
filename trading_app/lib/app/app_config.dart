@@ -23,6 +23,8 @@ class AppDependencies extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cache = MemoryLocalCache();
+    final radarRepo = RadarRepositoryImpl(
+        dio: createApiClient(), baseUrl: 'http://localhost:8080');
 
     return MultiProvider(
       providers: [
@@ -30,12 +32,9 @@ class AppDependencies extends StatelessWidget {
           create: (_) => AuthViewModel(MockAuthRepository(cache))..restore(),
         ),
         ChangeNotifierProvider(
-          create: (_) => RadarViewModel(
-              RadarRepositoryImpl(
-                  dio: createApiClient(), baseUrl: 'http://localhost:8080'))
-            ..loadMonitoredStocks()
-            ..loadLatestChanges(),
+          create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks()..loadLatestChanges(),
         ),
+        Provider<RadarRepository>(create: (_) => radarRepo),
         ChangeNotifierProvider(
           create: (_) {
             final remote = NewsRemoteDataSource();
