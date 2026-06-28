@@ -67,7 +67,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
       _isUploading = _selectedImages.isNotEmpty;
     });
 
-    // 上传图片
     final uploadedUrls = <String>[];
     for (final img in _selectedImages) {
       final url = await _uploadImage(img);
@@ -88,7 +87,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
     if (!mounted) return;
 
     if (post != null && mounted) {
-      _showToast('发布成功');
       Navigator.of(context).pop(true);
     } else if (mounted) {
       _showToast('发布失败，请检查网络连接后重试');
@@ -112,151 +110,153 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
-      navigationBar: CupertinoNavigationBar(
-        backgroundColor: CupertinoColors.white,
-        leading: GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
-          child: const Padding(
-            padding: EdgeInsets.all(8),
-            child: Icon(CupertinoIcons.clear_thick, size: 20),
-          ),
-        ),
-        middle: const Text(
-          '发布策略',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        trailing: GestureDetector(
-          onTap: _isSubmitting ? null : _submit,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: _isSubmitting
-                  ? CupertinoColors.systemGrey5
-                  : const Color(0xff2364aa),
-              borderRadius: BorderRadius.circular(16),
+    return Stack(
+      children: [
+        CupertinoPageScaffold(
+          backgroundColor: CupertinoColors.white,
+          navigationBar: CupertinoNavigationBar(
+            backgroundColor: CupertinoColors.white,
+            leading: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(CupertinoIcons.clear_thick, size: 20),
+              ),
             ),
-            child: _isSubmitting
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CupertinoActivityIndicator(),
-                  )
-                : const Text(
-                    '发布',
-                    style: TextStyle(
-                      color: CupertinoColors.white,
-                      fontSize: 14,
-                    ),
+            middle: const Text(
+              '发布策略',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            trailing: GestureDetector(
+              onTap: _isSubmitting ? null : _submit,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _isSubmitting
+                      ? CupertinoColors.systemGrey5
+                      : const Color(0xff2364aa),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  '发布',
+                  style: TextStyle(
+                    color: CupertinoColors.white,
+                    fontSize: 14,
                   ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题
-            CupertinoTextField(
-              controller: _titleController,
-              placeholder: '标题（可选）',
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 内容
-            CupertinoTextField(
-              controller: _contentController,
-              placeholder: '分享你的策略思路...',
-              maxLines: 8,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // 图片选择
-            const Text(
-              '配图（最多6张）',
-              style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ..._selectedImages.map(
-                  (file) => Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(file.path),
+                CupertinoTextField(
+                  controller: _titleController,
+                  placeholder: '标题',
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                CupertinoTextField(
+                  controller: _contentController,
+                  placeholder: '分享你的策略思路...',
+                  maxLines: 8,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '配图（最多6张）',
+                  style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ..._selectedImages.map(
+                      (file) => Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              File(file.path),
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          Positioned(
+                            top: -4,
+                            right: -4,
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedImages.remove(file)),
+                              child: const Icon(
+                                CupertinoIcons.xmark_circle_fill,
+                                size: 20,
+                                color: CupertinoColors.systemRed,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_selectedImages.length < 6)
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
                           width: 80,
                           height: 80,
-                          fit: BoxFit.cover,
+                          decoration: BoxDecoration(
+                            color: CupertinoColors.systemGrey6,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.camera_viewfinder,
+                            color: CupertinoColors.systemGrey,
+                            size: 28,
+                          ),
                         ),
                       ),
-                      Positioned(
-                        top: -4,
-                        right: -4,
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedImages.remove(file)),
-                          child: const Icon(
-                            CupertinoIcons.xmark_circle_fill,
-                            size: 20,
-                            color: CupertinoColors.systemRed,
-                          ),
+                  ],
+                ),
+                if (_isUploading) ...[
+                  const SizedBox(height: 12),
+                  const Row(
+                    children: [
+                      CupertinoActivityIndicator(),
+                      SizedBox(width: 8),
+                      Text(
+                        '正在上传图片...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: CupertinoColors.systemGrey,
                         ),
                       ),
                     ],
                   ),
-                ),
-                if (_selectedImages.length < 6)
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.systemGrey6,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        CupertinoIcons.camera_viewfinder,
-                        color: CupertinoColors.systemGrey,
-                        size: 28,
-                      ),
-                    ),
-                  ),
+                ],
               ],
             ),
-            if (_isUploading) ...[
-              const SizedBox(height: 12),
-              const Row(
-                children: [
-                  CupertinoActivityIndicator(),
-                  SizedBox(width: 8),
-                  Text(
-                    '正在上传图片...',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: CupertinoColors.systemGrey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
+          ),
         ),
-      ),
+        if (_isSubmitting)
+          Container(
+            color: CupertinoColors.systemBackground.withValues(alpha: 0.6),
+            child: const Center(
+              child: CupertinoActivityIndicator(radius: 16),
+            ),
+          ),
+      ],
     );
   }
 }
