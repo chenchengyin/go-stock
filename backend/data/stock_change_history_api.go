@@ -15,6 +15,7 @@ import (
 type StockChangeCodesQuery struct {
 	StockCodes []string `json:"stockCodes"`
 	PageSize   int      `json:"pageSize"`
+	Date       string   `json:"date"`
 }
 
 type StockChangeHistoryService struct{}
@@ -511,21 +512,23 @@ func splitConcepts(conceptStr string) []string {
 	return result
 }
 
-// GetLatestByStockCodes 查询指定股票的最新异动记录
+// GetLatestByStockCodes 查询指定股票的最新异动记录，codes空且有date时查该日期全部
 func (s *StockChangeHistoryService) GetLatestByStockCodes(query StockChangeCodesQuery) (map[string]interface{}, error) {
-	if len(query.StockCodes) == 0 {
-		return map[string]interface{}{"data": []models.StockChangeHistory{}, "totalCount": 0}, nil
+	dbQuery := db.Dao.Model(&models.StockChangeHistory{})
+
+	if len(query.StockCodes) > 0 {
+		dbQuery = dbQuery.Where("stock_code IN ?", query.StockCodes)
 	}
+	if query.Date != "" {
+		dbQuery = dbQuery.Where("change_date = ?", query.Date)
+	}
+
+	dbQuery = dbQuery.Order("change_date DESC, change_time DESC")
 
 	pageSize := query.PageSize
-	if pageSize <= 0 || pageSize > 200 {
-		pageSize = 100
+	if pageSize > 0 && pageSize <= 10000 {
+		dbQuery = dbQuery.Limit(pageSize)
 	}
-
-	dbQuery := db.Dao.Model(&models.StockChangeHistory{}).
-		Where("stock_code IN ?", query.StockCodes).
-		Order("change_date DESC, change_time DESC").
-		Limit(pageSize)
 
 	var list []models.StockChangeHistory
 	if err := dbQuery.Find(&list).Error; err != nil {
@@ -533,9 +536,7 @@ func (s *StockChangeHistoryService) GetLatestByStockCodes(query StockChangeCodes
 	}
 
 	var total int64
-	db.Dao.Model(&models.StockChangeHistory{}).
-		Where("stock_code IN ?", query.StockCodes).
-		Count(&total)
+	dbQuery.Count(&total)
 
 	return map[string]interface{}{
 		"data":       list,

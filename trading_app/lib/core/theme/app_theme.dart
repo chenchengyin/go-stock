@@ -1,25 +1,39 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
-/// Material 主题（Cupertino 组件不需要 ThemeData, 这里保持 minimal）
+/// Material 主题工厂 — 从 AppColors 静态字段读取颜色
 class AppTheme {
-  static ThemeData light() {
+  /// 基于当前 AppColors 静态值构建 ThemeData
+  static ThemeData current() {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xff2364aa),
+        seedColor: AppColors.brand,
         brightness: Brightness.light,
       ),
-      scaffoldBackgroundColor: Colors.white,
-      appBarTheme: const AppBarTheme(
+      scaffoldBackgroundColor: AppColors.scaffoldBg,
+      appBarTheme: AppBarTheme(
         centerTitle: false,
-        elevation: 0,
-        backgroundColor: Color(0xfff6f8fb),
-        foregroundColor: Color(0xff172033),
+        elevation: 0.5,
+        backgroundColor: AppColors.appBarBg,
+        foregroundColor: AppColors.appBarFg,
       ),
       cardTheme: CardThemeData(
-        color: Colors.white,
+        color: AppColors.cardBg,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      dividerTheme: DividerThemeData(
+        color: AppColors.divider,
+        thickness: 0.5,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.inputFill,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.border),
+        ),
       ),
     );
   }

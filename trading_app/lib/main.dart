@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'app/app_config.dart';
 import 'app/app_shell.dart';
-import 'core/theme/app_theme.dart';
+import 'core/theme/app_colors.dart';
+import 'core/theme/theme_manager.dart';
 import 'features/radar/data/notification_util.dart';
 
 void main() async {
@@ -17,12 +19,20 @@ class TradingRadarApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppDependencies(
-      child: MaterialApp(
-        title: '交易雷达',
-        debugShowCheckedModeBanner: false,
-        color: Colors.white,
-        theme: AppTheme.light(),
-        home: const AppShell(),
+      child: Consumer<ThemeManager>(
+        builder: (context, tm, _) {
+          final colors = tm.colors;
+          return AppColorsWidget(
+            colors: colors,
+            child: MaterialApp(
+              title: '交易雷达',
+              debugShowCheckedModeBanner: false,
+              color: Colors.white,
+              theme: tm.themeData,
+              home: const AppShell(),
+            ),
+          );
+        },
       ),
     );
   }

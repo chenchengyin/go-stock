@@ -52,21 +52,23 @@ class RadarViewModel extends ChangeNotifier {
 
   Future<void> _refreshData() async {
     try {
-      // 只拉实时行情合并到本地监控列表 + 拉异动
-      // 不重新拉 follow-list，避免多余请求
       if (monitoredStocks.isNotEmpty) {
+        final codes = monitoredStocks.map((s) => s.code).toList();
+        debugPrint('[Radar] 开始查询异动，股票代码: $codes');
+
         final results = await Future.wait([
-          _repository.fetchRealtimeQuotes(
-            monitoredStocks.map((s) => s.code).toList(),
-          ),
-          _repository.getLatestChanges(
-            monitoredStocks.map((s) => s.code).toList(),
-          ),
+          _repository.fetchRealtimeQuotes(codes),
+          _repository.getLatestChanges(codes),
         ]);
         final quotes = results[0] as Map<String, Map<String, dynamic>>;
         final newChanges = results[1] as List<StockChange>;
 
-        // 检测新异动 -> 标记红点
+        debugPrint('[Radar] 异动查询结果: ${newChanges.length} 条记录');
+        if (newChanges.isNotEmpty) {
+          debugPrint('[Radar] 第一条异动: ${newChanges.first}');
+        }
+        debugPrint('[Radar] 行情查询结果: ${quotes.length} 只股票');
+
         _detectNewChanges(newChanges);
         latestChanges = newChanges;
 

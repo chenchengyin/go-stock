@@ -7,6 +7,7 @@ abstract class RadarRepository {
   Future<String> addMonitoredStock(MonitoredStock stock);
   Future<String> removeMonitoredStock(String code);
   Future<List<StockChange>> getLatestChanges(List<String> codes);
+  Future<List<StockChange>> getAllChanges();
   Future<List<Map<String, String>>> searchStocks(String keyword);
   Future<Map<String, Map<String, dynamic>>> fetchRealtimeQuotes(
     List<String> codes,
@@ -67,6 +68,21 @@ class RadarRepositoryImpl implements RadarRepository {
       '/api/stock-changes',
       queryParameters: {'codes': codesParam},
     );
+    if (response.statusCode != 200) return [];
+    final data = response.data as Map<String, dynamic>?;
+    final list = data?['data'] as List<dynamic>? ?? [];
+    return list
+        .map(
+          (e) => StockChange.fromJson(
+            Map<String, dynamic>.from(e as Map<dynamic, dynamic>),
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Future<List<StockChange>> getAllChanges() async {
+    final response = await _dio.get('/api/stock-changes');
     if (response.statusCode != 200) return [];
     final data = response.data as Map<String, dynamic>?;
     final list = data?['data'] as List<dynamic>? ?? [];

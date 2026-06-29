@@ -81,6 +81,22 @@ class RadarPage extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                              IconButton(
+                                icon: const Icon(Icons.chevron_right,
+                                    size: 20),
+                                color: Colors.grey,
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const StockChangeDetailPage(
+                                        stockName: null,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                tooltip: '查看全部异动',
+                              ),
                             ],
                           ),
                         ),
@@ -150,7 +166,7 @@ class RadarPage extends StatelessWidget {
                       ),
                     ),
 
-                  // 监控股票列表 + 异动列表
+                  // 监控股票列表（点击进入查看异动详情）
                   if (vm.searchKeyword.trim().isEmpty)
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16,vertical: 8),
@@ -163,18 +179,9 @@ class RadarPage extends StatelessWidget {
                                 vm.monitoredStocks[index],
                               );
                             }
-                            final changeIndex =
-                                index - vm.monitoredStocks.length;
-                            if (changeIndex < vm.latestChanges.length) {
-                              return _buildChangeCard(
-                                vm.latestChanges[changeIndex],
-                              );
-                            }
                             return null;
                           },
-                          childCount:
-                              vm.monitoredStocks.length +
-                              vm.latestChanges.length,
+                          childCount: vm.monitoredStocks.length,
                         ),
                       ),
                     ),
@@ -192,7 +199,7 @@ class RadarPage extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: TextField(
         decoration: InputDecoration(
-          hintText: '搜索股票代码/名称，点击 + 添加监控',
+          hintText: '搜索股票代码/名称后按确定，点击 + 添加监控',
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: vm.isSearching
               ? const Padding(
@@ -300,17 +307,17 @@ class RadarPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   // K线指标行：今开 昨收 最高 最低
-                  Row(
-                    children: [
-                      _buildKLineItem('今开', stock.open.toStringAsFixed(2)),
-                      const SizedBox(width: 12),
-                      _buildKLineItem('昨收', stock.preClose.toStringAsFixed(2)),
-                      const SizedBox(width: 12),
-                      _buildKLineItem('最高', stock.high.toStringAsFixed(2)),
-                      const SizedBox(width: 12),
-                      _buildKLineItem('最低', stock.low.toStringAsFixed(2)),
-                    ],
-                  ),
+                  // Row(
+                  //   children: [
+                  //     _buildKLineItem('今开', stock.open.toStringAsFixed(2)),
+                  //     const SizedBox(width: 12),
+                  //     _buildKLineItem('昨收', stock.preClose.toStringAsFixed(2)),
+                  //     const SizedBox(width: 12),
+                  //     _buildKLineItem('最高', stock.high.toStringAsFixed(2)),
+                  //     const SizedBox(width: 12),
+                  //     _buildKLineItem('最低', stock.low.toStringAsFixed(2)),
+                  //   ],
+                  // ),
                   // 盘口语言标签
                   _buildPanKouTags(stock),
                   const SizedBox(height: 4),

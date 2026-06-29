@@ -1,14 +1,70 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/theme_manager.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
 class SystemSettingsPage extends StatelessWidget {
   const SystemSettingsPage({super.key});
 
+  void _showThemePicker(BuildContext context) {
+    final tm = context.read<ThemeManager>();
+    final current = tm.variant;
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('选择主题'),
+        actions: [
+          CupertinoActionSheetAction(
+            isDefaultAction: current == AppThemeVariant.light,
+            onPressed: () {
+              tm.setVariant(AppThemeVariant.light);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('浅色'),
+          ),
+          CupertinoActionSheetAction(
+            isDefaultAction: current == AppThemeVariant.dark,
+            onPressed: () {
+              tm.setVariant(AppThemeVariant.dark);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('深色'),
+          ),
+          CupertinoActionSheetAction(
+            isDefaultAction: current == AppThemeVariant.grey,
+            onPressed: () {
+              tm.setVariant(AppThemeVariant.grey);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('灰色'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('取消'),
+          onPressed: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+  }
+
+  String _themeLabel(AppThemeVariant v) {
+    switch (v) {
+      case AppThemeVariant.light:
+        return '浅色';
+      case AppThemeVariant.dark:
+        return '深色';
+      case AppThemeVariant.grey:
+        return '灰色';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    final tm = context.watch<ThemeManager>();
 
     return Container(
       color: CupertinoColors.systemGroupedBackground,
@@ -24,21 +80,22 @@ class SystemSettingsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   Container(
                     color: CupertinoColors.white,
-                    child: const Column(
+                    child: Column(
                       children: [
                         _SettingsItem(
                           icon: CupertinoIcons.paintbrush,
                           title: '主题',
-                          subtitle: '浅色/深色模式',
+                          subtitle: _themeLabel(tm.variant),
                           showDivider: true,
+                          onTap: () => _showThemePicker(context),
                         ),
-                        _SettingsItem(
+                        const _SettingsItem(
                           icon: CupertinoIcons.wifi,
                           title: '弱网策略',
                           subtitle: '自动切换数据源/缓存模式',
                           showDivider: true,
                         ),
-                        _SettingsItem(
+                        const _SettingsItem(
                           icon: CupertinoIcons.clock,
                           title: '数据刷新频率',
                           subtitle: '30秒/60秒/120秒',
@@ -145,41 +202,46 @@ class _SettingsItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.showDivider,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final bool showDivider;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Icon(icon, size: 22, color: CupertinoColors.systemGrey),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: CupertinoColors.systemGrey)),
-                  ],
+        GestureDetector(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(icon, size: 22, color: CupertinoColors.systemGrey),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 15)),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: CupertinoColors.systemGrey)),
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(CupertinoIcons.chevron_right,
-                  size: 16, color: CupertinoColors.systemGrey3),
-            ],
+                const Icon(CupertinoIcons.chevron_right,
+                    size: 16, color: CupertinoColors.systemGrey3),
+              ],
+            ),
           ),
         ),
         if (showDivider)

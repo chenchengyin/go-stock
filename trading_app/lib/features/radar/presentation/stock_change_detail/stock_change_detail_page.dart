@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:provider/provider.dart';
 
-/// 单只股票的异动详情页面
+/// 单只股票的异动详情页面 / 全部异动页面
 class StockChangeDetailPage extends StatefulWidget {
   const StockChangeDetailPage({
     super.key,
-    required this.stockCode,
-    required this.stockName,
-    required this.onChangesSeen,
+    this.stockCode,
+    this.stockName,
+    this.onChangesSeen,
   });
 
-  final String stockCode;
-  final String stockName;
-  final VoidCallback onChangesSeen;
+  final String? stockCode;
+  final String? stockName;
+  final VoidCallback? onChangesSeen;
 
   @override
   State<StockChangeDetailPage> createState() => _StockChangeDetailPageState();
@@ -35,14 +36,16 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
     setState(() => _loading = true);
     try {
       final repo = context.read<RadarRepository>();
-      final changes = await repo.getLatestChanges([widget.stockCode]);
+      final changes = widget.stockCode != null
+          ? await repo.getLatestChanges([widget.stockCode!])
+          : await repo.getAllChanges();
       if (mounted) {
         setState(() {
           _changes = changes;
           _loading = false;
         });
         // 标记已读
-        widget.onChangesSeen();
+        widget.onChangesSeen?.call();
       }
     } catch (e) {
       if (mounted) {
@@ -56,14 +59,17 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.stockName != null
+        ? '${widget.stockName} 异动详情'
+        : '今日异动';
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.stockName} 异动详情'),
+        title: Text(title),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
-      backgroundColor: const Color(0xfff5f5f5),
+      backgroundColor: AppColors.backgroundColor,
       body: _buildBody(),
     );
   }
@@ -117,16 +123,54 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 异动类型标签 + 时间
+          // 第一行：股票名称 + 时间
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                change.stockName,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${change.changeDate} ${change.changeTime}',
+                style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          // 第二行：价格 + 涨跌幅（左对齐），异动类型标签（右对齐）
+          const SizedBox(height: 4),
           Row(
             children: [
+              Text(
+                '¥${change.price.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${isUp ? "+" : ""}${change.changeRate.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: changeColor,
+                ),
+              ),
+              const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -143,53 +187,29 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
                   ),
                 ),
               ),
-              const Spacer(),
-              Text(
-                '${change.changeDate} ${change.changeTime}',
-                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-          // 价格 + 涨跌幅
-          Row(
-            children: [
-              Text(
-                '¥${change.price.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '${isUp ? "+" : ""}${change.changeRate.toStringAsFixed(2)}%',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: changeColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // 成交额 + 成交量
-          Row(
-            children: [
-              if (change.amount > 0)
-                Text(
-                  '成交额 ${_formatAmount(change.amount)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              if (change.amount > 0 && change.volume > 0)
-                const SizedBox(width: 16),
-              if (change.volume > 0)
-                Text(
-                  '成交量 ${_formatVolume(change.volume)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-            ],
-          ),
+          // 第三行：成交额 + 成交量（仅当有数据时显示）
+          if (change.amount > 0 || change.volume > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (change.amount > 0)
+                  Text(
+                    '成交额 ${_formatAmount(change.amount)}',
+                    style: TextStyle(fontSize: 12, color: Colors.red[600]),
+                  ),
+                if (change.amount > 0 && change.volume > 0)
+                  const SizedBox(width: 16),
+                if (change.volume > 0)
+                  Text(
+                    '成交量 ${_formatVolume(change.volume)}',
+                    style: TextStyle(fontSize: 12, color: Colors.red[600],fontWeight: FontWeight.w400),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -198,7 +218,7 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
   Color _getTypeColor(int changeType) {
     switch (changeType) {
       case 8201:
-        return const Color(0xffff5722);
+        return const Color(0xffe91e63);
       case 8202:
         return const Color(0xff4caf50);
       case 8204:
@@ -208,7 +228,7 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
       case 8193:
         return const Color(0xffe91e63);
       case 8194:
-        return const Color(0xff795548);
+        return const Color(0xff4caf50);
       case 4:
         return const Color(0xffff5722);
       case 8:

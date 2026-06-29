@@ -5,10 +5,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"go-stock/backend/agent"
 	"go-stock/backend/data"
 	"go-stock/backend/db"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
 	"io"
+	mrand "math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -79,6 +82,7 @@ func Start() {
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)
 	mux.HandleFunc("/api/stock-changes", handleStockChanges)
+	mux.HandleFunc("/api/stock-changes/save", handleStockChangesSave)
 	mux.HandleFunc("/api/follow", handleFollow)
 	mux.HandleFunc("/api/unfollow", handleUnfollow)
 	mux.HandleFunc("/api/follow-list", handleGetFollowList)
@@ -87,6 +91,9 @@ func Start() {
 	mux.HandleFunc("/api/strategy", handleStrategy)
 	mux.HandleFunc("/api/upload", handleFileUpload)
 	mux.HandleFunc("/api/health", handleHealth)
+	mux.HandleFunc("/api/stock-selection-test", handleStockSelectionTest)
+	mux.HandleFunc("/api/ths-selection-test", handleTHSSelectionTest)
+	mux.HandleFunc("/api/get-qgqp-bid", handleGetQgqpBid)
 
 	uploadDir := filepath.Join("data", "uploads")
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
@@ -110,6 +117,62 @@ func Start() {
 			newsApi.TelegraphList(30)
 			newsApi.GetSinaNews(30)
 			logger.SugaredLogger.Info("[定时任务] 新闻抓取完成")
+		}
+	}()
+
+	go func() {
+		cronApi := agent.NewCronTaskApi()
+		if !cronApi.ExistsByTaskType("stock_change_save") {
+			task := &models.CronTask{
+				Name:        "异动数据保存",
+				CronExpr:    "0 */1 * * * *",
+				TaskType:    "stock_change_save",
+				Enable:      true,
+				Status:      "active",
+				Description: "每分钟自动保存A股异动数据（火箭发射、快速反弹、大笔买入、封涨停板等），交易时间外自动跳过",
+			}
+			err := cronApi.Create(task)
+			if err != nil {
+				logger.SugaredLogger.Errorf("自动创建异动数据保存任务失败：%v", err)
+			} else {
+				logger.SugaredLogger.Info("已自动创建异动数据保存定时任务")
+			}
+		}
+
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if !isTradingTime() {
+				continue
+			}
+
+			intervalSec := int64(60)
+			var settings data.Settings
+			if err := db.Dao.First(&settings).Error; err == nil && settings.StockChangeIntervalSec > 0 {
+				intervalSec = settings.StockChangeIntervalSec
+			}
+
+			randomDelay := time.Duration(mrand.Int63n(intervalSec/2)) * time.Second
+			if randomDelay > 0 {
+				time.Sleep(randomDelay)
+			}
+
+			api := data.NewStockChangesApi()
+			changeTypes := []int{
+				8201, 8202, 8193, 4, 32, 64, 8207, 8209, 8211, 8213, 8215,
+				8204, 8203, 8194, 8, 16, 128, 8208, 8210, 8212, 8214, 8216,
+			}
+			result := api.GetStockChanges(changeTypes, 0, 500)
+			if result == nil || len(result.Data) == 0 {
+				continue
+			}
+
+			savedCount, err := data.NewStockChangeHistoryService().SaveStockChangesWithDedup(result.Data)
+			if err != nil {
+				logger.SugaredLogger.Errorf("保存异动数据失败：%v", err)
+			} else {
+				logger.SugaredLogger.Infof("成功保存 %d 条异动数据（去重后）", savedCount)
+			}
 		}
 	}()
 
@@ -137,7 +200,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func writeJSON(w http.ResponseWriter, v interface{}) {
+// WriteJSON 写入 JSON 响应
+func WriteJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		logger.SugaredLogger.Errorf("writeJSON error: %v", err)
@@ -159,7 +223,7 @@ func handleGetNews(w http.ResponseWriter, r *http.Request) {
 	}
 	// 使用 NewsWrapper 在 flutter_api 层做去重
 	news := NewNewsWrapper().GetNewsList(source, limit)
-	writeJSON(w, news)
+	WriteJSON(w, news)
 }
 
 // handleGetDomesticNews 获取国内新闻（财联社+新浪，按时间倒序）
@@ -177,7 +241,7 @@ func handleGetDomesticNews(w http.ResponseWriter, r *http.Request) {
 	}
 	// 使用 NewsWrapper 在 flutter_api 层做去重
 	news := NewNewsWrapper().GetDomesticNews(limit)
-	writeJSON(w, news)
+	WriteJSON(w, news)
 }
 
 // handleCleanDuplicateNews 清理重复新闻数据
@@ -206,7 +270,7 @@ func handleCleanDuplicateNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, map[string]interface{}{
+	WriteJSON(w, map[string]interface{}{
 		"deleted": result.RowsAffected,
 		"message": "Duplicate news cleaned successfully",
 	})
@@ -221,7 +285,7 @@ func handleGetKLine(w http.ResponseWriter, r *http.Request) {
 	klt := r.URL.Query().Get("klt")
 	limitStr := r.URL.Query().Get("limit")
 	if code == "" {
-		writeJSON(w, map[string]string{"error": "code is required"})
+		WriteJSON(w, map[string]string{"error": "code is required"})
 		return
 	}
 	if klt == "" {
@@ -234,7 +298,7 @@ func handleGetKLine(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	result := data.FetchKLineWithFallback(code, "", klt, limit, "")
-	writeJSON(w, result)
+	WriteJSON(w, result)
 }
 
 func handleGlobalIndexes(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +307,7 @@ func handleGlobalIndexes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	indexes := data.NewMarketNewsApi().GlobalStockIndexes(30)
-	writeJSON(w, indexes)
+	WriteJSON(w, indexes)
 }
 
 func handleIndustryRanks(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +354,7 @@ func handleIndustryRanks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, rankData)
+	WriteJSON(w, rankData)
 }
 
 func handleHotTopics(w http.ResponseWriter, r *http.Request) {
@@ -306,7 +370,7 @@ func handleHotTopics(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	topics := data.NewMarketNewsApi().HotTopic(limit)
-	writeJSON(w, topics)
+	WriteJSON(w, topics)
 }
 
 func handleStockChanges(w http.ResponseWriter, r *http.Request) {
@@ -314,22 +378,40 @@ func handleStockChanges(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	codes := r.URL.Query().Get("codes")
-	if codes == "" {
-		writeJSON(w, map[string]interface{}{"data": []interface{}{}, "totalCount": 0})
+	rawCodes := r.URL.Query().Get("codes")
+
+	service := data.NewStockChangeHistoryService()
+
+	// codes 为空 → 返回今天全部异动
+	if rawCodes == "" {
+		result, err := service.GetLatestByStockCodes(data.StockChangeCodesQuery{
+			Date:     time.Now().Format("2006-01-02"),
+			PageSize: 10000,
+		})
+		if err != nil {
+			WriteJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
+		WriteJSON(w, result)
 		return
 	}
-	service := data.NewStockChangeHistoryService()
+
+	// 去掉市场前缀（sh/sz/bj），数据库存的只有纯数字代码
+	parts := strings.Split(rawCodes, ",")
+	cleanCodes := make([]string, len(parts))
+	for i, c := range parts {
+		cleanCodes[i] = strings.TrimLeft(c, "shszbjSHZSBJ")
+	}
 	query := data.StockChangeCodesQuery{
-		StockCodes: strings.Split(codes, ","),
+		StockCodes: cleanCodes,
 		PageSize:   100,
 	}
 	result, err := service.GetLatestByStockCodes(query)
 	if err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+		WriteJSON(w, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, result)
+	WriteJSON(w, result)
 }
 
 func handleFollow(w http.ResponseWriter, r *http.Request) {
@@ -341,15 +423,15 @@ func handleFollow(w http.ResponseWriter, r *http.Request) {
 		StockCode string `json:"stockCode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, map[string]string{"result": "参数错误"})
+		WriteJSON(w, map[string]string{"result": "参数错误"})
 		return
 	}
 	if req.StockCode == "" {
-		writeJSON(w, map[string]string{"result": "股票代码不能为空"})
+		WriteJSON(w, map[string]string{"result": "股票代码不能为空"})
 		return
 	}
 	result := data.NewStockDataApi().Follow(req.StockCode)
-	writeJSON(w, map[string]string{"result": result})
+	WriteJSON(w, map[string]string{"result": result})
 }
 
 func handleUnfollow(w http.ResponseWriter, r *http.Request) {
@@ -361,15 +443,15 @@ func handleUnfollow(w http.ResponseWriter, r *http.Request) {
 		StockCode string `json:"stockCode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, map[string]string{"result": "参数错误"})
+		WriteJSON(w, map[string]string{"result": "参数错误"})
 		return
 	}
 	if req.StockCode == "" {
-		writeJSON(w, map[string]string{"result": "股票代码不能为空"})
+		WriteJSON(w, map[string]string{"result": "股票代码不能为空"})
 		return
 	}
 	result := data.NewStockDataApi().UnFollow(req.StockCode)
-	writeJSON(w, map[string]string{"result": result})
+	WriteJSON(w, map[string]string{"result": result})
 }
 
 func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
@@ -400,7 +482,7 @@ func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	}
-	writeJSON(w, items)
+	WriteJSON(w, items)
 }
 
 func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
@@ -410,13 +492,13 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 	}
 	codesParam := r.URL.Query().Get("codes")
 	if codesParam == "" {
-		writeJSON(w, []map[string]any{})
+		WriteJSON(w, []map[string]any{})
 		return
 	}
 	codes := strings.Split(codesParam, ",")
 	result, err := data.NewStockDataApi().GetStockCodeRealTimeData(codes...)
 	if err != nil || result == nil {
-		writeJSON(w, []map[string]any{})
+		WriteJSON(w, []map[string]any{})
 		return
 	}
 	type RealtimeItem struct {
@@ -457,7 +539,38 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 			Low:           low,
 		})
 	}
-	writeJSON(w, items)
+	WriteJSON(w, items)
+}
+
+func handleStockChangesSave(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	logger.SugaredLogger.Info("[手动触发] 开始保存异动数据...")
+
+	api := data.NewStockChangesApi()
+	changeTypes := []int{
+		8201, 8202, 8193, 4, 32, 64, 8207, 8209, 8211, 8213, 8215,
+		8204, 8203, 8194, 8, 16, 128, 8208, 8210, 8212, 8214, 8216,
+	}
+	result := api.GetStockChanges(changeTypes, 0, 500)
+	if result == nil || len(result.Data) == 0 {
+		logger.SugaredLogger.Info("[手动触发] 没有获取到异动数据")
+		WriteJSON(w, map[string]any{"success": true, "savedCount": 0, "message": "没有获取到异动数据"})
+		return
+	}
+
+	savedCount, err := data.NewStockChangeHistoryService().SaveStockChangesWithDedup(result.Data)
+	if err != nil {
+		logger.SugaredLogger.Errorf("[手动触发] 保存异动数据失败：%v", err)
+		WriteJSON(w, map[string]any{"success": false, "message": err.Error()})
+		return
+	}
+
+	logger.SugaredLogger.Infof("[手动触发] 成功保存 %d 条异动数据（去重后）", savedCount)
+	WriteJSON(w, map[string]any{"success": true, "savedCount": savedCount, "totalFetched": len(result.Data)})
 }
 
 func handleStockSearch(w http.ResponseWriter, r *http.Request) {
@@ -467,7 +580,7 @@ func handleStockSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	keyword := r.URL.Query().Get("keyword")
 	if keyword == "" {
-		writeJSON(w, []map[string]string{})
+		WriteJSON(w, []map[string]string{})
 		return
 	}
 	result := data.NewStockDataApi().GetStockList(keyword)
@@ -484,11 +597,11 @@ func handleStockSearch(w http.ResponseWriter, r *http.Request) {
 			Market:    s.Market,
 		})
 	}
-	writeJSON(w, items)
+	WriteJSON(w, items)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]string{"status": "ok"})
+	WriteJSON(w, map[string]string{"status": "ok"})
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -577,7 +690,7 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "写入文件失败", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]string{
+	WriteJSON(w, map[string]string{
 		"url": fmt.Sprintf("http://localhost:%d/uploads/%s", defaultHTTPServerPort, filename),
 	})
 }
@@ -592,45 +705,45 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 			pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
 			posts, total := api.GetPosts(page, pageSize)
-			writeJSON(w, map[string]interface{}{"posts": posts, "total": total})
+			WriteJSON(w, map[string]interface{}{"posts": posts, "total": total})
 		case "detail":
 			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
 			post, err := api.GetPostDetail(uint(postID))
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, post)
+			WriteJSON(w, post)
 		case "points":
 			userID := r.URL.Query().Get("userId")
 			u, err := api.GetUserPoints(userID)
 			if err != nil {
-				writeJSON(w, map[string]interface{}{"points": 0, "totalIn": 0, "totalOut": 0})
+				WriteJSON(w, map[string]interface{}{"points": 0, "totalIn": 0, "totalOut": 0})
 				return
 			}
-			writeJSON(w, u)
+			WriteJSON(w, u)
 		case "checkin_status":
 			userID := r.URL.Query().Get("userId")
 			checked := api.HasCheckedIn(userID)
-			writeJSON(w, map[string]bool{"checkedIn": checked})
+			WriteJSON(w, map[string]bool{"checkedIn": checked})
 		case "comments":
 			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
 			comments, err := api.GetComments(uint(postID))
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, comments)
+			WriteJSON(w, comments)
 		case "liked":
 			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
 			userID := r.URL.Query().Get("userId")
 			liked := api.HasLiked(uint(postID), userID)
 			viewed := api.HasViewed(uint(postID), userID)
-			writeJSON(w, map[string]bool{"liked": liked, "viewed": viewed})
+			WriteJSON(w, map[string]bool{"liked": liked, "viewed": viewed})
 		case "today_reply_points":
 			userID := r.URL.Query().Get("userId")
 			total := api.GetTodayReplyPoints(userID)
-			writeJSON(w, map[string]int64{"todayReplyPoints": total})
+			WriteJSON(w, map[string]int64{"todayReplyPoints": total})
 		default:
 			http.Error(w, "unknown action", http.StatusBadRequest)
 		}
@@ -656,33 +769,33 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			}
 			post, err := api.CreatePost(userID, nickname, title, content, images)
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, post)
+			WriteJSON(w, post)
 		case "checkin":
 			u, ok, err := api.CheckIn(userID, nickname)
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, map[string]interface{}{"checkedIn": ok, "points": u.Points})
+			WriteJSON(w, map[string]interface{}{"checkedIn": ok, "points": u.Points})
 		case "view_post":
 			postID, _ := req["postId"].(float64)
 			post, deducted, remain, err := api.ViewPost(uint(postID), userID, nickname)
 			if err != nil {
-				writeJSON(w, map[string]interface{}{"error": err.Error()})
+				WriteJSON(w, map[string]interface{}{"error": err.Error()})
 				return
 			}
-			writeJSON(w, map[string]interface{}{"post": post, "deducted": deducted, "remain": remain})
+			WriteJSON(w, map[string]interface{}{"post": post, "deducted": deducted, "remain": remain})
 		case "toggle_like":
 			postID, _ := req["postId"].(float64)
 			isLiked, count, err := api.ToggleLike(uint(postID), userID)
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, map[string]interface{}{"liked": isLiked, "likeCount": count})
+			WriteJSON(w, map[string]interface{}{"liked": isLiked, "likeCount": count})
 		case "add_comment":
 			postID, _ := req["postId"].(float64)
 			content, _ := req["content"].(string)
@@ -707,26 +820,26 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			}
 			comment, added, remain, err := api.CreateComment(uint(postID), parentID, userID, nickname, content, images, replyToUID, replyToName)
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, map[string]interface{}{"comment": comment, "addedPoints": added, "remain": remain})
+			WriteJSON(w, map[string]interface{}{"comment": comment, "addedPoints": added, "remain": remain})
 		case "delete_comment":
 			commentID, _ := req["commentId"].(float64)
 			err := api.DeleteComment(uint(commentID), userID)
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, map[string]string{"status": "ok"})
+			WriteJSON(w, map[string]string{"status": "ok"})
 		case "delete_post":
 			postID, _ := req["postId"].(float64)
 			err := api.DeletePost(uint(postID), userID)
 			if err != nil {
-				writeJSON(w, map[string]string{"error": err.Error()})
+				WriteJSON(w, map[string]string{"error": err.Error()})
 				return
 			}
-			writeJSON(w, map[string]string{"status": "ok"})
+			WriteJSON(w, map[string]string{"status": "ok"})
 		default:
 			http.Error(w, "unknown action", http.StatusBadRequest)
 		}
@@ -787,4 +900,25 @@ type IndustryValuationData struct {
 type IndustryValuationItem struct {
 	BOARDNAME    string  `json:"BOARDNAME"`
 	MARKETCAPVAG float64 `json:"MARKETCAPVAG"`
+}
+
+func isTradingTime() bool {
+	now := time.Now()
+	weekday := now.Weekday()
+	if weekday == time.Saturday || weekday == time.Sunday {
+		return false
+	}
+
+	hour, minute := now.Hour(), now.Minute()
+	currentTime := hour*100 + minute
+
+	morningStart := 915
+	morningEnd := 1130
+	afternoonStart := 1300
+	afternoonEnd := 1500
+
+	isMorning := currentTime >= morningStart && currentTime <= morningEnd
+	isAfternoon := currentTime >= afternoonStart && currentTime <= afternoonEnd
+
+	return isMorning || isAfternoon
 }

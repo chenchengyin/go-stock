@@ -1,9 +1,10 @@
 /// 应用依赖配置 — 集中管理所有依赖创建
 library;
 
-import 'package:provider/provider.dart';
 import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 import 'package:trading_app/core/storage/local_cache.dart';
+import 'package:trading_app/core/theme/theme_manager.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/features/strategy/presentation/strategy_view_model.dart';
@@ -26,6 +27,7 @@ class AppDependencies extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ThemeManager()),
         ChangeNotifierProvider(
           create: (_) => AuthViewModel(MockAuthRepository(cache))..restore(),
         ),
