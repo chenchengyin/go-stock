@@ -42,13 +42,19 @@ class PanKouAnalyzer {
     if ((low - preClose * 0.9).abs() < 0.01 || (low - preClose * 0.8).abs() < 0.01) {
       return [PanKouTag.dieTing];
     }
-    // 对子顶
-    if (high > 0 && (price - high).abs() < 0.01) {
-      return [PanKouTag.duiZiDing];
+    // 对子顶：最高价小数点后两位数字相同，如 .00 .11 .22 .33 … .99
+    if (high > 0) {
+      final cents = (high * 100).round() % 100;
+      if (cents ~/ 10 == cents % 10) {
+        return [PanKouTag.duiZiDing];
+      }
     }
-    // 对子底
-    if (low > 0 && (price - low).abs() < 0.01) {
-      return [PanKouTag.duiZiDi];
+    // 对子底：最低价小数点后两位数字相同
+    if (low > 0) {
+      final cents = (low * 100).round() % 100;
+      if (cents ~/ 10 == cents % 10) {
+        return [PanKouTag.duiZiDi];
+      }
     }
 
     return [];

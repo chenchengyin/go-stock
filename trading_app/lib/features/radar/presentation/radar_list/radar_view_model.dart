@@ -10,8 +10,8 @@ class RadarViewModel extends ChangeNotifier {
 
   final RadarRepository _repository;
 
+  // ── Tab ① 监控股票 ─────────────────────────────────────
   List<MonitoredStock> monitoredStocks = [];
-  List<StockChange> latestChanges = [];
   List<Map<String, String>> searchResults = [];
   bool isSearching = false;
   String _searchKeyword = '';
@@ -21,23 +21,84 @@ class RadarViewModel extends ChangeNotifier {
     _triggerSearch();
   }
 
+  // ── Tab ② 持仓异动（监控股票的异动列表） ──────────────
+  List<StockChange> watchChanges = [];
+  bool watchLoading = false;
+
+  // ── Tab ③ 全市场异动 ───────────────────────────────────
+  List<StockChange> allChanges = [];
+  bool allLoading = false;
+
   /// 搜索版本号，用于取消过期请求
   int _searchVersion = 0;
 
-  /// 已读的异动 ID 集合（初始加载的也算已读）
+  /// 所有已从服务端获取到的异动 ID（用于判断是否是"新"异动）
   final Set<int> _knownChangeIds = {};
 
-  /// 有未读异动的股票 code
+  /// 已在屏幕上曝光过的异动 ID（曝光才算已读）
+  final Set<int> _exposedChangeIds = {};
+
+  /// 有未曝光异动的股票 code
   final Set<String> _codesWithNewChanges = {};
 
-  /// 检查指定股票是否有未读异动
+  // ── 曝光已读逻辑 ─────────────────────────────────────
+
+  /// 检查某个异动是否已曝光
+  bool isChangeExposed(int changeId) => _exposedChangeIds.contains(changeId);
+
+  /// 标记异动为已曝光，更新股票红点状态
+  void markChangeExposed(int changeId) {
+    if (_exposedChangeIds.contains(changeId)) return;
+    _exposedChangeIds.add(changeId);
+
+    // 找到此异动对应的股票 code
+    // 遍历所有异动列表查找
+    String? code;
+    for (final c in watchChanges) {
+      if (c.id == changeId) {
+        code = c.stockCode;
+        break;
+      }
+    }
+    if (code == null) {
+      for (final c in allChanges) {
+        if (c.id == changeId) {
+          code = c.stockCode;
+          break;
+        }
+      }
+    }
+
+    // 如果该股票的所有异动都已曝光，移除红点
+    if (code != null) {
+      _recalcNewChangesForCode(code);
+    }
+
+    notifyListeners();
+  }
+
+  /// 重新计算某个股票是否还有未曝光的异动
+  void _recalcNewChangesForCode(String code) {
+    final hasUnseen = watchChanges.any(
+      (c) => c.stockCode == code && !_exposedChangeIds.contains(c.id),
+    );
+    if (!hasUnseen) {
+      _codesWithNewChanges.remove(code);
+    } else {
+      _codesWithNewChanges.add(code);
+    }
+  }
+
+  /// 检查指定股票是否有未曝光异动
   bool hasNewChanges(String code) => _codesWithNewChanges.contains(code);
 
-  /// 标记某只股票的异动为已读
+  /// 标记某只股票的异动为已读（保留兼容，实际对外关闭红点）
   void markChangesSeen(String code) {
     _codesWithNewChanges.remove(code);
     notifyListeners();
   }
+
+  // ── 定时刷新 ──────────────────────────────────────────
 
   Timer? _debounce;
   Timer? _refreshTimer;
@@ -54,7 +115,6 @@ class RadarViewModel extends ChangeNotifier {
     try {
       if (monitoredStocks.isNotEmpty) {
         final codes = monitoredStocks.map((s) => s.code).toList();
-        debugPrint('[Radar] 开始查询异动，股票代码: $codes');
 
         final results = await Future.wait([
           _repository.fetchRealtimeQuotes(codes),
@@ -63,14 +123,8 @@ class RadarViewModel extends ChangeNotifier {
         final quotes = results[0] as Map<String, Map<String, dynamic>>;
         final newChanges = results[1] as List<StockChange>;
 
-        debugPrint('[Radar] 异动查询结果: ${newChanges.length} 条记录');
-        if (newChanges.isNotEmpty) {
-          debugPrint('[Radar] 第一条异动: ${newChanges.first}');
-        }
-        debugPrint('[Radar] 行情查询结果: ${quotes.length} 只股票');
-
         _detectNewChanges(newChanges);
-        latestChanges = newChanges;
+        watchChanges = newChanges;
 
         if (quotes.isNotEmpty) {
           monitoredStocks = monitoredStocks.map((s) {
@@ -89,6 +143,7 @@ class RadarViewModel extends ChangeNotifier {
                 high: (q['high'] as num?)?.toDouble() ?? s.high,
                 low: (q['low'] as num?)?.toDouble() ?? s.low,
                 changeTypes: s.changeTypes,
+                createdAt: s.createdAt,
               );
             }
             return s;
@@ -97,24 +152,27 @@ class RadarViewModel extends ChangeNotifier {
       } else {
         final newChanges = await _repository.getLatestChanges([]);
         _detectNewChanges(newChanges);
-        latestChanges = newChanges;
+        watchChanges = newChanges;
       }
 
       notifyListeners();
     } catch (_) {}
   }
 
-  /// 检测并标记新异动（不在 knownChangeIds 中的视为新异动）
+  /// 检测并标记新异动（不在 _exposedChangeIds 中的视为新异动）
   void _detectNewChanges(List<StockChange> changes) {
     for (final change in changes) {
       if (!_knownChangeIds.contains(change.id)) {
         _knownChangeIds.add(change.id);
-        _codesWithNewChanges.add(change.stockCode);
+        if (!_exposedChangeIds.contains(change.id)) {
+          _codesWithNewChanges.add(change.stockCode);
+        }
       }
     }
   }
 
-  /// 每次输入时触发，启动 debounce，不立即 notifyListeners
+  // ── 搜索 ──────────────────────────────────────────────
+
   void _triggerSearch() {
     _debounce?.cancel();
     if (_searchKeyword.trim().isEmpty) {
@@ -123,8 +181,6 @@ class RadarViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    // 不立即设置 isSearching=true 和 notifyListeners
-    // 等 debounce 结束后再触发搜索和 UI 更新
     _debounce = Timer(const Duration(milliseconds: 300), () {
       _doSearch(_searchKeyword.trim());
     });
@@ -136,7 +192,6 @@ class RadarViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final results = await _repository.searchStocks(keyword);
-      // 只应用最新版本的搜索结果，过期请求丢弃
       if (version != _searchVersion) return;
       searchResults = results;
     } catch (e) {
@@ -149,10 +204,17 @@ class RadarViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 加载监控股票列表
+  // ── 数据加载 ──────────────────────────────────────────
+
+  /// 加载监控股票列表 + Tab② 初始异动
   Future<void> loadMonitoredStocks() async {
     monitoredStocks = await _repository.getMonitoredStocks();
     if (monitoredStocks.isNotEmpty) {
+      debugPrint('[Radar] loadMonitoredStocks: ${monitoredStocks.length} items');
+      for (final s in monitoredStocks) {
+        debugPrint('  ${s.code} ${s.name} createdAt=${s.createdAt}');
+      }
+
       final codes = monitoredStocks.map((s) => s.code).toList();
       final results = await Future.wait([
         _repository.fetchRealtimeQuotes(codes),
@@ -161,8 +223,8 @@ class RadarViewModel extends ChangeNotifier {
       final quotes = results[0] as Map<String, Map<String, dynamic>>;
       final changes = results[1] as List<StockChange>;
 
-      // 初始加载的异动全部标记为已读（不触发红点）
-      latestChanges = changes;
+      // 初始加载的异动标记为"已知"但不算"曝光"
+      watchChanges = changes;
       for (final c in changes) {
         _knownChangeIds.add(c.id);
       }
@@ -184,12 +246,38 @@ class RadarViewModel extends ChangeNotifier {
               high: (q['high'] as num?)?.toDouble() ?? s.high,
               low: (q['low'] as num?)?.toDouble() ?? s.low,
               changeTypes: s.changeTypes,
+              createdAt: s.createdAt,
             );
           }
           return s;
         }).toList();
       }
+
+      // 按添加时间倒序排列（新添加在最前），无时间戳的排末尾
+      monitoredStocks.sort((a, b) {
+        final ta = a.createdAt ?? '';
+        final tb = b.createdAt ?? '';
+        debugPrint('[Radar] sort: ${a.code}($ta) vs ${b.code}($tb) => ${tb.compareTo(ta)}');
+        return tb.compareTo(ta);
+      });
+      // 排序后验证
+      debugPrint('[Radar] after sort top=${monitoredStocks.first.code}(${monitoredStocks.first.createdAt}) bottom=${monitoredStocks.last.code}(${monitoredStocks.last.createdAt})');
     }
+    notifyListeners();
+  }
+
+  /// 加载 Tab③ 全市场异动
+  Future<void> loadAllChanges() async {
+    allLoading = true;
+    notifyListeners();
+    try {
+      final changes = await _repository.getAllChanges();
+      allChanges = changes;
+      // 全市场异动不自动加入 _knownChangeIds（不触发红点）
+    } catch (e) {
+      debugPrint('加载全市场异动失败: $e');
+    }
+    allLoading = false;
     notifyListeners();
   }
 
@@ -200,13 +288,8 @@ class RadarViewModel extends ChangeNotifier {
     }
     final result = await _repository.addMonitoredStock(stock);
     if (result == '关注成功') {
+      // 全量重载后按后端 createdAt 倒序排序
       await loadMonitoredStocks();
-      final index = monitoredStocks.indexWhere((s) => s.code == stock.code);
-      if (index > 0) {
-        final added = monitoredStocks.removeAt(index);
-        monitoredStocks.insert(0, added);
-        notifyListeners();
-      }
       return true;
     }
     return false;
@@ -215,17 +298,23 @@ class RadarViewModel extends ChangeNotifier {
   /// 移除监控股票
   Future<void> removeMonitoredStock(String code) async {
     await _repository.removeMonitoredStock(code);
-    _knownChangeIds.removeWhere((_) => false);
     _codesWithNewChanges.remove(code);
     await loadMonitoredStocks();
   }
 
-  /// 加载最新异动数据
-  Future<void> loadLatestChanges() async {
-    final codes = monitoredStocks.map((s) => s.code).toList();
-    final changes = await _repository.getLatestChanges(codes);
-    _detectNewChanges(changes);
-    latestChanges = changes;
+  /// 加载最新的监控异动数据
+  Future<void> loadWatchChanges() async {
+    watchLoading = true;
+    notifyListeners();
+    try {
+      final codes = monitoredStocks.map((s) => s.code).toList();
+      final changes = await _repository.getLatestChanges(codes);
+      _detectNewChanges(changes);
+      watchChanges = changes;
+    } catch (e) {
+      debugPrint('加载持仓异动失败: $e');
+    }
+    watchLoading = false;
     notifyListeners();
   }
 

@@ -57,6 +57,7 @@ class MonitoredStock {
     this.high = 0,
     this.low = 0,
     this.changeTypes = '',
+    this.createdAt,
   });
 
   factory MonitoredStock.fromJson(Map<String, dynamic> json) {
@@ -72,6 +73,7 @@ class MonitoredStock {
       preClose: (json['preClose'] as num?)?.toDouble() ?? 0.0,
       high: (json['high'] as num?)?.toDouble() ?? 0.0,
       low: (json['low'] as num?)?.toDouble() ?? 0.0,
+      createdAt: json['createdAt'] as String?,
     );
   }
 
@@ -87,6 +89,7 @@ class MonitoredStock {
         'preClose': preClose,
         'high': high,
         'low': low,
+        'createdAt': createdAt,
       };
 
   final String code;
@@ -100,6 +103,7 @@ class MonitoredStock {
   final double high;
   final double low;
   final String changeTypes;
+  final String? createdAt;
 
   List<int> get changeTypeCodes =>
       changeTypes.split(',').where((e) => e.isNotEmpty).map(int.parse).toList();

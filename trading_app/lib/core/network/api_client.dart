@@ -17,7 +17,7 @@ String get kApiBaseUrl {
   }
   // Android device needs local network IP
   if (defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://192.168.0.104:8080';
+    return 'http://192.168.2.36:8080';
   }
   return 'http://localhost:8080';
 }

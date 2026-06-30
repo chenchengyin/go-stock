@@ -33,6 +33,7 @@ class RadarRepositoryImpl implements RadarRepository {
             changePercent: (e['changePercent'] as num?)?.toDouble() ?? 0.0,
             volume: (e['volume'] as num?)?.toInt() ?? 0,
             amount: (e['amount'] as num?)?.toDouble() ?? 0.0,
+            createdAt: e['time'] as String?,
           ),
         )
         .toList();

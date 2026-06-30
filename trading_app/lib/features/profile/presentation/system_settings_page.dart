@@ -3,10 +3,30 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_manager.dart';
+import '../../../core/utils/stock_launcher.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
 class SystemSettingsPage extends StatelessWidget {
   const SystemSettingsPage({super.key});
+
+  Future<void> _openInFlush(BuildContext context) async {
+    final opened = await StockLauncher.openTongHuaShun(code: '601318');
+    if (!opened && context.mounted) {
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: const Text('无法打开'),
+          content: const Text('未能跳转到同花顺或浏览器。'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('知道了'),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   void _showThemePicker(BuildContext context) {
     final tm = context.read<ThemeManager>();
@@ -99,7 +119,14 @@ class SystemSettingsPage extends StatelessWidget {
                           icon: CupertinoIcons.clock,
                           title: '数据刷新频率',
                           subtitle: '30秒/60秒/120秒',
+                          showDivider: true,
+                        ),
+                        _SettingsItem(
+                          icon: CupertinoIcons.arrow_right_arrow_left,
+                          title: '跳转同花顺',
+                          subtitle: '中国平安(601318)',
                           showDivider: false,
+                          onTap: () => _openInFlush(context),
                         ),
                       ],
                     ),
@@ -114,13 +141,19 @@ class SystemSettingsPage extends StatelessWidget {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(CupertinoIcons.square_arrow_right,
-                                size: 20, color: CupertinoColors.systemRed),
+                            Icon(
+                              CupertinoIcons.square_arrow_right,
+                              size: 20,
+                              color: CupertinoColors.systemRed,
+                            ),
                             SizedBox(width: 6),
-                            Text('退出登录',
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    color: CupertinoColors.systemRed)),
+                            Text(
+                              '退出登录',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: CupertinoColors.systemRed,
+                              ),
+                            ),
                           ],
                         ),
                         onPressed: () {
@@ -227,19 +260,29 @@ class _SettingsItem extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w500, fontSize: 15)),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: CupertinoColors.systemGrey)),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: CupertinoColors.systemGrey,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const Icon(CupertinoIcons.chevron_right,
-                    size: 16, color: CupertinoColors.systemGrey3),
+                const Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 16,
+                  color: CupertinoColors.systemGrey3,
+                ),
               ],
             ),
           ),
