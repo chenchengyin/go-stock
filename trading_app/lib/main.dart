@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:uni_links/uni_links.dart';
 
 import 'app/app_config.dart';
 import 'app/app_shell.dart';
@@ -12,36 +11,8 @@ import 'features/radar/data/notification_util.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _initDeepLink();
   await initNotifications(onTap: _handleNotificationTap);
   runApp(const TradingRadarApp());
-}
-
-Future<void> _initDeepLink() async {
-  try {
-    final initialLink = await getInitialLink();
-    if (initialLink != null) {
-      _parseDeepLink(initialLink);
-    }
-    linkStream.listen((link) {
-      if (link != null) {
-        _parseDeepLink(link);
-      }
-    });
-  } catch (_) {}
-}
-
-void _parseDeepLink(String link) {
-  try {
-    final uri = Uri.parse(link);
-    if (uri.scheme == 'trading' && uri.host == 'stock') {
-      final code = uri.queryParameters['code'];
-      final name = uri.queryParameters['name'];
-      if (code != null && name != null) {
-        _navigateToStockDetail(code, name);
-      }
-    }
-  } catch (_) {}
 }
 
 void _handleNotificationTap(Map<String, dynamic> data) {

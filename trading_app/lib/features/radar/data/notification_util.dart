@@ -88,8 +88,7 @@ Future<void> showStockChangeNotificationWithGroup({
   final title = '${change.stockName} ${change.typeName}';
   final body = [
     '${change.changeDate} ${change.changeTime}',
-    '¥${change.price} ${change.changeRate > 0 ? '+' : ''}${change.changeRate}%',
-    if (amountStr.isNotEmpty) '成交额: $amountStr',
+    '¥${change.price} ${change.changeRate > 0 ? '+' : ''}${change.changeRate.toStringAsFixed(2)}% ${amountStr.isNotEmpty ? '成交额: $amountStr' : ''}',
   ].join('\n');
 
   final groupId = 'stock_${change.stockCode}';
