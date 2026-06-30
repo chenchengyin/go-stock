@@ -102,8 +102,8 @@ Future<void> showStockChangeNotificationWithGroup({
     _stockChangeChannel.id,
     _stockChangeChannel.name,
     channelDescription: _stockChangeChannel.description,
-    importance: Importance.high,
-    priority: Priority.high,
+    importance: Importance.max,
+    priority: Priority.max,
     ticker: '股票异动提醒',
     groupKey: groupId,
     setAsGroupSummary: false,
@@ -111,6 +111,7 @@ Future<void> showStockChangeNotificationWithGroup({
     autoCancel: true,
     largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
     color: Colors.blue,
+    turnScreenOn: true,
   );
 
   final details = NotificationDetails(android: androidDetails);
