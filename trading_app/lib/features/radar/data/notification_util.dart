@@ -87,8 +87,8 @@ Future<void> showStockChangeNotificationWithGroup({
 
   final title = '${change.stockName} ${change.typeName}';
   final body = [
-    '${change.changeDate} ${change.changeTime}',
     '¥${change.price} ${change.changeRate > 0 ? '+' : ''}${change.changeRate.toStringAsFixed(2)}% ${amountStr.isNotEmpty ? '成交额: $amountStr' : ''}',
+    '${change.changeDate} ${change.changeTime}',
   ].join('\n');
 
   final groupId = 'stock_${change.stockCode}';
@@ -111,7 +111,7 @@ Future<void> showStockChangeNotificationWithGroup({
     autoCancel: true,
     largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
     color: Colors.blue,
-    turnScreenOn: true,
+    fullScreenIntent: true,
   );
 
   final details = NotificationDetails(android: androidDetails);

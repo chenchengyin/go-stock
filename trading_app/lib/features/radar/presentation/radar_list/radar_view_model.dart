@@ -209,6 +209,10 @@ class RadarViewModel extends ChangeNotifier {
                 low: (q['low'] as num?)?.toDouble() ?? s.low,
                 changeTypes: s.changeTypes,
                 createdAt: s.createdAt,
+                mainForceNetInflow:
+                    (q['mainForceNetInflow'] as num?)?.toDouble() ?? s.mainForceNetInflow,
+                mainForceNetRatio:
+                    (q['mainForceNetRatio'] as num?)?.toDouble() ?? s.mainForceNetRatio,
               );
             }
             return s;
@@ -325,6 +329,10 @@ class RadarViewModel extends ChangeNotifier {
               low: (q['low'] as num?)?.toDouble() ?? s.low,
               changeTypes: s.changeTypes,
               createdAt: s.createdAt,
+              mainForceNetInflow:
+                  (q['mainForceNetInflow'] as num?)?.toDouble() ?? s.mainForceNetInflow,
+              mainForceNetRatio:
+                  (q['mainForceNetRatio'] as num?)?.toDouble() ?? s.mainForceNetRatio,
             );
           }
           return s;

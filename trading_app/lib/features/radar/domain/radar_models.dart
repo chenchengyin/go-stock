@@ -64,6 +64,8 @@ class MonitoredStock {
     this.low = 0,
     this.changeTypes = '',
     this.createdAt,
+    this.mainForceNetInflow = 0,
+    this.mainForceNetRatio = 0,
   });
 
   factory MonitoredStock.fromJson(Map<String, dynamic> json) {
@@ -80,6 +82,8 @@ class MonitoredStock {
       high: (json['high'] as num?)?.toDouble() ?? 0.0,
       low: (json['low'] as num?)?.toDouble() ?? 0.0,
       createdAt: json['createdAt'] as String?,
+      mainForceNetInflow: (json['mainForceNetInflow'] as num?)?.toDouble() ?? 0.0,
+      mainForceNetRatio: (json['mainForceNetRatio'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -96,6 +100,8 @@ class MonitoredStock {
         'high': high,
         'low': low,
         'createdAt': createdAt,
+        'mainForceNetInflow': mainForceNetInflow,
+        'mainForceNetRatio': mainForceNetRatio,
       };
 
   final String code;
@@ -110,6 +116,8 @@ class MonitoredStock {
   final double low;
   final String changeTypes;
   final String? createdAt;
+  final double mainForceNetInflow;
+  final double mainForceNetRatio;
 
   List<int> get changeTypeCodes =>
       changeTypes.split(',').where((e) => e.isNotEmpty).map(int.parse).toList();

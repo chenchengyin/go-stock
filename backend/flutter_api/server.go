@@ -23,6 +23,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var (
+	moneyDataCache     = make(map[string]models.StockMoneyDataDiff)
+	moneyDataCacheTime time.Time
+	moneyDataMutex     sync.RWMutex
+	moneyDataCacheTTL  = 5 * time.Minute
+)
+
 // ---------------------------------------------------------------------------
 // 自动建表
 // ---------------------------------------------------------------------------
@@ -501,17 +508,22 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, []map[string]any{})
 		return
 	}
+
+	moneyData := getMoneyDataWithCache()
+
 	type RealtimeItem struct {
-		Code          string  `json:"code"`
-		Name          string  `json:"name"`
-		Price         float64 `json:"price"`
-		ChangePercent float64 `json:"changePercent"`
-		Volume        int64   `json:"volume"`
-		Amount        float64 `json:"amount"`
-		Open          float64 `json:"open"`
-		PreClose      float64 `json:"preClose"`
-		High          float64 `json:"high"`
-		Low           float64 `json:"low"`
+		Code               string  `json:"code"`
+		Name               string  `json:"name"`
+		Price              float64 `json:"price"`
+		ChangePercent      float64 `json:"changePercent"`
+		Volume             int64   `json:"volume"`
+		Amount             float64 `json:"amount"`
+		Open               float64 `json:"open"`
+		PreClose           float64 `json:"preClose"`
+		High               float64 `json:"high"`
+		Low                float64 `json:"low"`
+		MainForceNetInflow float64 `json:"mainForceNetInflow"`
+		MainForceNetRatio  float64 `json:"mainForceNetRatio"`
 	}
 	var items []RealtimeItem
 	for _, s := range *result {
@@ -526,20 +538,67 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		if preClose > 0 {
 			changePct = (price - preClose) / preClose * 100
 		}
+
+		mainForceNetInflow := 0.0
+		mainForceNetRatio := 0.0
+		if md, ok := moneyData[s.Code]; ok {
+			mainForceNetInflow = md.F62
+			mainForceNetRatio = md.F184
+		}
+
 		items = append(items, RealtimeItem{
-			Code:          s.Code,
-			Name:          s.Name,
-			Price:         price,
-			ChangePercent: changePct,
-			Volume:        int64(volume),
-			Amount:        amount,
-			Open:          open,
-			PreClose:      preClose,
-			High:          high,
-			Low:           low,
+			Code:               s.Code,
+			Name:               s.Name,
+			Price:              price,
+			ChangePercent:      changePct,
+			Volume:             int64(volume),
+			Amount:             amount,
+			Open:               open,
+			PreClose:           preClose,
+			High:               high,
+			Low:                low,
+			MainForceNetInflow: mainForceNetInflow,
+			MainForceNetRatio:  mainForceNetRatio,
 		})
 	}
 	WriteJSON(w, items)
+}
+
+func getMoneyDataWithCache() map[string]models.StockMoneyDataDiff {
+	moneyDataMutex.RLock()
+	if time.Since(moneyDataCacheTime) < moneyDataCacheTTL && len(moneyDataCache) > 0 {
+		cached := make(map[string]models.StockMoneyDataDiff, len(moneyDataCache))
+		for k, v := range moneyDataCache {
+			cached[k] = v
+		}
+		moneyDataMutex.RUnlock()
+		return cached
+	}
+	moneyDataMutex.RUnlock()
+
+	moneyDataMutex.Lock()
+	defer moneyDataMutex.Unlock()
+
+	if time.Since(moneyDataCacheTime) < moneyDataCacheTTL && len(moneyDataCache) > 0 {
+		cached := make(map[string]models.StockMoneyDataDiff, len(moneyDataCache))
+		for k, v := range moneyDataCache {
+			cached[k] = v
+		}
+		return cached
+	}
+
+	resp := data.NewStockDataApi().GetStockMoneyData()
+	if len(resp.Data.Diff) > 0 {
+		newCache := make(map[string]models.StockMoneyDataDiff)
+		for _, item := range resp.Data.Diff {
+			newCache[item.F12] = item
+		}
+		moneyDataCache = newCache
+		moneyDataCacheTime = time.Now()
+		logger.SugaredLogger.Infof("[资金流向] 缓存更新，共 %d 条数据", len(moneyDataCache))
+	}
+
+	return moneyDataCache
 }
 
 func handleStockChangesSave(w http.ResponseWriter, r *http.Request) {
