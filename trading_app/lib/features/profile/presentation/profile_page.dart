@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
 
 import '../../auth/presentation/auth_view_model.dart';
 import '../../auth/presentation/login_page.dart';
 import '../../auth/presentation/register_page.dart';
 import 'edit_profile_page.dart';
+import 'qgqp_bid_page.dart';
 import 'system_settings_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -48,6 +50,17 @@ class _ProfilePageState extends State<ProfilePage> {
                           title: '推送设置',
                           subtitle: '环信/厂商推送适配预留',
                           showDivider: true,
+                        ),
+                        _SettingsRow(
+                          icon: CupertinoIcons.chart_bar,
+                          title: '东财标识',
+                          subtitle: '用于选股功能',
+                          showDivider: true,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              CupertinoPageRoute(builder: (_) => const _QgqpBidPageWrapper()),
+                            );
+                          },
                         ),
                         _SettingsRow(
                           icon: CupertinoIcons.tray_full,
@@ -176,6 +189,7 @@ class _LoginPrompt extends StatelessWidget {
           // ),
           const SizedBox(height: 16),
           CupertinoButton.filled(
+            color: AppColors.buttonPrimary,
             onPressed: () {
               Navigator.of(context).push(
                 CupertinoPageRoute(builder: (_) => const LoginPage()),
@@ -276,5 +290,15 @@ class _ProfileCardState extends State<_ProfileCard> {
         ),
       ),
     );
+  }
+}
+
+/// 包装 QgqpBidPage 以兼容 profile_page 的样式
+class _QgqpBidPageWrapper extends StatelessWidget {
+  const _QgqpBidPageWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    return const QgqpBidPage();
   }
 }

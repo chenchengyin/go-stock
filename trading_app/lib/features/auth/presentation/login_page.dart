@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
 
 import '../../../shared/view_state.dart';
 import '../../auth/presentation/auth_view_model.dart';
@@ -104,6 +105,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               CupertinoButton.filled(
+                color: AppColors.buttonPrimary,
                 onPressed: auth.state.isLoading
                     ? null
                     : () async {

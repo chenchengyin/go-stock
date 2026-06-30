@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/features/radar/domain/change_type_config.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
+import 'package:trading_app/features/radar/data/notification_util.dart';
 
 class RadarViewModel extends ChangeNotifier {
   RadarViewModel(this._repository) {
@@ -156,6 +157,8 @@ class RadarViewModel extends ChangeNotifier {
     // 重新计算未读状态
     _recalcNewChanges();
     notifyListeners();
+    // 清除该股票的所有通知
+    await cancelStockNotifications(code);
   }
 
   // ── 定时刷新 ──────────────────────────────────────────
@@ -231,6 +234,17 @@ class RadarViewModel extends ChangeNotifier {
     }
     // 根据已读状态重新计算哪些股票有未读异动
     _recalcNewChanges();
+    // 对未读异动触发通知
+    _triggerNotifications(changes);
+  }
+
+  /// 触发未读异动的通知
+  void _triggerNotifications(List<StockChange> changes) {
+    for (final change in changes) {
+      if (!_isChangeRead(change)) {
+        showStockChangeNotificationWithGroup(change: change);
+      }
+    }
   }
 
   // ── 搜索 ──────────────────────────────────────────────

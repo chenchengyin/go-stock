@@ -19,6 +19,9 @@ class AppColors {
   static Color brand = _light.brand;
   static Color brandLight = _light.brandLight;
 
+  /// 主按钮颜色（大按钮统一使用此常量）
+  static Color get buttonPrimary => brand;
+
   // ── 背景 ──────────────────────────────────────────────
   static Color scaffoldBg = _light.scaffoldBg;
   static Color cardBg = _light.cardBg;
@@ -145,10 +148,10 @@ class AppColors {
   // ═══════════════════════════════════════════════════════
 
   static final _Palette _light = _Palette(
-    brand: const Color(0xff2364aa),
+    brand: const Color(0xff4a90d9),
     brandLight: const Color(0xfff0f5ff),
     scaffoldBg: const Color(0xfff5f5f5),
-    cardBg: Colors.grey.shade100,
+    cardBg: Colors.white,
     backgroundColor: const Color(0xfffafafa),
     surfaceBg: const Color(0xfff6f8fb),
     textPrimary: const Color(0xff172033),
@@ -180,8 +183,8 @@ class AppColors {
   );
 
   static final _Palette _dark = _Palette(
-    brand: const Color(0xff4a90d9),
-    brandLight: const Color(0xff1a2a3a),
+    brand: const Color.fromARGB(255, 26, 124, 228),
+    brandLight: const Color.fromARGB(255, 9, 65, 121),
     scaffoldBg: const Color(0xff121212),
     cardBg: const Color(0xff1e1e1e),
     backgroundColor: const Color(0xff3a3a3a),
