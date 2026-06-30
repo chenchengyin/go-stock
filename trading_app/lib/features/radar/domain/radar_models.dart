@@ -15,11 +15,17 @@ class StockChange {
   });
 
   factory StockChange.fromJson(Map<String, dynamic> json) {
+    final market = json['market'] as int? ?? 0;
+    final rawCode = json['stockCode'] as String? ?? '';
+    final prefix = market == 0 ? 'sz' : market == 1 ? 'sh' : 'bj';
+    final stockCode = rawCode.startsWith('sh') || rawCode.startsWith('sz') || rawCode.startsWith('bj')
+        ? rawCode
+        : '$prefix$rawCode';
     return StockChange(
       id: json['id'] as int? ?? 0,
       changeTime: json['changeTime'] as String? ?? '',
       changeDate: json['changeDate'] as String? ?? '',
-      stockCode: json['stockCode'] as String? ?? '',
+      stockCode: stockCode,
       stockName: json['stockName'] as String? ?? '',
       changeType: json['changeType'] as int? ?? 0,
       typeName: json['typeName'] as String? ?? '',

@@ -76,11 +76,13 @@ class StockChangeCard extends StatelessWidget {
   const StockChangeCard({
     super.key,
     required this.change,
-    this.showStockName = true,
+    this.onOpenTongHuaShun,
+    this.isRead = true,
   });
 
   final StockChange change;
-  final bool showStockName;
+  final VoidCallback? onOpenTongHuaShun;
+  final bool isRead;
 
   @override
   Widget build(BuildContext context) {
@@ -98,29 +100,42 @@ class StockChangeCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 第一行：股票名称 + 时间
-          if (showStockName)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  change.stockName,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+          // 第一行：股票名称 + 未读标记 + 时间
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                change.stockName,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (!isRead)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    '新异动',
+                    style: TextStyle(color: Colors.white, fontSize: 10),
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  '${change.changeDate} ${change.changeTime}',
-                  style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
-                ),
-              ],
-            ),
-          if (showStockName) const SizedBox(height: 4),
+              const Spacer(),
+              Text(
+                '${change.changeDate} ${change.changeTime}',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
 
-          // 第二行：价格 + 涨跌幅（左对齐），异动类型标签（右对齐）
+          const SizedBox(height: 4),
+
+          // 第二行：价格 + 涨跌幅（独占一行），右侧可选同花顺跳转
           Row(
             children: [
               Text(
@@ -140,7 +155,29 @@ class StockChangeCard extends StatelessWidget {
                   color: changeColor,
                 ),
               ),
-              const Spacer(),
+              if (onOpenTongHuaShun != null) ...[
+                const Spacer(),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onOpenTongHuaShun,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.asset(
+                      'assets/images/kline_button.png',
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+
+          // 第三行：异动类型标签（左）+ 成交额/成交量（右）
+          const SizedBox(height: 6),
+          Row(
+            children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -157,34 +194,25 @@ class StockChangeCard extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              if (change.amount > 0)
+                Text(
+                  '成交额 ${formatAmount(change.amount)}',
+                  style: TextStyle(fontSize: 12, color: Colors.red[600]),
+                ),
+              if (change.amount > 0 && change.volume > 0)
+                const SizedBox(width: 16),
+              if (change.volume > 0)
+                Text(
+                  '成交量 ${formatVolume(change.volume)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.red[600],
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
             ],
           ),
-
-          // 第三行：成交额 + 成交量
-          if (change.amount > 0 || change.volume > 0) ...[
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (change.amount > 0)
-                  Text(
-                    '成交额 ${formatAmount(change.amount)}',
-                    style: TextStyle(fontSize: 12, color: Colors.red[600]),
-                  ),
-                if (change.amount > 0 && change.volume > 0)
-                  const SizedBox(width: 16),
-                if (change.volume > 0)
-                  Text(
-                    '成交量 ${formatVolume(change.volume)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.red[600],
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-              ],
-            ),
-          ],
         ],
       ),
     );

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
+import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
+import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
 import 'package:provider/provider.dart';
 
@@ -38,15 +40,17 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
     setState(() => _loading = true);
     try {
       final repo = context.read<RadarRepository>();
+      final vm = context.read<RadarViewModel>();
       final changes = widget.stockCode != null
           ? await repo.getLatestChanges([widget.stockCode!])
           : await repo.getAllChanges();
+      final filtered = vm.filterChanges(changes);
       if (mounted) {
         setState(() {
-          _changes = changes;
+          _changes = filtered;
           _loading = false;
         });
-        widget.onChangesSeen?.call();
+        // widget.onChangesSeen?.call(); // 已禁用，改为手动点击标记已读按钮
       }
     } catch (e) {
       if (mounted) {
@@ -55,6 +59,15 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
           _loading = false;
         });
       }
+    }
+  }
+
+  Future<void> _openInTongHuaShun(String code) async {
+    final opened = await StockLauncher.openTongHuaShun(code: code);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未安装同花顺或跳转失败')),
+      );
     }
   }
 
@@ -85,6 +98,8 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
       ),
       backgroundColor: AppColors.backgroundColor,
       body: _buildBody(),
+      
+      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
@@ -124,18 +139,60 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
             .compareTo('${b.changeDate}${b.changeTime}');
         return _ascending ? cmp : -cmp;
       });
+    final vm = context.read<RadarViewModel>();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: sorted.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) => StockChangeCard(
-          key: ValueKey(sorted[index].id),
-          change: sorted[index],
-          showStockName: widget.stockCode == null,
+        itemBuilder: (context, index) {
+          final change = sorted[index];
+          return StockChangeCard(
+            key: ValueKey(change.id),
+            change: change,
+            isRead: vm.isChangeRead(change),
+            onOpenTongHuaShun: widget.stockCode != null
+                 ? () => _openInTongHuaShun(change.stockCode)
+                 : null,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        color: Colors.white,
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _markAllRead,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.buttonPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text(
+              '全部标记为已读',
+              style: TextStyle(fontSize: 16, color: Colors.white),
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _markAllRead() async {
+    if (widget.stockCode != null) {
+      await context.read<RadarViewModel>().markAllChangesExposedForCode(widget.stockCode!);
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 }

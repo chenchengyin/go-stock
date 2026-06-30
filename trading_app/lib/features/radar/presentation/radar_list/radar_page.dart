@@ -5,6 +5,7 @@ import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/domain/pankou_analyzer.dart';
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
+import 'monitor_settings_page.dart';
 import 'radar_view_model.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 
@@ -19,12 +20,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   late final TabController _tabController;
 
   // 各 tab 的排序状态
-  bool _watchAscending = false;
-  bool _allAscending = false;
-
-  // 是否已触发延迟加载
   bool _watchLoaded = false;
   bool _allLoaded = false;
+  bool _watchAscending = false;
+  bool _allAscending = false;
 
   @override
   void initState() {
@@ -82,8 +81,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 ),
                 onTap: _lazyLoadIfNeeded,
                 tabs: const [
-                  Tab(text: '监控股票'),
-                  Tab(text: '持仓异动'),
+                  Tab(text: '监控股票(自选)'),
+                  Tab(text: '自选异动'),
                   Tab(text: '全市场'),
                 ],
               ),
@@ -198,9 +197,16 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       child: TextField(
         decoration: InputDecoration(
           hintText: '搜索股票代码/名称后按确定，点击 + 添加监控',
+          hintStyle: TextStyle(
+            fontSize: 14,
+
+          ),
           prefixIcon: const Icon(Icons.search, size: 20),
-          suffixIcon: vm.isSearching
-              ? const Padding(
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (vm.isSearching)
+                const Padding(
                   padding: EdgeInsets.all(12),
                   child: SizedBox(
                     width: 18,
@@ -208,14 +214,32 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 )
-              : (vm.searchKeyword.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          vm.searchKeyword = '';
-                        },
-                      )
-                    : null),
+              else if (vm.searchKeyword.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
+                  onPressed: () => vm.searchKeyword = '',
+                ),
+              IconButton(
+                icon: Icon(Icons.settings, size: 20, color: AppColors.buttonPrimary),
+                onPressed: () async {
+                  final changed = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) => const MonitorSettingsPage(),
+                    ),
+                  );
+                  if (changed == true && context.mounted) {
+                    // 设置已变更，刷新所有数据
+                    final vm = context.read<RadarViewModel>();
+                    _watchLoaded = false;
+                    _allLoaded = false;
+                    vm.loadMonitoredStocks();
+                    _lazyLoadIfNeeded(_tabController.index);
+                  }
+                },
+                tooltip: '异动类型设置',
+              ),
+            ],
+          ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
           fillColor: Colors.grey[100],
@@ -278,6 +302,19 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         stock.code,
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
+                      if (hasNew)
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 6,vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '异动',
+                            style: TextStyle(color: Colors.white, fontSize: 10),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -314,48 +351,25 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 ],
               ),
             ),
-            // 小红点
-            if (hasNew)
-              Container(
-                margin: const EdgeInsets.only(right: 4),
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(5),
-                child: const Text(
-                  "异动",
-                  style: TextStyle(color: Colors.white, fontSize: 6),
-                ),
-              ),
-            IconButton(
-              icon: const Icon(Icons.open_in_new, size: 18, color: Colors.grey),
-              onPressed: () => _openInTongHuaShun(context, stock.code),
-              tooltip: '同花顺打开',
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: Colors.grey,
-              ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => StockChangeDetailPage(
-                      stockCode: stock.code,
-                      stockName: stock.name,
-                      onChangesSeen: () => vm.markChangesSeen(stock.code),
-                    ),
-                  ),
-                );
-              },
-              tooltip: '查看异动详情',
-            ),
+            // X（移除监控）
             IconButton(
               icon: const Icon(Icons.close, size: 18, color: Colors.grey),
               onPressed: () => vm.removeMonitoredStock(stock.code),
               tooltip: '移除监控',
+            ),
+            // 同花顺打开
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _openInTongHuaShun(context, stock.code),
+                borderRadius: BorderRadius.circular(6),
+                child: Image.asset(
+                  'assets/images/kline_button.png',
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
           ],
         ),
@@ -494,18 +508,26 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         itemCount: sorted.length,
         itemBuilder: (context, index) {
           final change = sorted[index];
-          final exposed = vm.isChangeExposed(change.id);
+          // final exposed = vm.isChangeExposed(change.id); // 暂时注释，曝光逻辑已禁用
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: ExposureTracker(
-              itemId: change.id,
-              alreadyExposed: exposed,
-              onExposed: vm.markChangeExposed,
-              child: StockChangeCard(
-                key: ValueKey(change.id),
-                change: change,
-                showStockName: true,
-              ),
+            // 暂时注释曝光即已读逻辑，改为手动标记已读
+            // child: ExposureTracker(
+            //   itemId: change.id,
+            //   alreadyExposed: exposed,
+            //   onExposed: vm.markChangeExposed,
+            //   child: StockChangeCard(
+            //     key: ValueKey(change.id),
+            //     change: change,
+            //     onOpenTongHuaShun: () =>
+            //         _openInTongHuaShun(context, change.stockCode),
+            //   ),
+            // ),
+            child: StockChangeCard(
+              key: ValueKey(change.id),
+              change: change,
+              onOpenTongHuaShun: () =>
+                  _openInTongHuaShun(context, change.stockCode),
             ),
           );
         },
@@ -533,6 +555,20 @@ class _SearchResultsPanelState extends State<_SearchResultsPanel> {
   Future<void> _addStock(String code, String name) async {
     setState(() => _adding.add(code));
     final vm = widget.vm;
+    if (vm.monitoredStocks.length >= RadarViewModel.maxMonitoredCount) {
+      setState(() => _adding.remove(code));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('最多监控20支,大哥不要开超市呀~'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(top: 60, left: 16, right: 16),
+          ),
+        );
+      }
+      return;
+    }
     final stock = MonitoredStock(code: code, name: name);
     final ok = await vm.addMonitoredStock(stock);
     if (mounted) {
