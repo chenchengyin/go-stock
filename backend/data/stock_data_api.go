@@ -867,6 +867,8 @@ func ParseTxHKStockData(datas []string) (map[string]string, error) {
 	result["当前价格"] = parts[3]
 	result["昨日收盘价"] = parts[4]
 	result["今日开盘价"] = parts[5]
+	result["成交的股票数"] = parts[6]
+	result["成交金额"] = parts[7]
 
 	result["今日最高价"] = parts[33]
 	result["今日最低价"] = parts[34]

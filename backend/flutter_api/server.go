@@ -13,6 +13,7 @@ import (
 	"io"
 	mrand "math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -42,6 +43,8 @@ func AutoMigrate() {
 		&StrategyLike{},
 		&StrategyCheckIn{},
 		&StrategyPointsLog{},
+		&data.StockBasic{},
+		&data.FollowedStock{},
 	)
 	// Telegraph 表由原项目管理，不在 flutter_api 层修改模型
 	// 仅通过 SQL 迁移补充必要的索引和字段
@@ -438,7 +441,31 @@ func handleFollow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result := data.NewStockDataApi().Follow(req.StockCode)
+	// 裸代码（无 sh/sz 前缀）重试：尝试 sz 前缀再试，失败再试 sh 前缀
+	if result == "关注失败" && isBareCode(req.StockCode) {
+		result = data.NewStockDataApi().Follow("sz" + req.StockCode)
+	}
+	if result == "关注失败" && isBareCode(req.StockCode) {
+		result = data.NewStockDataApi().Follow("sh" + req.StockCode)
+	}
 	WriteJSON(w, map[string]string{"result": result})
+}
+
+// isBareCode 判断股票代码是否为裸代码（无 sh/sz/hk/us 前缀，纯数字）
+func isBareCode(code string) bool {
+	lower := strings.ToLower(code)
+	if strings.HasPrefix(lower, "sh") || strings.HasPrefix(lower, "sz") ||
+		strings.HasPrefix(lower, "hk") || strings.HasPrefix(lower, "us") ||
+		strings.HasPrefix(lower, "gb_") {
+		return false
+	}
+	// 纯数字即为裸代码
+	for _, c := range code {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return len(code) > 0
 }
 
 func handleUnfollow(w http.ResponseWriter, r *http.Request) {
@@ -530,6 +557,8 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		price, _ := strconv.ParseFloat(s.Price, 64)
 		volume, _ := strconv.ParseFloat(s.Volume, 64)
 		amount, _ := strconv.ParseFloat(s.Amount, 64)
+		// 腾讯接口amount单位为万元，转为元
+		amount *= 10000
 		open, _ := strconv.ParseFloat(s.Open, 64)
 		preClose, _ := strconv.ParseFloat(s.PreClose, 64)
 		high, _ := strconv.ParseFloat(s.High, 64)
@@ -541,7 +570,12 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 
 		mainForceNetInflow := 0.0
 		mainForceNetRatio := 0.0
-		if md, ok := moneyData[s.Code]; ok {
+		// 东方财富返回裸代码(如000831)，s.Code带前缀(如sz000831)
+		rawCode := strings.TrimLeft(s.Code, "shsz")
+		if md, ok := moneyData[rawCode]; ok {
+			mainForceNetInflow = md.F62
+			mainForceNetRatio = md.F184
+		} else if md, ok := moneyData[s.Code]; ok {
 			mainForceNetInflow = md.F62
 			mainForceNetRatio = md.F184
 		}
@@ -643,20 +677,67 @@ func handleStockSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result := data.NewStockDataApi().GetStockList(keyword)
-	type SearchItem struct {
-		StockCode string `json:"stockCode"`
-		Name      string `json:"name"`
-		Market    string `json:"market"`
-	}
-	var items []SearchItem
+	var items []searchStockItem
 	for _, s := range result {
-		items = append(items, SearchItem{
+		items = append(items, searchStockItem{
 			StockCode: data.ConvertTushareCodeToStockCode(s.TsCode),
 			Name:      s.Name,
 			Market:    s.Market,
 		})
 	}
+
+	// 如果本地数据库搜索不到，使用在线搜索兜底
+	if len(items) == 0 {
+		items = searchStockOnline(keyword)
+	}
+
 	WriteJSON(w, items)
+}
+
+// searchStockOnline 使用东方财富在线搜索股票
+type searchStockItem struct {
+	StockCode string `json:"stockCode"`
+	Name      string `json:"name"`
+	Market    string `json:"market"`
+}
+
+func searchStockOnline(keyword string) []searchStockItem {
+	type eastMoneySuggest struct {
+		Code string `json:"Code"`
+		Name string `json:"Name"`
+	}
+	var result struct {
+		QuotationCodeTable struct {
+			Data []eastMoneySuggest `json:"Data"`
+		} `json:"QuotationCodeTable"`
+	}
+	url := fmt.Sprintf("https://searchadapter.eastmoney.com/api/suggest/get?input=%s&count=20&type=14", url.QueryEscape(keyword))
+	resp, err := data.SharedHTTPClient.SetTimeout(10*time.Second).R().
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36").
+		SetHeader("Referer", "https://www.eastmoney.com/").
+		Get(url)
+	if err != nil {
+		return nil
+	}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil || len(result.QuotationCodeTable.Data) == 0 {
+		return nil
+	}
+	var items []searchStockItem
+	for _, s := range result.QuotationCodeTable.Data {
+		market := "SZ"
+		if len(s.Code) >= 3 {
+			prefix := s.Code[:3]
+			if prefix == "600" || prefix == "601" || prefix == "603" || prefix == "605" || prefix == "688" || prefix == "510" {
+				market = "SH"
+			}
+		}
+		items = append(items, searchStockItem{
+			StockCode: s.Code,
+			Name:      s.Name,
+			Market:    market,
+		})
+	}
+	return items
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {

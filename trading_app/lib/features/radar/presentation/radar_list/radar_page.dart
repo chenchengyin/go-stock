@@ -348,6 +348,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       '成交额 ${formatAmount(stock.amount)}',
                       style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
+                  // 主力净流入
+                  if (stock.mainForceNetInflow != 0)
+                    Text(
+                      '主力净流入 ${formatAmount(stock.mainForceNetInflow)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: stock.mainForceNetInflow >= 0
+                            ? AppColors.textPriceUp
+                            : AppColors.textPriceDown,
+                      ),
+                    ),
                 ],
               ),
             ),

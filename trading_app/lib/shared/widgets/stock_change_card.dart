@@ -249,10 +249,12 @@ Color getTypeColor(int changeType) {
 }
 
 String formatAmount(double amount) {
-  if (amount >= 100000000) {
-    return '${(amount / 100000000).toStringAsFixed(2)}亿';
-  } else if (amount >= 10000) {
-    return '${(amount / 10000).toStringAsFixed(2)}万';
+  final absAmount = amount.abs();
+  final sign = amount >= 0 ? '' : '-';
+  if (absAmount >= 100000000) {
+    return '${sign}${(absAmount / 100000000).toStringAsFixed(2)}亿';
+  } else if (absAmount >= 10000) {
+    return '${sign}${(absAmount / 10000).toStringAsFixed(2)}万';
   }
   return amount.toStringAsFixed(0);
 }
