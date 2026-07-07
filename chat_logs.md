@@ -123,3 +123,27 @@
 | `pubspec.yaml` | 添加 `flutter_tts` 依赖 |
 
 ---
+
+## 2026-07-07 语音播报去重优化
+
+### 需求
+已播报过的异动不要重复播报。
+
+### 实现
+- `voice_announcement_view_model.dart`：
+  - 已播报异动 ID 持久化到 `SharedPreferences`（key: `voice_announced_ids`）。
+  - 按日期存储，跨天自动清空旧记录，避免历史 ID 无限增长。
+  - `enqueueChange` 时先去重，成功入队后立即保存。
+  - `clearAnnouncedHistory` 同时清除内存与本地持久化记录。
+
+### 验证
+- `flutter analyze` 通过。
+- `flutter build web --no-wasm-dry-run` 编译成功。
+
+### 修改文件清单
+
+| 文件 | 变更 |
+|---|---|
+| `voice_announcement_view_model.dart` | 已播报 ID 持久化、按天清理、入队即保存 |
+
+---
