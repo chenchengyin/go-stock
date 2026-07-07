@@ -231,3 +231,29 @@
 | `voice_manager_page.dart` | 已播报队列 UI、清空按钮 |
 
 ---
+
+## 2026-07-07 语音播报增加重新测试按钮
+
+### 需求
+清掉已播放数据，重新启动测试。
+
+### 实现
+- `voice_announcement_view_model.dart`：
+  - 新增 `restartTest()` 方法：先 `stopSpeaking()` 停止当前播报并清空待播队列，再调用 `playTestChanges()` 重新播放测试数据。
+  - `playTestChanges()` 拆出 `_enqueueTestChanges()`，职责更清晰。
+- `voice_manager_page.dart`：
+  - 操作按钮区增加「重新测试」按钮（绿色刷新图标）。
+  - 点击后清空已播报记录、已播放队列、待播报队列，并重新播放 3 条测试异动。
+
+### 验证
+- `flutter analyze` 通过。
+- `flutter build web --no-wasm-dry-run` 编译成功。
+
+### 修改文件清单
+
+| 文件 | 变更 |
+|---|---|
+| `voice_announcement_view_model.dart` | 新增 `restartTest()` 方法 |
+| `voice_manager_page.dart` | 增加「重新测试」按钮 |
+
+---
