@@ -242,6 +242,65 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     }
   }
 
+  /// 测试：播放几条模拟异动（程序启动后调一次即可）
+  void playTestChanges() {
+    if (!_initialized) return;
+    final now = DateTime.now();
+    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+
+    final testChanges = [
+      StockChange(
+        id: -999901,
+        changeTime: timeStr,
+        changeDate: dateStr,
+        stockCode: 'sh688082',
+        stockName: '盛美上海',
+        changeType: 9001,
+        typeName: '30秒急速波动',
+        price: 120.50,
+        changeRate: 2.35,
+        volume: 12500,
+        amount: 15060000,
+        description: '30秒急速波动 +2.35%，成交额1506.00万',
+      ),
+      StockChange(
+        id: -999902,
+        changeTime: timeStr,
+        changeDate: dateStr,
+        stockCode: 'sz300820',
+        stockName: '英杰电气',
+        changeType: 9003,
+        typeName: '30秒爆量',
+        price: 45.20,
+        changeRate: 0.88,
+        volume: 86000,
+        amount: 38870000,
+        description: '30秒爆量 4.2倍，成交额3887.00万',
+      ),
+      StockChange(
+        id: -999903,
+        changeTime: timeStr,
+        changeDate: dateStr,
+        stockCode: 'sh603933',
+        stockName: '睿能科技',
+        changeType: 9005,
+        typeName: '60秒急速波动',
+        price: 18.60,
+        changeRate: -1.20,
+        volume: 32000,
+        amount: 5952000,
+        description: '60秒急速下跌 1.20%，成交额595.20万',
+      ),
+    ];
+
+    debugPrint('[VoiceTTS] playTestChanges: ${testChanges.length} items');
+    for (final change in testChanges) {
+      // 测试数据也走正常入队逻辑，但不污染已播报去重（使用特殊负 ID）
+      enqueueChange(change, urgent: false);
+    }
+  }
+
   /// 构建播报文本：股票名 + 简化后的描述
   String _buildSpeechText(StockChange change) {
     final name = change.stockName.isNotEmpty ? change.stockName : change.stockCode;
