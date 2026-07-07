@@ -198,3 +198,36 @@
 | `voice_manager_page.dart` | 新增语速调节滑块卡片 |
 
 ---
+
+## 2026-07-07 语音播报增加已播放队列
+
+### 需求
+- 播放管理页面待播放列表下方增加已播放队列。
+- 未播放列表里的异动播放完成后进入已播放队列。
+- 清掉已播放数据，重新启动测试。
+
+### 实现
+- `voice_announcement_view_model.dart`：
+  - 新增 `_spokenQueue` 列表与 `spokenQueue` getter。
+  - `_processQueue` 保存当前播报项 `_currentItem`。
+  - `_onSpeakComplete` 将完成项插入已播放队列（最新在前）。
+  - `stopSpeaking` 时丢弃当前未完成的播报项。
+  - 新增 `clearSpokenQueue()` 方法。
+  - `playTestChanges()` 开头清空 `_announcedChangeIds`、`_spokenQueue` 和本地持久化，确保测试每次都重新播放。
+- `voice_manager_page.dart`：
+  - 待播报队列下方新增「已播报队列」区域。
+  - 显示已播报内容、数量、清空按钮。
+  - 已播报条目带灰色对勾图标，视觉上与待播报区分。
+
+### 验证
+- `flutter analyze` 通过。
+- `flutter build web --no-wasm-dry-run` 编译成功。
+
+### 修改文件清单
+
+| 文件 | 变更 |
+|---|---|
+| `voice_announcement_view_model.dart` | 已播放队列、播放完成归档、清空方法、测试前重置 |
+| `voice_manager_page.dart` | 已播报队列 UI、清空按钮 |
+
+---
