@@ -147,3 +147,26 @@
 | `voice_announcement_view_model.dart` | 已播报 ID 持久化、按天清理、入队即保存 |
 
 ---
+
+## 2026-07-07 添加语音播报启动测试
+
+### 需求
+程序一启动到首页之后就开始播放当前位置的异动，用于测试语音播报功能。
+
+### 实现
+- `voice_announcement_view_model.dart`：新增 `playTestChanges()` 方法，构造 3 条模拟异动（盛美上海、英杰电气、睿能科技），调用正常入队逻辑播放。
+- `radar_page.dart`：在 `initState` 中延迟 4 秒调用一次 `playTestChanges()`，等待授权弹窗处理与 TTS 初始化完成。
+- 测试数据使用特殊负 ID，避免污染真实异动的已播报去重记录。
+
+### 验证
+- `flutter analyze` 通过（测试相关代码无 lint 错误）。
+- `flutter build web --no-wasm-dry-run` 编译成功。
+
+### 修改文件清单
+
+| 文件 | 变更 |
+|---|---|
+| `voice_announcement_view_model.dart` | 新增 `playTestChanges()` 测试方法 |
+| `radar_page.dart` | `initState` 延迟触发一次测试播放 |
+
+---
