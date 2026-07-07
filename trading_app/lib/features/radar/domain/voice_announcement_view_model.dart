@@ -31,6 +31,8 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
 
   static const _enabledKey = 'voice_announcement_enabled';
   static const _askedKey = 'voice_announcement_asked';
+  static const _announcedIdsKey = 'voice_announced_ids';
+  static const _announcedDateKey = 'voice_announced_date';
 
   /// 是否启用语音播报（默认关闭，等用户授权）
   bool _enabled = false;
@@ -62,9 +64,10 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 队列去重集合（避免同一条异动反复入队）
   final Set<int> _announcedChangeIds = {};
 
-  /// 加载持久化开关并初始化 TTS
+  /// 加载持久化开关、已播报记录并初始化 TTS
   Future<void> loadSettings() async {
     await _loadSettings();
+    await _loadAnnouncedIds();
     await _initTts();
   }
 
@@ -78,6 +81,45 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
       _enabled = false;
       _askedBefore = false;
     }
+  }
+
+  /// 加载已播报记录，跨天自动清空
+  Future<void> _loadAnnouncedIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedDate = prefs.getString(_announcedDateKey) ?? '';
+      final today = _todayString();
+      if (savedDate != today) {
+        await prefs.remove(_announcedIdsKey);
+        await prefs.setString(_announcedDateKey, today);
+        _announcedChangeIds.clear();
+      } else {
+        final raw = prefs.getStringList(_announcedIdsKey);
+        _announcedChangeIds.addAll(raw?.map(int.parse) ?? []);
+      }
+    } catch (e) {
+      debugPrint('[VoiceTTS] load announced ids failed: $e');
+      _announcedChangeIds.clear();
+    }
+  }
+
+  /// 保存已播报记录
+  Future<void> _saveAnnouncedIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _announcedIdsKey,
+        _announcedChangeIds.map((id) => id.toString()).toList(),
+      );
+      await prefs.setString(_announcedDateKey, _todayString());
+    } catch (e) {
+      debugPrint('[VoiceTTS] save announced ids failed: $e');
+    }
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _saveEnabled() async {
@@ -170,8 +212,9 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   void enqueueChange(StockChange change, {bool urgent = false}) {
     if (!_enabled || !_initialized) return;
 
-    // 去重：同 ID 只播报一次
+    // 去重：同 ID 当天只播报一次
     if (!_announcedChangeIds.add(change.id)) return;
+    unawaited(_saveAnnouncedIds());
 
     final text = _buildSpeechText(change);
     final item = VoiceQueueItem(
@@ -291,8 +334,15 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   }
 
   /// 清空已播报记录（用于重置去重）
-  void clearAnnouncedHistory() {
+  Future<void> clearAnnouncedHistory() async {
     _announcedChangeIds.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_announcedIdsKey);
+      await prefs.setString(_announcedDateKey, _todayString());
+    } catch (e) {
+      debugPrint('[VoiceTTS] clear announced history failed: $e');
+    }
     notifyListeners();
   }
 
