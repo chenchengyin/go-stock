@@ -170,3 +170,31 @@
 | `radar_page.dart` | `initState` 延迟触发一次测试播放 |
 
 ---
+
+## 2026-07-07 语音播报支持语速调节
+
+### 需求
+可以调整语音播报速度。
+
+### 实现
+- `voice_announcement_view_model.dart`：
+  - 新增 `_speechRate` 状态，默认 `0.55`，范围 `0.3 ~ 1.5`。
+  - 持久化到 `SharedPreferences`（key: `voice_announcement_speech_rate`）。
+  - TTS 初始化与设置语速时都使用 `_speechRate`。
+  - 新增 `setSpeechRate(double)` 方法，拖动滑块时实时生效。
+- `voice_manager_page.dart`：
+  - 新增「播报语速」卡片，带 Slider 滑块和当前数值显示。
+  - 范围 0.3（慢）~ 1.5（快），共 12 档。
+
+### 验证
+- `flutter analyze` 通过。
+- `flutter build web --no-wasm-dry-run` 编译成功。
+
+### 修改文件清单
+
+| 文件 | 变更 |
+|---|---|
+| `voice_announcement_view_model.dart` | 语速状态、持久化、`setSpeechRate` 方法 |
+| `voice_manager_page.dart` | 新增语速调节滑块卡片 |
+
+---
