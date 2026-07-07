@@ -291,6 +291,18 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     unawaited(_saveAnnouncedIds());
     notifyListeners();
 
+    _enqueueTestChanges();
+  }
+
+  /// 重新启动测试：停止当前播报、清空队列，再重新播放测试数据
+  Future<void> restartTest() async {
+    if (!_initialized) return;
+    await stopSpeaking();
+    playTestChanges();
+  }
+
+  void _enqueueTestChanges() {
+
     final now = DateTime.now();
     final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
