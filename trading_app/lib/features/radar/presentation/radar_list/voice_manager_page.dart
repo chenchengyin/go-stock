@@ -199,15 +199,15 @@ class VoiceManagerPage extends StatelessWidget {
             onPressed: vm.queue.isNotEmpty ? () => vm.clearQueue() : null,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.replay,
-            label: '重新测试',
-            color: Colors.green,
-            onPressed: () => vm.restartTest(),
-          ),
-        ),
+        // const SizedBox(width: 12),
+        // Expanded(
+        //   child: _ActionButton(
+        //     icon: Icons.replay,
+        //     label: '重新测试',
+        //     color: Colors.green,
+        //     onPressed: () => vm.restartTest(),
+        //   ),
+        // ),
       ],
     );
   }

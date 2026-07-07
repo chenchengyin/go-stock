@@ -35,7 +35,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     _tabController.addListener(_onTabChanged);
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
-    _playTestVoiceAnnouncementOnce();
+    // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
+    // _playTestVoiceAnnouncementOnce();
   }
 
   void _onTabChanged() {
@@ -90,6 +91,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   /// 测试：程序启动到首页后，延迟播放一次当前位置的异动
   /// TODO: 测试完成后请删除本方法及 initState 中的调用
+  // ignore: unused_element
   void _playTestVoiceAnnouncementOnce() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // 等待授权弹窗处理 + TTS 初始化
