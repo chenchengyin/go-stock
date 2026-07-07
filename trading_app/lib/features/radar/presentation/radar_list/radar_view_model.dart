@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trading_app/core/stock_local_monitor/stock_local_monitor.dart';
 import 'package:trading_app/features/radar/domain/change_type_config.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
@@ -12,6 +14,7 @@ class RadarViewModel extends ChangeNotifier {
   }
 
   final RadarRepository _repository;
+  final StockLocalMonitor _localMonitor = StockLocalMonitor();
 
   // ── 异动类型筛选 ─────────────────────────────────────
   Set<int> _selectedChangeTypes = ChangeTypeConfig.defaultMonitorIds;
@@ -24,7 +27,16 @@ class RadarViewModel extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(ChangeTypeConfig.storageKey);
     if (raw != null && raw.isNotEmpty) {
-      _selectedChangeTypes = raw.split(',').map(int.parse).toSet();
+      var ids = raw.split(',').map(int.parse).toSet();
+      // 一次性迁移：老用户补上本地监控类型（9001~9005）
+      if (!ids.contains(9001)) {
+        ids.addAll({9002, 9003, 9005, 9006});
+        await prefs.setString(
+          ChangeTypeConfig.storageKey,
+          ids.join(','),
+        );
+      }
+      _selectedChangeTypes = ids;
     } else {
       _selectedChangeTypes = ChangeTypeConfig.defaultMonitorIds;
     }
@@ -52,6 +64,12 @@ class RadarViewModel extends ChangeNotifier {
   // ── Tab ② 持仓异动（监控股票的异动列表） ──────────────
   List<StockChange> watchChanges = [];
   bool watchLoading = false;
+
+  /// 当日本地监控异动池（跨刷新保留，避免被服务端数据覆盖丢失）
+  List<StockChange> _localAlertsToday = [];
+
+  /// 过滤用户已禁用类型的本地异动
+  List<StockChange> get _filteredLocalAlerts => filterChanges(_localAlertsToday);
 
   // ── Tab ③ 全市场异动 ───────────────────────────────────
   List<StockChange> allChanges = [];
@@ -101,6 +119,24 @@ class RadarViewModel extends ChangeNotifier {
   /// 检查指定股票是否有未读异动
   bool hasNewChanges(String code) => _codesWithNewChanges.contains(code);
 
+  /// 获取指定股票最新的异动描述（用于监控列表展示）
+  /// 只返回未读异动，全部已读后不显示
+  String? getLatestAlertDescription(String code) {
+    final alerts = watchChanges.where((c) => c.stockCode == code && !isChangeRead(c)).toList();
+    if (alerts.isEmpty) return null;
+    // 按时间倒序取最新一条
+    alerts.sort((a, b) => '${b.changeDate}${b.changeTime}'.compareTo('${a.changeDate}${a.changeTime}'));
+    final first = alerts.first;
+    debugPrint('[getLatestAlertDescription] first.desc=${first.description} typeName=${first.typeName} changeRate=${first.changeRate}');
+    // 优先用 description，服务端异动没有则用 typeName + changeRate 拼接
+    if (first.description != null && first.description!.isNotEmpty) {
+      return first.description;
+    }
+    final rate = first.changeRate;
+    final rateStr = rate >= 0 ? '+${rate.toStringAsFixed(2)}%' : '${rate.toStringAsFixed(2)}%';
+    return '${first.typeName} $rateStr';
+  }
+
   /// 检查单个异动是否已读（公开方法）
   bool isChangeRead(StockChange change) {
     return _isChangeRead(change);
@@ -110,6 +146,74 @@ class RadarViewModel extends ChangeNotifier {
   bool _isChangeRead(StockChange change) {
     final readIds = _readChangeIdsByCode[change.stockCode];
     return readIds != null && readIds.contains(change.id);
+  }
+
+  /// 只保留最近一个交易日的异动（用行情日期对比）
+  /// 如果 monitoredStocks 为空，用本地当前时间推断交易日
+  List<StockChange> filterTodayChanges(List<StockChange> changes) {
+    String tradingDate;
+    if (monitoredStocks.isNotEmpty && monitoredStocks.first.date.isNotEmpty) {
+      tradingDate = monitoredStocks.first.date;
+    } else {
+      // 兜底：用本地时间，周末退到周五
+      final now = DateTime.now();
+      var d = now;
+      if (d.weekday == DateTime.saturday) d = d.subtract(const Duration(days: 1));
+      if (d.weekday == DateTime.sunday) d = d.subtract(const Duration(days: 2));
+      tradingDate = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+    return changes.where((c) => c.changeDate == tradingDate).toList();
+  }
+
+  /// 合并本地监控异动到当日池（去重 + 日期过滤）
+  void _mergeLocalAlerts(List<StockChange> alerts) {
+    if (alerts.isEmpty) return;
+    for (final alert in alerts) {
+      final exists = _localAlertsToday.any((e) => e.id == alert.id);
+      if (!exists) {
+        _localAlertsToday.add(alert);
+      }
+    }
+    // 只保留今天的
+    _localAlertsToday = filterTodayChanges(_localAlertsToday);
+    _saveLocalAlerts();
+  }
+
+  static const _localAlertsKey = 'local_alerts_today';
+  static const _localAlertsVersionKey = 'local_alerts_cache_version';
+  /// 缓存版本号：修改异动生成逻辑后递增，自动清除旧缓存
+  static const int _localAlertsVersion = 0;
+
+  /// 保存本地异动到 SharedPreferences
+  Future<void> _saveLocalAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = _localAlertsToday.map((c) => c.toJson()).toList();
+    await prefs.setString(_localAlertsKey, jsonEncode(jsonList));
+    await prefs.setInt(_localAlertsVersionKey, _localAlertsVersion);
+  }
+
+  /// 从 SharedPreferences 恢复本地异动
+  Future<void> _loadLocalAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedVersion = prefs.getInt(_localAlertsVersionKey) ?? 0;
+    if (cachedVersion < _localAlertsVersion) {
+      // 缓存版本不匹配，清除旧数据（如成交额计算逻辑变更）
+      await prefs.remove(_localAlertsKey);
+      _localAlertsToday = [];
+      return;
+    }
+    final raw = prefs.getString(_localAlertsKey);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      _localAlertsToday = list
+          .map((e) => StockChange.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      // 跨天清理
+      _localAlertsToday = filterTodayChanges(_localAlertsToday);
+    } catch (_) {
+      _localAlertsToday = [];
+    }
   }
 
   /// 批量预加载监控股票的已读状态
@@ -132,6 +236,7 @@ class RadarViewModel extends ChangeNotifier {
   /// 标记某只股票的异动为已读（保留兼容）
   void markChangesSeen(String code) {
     _codesWithNewChanges.remove(code);
+    _recalcNewChanges();
     notifyListeners();
   }
 
@@ -177,6 +282,9 @@ class RadarViewModel extends ChangeNotifier {
   Future<void> _refreshData() async {
     try {
       await loadSelectedTypes();
+      // 清理上一个交易日的本地异动
+      _localAlertsToday = filterTodayChanges(_localAlertsToday);
+      _saveLocalAlerts();
       if (monitoredStocks.isNotEmpty) {
         final codes = monitoredStocks.map((s) => s.code).toList();
 
@@ -187,10 +295,10 @@ class RadarViewModel extends ChangeNotifier {
         ]);
         final quotes = results[0] as Map<String, Map<String, dynamic>>;
         final newChanges = results[1] as List<StockChange>;
-        final filtered = filterChanges(newChanges);
-        watchChanges = filtered;
-        _detectNewChanges(filtered);
+        final todayOnly = filterTodayChanges(newChanges);
+        final filtered = filterChanges(todayOnly);
 
+        List<StockChange> newLocalAlerts = [];
         if (quotes.isNotEmpty) {
           monitoredStocks = monitoredStocks.map((s) {
             final q = quotes[s.code];
@@ -209,18 +317,38 @@ class RadarViewModel extends ChangeNotifier {
                 low: (q['low'] as num?)?.toDouble() ?? s.low,
                 changeTypes: s.changeTypes,
                 createdAt: s.createdAt,
+                serverTime: (q['serverTime'] as num?)?.toInt() ?? s.serverTime,
+                date: q['date'] as String? ?? s.date,
                 mainForceNetInflow:
                     (q['mainForceNetInflow'] as num?)?.toDouble() ?? s.mainForceNetInflow,
                 mainForceNetRatio:
                     (q['mainForceNetRatio'] as num?)?.toDouble() ?? s.mainForceNetRatio,
+                dayNetInflow:
+                    (q['dayNetInflow'] as num?)?.toDouble() ?? s.dayNetInflow,
+                accumNetInflow:
+                    (q['accumNetInflow'] as num?)?.toDouble() ?? s.accumNetInflow,
               );
             }
             return s;
           }).toList();
+
+          // 本地监控检测，合并到当日池（跨刷新保留）
+          newLocalAlerts = _localMonitor.pushSnapshots(monitoredStocks);
+          if (newLocalAlerts.isNotEmpty) {
+            _mergeLocalAlerts(newLocalAlerts);
+          }
+        }
+
+        // 合并服务端异动 + 本地异动池（避免本地异动被覆盖丢失）
+        watchChanges = [...filtered, ..._filteredLocalAlerts];
+        _detectNewChanges(filtered);
+        if (newLocalAlerts.isNotEmpty) {
+          _detectNewChanges(newLocalAlerts);
         }
       } else {
         final newChanges = await _repository.getLatestChanges([]);
-        final filtered = filterChanges(newChanges);
+        final todayOnly = filterTodayChanges(newChanges);
+        final filtered = filterChanges(todayOnly);
         watchChanges = filtered;
         _detectNewChanges(filtered);
       }
@@ -229,17 +357,38 @@ class RadarViewModel extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// 新异动产生时的语音播报回调（由外部注入）
+  void Function(StockChange change, {bool urgent})? onNewVoiceChange;
+
+  /// 判断异动是否属于紧急类型（价格急速波动优先插队）
+  bool _isUrgentVoiceChange(StockChange change) {
+    return change.changeType == 9001 || change.changeType == 9002;
+  }
+
   /// 检测并标记新异动（根据已读状态判断）
   void _detectNewChanges(List<StockChange> changes) {
+    final newOnes = <StockChange>[];
     for (final change in changes) {
       if (!_knownChangeIds.contains(change.id)) {
         _knownChangeIds.add(change.id);
+        newOnes.add(change);
       }
     }
     // 根据已读状态重新计算哪些股票有未读异动
     _recalcNewChanges();
-    // 对未读异动触发通知
-    _triggerNotifications(changes);
+    // 只对真正的新异动触发通知（避免重复通知）
+    _triggerNotifications(newOnes);
+    // 触发语音播报
+    _triggerVoiceAnnouncements(newOnes);
+  }
+
+  /// 触发语音播报：逐个入队，紧急类型插队到下一顺位
+  void _triggerVoiceAnnouncements(List<StockChange> changes) {
+    final callback = onNewVoiceChange;
+    if (callback == null || changes.isEmpty) return;
+    for (final change in changes) {
+      callback(change, urgent: _isUrgentVoiceChange(change));
+    }
   }
 
   /// 触发未读异动的通知
@@ -289,6 +438,7 @@ class RadarViewModel extends ChangeNotifier {
   /// 加载监控股票列表 + Tab② 初始异动
   Future<void> loadMonitoredStocks() async {
     await loadSelectedTypes();
+    await _loadLocalAlerts();
     monitoredStocks = await _repository.getMonitoredStocks();
     if (monitoredStocks.isNotEmpty) {
       debugPrint('[Radar] loadMonitoredStocks: ${monitoredStocks.length} items');
@@ -305,10 +455,11 @@ class RadarViewModel extends ChangeNotifier {
       final quotes = results[0] as Map<String, Map<String, dynamic>>;
       final changes = results[1] as List<StockChange>;
 
-      final filtered = filterChanges(changes);
+      final todayOnly = filterTodayChanges(changes);
+      final filtered = filterChanges(todayOnly);
 
       // 初始加载的异动标记为"已知"但不算"曝光"，同时检测新异动触发红点
-      watchChanges = filtered;
+      watchChanges = [...filtered, ..._filteredLocalAlerts];
       _detectNewChanges(filtered);
 
       if (quotes.isNotEmpty) {
@@ -329,10 +480,16 @@ class RadarViewModel extends ChangeNotifier {
               low: (q['low'] as num?)?.toDouble() ?? s.low,
               changeTypes: s.changeTypes,
               createdAt: s.createdAt,
+              serverTime: (q['serverTime'] as num?)?.toInt() ?? s.serverTime,
+              date: q['date'] as String? ?? s.date,
               mainForceNetInflow:
                   (q['mainForceNetInflow'] as num?)?.toDouble() ?? s.mainForceNetInflow,
               mainForceNetRatio:
                   (q['mainForceNetRatio'] as num?)?.toDouble() ?? s.mainForceNetRatio,
+              dayNetInflow:
+                  (q['dayNetInflow'] as num?)?.toDouble() ?? s.dayNetInflow,
+              accumNetInflow:
+                  (q['accumNetInflow'] as num?)?.toDouble() ?? s.accumNetInflow,
             );
           }
           return s;
@@ -359,7 +516,8 @@ class RadarViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final changes = await _repository.getAllChanges();
-      allChanges = filterChanges(changes);
+      final todayOnly = filterTodayChanges(changes);
+      allChanges = filterChanges(todayOnly);
       // 全市场异动不自动加入 _knownChangeIds（不触发红点）
     } catch (e) {
       debugPrint('加载全市场异动失败: $e');
@@ -390,12 +548,16 @@ class RadarViewModel extends ChangeNotifier {
   Future<void> removeMonitoredStock(String code) async {
     await _repository.removeMonitoredStock(code);
     _codesWithNewChanges.remove(code);
+    // 清理该股票的本地异动
+    _localAlertsToday = _localAlertsToday.where((c) => c.stockCode != code).toList();
+    _saveLocalAlerts();
     await loadMonitoredStocks();
   }
 
   /// 加载最新的监控异动数据
   Future<void> loadWatchChanges() async {
     await loadSelectedTypes();
+    await _loadLocalAlerts();
     watchLoading = true;
     notifyListeners();
     try {
@@ -405,8 +567,9 @@ class RadarViewModel extends ChangeNotifier {
         _preloadReadStates(codes),
       ]);
       final changes = results[0] as List<StockChange>;
-      final filtered = filterChanges(changes);
-      watchChanges = filtered;
+      final todayOnly = filterTodayChanges(changes);
+      final filtered = filterChanges(todayOnly);
+      watchChanges = [...filtered, ..._filteredLocalAlerts];
       _detectNewChanges(filtered);
     } catch (e) {
       debugPrint('加载持仓异动失败: $e');

@@ -4,9 +4,12 @@ import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/domain/pankou_analyzer.dart';
+import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
 import 'monitor_settings_page.dart';
 import 'radar_view_model.dart';
+import 'search_results_panel.dart';
+import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 
 class RadarPage extends StatefulWidget {
@@ -30,6 +33,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
+    _bindVoiceAnnouncement();
+    _checkVoicePermissionAfterBuild();
   }
 
   void _onTabChanged() {
@@ -50,22 +55,116 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _unbindVoiceAnnouncement();
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
 
+  /// 绑定语音播报：把新异动抛给 VoiceAnnouncementViewModel
+  void _bindVoiceAnnouncement() {
+    final radarVm = context.read<RadarViewModel>();
+    final voiceVm = context.read<VoiceAnnouncementViewModel>();
+    radarVm.onNewVoiceChange = (change, {bool urgent = false}) {
+      voiceVm.enqueueChange(change, urgent: urgent);
+    };
+  }
+
+  /// 解绑语音播报回调，避免内存泄漏
+  void _unbindVoiceAnnouncement() {
+    final radarVm = context.read<RadarViewModel>();
+    radarVm.onNewVoiceChange = null;
+  }
+
+  /// 构建完成后检查是否需要弹出语音授权提示
+  void _checkVoicePermissionAfterBuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final voiceVm = context.read<VoiceAnnouncementViewModel>();
+      if (!voiceVm.askedBefore) {
+        _showVoicePermissionDialog(context);
+      }
+    });
+  }
+
+  /// 顶部语音播报喇叭按钮
+  Widget _buildVoiceButton() {
+    return Selector<VoiceAnnouncementViewModel, ({bool enabled, bool speaking})>(
+      selector: (_, vm) => (enabled: vm.enabled, speaking: vm.isSpeaking),
+      builder: (_, state, __) {
+        final icon = !state.enabled
+            ? Icons.volume_off_outlined
+            : state.speaking
+                ? Icons.volume_up
+                : Icons.volume_up_outlined;
+        return IconButton(
+          icon: Icon(icon, color: state.enabled ? AppColors.buttonPrimary : Colors.grey),
+          tooltip: '语音播报管理',
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const VoiceManagerPage()),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 语音授权申请弹窗
+  void _showVoicePermissionDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final voiceVm = dialogContext.read<VoiceAnnouncementViewModel>();
+        return AlertDialog(
+          title: const Text('开启语音播报？'),
+          content: const Text(
+            '开启后，当自选股出现新的异动信息时，系统会自动进行语音播报，帮助您及时把握盘中变化。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await voiceVm.denyPermission();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: const Text('暂不开启'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await voiceVm.grantPermission();
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.buttonPrimary,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('开启'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final vm = context.watch<RadarViewModel>();
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('雷达'),
+          centerTitle: true,
+          title: const Text('盘达', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),),
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           elevation: 0.5,
+          actions: [
+            _buildVoiceButton(),
+          ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(44),
             child: Container(
@@ -94,24 +193,32 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           controller: _tabController,
           children: [
             // ─── Tab ① 监控股票 ──────────────────────────────
-            _buildStockTab(vm),
+            Consumer<RadarViewModel>(
+              builder: (_, vm, __) => _buildStockTab(vm),
+            ),
             // ─── Tab ② 持仓异动 ──────────────────────────────
-            _buildChangeTab(
-              changes: vm.watchChanges,
-              loading: vm.watchLoading,
-              ascending: _watchAscending,
-              onToggleSort: () =>
-                  setState(() => _watchAscending = !_watchAscending),
-              emptyText: '暂无持仓异动',
+            Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
+              selector: (_, vm) => (changes: vm.watchChanges, loading: vm.watchLoading),
+              builder: (_, data, __) => _buildChangeTab(
+                changes: data.changes,
+                loading: data.loading,
+                ascending: _watchAscending,
+                onToggleSort: () =>
+                    setState(() => _watchAscending = !_watchAscending),
+                emptyText: '暂无持仓异动',
+              ),
             ),
             // ─── Tab ③ 全市场 ────────────────────────────────
-            _buildChangeTab(
-              changes: vm.allChanges,
-              loading: vm.allLoading,
-              ascending: _allAscending,
-              onToggleSort: () =>
-                  setState(() => _allAscending = !_allAscending),
-              emptyText: '暂无全市场异动',
+            Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
+              selector: (_, vm) => (changes: vm.allChanges, loading: vm.allLoading),
+              builder: (_, data, __) => _buildChangeTab(
+                changes: data.changes,
+                loading: data.loading,
+                ascending: _allAscending,
+                onToggleSort: () =>
+                    setState(() => _allAscending = !_allAscending),
+                emptyText: '暂无全市场异动',
+              ),
             ),
           ],
         ),
@@ -131,7 +238,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             child: CustomScrollView(
               slivers: [
                 if (vm.searchKeyword.trim().isNotEmpty)
-                  SliverToBoxAdapter(child: _SearchResultsPanel(vm: vm)),
+                  SliverToBoxAdapter(child: SearchResultsPanel()),
 
                 // 空状态
                 if (vm.monitoredStocks.isEmpty &&
@@ -287,14 +394,16 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 名称 + 代码
+                  // 第一行：名称 + 代码 + 异动 + 价格 + 涨幅
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    // mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         stock.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
-                          fontSize: 16,
+                          fontSize: 14,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -302,29 +411,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         stock.code,
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
-                      if (hasNew)
-                        Container(
-                          margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 6,vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            '异动',
-                            style: TextStyle(color: Colors.white, fontSize: 10),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // 价格 + 涨幅
-                  Row(
-                    children: [
+                      const SizedBox(width: 8),
                       Text(
                         '¥${stock.price.toStringAsFixed(2)}',
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -332,33 +423,63 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       Text(
                         '${isUp ? "+" : ""}${stock.changePercent.toStringAsFixed(2)}%',
                         style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                           color: changeColor,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      // 盘口语言标签
+                      _buildPanKouTags(stock),
+                      
                     ],
                   ),
-                  // 盘口语言标签
-                  _buildPanKouTags(stock),
+      
                   const SizedBox(height: 4),
                   // 成交额
                   if (stock.amount > 0)
                     Text(
                       '成交额 ${formatAmount(stock.amount)}',
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
-                  // 主力净流入
-                  if (stock.mainForceNetInflow != 0)
-                    Text(
-                      '主力净流入 ${formatAmount(stock.mainForceNetInflow)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: stock.mainForceNetInflow >= 0
-                            ? AppColors.textPriceUp
-                            : AppColors.textPriceDown,
+                  // 最新异动描述
+                  Builder(builder: (_) {
+                    final desc = vm.getLatestAlertDescription(stock.code);
+                    if (desc == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: const Text(
+                              '异动',
+                              style: TextStyle(color: Colors.white, fontSize: 10),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.warning_amber_rounded,
+                              size: 12, color: Colors.orange[700]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              desc,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.orange[800],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -397,36 +518,46 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     }
   }
 
+  String _formatInflow(double amount) {
+    // 后端返回的是千元，先转为元
+    final yuan = amount * 10;
+    final absAmount = yuan.abs();
+    final sign = yuan >= 0 ? '+' : '-';
+    if (absAmount >= 100000000) {
+      return '$sign${(absAmount / 100000000).toStringAsFixed(2)}亿';
+    } else if (absAmount >= 10000) {
+      return '$sign${(absAmount / 10000).toStringAsFixed(2)}万';
+    }
+    return '$sign${absAmount.toStringAsFixed(0)}';
+  }
+
   Widget _buildPanKouTags(MonitoredStock stock) {
     final tags = PanKouAnalyzer.analyzeTags(stock);
     if (tags.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        children: tags.map((tag) {
-          final color = PanKouAnalyzer.getTagColor(tag);
-          final name = PanKouAnalyzer.getTagName(tag);
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: color.withValues(alpha: 0.3)),
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: tags.map((tag) {
+        final color = PanKouAnalyzer.getTagColor(tag);
+        final name = PanKouAnalyzer.getTagName(tag);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            name,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
             ),
-            child: Text(
-              name,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -547,152 +678,4 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   }
 }
 
-// ─── 搜索结果显示面板 ─────────────────────────────────────
 
-class _SearchResultsPanel extends StatefulWidget {
-  const _SearchResultsPanel({required this.vm});
-  final RadarViewModel vm;
-
-  @override
-  State<_SearchResultsPanel> createState() => _SearchResultsPanelState();
-}
-
-class _SearchResultsPanelState extends State<_SearchResultsPanel> {
-  final Set<String> _adding = {};
-
-  bool _isMonitored(RadarViewModel vm, String code) =>
-      vm.monitoredStocks.any((s) => s.code == code);
-
-  Future<void> _addStock(String code, String name) async {
-    setState(() => _adding.add(code));
-    final vm = widget.vm;
-    if (vm.monitoredStocks.length >= RadarViewModel.maxMonitoredCount) {
-      setState(() => _adding.remove(code));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('最多监控20支,大哥不要开超市呀~'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.only(top: 60, left: 16, right: 16),
-          ),
-        );
-      }
-      return;
-    }
-    final stock = MonitoredStock(code: code, name: name);
-    final ok = await vm.addMonitoredStock(stock);
-    if (mounted) {
-      setState(() => _adding.remove(code));
-      if (ok) {
-        vm.searchKeyword = '';
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已添加监控'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('该股票已在监控列表中'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final vm = widget.vm;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8, left: 4),
-            child: Text(
-              '搜索结果 (${vm.searchResults.length})',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          if (vm.searchResults.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(24),
-              alignment: Alignment.center,
-              child: Text(
-                '未找到匹配的股票',
-                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-              ),
-            )
-          else
-            ...vm.searchResults.map(
-              (result) => Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            result['name'] ?? '',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            result['code'] ?? '',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: _adding.contains(result['code'])
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : _isMonitored(vm, result['code'] ?? '')
-                              ? const Icon(Icons.check_circle,
-                                  color: Colors.green, size: 22)
-                              : const Icon(Icons.add_circle_outline,
-                                  color: Color(0xff2364aa)),
-                      onPressed: _adding.contains(result['code']) ||
-                              _isMonitored(vm, result['code'] ?? '')
-                          ? null
-                          : () => _addStock(
-                                result['code'] ?? '',
-                                result['name'] ?? '',
-                              ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}

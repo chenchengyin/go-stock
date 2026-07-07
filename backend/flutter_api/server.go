@@ -51,16 +51,20 @@ func AutoMigrate() {
 	runTelegraphMigrations()
 }
 
-// runTelegraphMigrations 执行 Telegraph 表的 SQL 迁移（避免修改原模型）
+// runTelegraphMigrations 执行 Telegraph 表的 SQL 迁移
 func runTelegraphMigrations() {
-	// 添加 ai_opinion 字段（如不存在）
-	db.Dao.Exec("ALTER TABLE telegraphs ADD COLUMN IF NOT EXISTS ai_opinion text;")
+	// 检查 ai_opinion 列是否存在，不存在则添加
+	var colCount int64
+	db.Dao.Raw("SELECT COUNT(*) as cnt FROM pragma_table_info WHERE name='telegraph_list' AND tbl_name='telegraph_list' AND type='ai_opinion'").Scan(&colCount)
+	// 如果查询失败或返回0，直接用 Exec 尝试添加（SQLite 会忽略已存在的列错误）
+	if colCount == 0 {
+		db.Dao.Exec("ALTER TABLE telegraph_list ADD COLUMN ai_opinion text;")
+	}
 
 	// 添加复合唯一索引防止重复数据（如不存在）
-	// 索名：idx_telegraph_unique，包含 source+title+data_time
 	db.Dao.Exec(`
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_telegraph_unique
-		ON telegraphs (source, title, data_time)
+		ON telegraph_list (source, title, data_time)
 		WHERE title IS NOT NULL AND data_time IS NOT NULL;
 	`)
 }
@@ -101,6 +105,7 @@ func Start() {
 	mux.HandleFunc("/api/strategy", handleStrategy)
 	mux.HandleFunc("/api/upload", handleFileUpload)
 	mux.HandleFunc("/api/health", handleHealth)
+	mux.HandleFunc("/api/debug-money", handleDebugMoney)
 	mux.HandleFunc("/api/stock-selection-test", handleStockSelectionTest)
 	mux.HandleFunc("/api/ths-selection-test", handleTHSSelectionTest)
 	mux.HandleFunc("/api/get-qgqp-bid", handleGetQgqpBid)
@@ -536,8 +541,6 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	moneyData := getMoneyDataWithCache()
-
 	type RealtimeItem struct {
 		Code               string  `json:"code"`
 		Name               string  `json:"name"`
@@ -551,6 +554,10 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		Low                float64 `json:"low"`
 		MainForceNetInflow float64 `json:"mainForceNetInflow"`
 		MainForceNetRatio  float64 `json:"mainForceNetRatio"`
+		DayNetInflow       float64 `json:"dayNetInflow"`   // 当日净流入
+		AccumNetInflow     float64 `json:"accumNetInflow"` // 累计净流入
+		ServerTime         int64   `json:"serverTime"`     // 服务端毫秒时间戳
+		Date               string  `json:"date"`           // 行情日期 yyyy-MM-dd
 	}
 	var items []RealtimeItem
 	for _, s := range *result {
@@ -568,16 +575,38 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 			changePct = (price - preClose) / preClose * 100
 		}
 
+		// 从新浪财经获取多日资金趋势数据（三个值全部用新浪数据，单位保持千元不转换）
+		dayNetInflow := 0.0
 		mainForceNetInflow := 0.0
 		mainForceNetRatio := 0.0
-		// 东方财富返回裸代码(如000831)，s.Code带前缀(如sz000831)
-		rawCode := strings.TrimLeft(s.Code, "shsz")
-		if md, ok := moneyData[rawCode]; ok {
-			mainForceNetInflow = md.F62
-			mainForceNetRatio = md.F184
-		} else if md, ok := moneyData[s.Code]; ok {
-			mainForceNetInflow = md.F62
-			mainForceNetRatio = md.F184
+		accumNetInflow := 0.0
+		if trend := data.NewStockDataApi().GetStockMoneyTrendByDay(s.Code, 20); len(trend) > 0 {
+			// 当日净流入 = 最近一天的 netamount（千元）
+			if net, ok := trend[0]["netamount"]; ok {
+				if n, err := strconv.ParseFloat(fmt.Sprintf("%v", net), 64); err == nil {
+					dayNetInflow = n
+				}
+			}
+			// 主力净流入 = 最近一天的 r0_net（千元）
+			if r0, ok := trend[0]["r0_net"]; ok {
+				if n, err := strconv.ParseFloat(fmt.Sprintf("%v", r0), 64); err == nil {
+					mainForceNetInflow = n
+				}
+			}
+			// 主力净占比 = 最近一天的 r0_ratio（%）
+			if ratio, ok := trend[0]["r0_ratio"]; ok {
+				if n, err := strconv.ParseFloat(fmt.Sprintf("%v", ratio), 64); err == nil {
+					mainForceNetRatio = n * 100
+				}
+			}
+			// 累计净流入 = 所有天的 netamount 累加（千元）
+			for _, day := range trend {
+				if net, ok := day["netamount"]; ok {
+					if n, err := strconv.ParseFloat(fmt.Sprintf("%v", net), 64); err == nil {
+						accumNetInflow += n
+					}
+				}
+			}
 		}
 
 		items = append(items, RealtimeItem{
@@ -593,6 +622,10 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 			Low:                low,
 			MainForceNetInflow: mainForceNetInflow,
 			MainForceNetRatio:  mainForceNetRatio,
+			DayNetInflow:       dayNetInflow,
+			AccumNetInflow:     accumNetInflow,
+			ServerTime:         time.Now().UnixMilli(),
+			Date:               s.Date,
 		})
 	}
 	WriteJSON(w, items)
@@ -742,6 +775,56 @@ func searchStockOnline(keyword string) []searchStockItem {
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, map[string]string{"status": "ok"})
+}
+
+func handleDebugMoney(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		code = "sz000066"
+	}
+	type moneyDetail struct {
+		F62  float64 `json:"f62"`  // 主力净额
+		F184 float64 `json:"f184"` // 主力净占比
+		F66  float64 `json:"f66"`  // 超大单净额
+		F69  float64 `json:"f69"`  // 超大单净占比
+		F72  float64 `json:"f72"`  // 大单净额
+		F75  float64 `json:"f75"`  // 大单净占比
+		F78  float64 `json:"f78"`  // 中单净额
+		F81  float64 `json:"f81"`  // 中单净占比
+		F84  float64 `json:"f84"`  // 小单净额
+		F87  float64 `json:"f87"`  // 小单净占比
+		F45  float64 `json:"f45"`  // 外盘(主动买入量)
+		F46  float64 `json:"f46"`  // 内盘(主动卖出量)
+	}
+	codeLower := strings.ToLower(code)
+	var secid string
+	if strings.HasPrefix(codeLower, "sh") {
+		secid = "1." + code[2:]
+	} else if strings.HasPrefix(codeLower, "sz") {
+		secid = "0." + code[2:]
+	} else {
+		WriteJSON(w, map[string]string{"error": "code must start with sh or sz"})
+		return
+	}
+	url := fmt.Sprintf("https://push2.eastmoney.com/api/qt/stock/get?secid=%s&fields=f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f45,f46", secid)
+	req := data.SharedHTTPClient.SetTimeout(10*time.Second).R().
+		SetHeader("User-Agent", "Mozilla/5.0").
+		SetHeader("Referer", "https://quote.eastmoney.com")
+	resp, err := req.Get(url)
+	if err != nil {
+		WriteJSON(w, map[string]string{"error": err.Error()})
+		return
+	}
+	var fullResp struct {
+		Data moneyDetail `json:"data"`
+	}
+	json.Unmarshal(resp.Body(), &fullResp)
+	WriteJSON(w, map[string]interface{}{
+		"code":      code,
+		"secid":     secid,
+		"moneyData": fullResp.Data,
+		"note":      "f45=外盘(主动买入量)  f46=内盘(主动卖出量), 主力净额=f66+f72, 也可用(外盘-内盘)*均价估算净流入",
+	})
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {

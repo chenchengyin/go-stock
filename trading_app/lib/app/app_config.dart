@@ -12,6 +12,7 @@ import 'package:trading_app/features/news/data/news_remote_datasource.dart';
 import 'package:trading_app/features/news/data/news_repository.dart';
 import 'package:trading_app/features/news/presentation/market_news/news_view_model.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
+import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
 
 /// 创建所有 Provider 并返回 MultiProvider
@@ -34,6 +35,7 @@ class AppDependencies extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks(),
         ),
+        ChangeNotifierProvider(create: (_) => VoiceAnnouncementViewModel()),
         Provider<RadarRepository>(create: (_) => radarRepo),
         ChangeNotifierProvider(
           create: (_) {

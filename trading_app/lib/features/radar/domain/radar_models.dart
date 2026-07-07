@@ -12,6 +12,7 @@ class StockChange {
     required this.changeRate,
     required this.volume,
     required this.amount,
+    this.description,
   });
 
   factory StockChange.fromJson(Map<String, dynamic> json) {
@@ -47,6 +48,7 @@ class StockChange {
   final double changeRate;
   final int volume;
   final double amount;
+  final String? description;
 }
 
 /// 监控股票配置（含实时行情）
@@ -64,8 +66,12 @@ class MonitoredStock {
     this.low = 0,
     this.changeTypes = '',
     this.createdAt,
+    this.serverTime = 0,
+    this.date = '',
     this.mainForceNetInflow = 0,
     this.mainForceNetRatio = 0,
+    this.dayNetInflow = 0,
+    this.accumNetInflow = 0,
   });
 
   factory MonitoredStock.fromJson(Map<String, dynamic> json) {
@@ -82,8 +88,12 @@ class MonitoredStock {
       high: (json['high'] as num?)?.toDouble() ?? 0.0,
       low: (json['low'] as num?)?.toDouble() ?? 0.0,
       createdAt: json['createdAt'] as String?,
+      serverTime: (json['serverTime'] as num?)?.toInt() ?? 0,
+      date: json['date'] as String? ?? '',
       mainForceNetInflow: (json['mainForceNetInflow'] as num?)?.toDouble() ?? 0.0,
       mainForceNetRatio: (json['mainForceNetRatio'] as num?)?.toDouble() ?? 0.0,
+      dayNetInflow: (json['dayNetInflow'] as num?)?.toDouble() ?? 0.0,
+      accumNetInflow: (json['accumNetInflow'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -100,8 +110,12 @@ class MonitoredStock {
         'high': high,
         'low': low,
         'createdAt': createdAt,
+        'serverTime': serverTime,
+        'date': date,
         'mainForceNetInflow': mainForceNetInflow,
         'mainForceNetRatio': mainForceNetRatio,
+        'dayNetInflow': dayNetInflow,
+        'accumNetInflow': accumNetInflow,
       };
 
   final String code;
@@ -116,8 +130,12 @@ class MonitoredStock {
   final double low;
   final String changeTypes;
   final String? createdAt;
+  final int serverTime;       // 服务端毫秒时间戳
+  final String date;          // 行情日期 yyyy-MM-dd
   final double mainForceNetInflow;
   final double mainForceNetRatio;
+  final double dayNetInflow;
+  final double accumNetInflow;
 
   List<int> get changeTypeCodes =>
       changeTypes.split(',').where((e) => e.isNotEmpty).map(int.parse).toList();

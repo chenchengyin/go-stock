@@ -48,7 +48,7 @@ class _AppShellState extends State<AppShell> {
     BottomNavigationBarItem(
       icon: Icon(Icons.radar_outlined),
       activeIcon: Icon(Icons.radar),
-      label: '雷达',
+      label: '盘达',
     ),
     BottomNavigationBarItem(
       icon: Icon(Icons.article_outlined),

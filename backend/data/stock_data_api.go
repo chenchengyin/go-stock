@@ -2026,7 +2026,7 @@ func (receiver StockDataApi) GetStockHistoryMoneyData(stockCode string) []models
 func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 
 	var resData models.StockMoneyDataResp
-	url := "https://push2.eastmoney.com/api/qt/clist/get?cb=data&fid=f62&po=1&pz=50&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13,f100,f265"
+	url := "https://push2.eastmoney.com/api/qt/clist/get?cb=data&fid=f62&po=1&pz=5000&pn=1&np=1&fltt=2&invt=2&ut=8dec03ba335b81bf4ebdf7b29ec27d15&fs=m:0+t:6+f:!2,m:0+t:13+f:!2,m:0+t:80+f:!2,m:1+t:2+f:!2,m:1+t:23+f:!2,m:0+t:7+f:!2,m:1+t:3+f:!2&fields=f12,f14,f2,f3,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f204,f205,f124,f1,f13,f100,f265"
 	req := receiver.client.SetTimeout(time.Duration(receiver.config.CrawlTimeOut) * time.Second).R()
 
 	setEastMoneyKlineBrowserHeaders(req, "https://quote.eastmoney.com")
@@ -2044,8 +2044,8 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 	if err != nil {
 		//logger.SugaredLogger.Errorf("err:%s", err.Error())
 	}
+
 	body := string(resp.Body())
-	//logger.SugaredLogger.Infof("resp:%s", body)
 	vm := otto.New()
 	vm.Run("function data(res){return res};")
 	val, err := vm.Run(body)
@@ -2067,6 +2067,63 @@ func (receiver StockDataApi) GetStockMoneyData() models.StockMoneyDataResp {
 		return models.StockMoneyDataResp{}
 	}
 	return resData
+}
+
+// GetSingleStockMoneyData 获取单个股票的资金流向数据（主力净流入/占比）
+// stockCodeWithPrefix: 如 sz000831、sh601318
+// 返回主力净额(f62)和主力净占比(f184)
+func (receiver StockDataApi) GetSingleStockMoneyData(stockCodeWithPrefix string) (netInflow float64, netRatio float64, err error) {
+	code := strings.ToLower(stockCodeWithPrefix)
+	var secid string
+	if strings.HasPrefix(code, "sh") {
+		secid = "1." + code[2:]
+	} else if strings.HasPrefix(code, "sz") {
+		secid = "0." + code[2:]
+	} else {
+		return 0, 0, fmt.Errorf("unknown market prefix: %s", stockCodeWithPrefix)
+	}
+	url := fmt.Sprintf("https://push2.eastmoney.com/api/qt/stock/get?secid=%s&fields=f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f45,f46", secid)
+	resp, err := receiver.client.SetTimeout(10*time.Second).R().
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0").
+		SetHeader("Referer", "https://quote.eastmoney.com").
+		Get(url)
+	if err != nil {
+		return 0, 0, err
+	}
+	var result struct {
+		Data struct {
+			F62  float64 `json:"f62"`
+			F184 float64 `json:"f184"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body(), &result); err != nil {
+		return 0, 0, err
+	}
+	return result.Data.F62, result.Data.F184, nil
+}
+
+// GetStockMoneyTrendByDay 获取个股每日资金流向趋势（新浪财经接口）
+// stockCode: 如 sh600438, sz000066
+// days: 天数
+// 返回字段: opendate(日期), netamount(当日净流入), r0_net(主力净流入), trade(收盘价)
+func (receiver StockDataApi) GetStockMoneyTrendByDay(stockCode string, days int) []map[string]any {
+	url := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/MoneyFlow.ssl_qsfx_zjlrqs?page=1&num=%d&sort=opendate&asc=0&daima=%s", days, stockCode)
+	response, err := receiver.client.SetTimeout(time.Duration(10)*time.Second).R().
+		SetHeader("Host", "vip.stock.finance.sina.com.cn").
+		SetHeader("Referer", "https://finance.sina.com.cn").
+		SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.60").
+		Get(url)
+	if err != nil {
+		logger.SugaredLogger.Errorf("[资金趋势] 请求失败: %v", err)
+		return nil
+	}
+	js := string(response.Body())
+	res := &[]map[string]any{}
+	if err := json.Unmarshal([]byte(js), &res); err != nil {
+		logger.SugaredLogger.Errorf("[资金趋势] 解析失败: %v, raw: %s", err, js)
+		return nil
+	}
+	return *res
 }
 
 // GetMutualTop10Deal 获取互联互通（沪股通/深股通/港股通）十大成交股数据

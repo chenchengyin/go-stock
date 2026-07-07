@@ -44,7 +44,17 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
       final changes = widget.stockCode != null
           ? await repo.getLatestChanges([widget.stockCode!])
           : await repo.getAllChanges();
-      final filtered = vm.filterChanges(changes);
+      // 合并本地监控异动到详情
+      final merged = <StockChange>[...changes];
+      for (final c in vm.watchChanges) {
+        if (widget.stockCode == null || c.stockCode == widget.stockCode) {
+          if (!merged.any((e) => e.id == c.id && e.changeType == c.changeType && e.changeTime == c.changeTime)) {
+            merged.add(c);
+          }
+        }
+      }
+      final todayOnly = vm.filterTodayChanges(merged);
+      final filtered = vm.filterChanges(todayOnly);
       if (mounted) {
         setState(() {
           _changes = filtered;
