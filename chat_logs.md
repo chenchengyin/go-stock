@@ -257,3 +257,25 @@
 | `voice_manager_page.dart` | 增加「重新测试」按钮 |
 
 ---
+
+## 2026-07-07 注释语音播报测试入口
+
+### 需求
+注释重新测试按钮和首页启动自动播报的测试逻辑，不删代码。
+
+### 实现
+- `voice_manager_page.dart`：注释「重新测试」按钮代码，保留 `restartTest()` 调用逻辑。
+- `radar_page.dart`：注释 `initState` 中 `_playTestVoiceAnnouncementOnce()` 的调用，保留方法体并加 `// ignore: unused_element` 避免 lint 警告。
+
+### 验证
+- `flutter analyze` 通过（仅余 3 个已有问题）。
+- `flutter build web --no-wasm-dry-run` 编译成功。
+
+### 修改文件清单
+
+| 文件 | 变更 |
+|---|---|
+| `voice_manager_page.dart` | 注释重新测试按钮 |
+| `radar_page.dart` | 注释首页启动自动测试播放 |
+
+---
