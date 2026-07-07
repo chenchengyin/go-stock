@@ -59,9 +59,16 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   final List<VoiceQueueItem> _queue = [];
   List<VoiceQueueItem> get queue => List.unmodifiable(_queue);
 
+  /// 已播报队列（最新在前）
+  final List<VoiceQueueItem> _spokenQueue = [];
+  List<VoiceQueueItem> get spokenQueue => List.unmodifiable(_spokenQueue);
+
   /// 当前正在播报的文本
   String? _currentSpeakingText;
   String? get currentSpeakingText => _currentSpeakingText;
+
+  /// 当前正在播报的队列项
+  VoiceQueueItem? _currentItem;
 
   /// 是否正在播报中
   bool get isSpeaking => _currentSpeakingText != null;
@@ -277,6 +284,13 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 测试：播放几条模拟异动（程序启动后调一次即可）
   void playTestChanges() {
     if (!_initialized) return;
+
+    // 清掉已播报记录和已播放队列，确保测试每次都重新播放
+    _announcedChangeIds.clear();
+    _spokenQueue.clear();
+    unawaited(_saveAnnouncedIds());
+    notifyListeners();
+
     final now = DateTime.now();
     final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
@@ -377,6 +391,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     if (_currentSpeakingText != null || _queue.isEmpty || !_enabled) return;
 
     final item = _queue.removeAt(0);
+    _currentItem = item;
     _currentSpeakingText = item.text;
     notifyListeners();
 
@@ -390,6 +405,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('[VoiceTTS] speak error: $e');
+      _currentItem = null;
       _currentSpeakingText = null;
       notifyListeners();
       _processQueue();
@@ -399,7 +415,12 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 一条播报完成
   void _onSpeakComplete() {
     if (_currentSpeakingText == null) return;
+    final completedItem = _currentItem;
+    _currentItem = null;
     _currentSpeakingText = null;
+    if (completedItem != null) {
+      _spokenQueue.insert(0, completedItem);
+    }
     notifyListeners();
     _processQueue();
   }
@@ -414,6 +435,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
       debugPrint('[VoiceTTS] stop error: $e');
     }
     _queue.clear();
+    _currentItem = null;
     _currentSpeakingText = null;
     notifyListeners();
   }
@@ -421,6 +443,12 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 仅清空队列（不停止当前正在播的）
   void clearQueue() {
     _queue.clear();
+    notifyListeners();
+  }
+
+  /// 清空已播放队列
+  void clearSpokenQueue() {
+    _spokenQueue.clear();
     notifyListeners();
   }
 

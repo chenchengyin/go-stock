@@ -39,6 +39,11 @@ class VoiceManagerPage extends StatelessWidget {
               _buildQueueHeader(vm.queue.length),
               const SizedBox(height: 8),
               _buildQueueList(vm),
+              const SizedBox(height: 16),
+              // 已播报队列
+              _buildSpokenQueueHeader(vm.spokenQueue.length, vm),
+              const SizedBox(height: 8),
+              _buildSpokenQueueList(vm),
             ],
           );
         },
@@ -275,6 +280,94 @@ class VoiceManagerPage extends StatelessWidget {
 
   String _formatTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildSpokenQueueHeader(int count, VoiceAnnouncementViewModel vm) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          '已播报队列',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+        ),
+        Row(
+          children: [
+            Text(
+              '共 $count 条',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: count > 0 ? () => vm.clearSpokenQueue() : null,
+              child: Text(
+                '清空',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: count > 0 ? AppColors.buttonPrimary : Colors.grey[400],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpokenQueueList(VoiceAnnouncementViewModel vm) {
+    if (vm.spokenQueue.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.check_circle_outline, size: 40, color: Colors.grey[400]),
+              const SizedBox(height: 8),
+              Text(
+                '暂无已播报内容',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: vm.spokenQueue.length,
+        separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+        itemBuilder: (_, index) {
+          final item = vm.spokenQueue[index];
+          return ListTile(
+            dense: true,
+            leading: Icon(Icons.done, size: 16, color: Colors.grey[400]),
+            title: Text(
+              item.text,
+              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              _formatTime(item.enqueuedAt),
+              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
