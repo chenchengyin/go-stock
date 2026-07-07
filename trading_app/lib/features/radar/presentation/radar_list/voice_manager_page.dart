@@ -25,6 +25,9 @@ class VoiceManagerPage extends StatelessWidget {
               // 开关卡片
               _buildSwitchCard(context, vm),
               const SizedBox(height: 12),
+              // 语速调节
+              _buildSpeechRateCard(context, vm),
+              const SizedBox(height: 12),
               // 当前播报
               if (vm.isSpeaking && vm.currentSpeakingText != null)
                 _buildSpeakingCard(vm.currentSpeakingText!),
@@ -78,6 +81,53 @@ class VoiceManagerPage extends StatelessWidget {
             value: vm.enabled,
             activeThumbColor: AppColors.buttonPrimary,
             onChanged: (value) => vm.setEnabled(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeechRateCard(BuildContext context, VoiceAnnouncementViewModel vm) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '播报语速',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              Text(
+                vm.speechRate.toStringAsFixed(2),
+                style: TextStyle(fontSize: 14, color: AppColors.buttonPrimary, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('慢', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Expanded(
+                child: Slider(
+                  value: vm.speechRate,
+                  min: 0.3,
+                  max: 1.5,
+                  divisions: 12,
+                  label: vm.speechRate.toStringAsFixed(2),
+                  activeColor: AppColors.buttonPrimary,
+                  onChanged: (value) => vm.setSpeechRate(value),
+                ),
+              ),
+              Text('快', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            ],
           ),
         ],
       ),

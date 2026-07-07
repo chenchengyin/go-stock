@@ -33,6 +33,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   static const _askedKey = 'voice_announcement_asked';
   static const _announcedIdsKey = 'voice_announced_ids';
   static const _announcedDateKey = 'voice_announced_date';
+  static const _speechRateKey = 'voice_announcement_speech_rate';
 
   /// 是否启用语音播报（默认关闭，等用户授权）
   bool _enabled = false;
@@ -45,6 +46,10 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 是否已初始化完成
   bool _initialized = false;
   bool get initialized => _initialized;
+
+  /// 播报语速（0.3 ~ 1.5，默认 0.55）
+  double _speechRate = 0.55;
+  double get speechRate => _speechRate;
 
   /// 初始化错误信息
   String? _initError;
@@ -64,9 +69,10 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 队列去重集合（避免同一条异动反复入队）
   final Set<int> _announcedChangeIds = {};
 
-  /// 加载持久化开关、已播报记录并初始化 TTS
+  /// 加载持久化开关、语速、已播报记录并初始化 TTS
   Future<void> loadSettings() async {
     await _loadSettings();
+    await _loadSpeechRate();
     await _loadAnnouncedIds();
     await _initTts();
   }
@@ -81,6 +87,32 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
       _enabled = false;
       _askedBefore = false;
     }
+  }
+
+  /// 加载持久化语速
+  Future<void> _loadSpeechRate() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _speechRate = prefs.getDouble(_speechRateKey) ?? 0.55;
+    } catch (e) {
+      debugPrint('[VoiceTTS] load speech rate failed: $e');
+      _speechRate = 0.55;
+    }
+  }
+
+  /// 设置语速并持久化
+  Future<void> setSpeechRate(double value) async {
+    final clamped = value.clamp(0.3, 1.5);
+    if (_speechRate == clamped) return;
+    _speechRate = clamped;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_speechRateKey, _speechRate);
+      await _flutterTts.setSpeechRate(_speechRate);
+    } catch (e) {
+      debugPrint('[VoiceTTS] set speech rate failed: $e');
+    }
+    notifyListeners();
   }
 
   /// 加载已播报记录，跨天自动清空
@@ -144,7 +176,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   Future<void> _initTts() async {
     try {
       await _flutterTts.setLanguage('zh-CN');
-      await _flutterTts.setSpeechRate(0.55);
+      await _flutterTts.setSpeechRate(_speechRate);
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
 
