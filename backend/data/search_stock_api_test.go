@@ -76,6 +76,47 @@ func TestGetStockHolderNum(t *testing.T) {
 	logger.SugaredLogger.Infof("res:\n%s", MD)
 }
 
+func TestSearchStock_CurrentChangeRange(t *testing.T) {
+	db.Init("../../data/stock.db")
+
+	query := "当前涨幅在0.01%到3%之间"
+	res := NewSearchStockApi(query).SearchStock(50)
+
+	logger.SugaredLogger.Infof("方案A测试 - 查询条件: %s", query)
+	logger.SugaredLogger.Infof("方案A测试 - 原始响应: %+v", res)
+
+	code, ok := res["code"].(float64)
+	if ok && code != 0 {
+		logger.SugaredLogger.Infof("方案A测试 - 接口返回错误, code=%v, message=%v", code, res["message"])
+		return
+	}
+
+	data, ok := res["data"].(map[string]any)
+	if !ok {
+		logger.SugaredLogger.Infof("方案A测试 - 响应中无 data 字段")
+		return
+	}
+	result, ok := data["result"].(map[string]any)
+	if !ok {
+		logger.SugaredLogger.Infof("方案A测试 - 响应中无 result 字段")
+		return
+	}
+	dataList, ok := result["dataList"].([]any)
+	if !ok {
+		logger.SugaredLogger.Infof("方案A测试 - 响应中无 dataList 字段")
+		return
+	}
+
+	logger.SugaredLogger.Infof("方案A测试 - 命中股票数量: %d", len(dataList))
+	for i, v := range dataList {
+		if i >= 10 {
+			break
+		}
+		d := v.(map[string]any)
+		logger.SugaredLogger.Infof("方案A测试 - 第%d只: code=%s name=%s", i+1, d["SECURITY_CODE"], d["SECURITY_NAME_ABBR"])
+	}
+}
+
 func TestSearchStockApi_HotStrategy(t *testing.T) {
 	db.Init("../../data/stock.db")
 	res := NewSearchStockApi("").HotStrategy()
@@ -100,4 +141,44 @@ func TestSearchStockApi_HotStrategyTable(t *testing.T) {
 	db.Init("../../data/stock.db")
 	res := NewSearchStockApi("").StrategySquare()
 	logger.SugaredLogger.Infof("res:%+v", res)
+}
+
+func TestSearchStock_UserStrategy(t *testing.T) {
+	db.Init("../../data/stock.db")
+
+	query := "竞价涨幅在0.01%到3%之间;近7日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
+	res := NewSearchStockApi(query).SearchStock(50)
+
+	logger.SugaredLogger.Infof("用户策略选股 - 查询条件: %s", query)
+	logger.SugaredLogger.Infof("用户策略选股 - 原始响应: %+v", res)
+
+	code := res["code"]
+	msg := res["msg"]
+	logger.SugaredLogger.Infof("用户策略选股 - 接口返回 code=%v msg=%v", code, msg)
+
+	data, ok := res["data"].(map[string]any)
+	if !ok {
+		t.Fatal("用户策略选股 - 响应中无 data 字段")
+	}
+	result, ok := data["result"].(map[string]any)
+	if !ok {
+		t.Fatal("用户策略选股 - 响应中无 result 字段")
+	}
+	dataList, ok := result["dataList"].([]any)
+	if !ok {
+		t.Fatal("用户策略选股 - 响应中无 dataList 字段")
+	}
+
+	logger.SugaredLogger.Infof("用户策略选股 - 命中股票数量: %d", len(dataList))
+	if len(dataList) == 0 {
+		t.Fatal("用户策略选股 - 命中股票数量为 0")
+	}
+
+	for i, v := range dataList {
+		if i >= 10 {
+			break
+		}
+		d := v.(map[string]any)
+		logger.SugaredLogger.Infof("用户策略选股 - 第%d只: code=%s name=%s", i+1, d["SECURITY_CODE"], d["SECURITY_SHORT_NAME"])
+	}
 }
