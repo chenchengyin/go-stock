@@ -22,13 +22,13 @@
 ### Task 1: Create Trae Skill Document
 
 **Files:**
-- Create: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/colin_trader.md`
+- Create: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/colin_trader/SKILL.md`
 
 **Interfaces:**
 - Consumes: Approved spec at `/Users/Zhuanz/aiproject/go-stock/docs/superpowers/specs/2026-07-10-colin_trader-skill-design.md`
 - Produces: A project-local Trae Markdown skill that can be referenced or attached in Trae conversations.
 
-- [ ] **Step 1: Create `.trae/skills/colin_trader.md`**
+- [ ] **Step 1: Create `.trae/skills/colin_trader/SKILL.md`**
 
 Write a Markdown skill with:
 
@@ -50,7 +50,7 @@ Include these complete sections:
 - Core rules.
 - Granville usage.
 - 5/10-day risk gate.
-- Market filter.
+- Market warning.
 - Buy flow.
 - Sell flow.
 - Review learning mode.
@@ -61,8 +61,8 @@ Include these complete sections:
 Run:
 
 ```bash
-sed -n '1,260p' .trae/skills/colin_trader.md
-rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/colin_trader.md
+sed -n '1,260p' .trae/skills/colin_trader/SKILL.md
+rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/colin_trader/SKILL.md
 ```
 
 Expected:
@@ -97,7 +97,7 @@ Write frontmatter exactly:
 ```yaml
 ---
 name: colin-trader
-description: 隔夜超短竞价交易助手。Use when the user asks whether an A-share stock can be bought in the morning auction/open, whether a position bought yesterday should be sold today, how to interpret 该跌不跌/该涨不涨, 5/10日线风险, Granville position, market filter, or wants post-trade review learning for this ultra-short system.
+description: 隔夜超短竞价交易助手。Use when the user asks whether an A-share stock can be bought in the morning auction/open, whether a position bought yesterday should be sold today, how to interpret 该跌不跌/该涨不涨, 5/10日线风险, Granville position, market warning, or wants post-trade review learning for this ultra-short system.
 ---
 ```
 
@@ -127,7 +127,7 @@ Expected: `/Users/Zhuanz/.codex/skills/colin-trader/SKILL.md` exists.
 ### Task 3: Final Verification
 
 **Files:**
-- Verify: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/colin_trader.md`
+- Verify: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/colin_trader/SKILL.md`
 - Verify: `/Users/Zhuanz/.codex/skills/colin-trader/SKILL.md`
 - Verify: `/Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml`
 
@@ -140,7 +140,7 @@ Expected: `/Users/Zhuanz/.codex/skills/colin-trader/SKILL.md` exists.
 Run:
 
 ```bash
-test -f .trae/skills/colin_trader.md
+test -f .trae/skills/colin_trader/SKILL.md
 test -f /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md
 test -f /Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml
 ```
@@ -152,7 +152,7 @@ Expected: all commands exit 0.
 Run:
 
 ```bash
-rg -n "该跌不跌必有大涨|该涨不涨必有暴跌|暴涨加暴涨|5/10|09:50|中阳线|中阴线" .trae/skills/colin_trader.md /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md
+rg -n "该跌不跌必有大涨|该涨不涨必有暴跌|暴涨加暴涨|5/10|09:50|中阳线|中阴线" .trae/skills/colin_trader/SKILL.md /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md
 ```
 
 Expected: matches exist in both skill files.
@@ -162,7 +162,7 @@ Expected: matches exist in both skill files.
 Run:
 
 ```bash
-rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/colin_trader.md /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md /Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml
+rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/colin_trader/SKILL.md /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md /Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml
 ```
 
 Expected: command exits 1 with no output.

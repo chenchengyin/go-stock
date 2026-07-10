@@ -29,6 +29,7 @@ The user is an overnight ultra-short trader:
 - Usually sells or decides whether to hold the next morning.
 - Values discipline over hope when yesterday's buy feedback is wrong.
 - Uses Granville's eight rules as a position framework, but combines them with market environment, expectation gaps, and personal sell rules.
+- Prioritizes the individual stock. Market weakness is a warning layer, not an automatic veto against a valid individual-stock opening setup.
 
 ## Skill Identity
 
@@ -46,12 +47,12 @@ description: 隔夜超短竞价交易助手。用于早盘竞价/开盘买入判
 When the user asks "can I buy", "should I sell", "how does this stock look", or similar questions, the skill must answer in two stages:
 
 1. Direct conclusion first.
-   - Example: `结论：符合你的常用候选条件，但大盘触发 5/10 日线风险，不建议竞价直接买。`
+   - Example: `结论：个股符合你的开盘模式，可以看买点；但大盘触发 5/10 日线风险，买后纪律要更紧。`
    - Example: `结论：昨日买点反馈失败，若今日低开接近 -2%，优先按纪律处理。`
 2. Rule breakdown second.
    - Common candidate conditions.
    - Core expectation-gap logic.
-   - Market environment.
+   - Market warning.
    - 5/10-day moving-average risk gate.
    - Granville position.
    - Buy or sell scenario script.
@@ -87,7 +88,7 @@ Required data for sell analysis:
 - Current 5-day and 10-day moving average status.
 - Market/index status.
 
-Required data for market filter:
+Required data for market warning:
 
 - Shanghai Composite, Shenzhen Component, ChiNext Index, or user-specified index.
 - Real-time index position versus 5-day and 10-day moving averages.
@@ -193,8 +194,8 @@ Interpretation:
 
 Required checks:
 
-- Market environment.
-- 5/10-day moving-average risk.
+- Market warning.
+- Individual-stock 5/10-day moving-average risk.
 - Opening support after the first few minutes.
 - Whether the move is only a trap-like high open followed by weakness.
 
@@ -251,7 +252,7 @@ Required confirmation:
 
 - Auction/open above expectation.
 - Opening support.
-- Market not continuing to break down.
+- Market not continuing to break down is helpful, but market weakness is a warning rather than an automatic veto.
 - No simultaneous break below 5-day and 10-day moving averages.
 
 ## Granville Rule Usage
@@ -273,27 +274,33 @@ Bearish or avoid cases:
 
 ## 5/10-Day Moving-Average Risk Gate
 
-This rule applies to both market indexes and individual stocks.
+This rule applies primarily to individual stocks. Market indexes can be checked too, but market weakness is a warning layer, not the default decision maker.
 
-If the real-time price simultaneously falls below the 5-day and 10-day moving averages:
+If the individual stock's real-time price simultaneously falls below the 5-day and 10-day moving averages:
 
 - Treat it as a high-risk environment.
 - Downgrade buy signals.
 - Even if the stock matches the common candidate conditions, observe more and avoid impulsive buying.
 - For existing positions, strengthen sell discipline.
 
+If the market index simultaneously falls below the 5-day and 10-day moving averages:
+
+- Treat it as a market warning.
+- Do not automatically negate an individual stock's valid opening setup.
+- Judge the individual stock first, then add that post-buy discipline must be tighter.
+
 Reverse is not true:
 
 - Standing above 5-day and 10-day moving averages does not mean automatic bullishness.
 - It only means this specific risk gate is not triggered.
 
-## Market Filter
+## Market Warning
 
-The market is an action gate, not background information.
+The individual stock has priority. The market is a warning layer, not the default action gate. When the stock is clearly inside the user's opening model, do not say it cannot be bought only because the market is weak.
 
 Apply the same core logic to market indexes:
 
-- Market simultaneously below 5-day and 10-day moving averages: downgrade individual-stock opportunities.
+- Market simultaneously below 5-day and 10-day moving averages: warn that market risk is high and post-buy discipline must be tighter.
 - Market after consecutive 中阳线/暴涨: watch for third-day disagreement or intraday pullback.
 - Market after consecutive 中阴线/暴跌: watch for repair, but do not become blindly optimistic.
 - Market "该跌不跌": environment may be repairing.
@@ -301,8 +308,8 @@ Apply the same core logic to market indexes:
 
 If market emotion is available:
 
-- Low emotion, many limit-downs, high opened-limit-up rate, or more bearish unusual moves should downgrade buy analysis.
-- A single strong stock should not override a clearly hostile market.
+- Low emotion, many limit-downs, high opened-limit-up rate, or more bearish unusual moves should produce a clear warning.
+- A weak market should not erase a valid individual-stock setup by itself.
 
 ## Buy Analysis Flow
 
@@ -311,8 +318,8 @@ When the user asks whether a stock can be bought:
 1. Gather data or list missing data.
 2. Check whether it matches the user's common candidate conditions.
 3. Continue analysis even if it does not match those conditions.
-4. Check market environment.
-5. Check whether the stock or market triggered the 5/10-day risk gate.
+4. Judge whether the individual stock itself supports buying.
+5. Check whether the stock triggered the 5/10-day risk gate; treat market 5/10 status as a warning only.
 6. Compare yesterday's state with today's auction/open to identify expectation gap.
 7. Apply 暴涨/暴跌反身性.
 8. Apply Granville position judgment.
@@ -388,7 +395,7 @@ When the user provides buy/sell points, the skill should review the trade as a s
 - Was it inside the user's model?
 - Did it match common candidate conditions?
 - Did it have "该跌不跌" or "该涨不涨"?
-- Did the market support it?
+- Did the market create a warning?
 - Was the 5/10-day risk gate triggered?
 - Was the buy correct?
 - Did the sell follow discipline?
@@ -406,7 +413,7 @@ The skill must separate process quality from outcome:
 - If data is stale, say the data time and avoid strong conclusions.
 - If auction data is approximated by the open price, say so.
 - If the stock code is ambiguous, ask for the code.
-- If market data cannot be fetched, provide conditional analysis and mark the market filter as unknown.
+- If market data cannot be fetched, provide conditional analysis and mark the market warning as unknown.
 - If the user asks for a definite prediction, reframe into scenarios and invalidation conditions.
 
 ## Testing and Review Plan
@@ -424,7 +431,7 @@ Manual test prompts:
 5. `不符合7日涨停条件，但今天该跌不跌，怎么看？`
    - Expected: say it does not match common candidate pool, but still analyze core logic.
 6. `大盘跌破5日和10日线，这个股符合竞价条件能买吗？`
-   - Expected: downgrade opportunity because market risk gate is triggered.
+   - Expected: judge the individual stock first, then add a market warning instead of automatically rejecting the buy.
 
 Spec self-check:
 
