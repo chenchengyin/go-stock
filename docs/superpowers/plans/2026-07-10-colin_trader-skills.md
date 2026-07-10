@@ -15,20 +15,20 @@
 - Do not provide default position sizing advice.
 - Always explain missing data and avoid deterministic profit claims.
 - Create the Trae artifact inside `/Users/Zhuanz/aiproject/go-stock/.trae/skills/`.
-- Install the Codex skill in `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/` so Codex can discover it.
+- Install the Codex skill in `/Users/Zhuanz/.codex/skills/colin-trader/` so Codex can discover it.
 
 ---
 
 ### Task 1: Create Trae Skill Document
 
 **Files:**
-- Create: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/ultra-short-auction-trader.md`
+- Create: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/colin_trader.md`
 
 **Interfaces:**
-- Consumes: Approved spec at `/Users/Zhuanz/aiproject/go-stock/docs/superpowers/specs/2026-07-10-ultra-short-auction-trader-skill-design.md`
+- Consumes: Approved spec at `/Users/Zhuanz/aiproject/go-stock/docs/superpowers/specs/2026-07-10-colin_trader-skill-design.md`
 - Produces: A project-local Trae Markdown skill that can be referenced or attached in Trae conversations.
 
-- [ ] **Step 1: Create `.trae/skills/ultra-short-auction-trader.md`**
+- [ ] **Step 1: Create `.trae/skills/colin_trader.md`**
 
 Write a Markdown skill with:
 
@@ -61,8 +61,8 @@ Include these complete sections:
 Run:
 
 ```bash
-sed -n '1,260p' .trae/skills/ultra-short-auction-trader.md
-rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/ultra-short-auction-trader.md
+sed -n '1,260p' .trae/skills/colin_trader.md
+rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/colin_trader.md
 ```
 
 Expected:
@@ -73,22 +73,22 @@ Expected:
 ### Task 2: Create Codex Skill
 
 **Files:**
-- Create: `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md`
-- Create: `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/agents/openai.yaml`
+- Create: `/Users/Zhuanz/.codex/skills/colin-trader/SKILL.md`
+- Create: `/Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml`
 
 **Interfaces:**
 - Consumes: Approved spec and Trae skill content.
-- Produces: A Codex-discoverable skill named `ultra-short-auction-trader`.
+- Produces: A Codex-discoverable skill named `colin-trader`.
 
 - [ ] **Step 1: Initialize skill folder**
 
 Run the skill creator initializer:
 
 ```bash
-python3 /Users/Zhuanz/.codex/skills/.system/skill-creator/scripts/init_skill.py ultra-short-auction-trader --path /private/tmp/codex-skill-build --interface display_name="Ultra-Short Auction Trader" --interface short_description="隔夜超短竞价买卖与复盘助手" --interface default_prompt="Use $ultra-short-auction-trader to判断一只股票今天能不能买或昨天买了今天要不要卖。"
+python3 /Users/Zhuanz/.codex/skills/.system/skill-creator/scripts/init_skill.py colin-trader --path /private/tmp/codex-skill-build --interface display_name="colin_trader" --interface short_description="隔夜超短竞价买卖与复盘助手" --interface default_prompt="Use $colin-trader to判断一只股票今天能不能买或昨天买了今天要不要卖。"
 ```
 
-Expected: `/private/tmp/codex-skill-build/ultra-short-auction-trader/` exists with `SKILL.md` and `agents/openai.yaml`.
+Expected: `/private/tmp/codex-skill-build/colin-trader/` exists with `SKILL.md` and `agents/openai.yaml`.
 
 - [ ] **Step 2: Replace `SKILL.md` with final Codex instructions**
 
@@ -96,7 +96,7 @@ Write frontmatter exactly:
 
 ```yaml
 ---
-name: ultra-short-auction-trader
+name: colin-trader
 description: 隔夜超短竞价交易助手。Use when the user asks whether an A-share stock can be bought in the morning auction/open, whether a position bought yesterday should be sold today, how to interpret 该跌不跌/该涨不涨, 5/10日线风险, Granville position, market filter, or wants post-trade review learning for this ultra-short system.
 ---
 ```
@@ -108,7 +108,7 @@ Then write the same operational trading rules as the Trae skill, using imperativ
 Run:
 
 ```bash
-python3 /Users/Zhuanz/.codex/skills/.system/skill-creator/scripts/quick_validate.py /private/tmp/codex-skill-build/ultra-short-auction-trader
+python3 /Users/Zhuanz/.codex/skills/.system/skill-creator/scripts/quick_validate.py /private/tmp/codex-skill-build/colin-trader
 ```
 
 Expected: validation succeeds.
@@ -119,17 +119,17 @@ Run:
 
 ```bash
 mkdir -p /Users/Zhuanz/.codex/skills
-cp -R /private/tmp/codex-skill-build/ultra-short-auction-trader /Users/Zhuanz/.codex/skills/
+cp -R /private/tmp/codex-skill-build/colin-trader /Users/Zhuanz/.codex/skills/
 ```
 
-Expected: `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md` exists.
+Expected: `/Users/Zhuanz/.codex/skills/colin-trader/SKILL.md` exists.
 
 ### Task 3: Final Verification
 
 **Files:**
-- Verify: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/ultra-short-auction-trader.md`
-- Verify: `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md`
-- Verify: `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/agents/openai.yaml`
+- Verify: `/Users/Zhuanz/aiproject/go-stock/.trae/skills/colin_trader.md`
+- Verify: `/Users/Zhuanz/.codex/skills/colin-trader/SKILL.md`
+- Verify: `/Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml`
 
 **Interfaces:**
 - Consumes: Created skill artifacts.
@@ -140,9 +140,9 @@ Expected: `/Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md` exis
 Run:
 
 ```bash
-test -f .trae/skills/ultra-short-auction-trader.md
-test -f /Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md
-test -f /Users/Zhuanz/.codex/skills/ultra-short-auction-trader/agents/openai.yaml
+test -f .trae/skills/colin_trader.md
+test -f /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md
+test -f /Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml
 ```
 
 Expected: all commands exit 0.
@@ -152,7 +152,7 @@ Expected: all commands exit 0.
 Run:
 
 ```bash
-rg -n "该跌不跌必有大涨|该涨不涨必有暴跌|暴涨加暴涨|5/10|09:50|中阳线|中阴线" .trae/skills/ultra-short-auction-trader.md /Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md
+rg -n "该跌不跌必有大涨|该涨不涨必有暴跌|暴涨加暴涨|5/10|09:50|中阳线|中阴线" .trae/skills/colin_trader.md /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md
 ```
 
 Expected: matches exist in both skill files.
@@ -162,7 +162,7 @@ Expected: matches exist in both skill files.
 Run:
 
 ```bash
-rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/ultra-short-auction-trader.md /Users/Zhuanz/.codex/skills/ultra-short-auction-trader/SKILL.md /Users/Zhuanz/.codex/skills/ultra-short-auction-trader/agents/openai.yaml
+rg -n "T[O]DO|T[B]D|F[I]XME|占[位]|待[定]" .trae/skills/colin_trader.md /Users/Zhuanz/.codex/skills/colin-trader/SKILL.md /Users/Zhuanz/.codex/skills/colin-trader/agents/openai.yaml
 ```
 
 Expected: command exits 1 with no output.

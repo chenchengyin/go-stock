@@ -1,4 +1,4 @@
-# Ultra-Short Auction Trader Trae Skill Design
+# colin_trader Trae Skill Design
 
 ## Goal
 
@@ -36,7 +36,7 @@ Recommended skill metadata:
 
 ```markdown
 ---
-name: ultra-short-auction-trader
+name: colin_trader
 description: 隔夜超短竞价交易助手。用于早盘竞价/开盘买入判断、9:50前观察买点、昨日买入个股次日卖出判断、盘后复盘学习。核心基于竞价超预期、该跌不跌、该涨不涨、格兰维尔八大法则、大盘过滤、5/10日线风险闸门、连续暴涨/暴跌反身性和用户个人卖出纪律。
 ---
 ```
