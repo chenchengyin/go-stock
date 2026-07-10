@@ -6,6 +6,7 @@ import (
 	"go-stock/backend/logger"
 	"go-stock/backend/models"
 	"sync"
+	"time"
 )
 
 // 批量对已有新闻补充 AI 分析意见
@@ -14,12 +15,14 @@ func main() {
 	db.Init("")
 	data.InitAnalyzeSentiment()
 
-	// 读取所有重要新闻（isRed = true）
+	// 读取当天重要新闻（isRed = true）
+	today := time.Now().Truncate(24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
 	var news []models.Telegraph
 	db.Dao.Model(&models.Telegraph{}).
 		Where("is_red = 1 AND (ai_opinion IS NULL OR ai_opinion = '')").
+		Where("data_time >= ? AND data_time < ?", today, tomorrow).
 		Order("data_time DESC").
-		Limit(200).
 		Find(&news)
 
 	logger.SugaredLogger.Infof("待处理重要新闻: %d 条", len(news))

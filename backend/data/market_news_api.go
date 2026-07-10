@@ -28,8 +28,31 @@ import (
 type MarketNewsApi struct {
 }
 
+// aiOpinionSem 控制新闻 AI 意见生成的并发数，避免一次性触发过多 AI 请求
+var aiOpinionSem = make(chan struct{}, 3)
+
 func NewMarketNewsApi() *MarketNewsApi {
 	return &MarketNewsApi{}
+}
+
+// fillAiOpinionAsync 异步为重要新闻生成并写入 AI 分析意见
+func fillAiOpinionAsync(item models.Telegraph) {
+	if !item.IsRed || strings.TrimSpace(item.Content) == "" {
+		return
+	}
+	go func(telegraph models.Telegraph) {
+		aiOpinionSem <- struct{}{}
+		defer func() { <-aiOpinionSem }()
+
+		content := telegraph.Content
+		if telegraph.Url != "" {
+			content += "\n原文链接: " + telegraph.Url
+		}
+		opinion := GetAIAnalysisForNews(content)
+		if opinion != "" {
+			db.Dao.Model(&models.Telegraph{}).Where("id = ?", telegraph.ID).Update("ai_opinion", opinion)
+		}
+	}(item)
 }
 
 func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
@@ -95,6 +118,7 @@ func (m MarketNewsApi) TelegraphList(crawlTimeOut int64) *[]models.Telegraph {
 			}
 			telegraphs = append(telegraphs, telegraph)
 			db.Dao.Model(&models.Telegraph{}).Create(&telegraph)
+			fillAiOpinionAsync(telegraph)
 			if news["subjects"] == nil {
 				continue
 			}
@@ -191,6 +215,7 @@ func (m MarketNewsApi) GetNewTelegraph(crawlTimeOut int64) *[]models.Telegraph {
 			}
 			telegraphs = append(telegraphs, telegraph)
 			db.Dao.Model(&models.Telegraph{}).Create(&telegraph)
+			fillAiOpinionAsync(telegraph)
 			if news["subjects"] == nil {
 				continue
 			}
@@ -379,6 +404,7 @@ func (m MarketNewsApi) GetSinaNews(crawlTimeOut uint) *[]models.Telegraph {
 				if cnt == 0 {
 					db.Dao.Create(&telegraph)
 					telegraphs = append(telegraphs, telegraph)
+					fillAiOpinionAsync(telegraph)
 					for _, tag := range telegraph.SubjectTags {
 						tagInfo := &models.Tags{}
 						db.Dao.Model(models.Tags{}).Where("name=? and type=?", tag, "sina_subject").First(&tagInfo)
