@@ -1,0 +1,1115 @@
+package flutter_api
+
+import (
+	"bytes"
+	"encoding/gob"
+	"encoding/json"
+	"fmt"
+	"go-stock/backend/data"
+	"go-stock/backend/logger"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T0 开盘日线选股 — 纯日线动量 + T0 09:25竞价确认
+//
+// 数据源：
+//   - 股票池：新浪 Market_Center API（分页获取全量A股，含 nmc/mktcap）
+//   - 日线 K 线：data.FetchKLineWithFallback（东财→新浪→腾讯→通达信）
+//   - T0 实时行情：腾讯 qt.gtimg.cn API
+//   - 缓存根目录：/tmp/go-stock-cache/t0/{daily,selection}/
+//
+// 过滤链：
+//  1. 主板（60/00 开头）+ 流通市值（优先，否则总市值）50～9000 亿
+//  2. 近 7 日有涨停（日涨幅 ≥ 9.8%）
+//  3. 前一交易日成交额 ≥ 5 亿
+//  4. 前一交易日收盘价 > MA20（已暂缓，不作为入选条件；函数保留便于恢复）
+//  5. T0 开盘涨幅 0.01% ~ 3%
+//
+// API：
+//   GET /api/t0-selection?prewarm=1[&date=]           后台预热日线（进行中立刻返回进度）
+//   GET /api/t0-selection[&date=][&save=1]            正式选股（优先读日线缓存；默认归档写一次）
+//   GET /api/t0-selection?archived=1&date=            只读当日选股结果归档
+// ─────────────────────────────────────────────────────────────────────────────
+
+const (
+	t0MinMarketCapYi = 50.0
+	t0MaxMarketCapYi = 9000.0
+	t0CacheRoot      = "/tmp/go-stock-cache"
+)
+
+// t0CacheRootPath 可在测试中改写为临时目录
+var t0CacheRootPath = t0CacheRoot
+
+// t0DailyCachePayload 按交易日落盘的股票池 + 日线缓存
+type t0DailyCachePayload struct {
+	TradeDate string
+	Stocks    []t0Stock
+	Daily     map[string][]dailyBar
+}
+
+// t0SelectionArchive 按日选股结果归档
+type t0SelectionArchive struct {
+	Date    string              `json:"date"`
+	SavedAt string              `json:"saved_at"`
+	Count   int                 `json:"count"`
+	Results []T0SelectionResult `json:"results"`
+}
+
+type t0WarmStatus string
+
+const (
+	t0WarmStatusIdle    t0WarmStatus = "idle"
+	t0WarmStatusWarming t0WarmStatus = "warming"
+	t0WarmStatusReady   t0WarmStatus = "ready"
+	t0WarmStatusFailed  t0WarmStatus = "failed"
+)
+
+// t0WarmProgress 进程内预热进度（按交易日）
+type t0WarmProgress struct {
+	Status         t0WarmStatus
+	StockCount     int
+	DailyFetched   int
+	DailyTotal     int
+	CandidateCount int
+	Err            string
+	StartedAt      time.Time
+}
+
+var (
+	t0WarmMu     sync.Mutex
+	t0WarmByDate = map[string]*t0WarmProgress{}
+)
+
+func t0DailyCachePath(tradeDate string) string {
+	return filepath.Join(t0CacheRootPath, "t0", "daily", "t0_daily_cache_"+tradeDate+".gob")
+}
+
+func t0SelectionCachePath(tradeDate string) string {
+	return filepath.Join(t0CacheRootPath, "t0", "selection", "t0_selection_"+tradeDate+".json")
+}
+
+func ensureT0CacheDirs() error {
+	for _, dir := range []string{
+		filepath.Join(t0CacheRootPath, "t0", "daily"),
+		filepath.Join(t0CacheRootPath, "t0", "selection"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isT0DailyCacheFilePresent(tradeDate string) bool {
+	_, err := os.Stat(t0DailyCachePath(tradeDate))
+	return err == nil
+}
+
+func getT0WarmProgress(tradeDate string) t0WarmProgress {
+	t0WarmMu.Lock()
+	defer t0WarmMu.Unlock()
+	p, ok := t0WarmByDate[tradeDate]
+	if !ok || p == nil {
+		return t0WarmProgress{Status: t0WarmStatusIdle}
+	}
+	return *p
+}
+
+func setT0WarmProgressForTest(tradeDate string, p t0WarmProgress) {
+	t0WarmMu.Lock()
+	defer t0WarmMu.Unlock()
+	cp := p
+	t0WarmByDate[tradeDate] = &cp
+}
+
+func updateT0WarmProgress(tradeDate string, fn func(p *t0WarmProgress)) {
+	t0WarmMu.Lock()
+	defer t0WarmMu.Unlock()
+	p, ok := t0WarmByDate[tradeDate]
+	if !ok || p == nil {
+		p = &t0WarmProgress{Status: t0WarmStatusIdle}
+		t0WarmByDate[tradeDate] = p
+	}
+	fn(p)
+}
+
+func shouldReturnWarmingForSelection(tradeDate string) bool {
+	return !isT0DailyCacheFilePresent(tradeDate) && getT0WarmProgress(tradeDate).Status == t0WarmStatusWarming
+}
+
+func loadT0DailyCache(tradeDate string) (*t0DailyCachePayload, bool) {
+	_ = ensureT0CacheDirs()
+	path := t0DailyCachePath(tradeDate)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false
+	}
+	defer f.Close()
+
+	var payload t0DailyCachePayload
+	if err := gob.NewDecoder(f).Decode(&payload); err != nil {
+		logger.SugaredLogger.Warnf("[T0选股] 日线缓存解码失败 %s: %v", path, err)
+		return nil, false
+	}
+	if payload.TradeDate != tradeDate || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
+		return nil, false
+	}
+	return &payload, true
+}
+
+func saveT0DailyCache(tradeDate string, stocks []t0Stock, daily map[string][]dailyBar) error {
+	if err := ensureT0CacheDirs(); err != nil {
+		return err
+	}
+	payload := t0DailyCachePayload{
+		TradeDate: tradeDate,
+		Stocks:    stocks,
+		Daily:     daily,
+	}
+	path := t0DailyCachePath(tradeDate)
+	tmp := path + ".tmp"
+
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	encErr := gob.NewEncoder(f).Encode(&payload)
+	closeErr := f.Close()
+	if encErr != nil {
+		_ = os.Remove(tmp)
+		return encErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	logger.SugaredLogger.Infof("[T0选股] 日线缓存已写入: %s (股票%d只, 日线%d只)",
+		path, len(stocks), len(daily))
+	return nil
+}
+
+func saveT0SelectionArchive(tradeDate string, results []T0SelectionResult, force bool) error {
+	if err := ensureT0CacheDirs(); err != nil {
+		return err
+	}
+	path := t0SelectionCachePath(tradeDate)
+	if !force {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+	}
+	payload := t0SelectionArchive{
+		Date:    tradeDate,
+		SavedAt: time.Now().Format(time.RFC3339),
+		Count:   len(results),
+		Results: results,
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
+	data, err := os.ReadFile(t0SelectionCachePath(tradeDate))
+	if err != nil {
+		return nil, false
+	}
+	var a t0SelectionArchive
+	if err := json.Unmarshal(data, &a); err != nil {
+		return nil, false
+	}
+	return &a, true
+}
+
+// loadOrFetchT0Daily 优先读磁盘缓存；未命中则拉股票池+日线并写入。
+func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]dailyBar, fromCache bool, err error) {
+	if cached, ok := loadT0DailyCache(tradeDate); ok {
+		logger.SugaredLogger.Infof("[T0选股] 日线缓存命中: %s (股票%d只, 日线%d只)",
+			tradeDate, len(cached.Stocks), len(cached.Daily))
+		return cached.Stocks, cached.Daily, true, nil
+	}
+
+	t1 := time.Now()
+	stocks = fetchStockPoolFromSina()
+	logger.SugaredLogger.Infof("[T0选股] 股票池(主板+市值): %d只 (%.1fs)", len(stocks), time.Since(t1).Seconds())
+	if len(stocks) == 0 {
+		return nil, nil, false, fmt.Errorf("股票池为空")
+	}
+
+	t2 := time.Now()
+	daily = fetchAllDailyKLine(stocks, tradeDate, nil)
+	logger.SugaredLogger.Infof("[T0选股] 日线获取成功: %d只 (%.1fs)", len(daily), time.Since(t2).Seconds())
+	if len(daily) == 0 {
+		return nil, nil, false, fmt.Errorf("日线获取为空")
+	}
+
+	if saveErr := saveT0DailyCache(tradeDate, stocks, daily); saveErr != nil {
+		logger.SugaredLogger.Warnf("[T0选股] 日线缓存写入失败: %v", saveErr)
+	}
+	return stocks, daily, false, nil
+}
+
+// tryStartT0Prewarm 尝试启动后台预热。已在 warming 或文件已就绪时不重复启动。
+func tryStartT0Prewarm(tradeDate string) (started bool, progress t0WarmProgress) {
+	t0WarmMu.Lock()
+	if isT0DailyCacheFilePresent(tradeDate) {
+		p := t0WarmByDate[tradeDate]
+		if p == nil {
+			p = &t0WarmProgress{}
+			t0WarmByDate[tradeDate] = p
+		}
+		p.Status = t0WarmStatusReady
+		out := *p
+		t0WarmMu.Unlock()
+		return false, out
+	}
+	if p, ok := t0WarmByDate[tradeDate]; ok && p != nil && p.Status == t0WarmStatusWarming {
+		out := *p
+		t0WarmMu.Unlock()
+		return false, out
+	}
+	now := time.Now()
+	t0WarmByDate[tradeDate] = &t0WarmProgress{
+		Status:    t0WarmStatusWarming,
+		StartedAt: now,
+	}
+	out := *t0WarmByDate[tradeDate]
+	t0WarmMu.Unlock()
+
+	go runT0PrewarmJob(tradeDate)
+	return true, out
+}
+
+func runT0PrewarmJob(tradeDate string) {
+	logger.SugaredLogger.Infof("========== T0 日线预热(后台) | 基准日: %s ==========", tradeDate)
+	defer func() {
+		if r := recover(); r != nil {
+			updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+				p.Status = t0WarmStatusFailed
+				p.Err = fmt.Sprintf("panic: %v", r)
+			})
+		}
+	}()
+
+	stocks := fetchStockPoolFromSina()
+	updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+		p.StockCount = len(stocks)
+		p.DailyTotal = len(stocks)
+		p.DailyFetched = 0
+	})
+	if len(stocks) == 0 {
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.Status = t0WarmStatusFailed
+			p.Err = "股票池为空"
+		})
+		return
+	}
+
+	daily := fetchAllDailyKLine(stocks, tradeDate, func() {
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.DailyFetched++
+		})
+	})
+	if len(daily) == 0 {
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.Status = t0WarmStatusFailed
+			p.Err = "日线获取为空"
+		})
+		return
+	}
+
+	if err := saveT0DailyCache(tradeDate, stocks, daily); err != nil {
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.Status = t0WarmStatusFailed
+			p.Err = err.Error()
+		})
+		return
+	}
+
+	step1 := filterLimitUpRecent(stocks, daily, 7, 9.8)
+	step2 := filterTurnover(step1, daily, 5.0)
+	updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+		p.Status = t0WarmStatusReady
+		p.StockCount = len(stocks)
+		p.DailyFetched = len(daily)
+		p.DailyTotal = len(stocks)
+		p.CandidateCount = len(step2)
+		p.Err = ""
+	})
+	logger.SugaredLogger.Infof("[T0选股] 后台预热完成: 股票%d 日线%d 候选%d",
+		len(stocks), len(daily), len(step2))
+}
+
+func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
+	tStart := time.Now()
+	stocks, daily, ok := []t0Stock(nil), map[string][]dailyBar(nil), false
+	if cached, hit := loadT0DailyCache(tradeDate); hit {
+		stocks, daily, ok = cached.Stocks, cached.Daily, true
+	}
+	candidateCount := 0
+	if ok {
+		step1 := filterLimitUpRecent(stocks, daily, 7, 9.8)
+		step2 := filterTurnover(step1, daily, 5.0)
+		candidateCount = len(step2)
+	}
+	prog := getT0WarmProgress(tradeDate)
+	if prog.CandidateCount > 0 {
+		candidateCount = prog.CandidateCount
+	}
+	return map[string]interface{}{
+		"date":            tradeDate,
+		"prewarm":         true,
+		"status":          string(t0WarmStatusReady),
+		"stock_count":     len(stocks),
+		"daily_count":     len(daily),
+		"daily_fetched":   len(daily),
+		"daily_total":     len(stocks),
+		"candidate_count": candidateCount,
+		"cache_hit":       true,
+		"elapsed_sec":     round2(time.Since(tStart).Seconds()),
+	}
+}
+
+func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[string]interface{} {
+	elapsed := 0.0
+	if !prog.StartedAt.IsZero() {
+		elapsed = time.Since(prog.StartedAt).Seconds()
+	}
+	resp := map[string]interface{}{
+		"date":            tradeDate,
+		"prewarm":         true,
+		"status":          string(prog.Status),
+		"stock_count":     prog.StockCount,
+		"daily_fetched":   prog.DailyFetched,
+		"daily_total":     prog.DailyTotal,
+		"daily_count":     prog.DailyFetched,
+		"candidate_count": prog.CandidateCount,
+		"cache_hit":       false,
+		"elapsed_sec":     round2(elapsed),
+	}
+	if prog.Status == t0WarmStatusFailed && prog.Err != "" {
+		resp["error"] = prog.Err
+	}
+	return resp
+}
+
+// ── 数据结构 ─────────────────────────────────────────────────────────────────
+
+// dailyBar 内部使用的日线数据
+type dailyBar struct {
+	Date     string
+	Open     float64
+	Close    float64
+	High     float64
+	Low      float64
+	Volume   float64 // 成交量(股)
+	AmountYi float64 // 成交额(亿元)
+}
+
+// t0Stock 股票基础信息
+type t0Stock struct {
+	Code         string  // sh.600000 / sz.000001
+	ShortCode    string  // 600000 / 000001
+	Name         string
+	MarketCapYi  float64 // 市值(亿)，优先流通市值
+}
+
+// t0Realtime T0 实时行情
+type t0Realtime struct {
+	Open      float64
+	Close     float64 // 当前价
+	PrevClose float64
+}
+
+// T0SelectionResult 最终选股结果
+type T0SelectionResult struct {
+	Time            string  `json:"时间"`
+	OpenGap         float64 `json:"T0开盘涨幅(%)"`
+	CloseRet        float64 `json:"T0收盘涨幅(%)"`
+	LimitUpDates    string  `json:"涨停日期"`
+	MA20            float64 `json:"MA20"`
+	AmountYi        float64 `json:"成交额(亿)"`
+	StockCode       string  `json:"股票代码"` // 如 600000.XSHG
+	StockName       string  `json:"股票名称"`
+	PrevClose       float64 `json:"前一交易日收盘"`
+	PrevCloseRet    float64 `json:"前一交易日收盘涨幅(%)"`
+}
+
+// ── 股票池获取（新浪 API） ──────────────────────────────────────────────────
+
+// sinaFlexibleFloat 兼容新浪 JSON 中 number / string 两种市值字段
+type sinaFlexibleFloat float64
+
+func (f *sinaFlexibleFloat) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || string(b) == "null" {
+		*f = 0
+		return nil
+	}
+	if b[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b, &s); err != nil {
+			return err
+		}
+		if s == "" {
+			*f = 0
+			return nil
+		}
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return err
+		}
+		*f = sinaFlexibleFloat(v)
+		return nil
+	}
+	v, err := strconv.ParseFloat(string(b), 64)
+	if err != nil {
+		return err
+	}
+	*f = sinaFlexibleFloat(v)
+	return nil
+}
+
+// marketCapYiFromSina 新浪 mktcap/nmc 单位为万元 → 亿元
+func marketCapYiFromSina(nmc, mktcap float64) (float64, bool) {
+	raw := nmc
+	if raw <= 0 {
+		raw = mktcap
+	}
+	if raw <= 0 {
+		return 0, false
+	}
+	return raw / 10000, true
+}
+
+func fetchStockPoolFromSina() []t0Stock {
+	const baseURL = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/" +
+		"Market_Center.getHQNodeData?page=%d&num=100&sort=code&asc=1" +
+		"&node=hs_a&symbol=&_s_r_a=page"
+
+	var allStocks []t0Stock
+	mainBoardCount := 0
+
+	for page := 1; page <= 100; page++ {
+		url := fmt.Sprintf(baseURL, page)
+		resp, err := data.SharedHTTPClient.R().
+			SetHeader("User-Agent", "Mozilla/5.0").
+			Get(url)
+		if err != nil || resp.StatusCode() != 200 {
+			break
+		}
+
+		var items []struct {
+			Code   string            `json:"code"`
+			Name   string            `json:"name"`
+			Nmc    sinaFlexibleFloat `json:"nmc"`    // 流通市值(万元)
+			Mktcap sinaFlexibleFloat `json:"mktcap"` // 总市值(万元)
+		}
+		if err := json.Unmarshal(resp.Body(), &items); err != nil {
+			break
+		}
+		if len(items) == 0 {
+			break
+		}
+
+		for _, item := range items {
+			code := item.Code
+			var prefix string
+			if strings.HasPrefix(code, "60") {
+				prefix = "sh."
+			} else if strings.HasPrefix(code, "00") {
+				prefix = "sz."
+			} else {
+				continue
+			}
+			mainBoardCount++
+
+			capYi, ok := marketCapYiFromSina(float64(item.Nmc), float64(item.Mktcap))
+			if !ok || capYi < t0MinMarketCapYi || capYi > t0MaxMarketCapYi {
+				continue
+			}
+
+			allStocks = append(allStocks, t0Stock{
+				Code:        prefix + code,
+				ShortCode:   code,
+				Name:        item.Name,
+				MarketCapYi: capYi,
+			})
+		}
+
+		if len(items) < 100 {
+			break
+		}
+	}
+
+	logger.SugaredLogger.Infof("[T0选股] 过滤1(主板+市值%.0f~%.0f亿): 主板%d只 -> 通过%d只",
+		t0MinMarketCapYi, t0MaxMarketCapYi, mainBoardCount, len(allStocks))
+	return allStocks
+}
+
+// ── 日线 K 线获取 ──────────────────────────────────────────────────────────
+
+// parseKLineToDailyBar 将 KLineData 转为内部 dailyBar
+func parseKLineToDailyBar(kd data.KLineData) (dailyBar, bool) {
+	var bar dailyBar
+	bar.Date = kd.Day
+
+	parse := func(s string) (float64, bool) {
+		v, err := strconv.ParseFloat(s, 64)
+		return v, err == nil
+	}
+
+	var ok bool
+	bar.Open, ok = parse(kd.Open)
+	if !ok {
+		return bar, false
+	}
+	bar.Close, ok = parse(kd.Close)
+	if !ok {
+		return bar, false
+	}
+	bar.High, ok = parse(kd.High)
+	if !ok {
+		return bar, false
+	}
+	bar.Low, ok = parse(kd.Low)
+	if !ok {
+		return bar, false
+	}
+	bar.Volume, ok = parse(kd.Volume)
+	if !ok {
+		return bar, false
+	}
+	// 成交额(亿元) = 成交量 * 收盘价 / 1e8
+	bar.AmountYi = bar.Volume * bar.Close / 1e8
+	return bar, true
+}
+
+// fetchDailyKLine 获取单只股票日线（最多 30 根），返回按期排序的 bar 列表
+func fetchDailyKLine(shortCode string, endDate string) []dailyBar {
+	result := data.FetchKLineWithFallback(shortCode, "", "101", 30, endDate)
+	if result == nil || result.Data == nil {
+		return nil
+	}
+
+	var bars []dailyBar
+	for _, kd := range *result.Data {
+		if bar, ok := parseKLineToDailyBar(kd); ok {
+			bars = append(bars, bar)
+		}
+	}
+
+	// 确保按期排序
+	sort.Slice(bars, func(i, j int) bool {
+		return bars[i].Date < bars[j].Date
+	})
+
+	// 截断到 endDate
+	if endDate != "" {
+		cut := -1
+		for i, b := range bars {
+			if b.Date > endDate {
+				cut = i
+				break
+			}
+		}
+		if cut >= 0 {
+			bars = bars[:cut]
+		}
+	}
+
+	return bars
+}
+
+// fetchAllDailyKLine 并发获取所有股票的日线；onOneDone 在每只处理完成后回调（成功或失败都计一次进度）
+func fetchAllDailyKLine(stocks []t0Stock, endDate string, onOneDone func()) map[string][]dailyBar {
+	cache := make(map[string][]dailyBar)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 20) // 20 并发
+
+	for _, s := range stocks {
+		wg.Add(1)
+		go func(stock t0Stock) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			bars := fetchDailyKLine(stock.ShortCode, endDate)
+			if len(bars) >= 2 {
+				mu.Lock()
+				cache[stock.ShortCode] = bars
+				mu.Unlock()
+			}
+			if onOneDone != nil {
+				onOneDone()
+			}
+		}(s)
+	}
+	wg.Wait()
+	return cache
+}
+
+// ── T0 实时行情（腾讯 API） ─────────────────────────────────────────────────
+
+func fetchT0Realtime(stocks []t0Stock) map[string]t0Realtime {
+	if len(stocks) == 0 {
+		return nil
+	}
+
+	// 构建请求符号：sh600000,sz000001
+	var symbols []string
+	codeToSC := make(map[string]string) // sym -> shortCode
+	for _, s := range stocks {
+		var prefix string
+		if strings.HasPrefix(s.Code, "sh") {
+			prefix = "sh"
+		} else {
+			prefix = "sz"
+		}
+		sym := prefix + s.ShortCode
+		symbols = append(symbols, sym)
+		codeToSC[sym] = s.ShortCode
+	}
+
+	// 分批请求（腾讯 API 单次支持多个符号，但不宜太多）
+	result := make(map[string]t0Realtime)
+	batchSize := 100
+
+	for i := 0; i < len(symbols); i += batchSize {
+		end := i + batchSize
+		if end > len(symbols) {
+			end = len(symbols)
+		}
+		batch := symbols[i:end]
+		url := "http://qt.gtimg.cn/q=" + strings.Join(batch, ",")
+
+		resp, err := data.SharedHTTPClient.R().
+			SetHeader("User-Agent", "Mozilla/5.0").
+			Get(url)
+		if err != nil {
+			continue
+		}
+
+		text := resp.String()
+		for _, line := range strings.Split(text, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			// 格式: v_sh600000="1~平安银行~000001~..."
+			parts := strings.Split(line, "~")
+			if len(parts) < 6 {
+				continue
+			}
+			eqPos := strings.Index(parts[0], `="`)
+			if eqPos < 3 {
+				continue
+			}
+			sym := parts[0][2:eqPos]
+			sc, ok := codeToSC[sym]
+			if !ok {
+				continue
+			}
+
+			parse := func(s string) float64 {
+				v, _ := strconv.ParseFloat(s, 64)
+				return v
+			}
+
+			rt := t0Realtime{
+				Close:     parse(parts[3]),
+				PrevClose: parse(parts[4]),
+				Open:      parse(parts[5]),
+			}
+			// 腾讯API：当前价=0时使用开盘价
+			if rt.Close == 0 && rt.Open > 0 {
+				rt.Close = rt.Open
+			}
+			result[sc] = rt
+		}
+	}
+
+	return result
+}
+
+// ── 过滤层 ──────────────────────────────────────────────────────────────────
+
+// filterLimitUpRecent 过滤2：近 N 日有涨停（日涨幅 ≥ threshold%）
+func filterLimitUpRecent(stocks []t0Stock, cache map[string][]dailyBar, days int, threshold float64) []t0Stock {
+	logger.SugaredLogger.Infof("[T0选股] 过滤2(涨停记忆): %d只 -> 检查近%d日涨幅≥%.1f%%", len(stocks), days, threshold)
+
+	var result []t0Stock
+	for _, s := range stocks {
+		bars := cache[s.ShortCode]
+		if len(bars) < days+1 {
+			continue
+		}
+		recent := bars[len(bars)-days:]
+		hasLimitUp := false
+		for i := 1; i < len(recent); i++ {
+			if recent[i-1].Close == 0 {
+				continue
+			}
+			ret := (recent[i].Close - recent[i-1].Close) / recent[i-1].Close * 100
+			if ret >= threshold {
+				hasLimitUp = true
+				break
+			}
+		}
+		if hasLimitUp {
+			result = append(result, s)
+		}
+	}
+	logger.SugaredLogger.Infof("[T0选股] 过滤2通过: %d只", len(result))
+	return result
+}
+
+// filterTurnover 过滤3：前一交易日成交额 ≥ minTurnover 亿
+func filterTurnover(stocks []t0Stock, cache map[string][]dailyBar, minTurnover float64) []t0Stock {
+	logger.SugaredLogger.Infof("[T0选股] 过滤3(成交额≥%.1f亿): %d只", minTurnover, len(stocks))
+
+	var result []t0Stock
+	for _, s := range stocks {
+		bars := cache[s.ShortCode]
+		if len(bars) == 0 {
+			continue
+		}
+		last := bars[len(bars)-1]
+		if last.AmountYi >= minTurnover {
+			result = append(result, s)
+		}
+	}
+	logger.SugaredLogger.Infof("[T0选股] 过滤3通过: %d只", len(result))
+	return result
+}
+
+// calcMA20 计算最近 20 日收盘均价；不足 20 根返回 0
+func calcMA20(bars []dailyBar) float64 {
+	if len(bars) < 20 {
+		return 0
+	}
+	tail := bars[len(bars)-20:]
+	var sum float64
+	for _, b := range tail {
+		sum += b.Close
+	}
+	return sum / 20
+}
+
+// filterMA20Above 过滤4：前一交易日收盘价 > MA20
+// 当前主链已暂缓调用，保留函数便于后续重新启用。
+func filterMA20Above(stocks []t0Stock, cache map[string][]dailyBar) ([]t0Stock, map[string]float64) {
+	logger.SugaredLogger.Infof("[T0选股] 过滤4(收盘>MA20): %d只", len(stocks))
+
+	var result []t0Stock
+	ma20Cache := make(map[string]float64)
+	for _, s := range stocks {
+		bars := cache[s.ShortCode]
+		ma20 := calcMA20(bars)
+		if ma20 == 0 {
+			continue
+		}
+		prevClose := bars[len(bars)-1].Close
+		if prevClose > ma20 {
+			result = append(result, s)
+			ma20Cache[s.ShortCode] = ma20
+		}
+	}
+	logger.SugaredLogger.Infof("[T0选股] 过滤4通过: %d只", len(result))
+	return result, ma20Cache
+}
+
+// filterOpenGap 过滤5：T0 开盘涨幅 0.01% ~ 3%
+func filterOpenGap(stocks []t0Stock, cache map[string][]dailyBar, realtime map[string]t0Realtime,
+	minGap, maxGap float64) ([]t0Stock, map[string]float64) {
+
+	logger.SugaredLogger.Infof("[T0选股] 过滤5(T0开盘涨幅%.2f%%~%.1f%%): %d只", minGap, maxGap, len(stocks))
+
+	var result []t0Stock
+	gapCache := make(map[string]float64)
+	for _, s := range stocks {
+		bars := cache[s.ShortCode]
+		rt, ok := realtime[s.ShortCode]
+		if !ok || len(bars) == 0 || rt.Open == 0 {
+			continue
+		}
+
+		prevClose := bars[len(bars)-1].Close
+		if rt.PrevClose > 0 {
+			prevClose = rt.PrevClose
+		}
+		if prevClose == 0 {
+			continue
+		}
+
+		gap := (rt.Open - prevClose) / prevClose * 100
+		if gap >= minGap && gap <= maxGap {
+			result = append(result, s)
+			gapCache[s.ShortCode] = gap
+		}
+	}
+	logger.SugaredLogger.Infof("[T0选股] 过滤5通过: %d只", len(result))
+	return result, gapCache
+}
+
+// ── 主函数 ──────────────────────────────────────────────────────────────────
+
+func normalizeT0TradeDate(tradeDate string) (string, error) {
+	if tradeDate == "" {
+		tradeDate = time.Now().Format("2006-01-02")
+	}
+	if _, err := time.Parse("2006-01-02", tradeDate); err != nil {
+		return "", fmt.Errorf("日期格式错误: %s (需为 2006-01-02)", tradeDate)
+	}
+	return tradeDate, nil
+}
+
+// RunT0Selection 执行完整 T0 选股链
+// tradeDate: 交易日 "2006-01-02"，空字符串 = 今天
+func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
+	tStart := time.Now()
+
+	tradeDate, err := normalizeT0TradeDate(tradeDate)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.SugaredLogger.Infof("========== T0 开盘日线选股 | 基准日: %s ==========", tradeDate)
+
+	// ── 1+2. 股票池 + 日线（优先磁盘缓存）──
+	t12 := time.Now()
+	allStocks, dailyCache, fromCache, err := loadOrFetchT0Daily(tradeDate)
+	if err != nil {
+		return nil, err
+	}
+	logger.SugaredLogger.Infof("[T0选股] [1-2/5] 股票池+日线就绪: 股票%d 日线%d 缓存命中=%v (%.1fs)",
+		len(allStocks), len(dailyCache), fromCache, time.Since(t12).Seconds())
+
+	// ── 3. 日线过滤（MA20 入选过滤已暂缓，filterMA20Above 保留未调用）──
+	t3 := time.Now()
+	step1 := filterLimitUpRecent(allStocks, dailyCache, 7, 9.8)
+	step2 := filterTurnover(step1, dailyCache, 5.0)
+	if len(step2) == 0 {
+		logger.SugaredLogger.Infof("[T0选股] 成交额过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
+		return nil, fmt.Errorf("成交额过滤后无股票")
+	}
+	logger.SugaredLogger.Infof("[T0选股] [3/5] 日线过滤完成: %d -> %d只 (MA20门闸已暂缓) (%.1fs)",
+		len(allStocks), len(step2), time.Since(t3).Seconds())
+
+	// ── 4. 获取 T0 实时行情 ──
+	t4 := time.Now()
+	realtime := fetchT0Realtime(step2)
+	logger.SugaredLogger.Infof("[T0选股] [4/5] T0实时行情获取: %d只 (%.1fs)", len(realtime), time.Since(t4).Seconds())
+
+	// ── 5. T0 开盘高开过滤 ──
+	t5 := time.Now()
+	step4, gapCache := filterOpenGap(step2, dailyCache, realtime, 0.01, 3.0)
+	logger.SugaredLogger.Infof("[T0选股] [5/5] T0开盘过滤: %d -> %d只 (%.1fs)",
+		len(step2), len(step4), time.Since(t5).Seconds())
+
+	if len(step4) == 0 {
+		logger.SugaredLogger.Infof("[T0选股] T0开盘过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
+		return nil, fmt.Errorf("T0开盘过滤后无股票")
+	}
+
+	// ── 6. 组装结果（仍计算 MA20 供展示）──
+	t6 := time.Now()
+	var results []T0SelectionResult
+	for _, s := range step4 {
+		bars := dailyCache[s.ShortCode]
+		openGap := gapCache[s.ShortCode]
+		ma20 := calcMA20(bars)
+		rt := realtime[s.ShortCode]
+
+		prevClose := bars[len(bars)-1].Close
+		prevAmountYi := bars[len(bars)-1].AmountYi
+
+		var prevRet float64
+		if len(bars) >= 2 && bars[len(bars)-2].Close != 0 {
+			prevRet = (bars[len(bars)-1].Close - bars[len(bars)-2].Close) / bars[len(bars)-2].Close * 100
+		}
+
+		var t0CloseRet float64
+		if rt.Close != 0 && prevClose != 0 {
+			t0CloseRet = (rt.Close - prevClose) / prevClose * 100
+		}
+
+		var limitUpDates []string
+		tail := bars
+		if len(bars) > 7+1 {
+			tail = bars[len(bars)-7-1:]
+		}
+		for i := 1; i < len(tail); i++ {
+			if tail[i-1].Close == 0 {
+				continue
+			}
+			ret := (tail[i].Close - tail[i-1].Close) / tail[i-1].Close * 100
+			if ret >= 9.8 {
+				limitUpDates = append(limitUpDates, tail[i].Date)
+			}
+		}
+		limitUpInfo := "-"
+		if len(limitUpDates) > 0 {
+			start := 0
+			if len(limitUpDates) > 3 {
+				start = len(limitUpDates) - 3
+			}
+			limitUpInfo = strings.Join(limitUpDates[start:], ", ")
+		}
+
+		var marketSuffix string
+		if strings.HasPrefix(s.Code, "sh") {
+			marketSuffix = ".XSHG"
+		} else {
+			marketSuffix = ".XSHE"
+		}
+		userCode := s.ShortCode + marketSuffix
+
+		results = append(results, T0SelectionResult{
+			Time:         tradeDate,
+			OpenGap:      round2(openGap),
+			CloseRet:     round2(t0CloseRet),
+			LimitUpDates: limitUpInfo,
+			MA20:         round2(ma20),
+			AmountYi:     round2(prevAmountYi),
+			StockCode:    userCode,
+			StockName:    s.Name,
+			PrevClose:    round2(prevClose),
+			PrevCloseRet: round2(prevRet),
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].AmountYi > results[j].AmountYi
+	})
+
+	logger.SugaredLogger.Infof("[T0选股] 结果组装完成: %d只 (%.1fs)",
+		len(results), time.Since(t6).Seconds())
+	logger.SugaredLogger.Infof("[T0选股] 总耗时: %.1fs", time.Since(tStart).Seconds())
+
+	return results, nil
+}
+
+func round2(v float64) float64 {
+	return float64(int(v*100+0.5)) / 100
+}
+
+// ── API Handler ─────────────────────────────────────────────────────────────
+
+func isTruthyQuery(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "y":
+		return true
+	default:
+		return false
+	}
+}
+
+// handleT0Selection 处理 /api/t0-selection 请求
+func handleT0Selection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	tradeDate := r.URL.Query().Get("date")
+	if tradeDate == "" {
+		tradeDate = time.Now().Format("2006-01-02")
+	}
+	if _, err := time.Parse("2006-01-02", tradeDate); err != nil {
+		WriteJSON(w, map[string]interface{}{
+			"error": fmt.Sprintf("日期格式错误: %s (需为 2006-01-02)", tradeDate),
+			"date":  tradeDate,
+		})
+		return
+	}
+
+	q := r.URL.Query()
+
+	// archived 优先
+	if isTruthyQuery(q.Get("archived")) {
+		a, ok := loadT0SelectionArchive(tradeDate)
+		if !ok {
+			WriteJSON(w, map[string]interface{}{
+				"error":    "该日无选股归档",
+				"date":     tradeDate,
+				"archived": true,
+				"count":    0,
+			})
+			return
+		}
+		WriteJSON(w, map[string]interface{}{
+			"date":     a.Date,
+			"archived": true,
+			"saved_at": a.SavedAt,
+			"count":    a.Count,
+			"results":  a.Results,
+		})
+		return
+	}
+
+	if isTruthyQuery(q.Get("prewarm")) {
+		if isT0DailyCacheFilePresent(tradeDate) {
+			WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
+			return
+		}
+		tryStartT0Prewarm(tradeDate)
+		if isT0DailyCacheFilePresent(tradeDate) {
+			WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
+			return
+		}
+		WriteJSON(w, buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
+		return
+	}
+
+	if shouldReturnWarmingForSelection(tradeDate) {
+		WriteJSON(w, map[string]interface{}{
+			"date":    tradeDate,
+			"status":  string(t0WarmStatusWarming),
+			"count":   0,
+			"results": []T0SelectionResult{},
+		})
+		return
+	}
+
+	forceSave := isTruthyQuery(q.Get("save"))
+	results, err := RunT0Selection(tradeDate)
+	if err != nil {
+		WriteJSON(w, map[string]interface{}{
+			"error":   err.Error(),
+			"date":    tradeDate,
+			"count":   0,
+			"results": []T0SelectionResult{},
+		})
+		return
+	}
+
+	if saveErr := saveT0SelectionArchive(tradeDate, results, forceSave); saveErr != nil {
+		logger.SugaredLogger.Warnf("[T0选股] 结果归档写入失败: %v", saveErr)
+	}
+
+	WriteJSON(w, map[string]interface{}{
+		"date":    tradeDate,
+		"count":   len(results),
+		"results": results,
+	})
+}
