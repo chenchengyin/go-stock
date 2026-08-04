@@ -36,6 +36,7 @@ import (
 // API：
 //   GET /api/t0-selection?prewarm=1[&date=]           后台预热日线（进行中立刻返回进度）
 //   GET /api/t0-selection[&date=][&save=1]            正式选股（优先读日线缓存；默认归档写一次）
+//                                                   若为「今天」且本地时间 < 09:25：自动按预热处理
 //   GET /api/t0-selection?archived=1&date=            只读当日选股结果归档
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -344,8 +345,12 @@ func runT0PrewarmJob(tradeDate string) {
 		return
 	}
 
-	step1 := filterLimitUpRecent(stocks, daily, 7, 9.8)
-	step2 := filterTurnover(step1, daily, 5.0)
+	hist := make(map[string][]dailyBar, len(daily))
+	for sc, bars := range daily {
+		hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
+	}
+	step1 := filterLimitUpRecent(stocks, hist, 7, 9.8)
+	step2 := filterTurnover(step1, hist, 5.0)
 	updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 		p.Status = t0WarmStatusReady
 		p.StockCount = len(stocks)
@@ -366,8 +371,12 @@ func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
 	}
 	candidateCount := 0
 	if ok {
-		step1 := filterLimitUpRecent(stocks, daily, 7, 9.8)
-		step2 := filterTurnover(step1, daily, 5.0)
+		hist := make(map[string][]dailyBar, len(daily))
+		for sc, bars := range daily {
+			hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
+		}
+		step1 := filterLimitUpRecent(stocks, hist, 7, 9.8)
+		step2 := filterTurnover(step1, hist, 5.0)
 		candidateCount = len(step2)
 	}
 	prog := getT0WarmProgress(tradeDate)
@@ -838,30 +847,20 @@ func filterMA20Above(stocks []t0Stock, cache map[string][]dailyBar) ([]t0Stock, 
 	return result, ma20Cache
 }
 
-// filterOpenGap 过滤5：T0 开盘涨幅 0.01% ~ 3%
-func filterOpenGap(stocks []t0Stock, cache map[string][]dailyBar, realtime map[string]t0Realtime,
+// filterOpenGap 过滤5：T0 竞价开盘涨幅 0.01% ~ 3%（用开盘价 Open，非现价）
+func filterOpenGap(stocks []t0Stock, auction map[string]t0Realtime,
 	minGap, maxGap float64) ([]t0Stock, map[string]float64) {
 
-	logger.SugaredLogger.Infof("[T0选股] 过滤5(T0开盘涨幅%.2f%%~%.1f%%): %d只", minGap, maxGap, len(stocks))
+	logger.SugaredLogger.Infof("[T0选股] 过滤5(T0竞价开盘涨幅%.2f%%~%.1f%%): %d只", minGap, maxGap, len(stocks))
 
 	var result []t0Stock
 	gapCache := make(map[string]float64)
 	for _, s := range stocks {
-		bars := cache[s.ShortCode]
-		rt, ok := realtime[s.ShortCode]
-		if !ok || len(bars) == 0 || rt.Open == 0 {
+		rt, ok := auction[s.ShortCode]
+		if !ok || rt.Open == 0 || rt.PrevClose == 0 {
 			continue
 		}
-
-		prevClose := bars[len(bars)-1].Close
-		if rt.PrevClose > 0 {
-			prevClose = rt.PrevClose
-		}
-		if prevClose == 0 {
-			continue
-		}
-
-		gap := (rt.Open - prevClose) / prevClose * 100
+		gap := (rt.Open - rt.PrevClose) / rt.PrevClose * 100
 		if gap >= minGap && gap <= maxGap {
 			result = append(result, s)
 			gapCache[s.ShortCode] = gap
@@ -869,6 +868,60 @@ func filterOpenGap(stocks []t0Stock, cache map[string][]dailyBar, realtime map[s
 	}
 	logger.SugaredLogger.Infof("[T0选股] 过滤5通过: %d只", len(result))
 	return result, gapCache
+}
+
+// histBarsBeforeTradeDate 选股用的「开盘前」日线：若缓存已含 tradeDate 当日K线则剔除，
+// 保证涨停记忆/成交额/MA20 都基于前一交易日及更早数据。
+func histBarsBeforeTradeDate(bars []dailyBar, tradeDate string) []dailyBar {
+	if len(bars) == 0 {
+		return bars
+	}
+	if bars[len(bars)-1].Date == tradeDate {
+		return bars[:len(bars)-1]
+	}
+	return bars
+}
+
+// buildT0AuctionQuotes 构建竞价开盘价口径：
+//   - 历史回测（tradeDate < 今天）：日线含当日 K → 用当日 Open 作竞价开盘
+//   - 当天实盘（tradeDate == 今天）：一律腾讯 Open（09:25 后即竞价价），避免未收盘日线 Open 干扰
+func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[string][]dailyBar) (map[string]t0Realtime, string) {
+	today := time.Now().In(chinaLocation()).Format("2006-01-02")
+	useLiveOnly := tradeDate == today || tradeDate > today
+
+	fromDaily := 0
+	needLive := make([]t0Stock, 0, len(stocks))
+	out := make(map[string]t0Realtime, len(stocks))
+
+	for _, s := range stocks {
+		bars := dailyCache[s.ShortCode]
+		if !useLiveOnly && len(bars) >= 2 && bars[len(bars)-1].Date == tradeDate && bars[len(bars)-1].Open > 0 {
+			last := bars[len(bars)-1]
+			prev := bars[len(bars)-2]
+			out[s.ShortCode] = t0Realtime{
+				Open:      last.Open,
+				Close:     last.Close,
+				PrevClose: prev.Close,
+			}
+			fromDaily++
+			continue
+		}
+		needLive = append(needLive, s)
+	}
+
+	source := "日线开盘"
+	if len(needLive) > 0 {
+		live := fetchT0Realtime(needLive)
+		for sc, rt := range live {
+			out[sc] = rt
+		}
+		if fromDaily == 0 {
+			source = "腾讯竞价开盘"
+		} else {
+			source = fmt.Sprintf("混合(日线%d/腾讯%d)", fromDaily, len(live))
+		}
+	}
+	return out, source
 }
 
 // ── 主函数 ──────────────────────────────────────────────────────────────────
@@ -904,10 +957,16 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 	logger.SugaredLogger.Infof("[T0选股] [1-2/5] 股票池+日线就绪: 股票%d 日线%d 缓存命中=%v (%.1fs)",
 		len(allStocks), len(dailyCache), fromCache, time.Since(t12).Seconds())
 
-	// ── 3. 日线过滤（MA20 入选过滤已暂缓，filterMA20Above 保留未调用）──
+	// 开盘前历史日线（剔除 tradeDate 当日K，若有）
+	histCache := make(map[string][]dailyBar, len(dailyCache))
+	for sc, bars := range dailyCache {
+		histCache[sc] = histBarsBeforeTradeDate(bars, tradeDate)
+	}
+
+	// ── 3. 日线过滤（基于前一交易日及更早；MA20 门闸已暂缓）──
 	t3 := time.Now()
-	step1 := filterLimitUpRecent(allStocks, dailyCache, 7, 9.8)
-	step2 := filterTurnover(step1, dailyCache, 5.0)
+	step1 := filterLimitUpRecent(allStocks, histCache, 7, 9.8)
+	step2 := filterTurnover(step1, histCache, 5.0)
 	if len(step2) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] 成交额过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
 		return nil, fmt.Errorf("成交额过滤后无股票")
@@ -915,15 +974,16 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 	logger.SugaredLogger.Infof("[T0选股] [3/5] 日线过滤完成: %d -> %d只 (MA20门闸已暂缓) (%.1fs)",
 		len(allStocks), len(step2), time.Since(t3).Seconds())
 
-	// ── 4. 获取 T0 实时行情 ──
+	// ── 4. 竞价开盘价（历史用当日日线 Open；当日盘中用腾讯 Open）──
 	t4 := time.Now()
-	realtime := fetchT0Realtime(step2)
-	logger.SugaredLogger.Infof("[T0选股] [4/5] T0实时行情获取: %d只 (%.1fs)", len(realtime), time.Since(t4).Seconds())
+	auction, auctionSrc := buildT0AuctionQuotes(tradeDate, step2, dailyCache)
+	logger.SugaredLogger.Infof("[T0选股] [4/5] 竞价开盘价就绪: %d只 来源=%s (%.1fs)",
+		len(auction), auctionSrc, time.Since(t4).Seconds())
 
-	// ── 5. T0 开盘高开过滤 ──
+	// ── 5. T0 竞价开盘涨幅过滤 ──
 	t5 := time.Now()
-	step4, gapCache := filterOpenGap(step2, dailyCache, realtime, 0.01, 3.0)
-	logger.SugaredLogger.Infof("[T0选股] [5/5] T0开盘过滤: %d -> %d只 (%.1fs)",
+	step4, gapCache := filterOpenGap(step2, auction, 0.01, 3.0)
+	logger.SugaredLogger.Infof("[T0选股] [5/5] T0竞价开盘过滤: %d -> %d只 (%.1fs)",
 		len(step2), len(step4), time.Since(t5).Seconds())
 
 	if len(step4) == 0 {
@@ -931,32 +991,44 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 		return nil, fmt.Errorf("T0开盘过滤后无股票")
 	}
 
-	// ── 6. 组装结果（仍计算 MA20 供展示）──
+	// ── 6. 组装结果 ──
 	t6 := time.Now()
 	var results []T0SelectionResult
 	for _, s := range step4 {
-		bars := dailyCache[s.ShortCode]
+		hist := histCache[s.ShortCode]
+		full := dailyCache[s.ShortCode]
 		openGap := gapCache[s.ShortCode]
-		ma20 := calcMA20(bars)
-		rt := realtime[s.ShortCode]
+		ma20 := calcMA20(hist)
+		rt := auction[s.ShortCode]
 
-		prevClose := bars[len(bars)-1].Close
-		prevAmountYi := bars[len(bars)-1].AmountYi
+		if len(hist) == 0 {
+			continue
+		}
+		prevClose := hist[len(hist)-1].Close
+		if rt.PrevClose > 0 {
+			prevClose = rt.PrevClose
+		}
+		prevAmountYi := hist[len(hist)-1].AmountYi
 
 		var prevRet float64
-		if len(bars) >= 2 && bars[len(bars)-2].Close != 0 {
-			prevRet = (bars[len(bars)-1].Close - bars[len(bars)-2].Close) / bars[len(bars)-2].Close * 100
+		if len(hist) >= 2 && hist[len(hist)-2].Close != 0 {
+			prevRet = (hist[len(hist)-1].Close - hist[len(hist)-2].Close) / hist[len(hist)-2].Close * 100
 		}
 
+		// 收盘涨幅：回测用当日收盘；盘中用现价（若有）
 		var t0CloseRet float64
-		if rt.Close != 0 && prevClose != 0 {
-			t0CloseRet = (rt.Close - prevClose) / prevClose * 100
+		closePx := rt.Close
+		if closePx == 0 && len(full) > 0 && full[len(full)-1].Date == tradeDate {
+			closePx = full[len(full)-1].Close
+		}
+		if closePx != 0 && prevClose != 0 {
+			t0CloseRet = (closePx - prevClose) / prevClose * 100
 		}
 
 		var limitUpDates []string
-		tail := bars
-		if len(bars) > 7+1 {
-			tail = bars[len(bars)-7-1:]
+		tail := hist
+		if len(hist) > 7+1 {
+			tail = hist[len(hist)-7-1:]
 		}
 		for i := 1; i < len(tail); i++ {
 			if tail[i-1].Close == 0 {
@@ -1024,6 +1096,43 @@ func isTruthyQuery(v string) bool {
 	}
 }
 
+// t0AuctionCutoffHM 竞价确认可用的最早时分（含）：09:25
+const t0AuctionCutoffHM = 9*60 + 25
+
+func chinaLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}
+
+// isBeforeT0AuctionCutoff 判断 now 是否仍早于当日 09:25（上海时区）。
+// 仅当 tradeDate 等于「上海时区的今天」时，预竞价窗口才生效。
+func isBeforeT0AuctionCutoff(now time.Time, tradeDate string) bool {
+	loc := chinaLocation()
+	local := now.In(loc)
+	today := local.Format("2006-01-02")
+	if tradeDate != today {
+		return false
+	}
+	minutes := local.Hour()*60 + local.Minute()
+	return minutes < t0AuctionCutoffHM
+}
+
+func writeT0PrewarmHTTP(w http.ResponseWriter, tradeDate string) {
+	if isT0DailyCacheFilePresent(tradeDate) {
+		WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
+		return
+	}
+	tryStartT0Prewarm(tradeDate)
+	if isT0DailyCacheFilePresent(tradeDate) {
+		WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
+		return
+	}
+	WriteJSON(w, buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
+}
+
 // handleT0Selection 处理 /api/t0-selection 请求
 func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -1033,7 +1142,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 
 	tradeDate := r.URL.Query().Get("date")
 	if tradeDate == "" {
-		tradeDate = time.Now().Format("2006-01-02")
+		tradeDate = time.Now().In(chinaLocation()).Format("2006-01-02")
 	}
 	if _, err := time.Parse("2006-01-02", tradeDate); err != nil {
 		WriteJSON(w, map[string]interface{}{
@@ -1067,17 +1176,13 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isTruthyQuery(q.Get("prewarm")) {
-		if isT0DailyCacheFilePresent(tradeDate) {
-			WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
-			return
-		}
-		tryStartT0Prewarm(tradeDate)
-		if isT0DailyCacheFilePresent(tradeDate) {
-			WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
-			return
-		}
-		WriteJSON(w, buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
+	explicitPrewarm := isTruthyQuery(q.Get("prewarm"))
+	// 凌晨～09:25：同一正式选股 URL 自动走预热，避免竞价未出时误选股；
+	// 已有日线缓存则返回 ready，正在预热则返回 warming 进度。
+	autoPrewarm := !explicitPrewarm && isBeforeT0AuctionCutoff(time.Now(), tradeDate)
+
+	if explicitPrewarm || autoPrewarm {
+		writeT0PrewarmHTTP(w, tradeDate)
 		return
 	}
 

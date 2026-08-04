@@ -109,3 +109,37 @@ func TestHandleT0SelectionArchived(t *testing.T) {
 		t.Fatalf("missing stock: %s", rr.Body.String())
 	}
 }
+
+func TestIsBeforeT0AuctionCutoff(t *testing.T) {
+	loc := chinaLocation()
+	today := time.Date(2026, 8, 5, 0, 0, 0, 0, loc)
+	date := today.Format("2006-01-02")
+
+	cases := []struct {
+		name string
+		at   time.Time
+		want bool
+	}{
+		{"midnight", time.Date(2026, 8, 5, 0, 0, 0, 0, loc), true},
+		{"nine", time.Date(2026, 8, 5, 9, 0, 0, 0, loc), true},
+		{"nine24", time.Date(2026, 8, 5, 9, 24, 59, 0, loc), true},
+		{"nine25", time.Date(2026, 8, 5, 9, 25, 0, 0, loc), false},
+		{"nine25_10", time.Date(2026, 8, 5, 9, 25, 10, 0, loc), false},
+		{"other_day", time.Date(2026, 8, 5, 9, 0, 0, 0, loc) /* tradeDate mismatch below */, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tradeDate := date
+			if tc.name == "other_day" {
+				tradeDate = "2026-08-04"
+				if isBeforeT0AuctionCutoff(tc.at, tradeDate) {
+					t.Fatal("non-today tradeDate should not enter pre-auction window")
+				}
+				return
+			}
+			if got := isBeforeT0AuctionCutoff(tc.at, tradeDate); got != tc.want {
+				t.Fatalf("at %s got %v want %v", tc.at.Format("15:04:05"), got, tc.want)
+			}
+		})
+	}
+}
