@@ -43,7 +43,7 @@ import (
 const (
 	t0MinMarketCapYi = 50.0
 	t0MaxMarketCapYi = 9000.0
-	t0CacheRoot      = "/tmp/go-stock-cache"
+	t0CacheRoot      = "backend/data/cache"
 )
 
 // t0CacheRootPath 可在测试中改写为临时目录
@@ -435,10 +435,10 @@ type dailyBar struct {
 
 // t0Stock 股票基础信息
 type t0Stock struct {
-	Code         string  // sh.600000 / sz.000001
-	ShortCode    string  // 600000 / 000001
-	Name         string
-	MarketCapYi  float64 // 市值(亿)，优先流通市值
+	Code        string // sh.600000 / sz.000001
+	ShortCode   string // 600000 / 000001
+	Name        string
+	MarketCapYi float64 // 市值(亿)，优先流通市值
 }
 
 // t0Realtime T0 实时行情
@@ -450,16 +450,16 @@ type t0Realtime struct {
 
 // T0SelectionResult 最终选股结果
 type T0SelectionResult struct {
-	Time            string  `json:"时间"`
-	OpenGap         float64 `json:"T0开盘涨幅(%)"`
-	CloseRet        float64 `json:"T0收盘涨幅(%)"`
-	LimitUpDates    string  `json:"涨停日期"`
-	MA20            float64 `json:"MA20"`
-	AmountYi        float64 `json:"成交额(亿)"`
-	StockCode       string  `json:"股票代码"` // 如 600000.XSHG
-	StockName       string  `json:"股票名称"`
-	PrevClose       float64 `json:"前一交易日收盘"`
-	PrevCloseRet    float64 `json:"前一交易日收盘涨幅(%)"`
+	Time         string  `json:"时间"`
+	OpenGap      float64 `json:"T0开盘涨幅(%)"`
+	CloseRet     float64 `json:"T0收盘涨幅(%)"`
+	LimitUpDates string  `json:"涨停日期"`
+	MA20         float64 `json:"MA20"`
+	AmountYi     float64 `json:"成交额(亿)"`
+	StockCode    string  `json:"股票代码"` // 如 600000.XSHG
+	StockName    string  `json:"股票名称"`
+	PrevClose    float64 `json:"前一交易日收盘"`
+	PrevCloseRet float64 `json:"前一交易日收盘涨幅(%)"`
 }
 
 // ── 股票池获取（新浪 API） ──────────────────────────────────────────────────
