@@ -27,7 +27,7 @@ func handleStockSelectionTest(w http.ResponseWriter, r *http.Request) {
 	// 获取选股条件，默认为用户的完整条件
 	query := r.URL.Query().Get("query")
 	if query == "" {
-		query = "竞价涨幅在0.01%到3%之间;近7日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
+		query = "竞价涨幅在0.01%到3%之间;前7个交易日单日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
 	}
 
 	logger.SugaredLogger.Infof("东财选股请求: %s", query)
@@ -47,7 +47,7 @@ func handleStockSelectionTest(w http.ResponseWriter, r *http.Request) {
 
 // TestHandleStockSelectionTest 测试选股功能（内部测试用）
 func TestHandleStockSelectionTest() {
-	query := "竞价涨幅在0.01%到3%之间;近7日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
+	query := "竞价涨幅在0.01%到3%之间;前7个交易日单日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
 	result := data.NewSearchStockApi(query).SearchStock(50)
 
 	resultJSON, _ := json.MarshalIndent(result, "", "  ")

@@ -7,6 +7,7 @@ import (
 	"go-stock/backend/models"
 	"go-stock/backend/util"
 	"math"
+	"sort"
 	"testing"
 
 	"github.com/duke-git/lancet/v2/convertor"
@@ -146,7 +147,7 @@ func TestSearchStockApi_HotStrategyTable(t *testing.T) {
 func TestSearchStock_UserStrategy(t *testing.T) {
 	db.Init("../../data/stock.db")
 
-	query := "竞价涨幅在0.01%到3%之间;近7日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
+	query := "竞价涨幅在0.01%到3%之间;前7个交易日单日最大涨幅大于9.8%;前一天成交金额大于5亿;流通市值在60亿到8000亿之间;主板"
 	res := NewSearchStockApi(query).SearchStock(50)
 
 	logger.SugaredLogger.Infof("用户策略选股 - 查询条件: %s", query)
@@ -174,11 +175,17 @@ func TestSearchStock_UserStrategy(t *testing.T) {
 		t.Fatal("用户策略选股 - 命中股票数量为 0")
 	}
 
+	// 按今日涨幅 PCHG 降序排列
+	sort.Slice(dataList, func(i, j int) bool {
+		di := dataList[i].(map[string]any)
+		dj := dataList[j].(map[string]any)
+		pi, _ := convertor.ToFloat(di["PCHG"])
+		pj, _ := convertor.ToFloat(dj["PCHG"])
+		return pi > pj
+	})
+
 	for i, v := range dataList {
-		if i >= 10 {
-			break
-		}
 		d := v.(map[string]any)
-		logger.SugaredLogger.Infof("用户策略选股 - 第%d只: code=%s name=%s", i+1, d["SECURITY_CODE"], d["SECURITY_SHORT_NAME"])
+		logger.SugaredLogger.Infof("用户策略选股 - 第%d只: code=%s name=%s 今日涨幅=%v", i+1, d["SECURITY_CODE"], d["SECURITY_SHORT_NAME"], d["PCHG"])
 	}
 }

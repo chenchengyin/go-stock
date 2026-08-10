@@ -1071,7 +1071,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 	}
 
 	sort.Slice(results, func(i, j int) bool {
-		return results[i].AmountYi > results[j].AmountYi
+		return results[i].OpenGap > results[j].OpenGap
 	})
 
 	logger.SugaredLogger.Infof("[T0选股] 结果组装完成: %d只 (%.1fs)",
