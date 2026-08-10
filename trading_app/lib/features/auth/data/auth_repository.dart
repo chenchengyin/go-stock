@@ -23,7 +23,7 @@ class MockAuthRepository implements AuthRepository {
     if (token == null || phone == null || nickname == null) return null;
     _session = AuthSession(
       accessToken: token,
-      user: AppUser(id: 'local-user', phone: phone, nickname: nickname, role: 'user'),
+      user: AppUser(id: phone, phone: phone, nickname: nickname, role: 'user'),
     );
     return _session;
   }
@@ -66,7 +66,7 @@ class MockAuthRepository implements AuthRepository {
   Future<AuthSession> _saveSession({required String phone, required String nickname}) async {
     final session = AuthSession(
       accessToken: 'mock-token-${DateTime.now().millisecondsSinceEpoch}',
-      user: AppUser(id: 'local-user', phone: phone.trim(), nickname: nickname, role: 'user'),
+      user: AppUser(id: phone.trim(), phone: phone.trim(), nickname: nickname, role: 'user'),
     );
     _session = session;
     await _cache.setString('auth:token', session.accessToken);

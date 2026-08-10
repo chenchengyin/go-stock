@@ -60,7 +60,7 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
           _changes = filtered;
           _loading = false;
         });
-        // widget.onChangesSeen?.call(); // 已禁用，改为手动点击标记已读按钮
+        widget.onChangesSeen?.call();
       }
     } catch (e) {
       if (mounted) {

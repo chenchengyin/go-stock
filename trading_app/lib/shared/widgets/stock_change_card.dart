@@ -95,7 +95,7 @@ class StockChangeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,7 +117,7 @@ class StockChangeCard extends StatelessWidget {
                   margin: const EdgeInsets.only(left: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.red,
+                    color: AppColors.tagRed,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
@@ -198,7 +198,7 @@ class StockChangeCard extends StatelessWidget {
               if (change.amount > 0)
                 Text(
                   '成交额 ${formatAmount(change.amount)}',
-                  style: TextStyle(fontSize: 12, color: Colors.red[600]),
+                  style: TextStyle(fontSize: 12, color: AppColors.tagRed),
                 ),
               if (change.amount > 0 && change.volume > 0)
                 const SizedBox(width: 16),
@@ -207,7 +207,7 @@ class StockChangeCard extends StatelessWidget {
                   '成交量 ${formatVolume(change.volume)}',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.red[600],
+                    color: AppColors.tagRed,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -224,27 +224,27 @@ class StockChangeCard extends StatelessWidget {
 Color getTypeColor(int changeType) {
   switch (changeType) {
     case 8201:
-      return const Color(0xffe91e63);
+      return AppColors.tagRed;
     case 8202:
-      return const Color(0xff4caf50);
+      return AppColors.tagGreen;
     case 8204:
-      return const Color(0xff2196f3);
+      return AppColors.tagBlue;
     case 8203:
-      return const Color(0xff9c27b0);
+      return AppColors.tagPurple;
     case 8193:
-      return const Color(0xffe91e63);
+      return AppColors.tagRed;
     case 8194:
-      return const Color(0xff4caf50);
+      return AppColors.tagGreen;
     case 4:
-      return const Color(0xffff5722);
+      return AppColors.tagOrange;
     case 8:
-      return const Color(0xff2196f3);
+      return AppColors.tagBlue;
     case 64:
-      return const Color.fromARGB(255, 222, 64, 64);
+      return AppColors.tagRed;
     case 128:
-      return const Color(0xff9c27b0);
+      return AppColors.tagPurple;
     default:
-      return Colors.orange;
+      return AppColors.tagOrange;
   }
 }
 

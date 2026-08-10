@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter_vibrate/flutter_vibrate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 
@@ -30,6 +31,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   final FlutterTts _flutterTts = FlutterTts();
 
   static const _enabledKey = 'voice_announcement_enabled';
+  static const _vibrateEnabledKey = 'voice_announcement_vibrate_enabled';
   static const _askedKey = 'voice_announcement_asked';
   static const _announcedIdsKey = 'voice_announced_ids';
   static const _announcedDateKey = 'voice_announced_date';
@@ -39,6 +41,10 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   bool _enabled = false;
   bool get enabled => _enabled;
 
+  /// 是否启用新异动震动提醒（默认开启）
+  bool _vibrateEnabled = true;
+  bool get vibrateEnabled => _vibrateEnabled;
+
   /// 是否已经询问过用户授权
   bool _askedBefore = false;
   bool get askedBefore => _askedBefore;
@@ -47,7 +53,19 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   bool _initialized = false;
   bool get initialized => _initialized;
 
-  /// 播报语速（0.3 ~ 1.5，默认 0.55）
+  /// 当前平台语速配置
+  static final _SpeechRateConfig _speechRateConfig = _resolveSpeechRateConfig();
+
+  /// 语速最小值
+  double get minSpeechRate => _speechRateConfig.min;
+
+  /// 语速最大值
+  double get maxSpeechRate => _speechRateConfig.max;
+
+  /// 默认语速（当前平台正常语速）
+  double get defaultSpeechRate => _speechRateConfig.defaultValue;
+
+  /// 播报语速
   double _speechRate = 0.55;
   double get speechRate => _speechRate;
 
@@ -79,6 +97,7 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 加载持久化开关、语速、已播报记录并初始化 TTS
   Future<void> loadSettings() async {
     await _loadSettings();
+    await _loadVibrateEnabled();
     await _loadSpeechRate();
     await _loadAnnouncedIds();
     await _initTts();
@@ -96,20 +115,56 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     }
   }
 
-  /// 加载持久化语速
+  /// 加载持久化震动开关，未设置过则默认开启
+  Future<void> _loadVibrateEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _vibrateEnabled = prefs.getBool(_vibrateEnabledKey) ?? true;
+    } catch (e) {
+      debugPrint('[VoiceTTS] load vibrate enabled failed: $e');
+      _vibrateEnabled = true;
+    }
+  }
+
+  /// 设置震动开关并持久化
+  Future<void> setVibrateEnabled(bool value) async {
+    if (_vibrateEnabled == value) return;
+    _vibrateEnabled = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_vibrateEnabledKey, _vibrateEnabled);
+    } catch (e) {
+      debugPrint('[VoiceTTS] save vibrate enabled failed: $e');
+    }
+    notifyListeners();
+  }
+
+  /// 新异动震动提醒（0.8 秒）
+  Future<void> _triggerNewChangeVibrate() async {
+    if (!_vibrateEnabled) return;
+    try {
+      final canVibrate = await Vibrate.canVibrate;
+      if (!canVibrate) return;
+      Vibrate.vibrateWithPauses(const [Duration(milliseconds: 800)]);
+    } catch (e) {
+      debugPrint('[VoiceTTS] vibrate failed: $e');
+    }
+  }
+
+  /// 加载持久化语速，未设置过则使用当前平台默认值
   Future<void> _loadSpeechRate() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _speechRate = prefs.getDouble(_speechRateKey) ?? 0.55;
+      _speechRate = prefs.getDouble(_speechRateKey) ?? _speechRateConfig.defaultValue;
     } catch (e) {
       debugPrint('[VoiceTTS] load speech rate failed: $e');
-      _speechRate = 0.55;
+      _speechRate = _speechRateConfig.defaultValue;
     }
   }
 
   /// 设置语速并持久化
   Future<void> setSpeechRate(double value) async {
-    final clamped = value.clamp(0.3, 1.5);
+    final clamped = value.clamp(_speechRateConfig.min, _speechRateConfig.max);
     if (_speechRate == clamped) return;
     _speechRate = clamped;
     try {
@@ -249,11 +304,15 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
 
   /// 将异动加入播报队列
   void enqueueChange(StockChange change, {bool urgent = false}) {
-    if (!_enabled || !_initialized) return;
-
-    // 去重：同 ID 当天只播报一次
+    // 去重：同 ID 当天只处理一次
     if (!_announcedChangeIds.add(change.id)) return;
     unawaited(_saveAnnouncedIds());
+
+    // 新异动震动提醒（与语音开关独立，默认开启）
+    unawaited(_triggerNewChangeVibrate());
+
+    // 语音未启用或未初始化，不入队播报
+    if (!_enabled || !_initialized) return;
 
     final text = _buildSpeechText(change);
     final item = VoiceQueueItem(
@@ -359,11 +418,13 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     }
   }
 
-  /// 构建播报文本：股票名 + 简化后的描述
+  /// 构建播报文本：股票名 + 简化后的描述 + 当前最新涨幅
   String _buildSpeechText(StockChange change) {
     final name = change.stockName.isNotEmpty ? change.stockName : change.stockCode;
     final desc = _simplifyDescription(change.description ?? _buildDefaultDesc(change));
-    return '$name，$desc';
+    final rate = change.currentChangeRate != 0.0 ? change.currentChangeRate : change.changeRate;
+    final rateStr = rate >= 0 ? '涨${rate.toStringAsFixed(2)}%' : '跌${rate.abs().toStringAsFixed(2)}%';
+    return '$name，$desc，当前$rateStr';
   }
 
   /// 服务端异动没有 description 时的默认描述
@@ -376,12 +437,13 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
   /// 简化描述，让 TTS 读得更自然
   String _simplifyDescription(String raw) {
     return raw
-        .replaceAll('%', '百分之')
+        .replaceAll(RegExp(r'\[[^\]]*\]'), ' ')
+        .replaceAll('%', '')
         .replaceAll('+', '涨')
         .replaceAll('急涨', '急速上涨')
         .replaceAll('急跌', '急速下跌')
-        .replaceAll('爆量', '成交量放大')
-        .replaceAll('缩量', '成交量缩小')
+        .replaceAll('爆量', '成交爆量')
+        .replaceAll('缩量', '成交缩量')
         .replaceAllMapped(
           RegExp(r'(\d+\.?\d*)倍'),
           (m) => '${m.group(1)}倍',
@@ -394,8 +456,12 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
           RegExp(r'(\d+\.?\d*)万'),
           (m) => '${m.group(1)}万',
         )
-        .replaceAll('[', '')
-        .replaceAll(']', '');
+        .replaceAllMapped(
+          RegExp(r'\d+秒急速波动\s+急速(上涨|下跌)'),
+          (m) => '急速${m.group(1)}',
+        )
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   /// 消费队列
@@ -408,6 +474,8 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 每次播报前重新设置语速，避免引擎状态被重置导致语速失效
+      await _flutterTts.setSpeechRate(_speechRate);
       if (kIsWeb) {
         // Web 端：flutter_tts.speak 不保证等待完成，用延时兜底
         await _flutterTts.speak(item.text);
@@ -482,4 +550,33 @@ class VoiceAnnouncementViewModel extends ChangeNotifier {
     unawaited(_flutterTts.stop());
     super.dispose();
   }
+
+  /// 根据当前平台解析合适的语速范围与默认值
+  static _SpeechRateConfig _resolveSpeechRateConfig() {
+    if (kIsWeb) {
+      return const _SpeechRateConfig(min: 0.3, max: 1.5, defaultValue: 0.55);
+    }
+    if (Platform.isIOS || Platform.isMacOS) {
+      // iOS/macOS AVSpeechSynthesizer：0.5 为正常语速，有效范围 0.0~1.0
+      return const _SpeechRateConfig(min: 0.1, max: 1.0, defaultValue: 0.5);
+    }
+    if (Platform.isAndroid) {
+      // Android TextToSpeech：1.0 为正常语速，支持更广范围
+      return const _SpeechRateConfig(min: 0.25, max: 2.0, defaultValue: 1.0);
+    }
+    return const _SpeechRateConfig(min: 0.3, max: 1.5, defaultValue: 0.55);
+  }
+}
+
+/// 语速配置
+class _SpeechRateConfig {
+  const _SpeechRateConfig({
+    required this.min,
+    required this.max,
+    required this.defaultValue,
+  });
+
+  final double min;
+  final double max;
+  final double defaultValue;
 }

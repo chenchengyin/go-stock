@@ -38,13 +38,21 @@ void _navigateToStockDetail(String stockCode, String stockName) {
 class TradingRadarApp extends StatelessWidget {
   const TradingRadarApp({super.key});
 
+  /// 灰度滤镜矩阵 — 将所有颜色转为灰度
+  static const _grayScaleMatrix = <double>[
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0.2126, 0.7152, 0.0722, 0, 0,
+    0,      0,      0,      1, 0,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return AppDependencies(
       child: Consumer<ThemeManager>(
         builder: (context, tm, _) {
           final colors = tm.colors;
-          return AppColorsWidget(
+          Widget app = AppColorsWidget(
             colors: colors,
             child: MaterialApp(
               title: '交易雷达',
@@ -54,6 +62,16 @@ class TradingRadarApp extends StatelessWidget {
               home: const AppShell(),
             ),
           );
+
+          // 灰色主题：全局加灰度滤镜，所有组件（包括硬编码红色）统一变灰
+          if (tm.variant == AppThemeVariant.grey) {
+            app = ColorFiltered(
+              colorFilter: const ColorFilter.matrix(_grayScaleMatrix),
+              child: app,
+            );
+          }
+
+          return app;
         },
       ),
     );

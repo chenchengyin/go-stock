@@ -13,7 +13,12 @@ String get kApiBaseUrl {
     return _configuredApiBaseUrl;
   }
   if (kIsWeb) {
-    return 'http://localhost:8080';
+    // 基于当前页面地址推导后端地址（同 host，端口改为 8080）
+    // flutter run --web-hostname 0.0.0.0 时 Uri.base.host 可能是 0.0.0.0，修正为 localhost
+    // Mac Chrome:  localhost:8080
+    // 局域网设备: 192.168.x.x:8080
+    final host = Uri.base.host == '0.0.0.0' ? 'localhost' : Uri.base.host;
+    return 'http://$host:8080';
   }
   // Android device needs local network IP
   if (defaultTargetPlatform == TargetPlatform.android) {
@@ -83,15 +88,15 @@ Dio _buildApiClient(String baseUrl) {
 class ApiPathLogger extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    debugPrint('[API] ${options.method} ${options.uri}');
+    // debugPrint('[API] ${options.method} ${options.uri}');
     handler.next(options);
   }
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    debugPrint(
-      '[API] ${response.requestOptions.method} ${response.requestOptions.uri} -> ${response.statusCode}',
-    );
+    // debugPrint(
+    //   '[API] ${response.requestOptions.method} ${response.requestOptions.uri} -> ${response.statusCode}',
+    // );
     handler.next(response);
   }
 

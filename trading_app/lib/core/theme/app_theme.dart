@@ -5,12 +5,23 @@ import 'app_colors.dart';
 class AppTheme {
   /// 基于当前 AppColors 静态值构建 ThemeData
   static ThemeData current() {
+    // 手动构建 ColorScheme，将 AppColors 语义颜色映射进去
+    // 这样组件中使用 Theme.of(context).colorScheme.error 即可自动跟随主题
+    final colorScheme = ColorScheme(
+      brightness: Brightness.light,
+      primary: AppColors.brand,
+      onPrimary: Colors.white,
+      secondary: AppColors.brandLight,
+      onSecondary: AppColors.textPrimary,
+      error: AppColors.error,
+      onError: Colors.white,
+      surface: AppColors.cardBg,
+      onSurface: AppColors.textPrimary,
+    );
+
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.brand,
-        brightness: Brightness.light,
-      ),
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.scaffoldBg,
       appBarTheme: AppBarTheme(
         centerTitle: false,

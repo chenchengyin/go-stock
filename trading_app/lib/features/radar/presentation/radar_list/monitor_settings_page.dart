@@ -28,8 +28,15 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(ChangeTypeConfig.storageKey);
     if (raw != null && raw.isNotEmpty) {
-      _selected = raw.split(',').map(int.parse).toSet();
-    } else {
+      // 过滤掉已下架/无效的类型 ID，避免旧缓存污染当前选项
+      _selected = raw
+          .split(',')
+          .where((s) => s.trim().isNotEmpty)
+          .map(int.parse)
+          .where((id) => ChangeTypeConfig.validTypeIds.contains(id))
+          .toSet();
+    }
+    if (_selected.isEmpty) {
       _selected = Set.from(ChangeTypeConfig.defaultMonitorIds);
     }
     if (mounted) setState(() => _loading = false);
@@ -70,7 +77,18 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
       ChangeTypeConfig.storageKey,
       _selected.join(','),
     );
-    if (mounted) Navigator.of(context).pop(true);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('设置已保存')),
+      );
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  void _resetToDefault() {
+    setState(() {
+      _selected = Set.from(ChangeTypeConfig.defaultMonitorIds);
+    });
   }
 
   @override
@@ -81,6 +99,15 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
+        actions: [
+          TextButton(
+            onPressed: _resetToDefault,
+            child: Text(
+              '恢复默认',
+              style: TextStyle(color: AppColors.brand),
+            ),
+          ),
+        ],
       ),
       backgroundColor: AppColors.backgroundColor,
       body: _loading
@@ -111,7 +138,7 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                               style: TextStyle(
                                 fontSize: 16,
                                 color: _commonTypeIds.contains(item.id)
-                                    ? Colors.red
+                                    ? AppColors.tagRed
                                     : null,
                               ),
                             ),

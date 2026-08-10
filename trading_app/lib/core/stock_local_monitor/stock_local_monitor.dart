@@ -76,6 +76,13 @@ class StockLocalMonitor {
     }
     if (then == null) return null;
 
+    // ── 时间差校验：确保 then 和 now 的时间差在窗口预期范围内 ──
+    final expectedWindowMs = rule.windowSize * StockLocalMonitorConfig.refreshIntervalSec * 1000;
+    final actualDiffMs = (now.serverTime - then.serverTime).abs();
+    if (actualDiffMs > expectedWindowMs + rule.allowedDeviationMs) {
+      return null; // then 太远了，数据可能不可靠
+    }
+
     // ── 冷却校验 ──
     final coolKey = '${rule.id}:${stock.code}';
     final nowSec = now.serverTime ~/ 1000;
@@ -83,25 +90,51 @@ class StockLocalMonitor {
     if (nowSec < lastTrigger) return null;
 
     // ── 计算波动值 ──
-    double rawValue;
+    double rawValue; // 用于阈值匹配
     String desc;
+    // 价格涨幅（统一用于 changeRate 字段，所有规则都显示价格变化）
+    final priceChangeRate = then.price != 0
+        ? (now.price - then.price) / then.price * 100
+        : 0.0;
+    // 异动对应的成交额（统一用窗口内成交额，而非当日累计）
+    double displayAmount = stock.amount;
 
     if (rule.checkType == CheckType.price) {
-      if (then.price == 0) return null;
-      rawValue = (now.price - then.price) / then.price * 100;
+      rawValue = priceChangeRate;
       final dir = rawValue >= 0 ? '急涨' : '急跌';
       desc = '${rule.name} $dir ${rawValue.abs().toStringAsFixed(2)}%';
+      // 价格异动也显示窗口内成交额，而非当日累计
+      final curSum = now.amount - then.amount;
+      // 窗口内成交额：now.amount 减 then.amount 的差值
+      // 如果差值 <= 0（数据异常/倒退），显示 0 而非当日累计，避免误导
+      displayAmount = curSum > 0 ? curSum : 0;
     } else {
-      // 成交额：当前窗口累计额 / 前一个窗口累计额
-      // 当前窗口 = sum(now - then 之间的 amount)
-      double curSum = 0, prevSum = 0;
-      final thenIdx = hist.indexOf(then);
-      for (int i = thenIdx; i < hist.length; i++) {
-        curSum += hist[i].amount;
-        if (i > 0) prevSum += hist[i - 1].amount;
+      // 成交额：amount 是当日累计值，用差值计算窗口内增量
+      // 当前窗口成交额 = now.amount - then.amount
+      // 前一个窗口成交额 = then.amount - beforeThen.amount
+      final beforeTargetTime = then.serverTime - rule.windowSize * StockLocalMonitorConfig.refreshIntervalSec * 1000;
+      StockSnapshot? beforeThen;
+      for (final snap in hist.reversed) {
+        if (snap.serverTime >= then.serverTime) continue;
+        final diff = (snap.serverTime - beforeTargetTime).abs();
+        if (diff <= rule.allowedDeviationMs) {
+          beforeThen = snap;
+          break;
+        }
       }
-      if (prevSum == 0) return null;
+      if (beforeThen == null) return null;
+
+      // 校验 beforeThen 和 then 的时间差
+      final beforeDiffMs = (then.serverTime - beforeThen.serverTime).abs();
+      if (beforeDiffMs > expectedWindowMs + rule.allowedDeviationMs) {
+        return null;
+      }
+
+      final curSum = now.amount - then.amount;
+      final prevSum = then.amount - beforeThen.amount;
+      if (curSum <= 0 || prevSum <= 0) return null;
       rawValue = curSum / prevSum;
+      displayAmount = curSum; // 窗口内成交额，才是异动对应的真实成交额
       desc = rawValue >= 1
           ? '${rule.name} 爆量 ${rawValue.toStringAsFixed(1)}倍'
           : '${rule.name} 缩量 ${(rawValue * 100).toStringAsFixed(0)}%';
@@ -157,9 +190,10 @@ class StockLocalMonitor {
       changeType: rule.changeType,
       typeName: rule.name,
       price: stock.price,
-      changeRate: rawValue,
+      changeRate: priceChangeRate,
+      currentChangeRate: stock.changePercent,
       volume: stock.volume,
-      amount: stock.amount,
+      amount: displayAmount,
       changeTime: timeStr,
       changeDate: dateStr,
       description: '$desc [${hit.label}]',

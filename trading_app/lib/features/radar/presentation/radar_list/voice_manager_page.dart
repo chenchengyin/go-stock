@@ -122,10 +122,10 @@ class VoiceManagerPage extends StatelessWidget {
               Text('慢', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
               Expanded(
                 child: Slider(
-                  value: vm.speechRate,
-                  min: 0.3,
-                  max: 1.5,
-                  divisions: 12,
+                  value: vm.speechRate.clamp(vm.minSpeechRate, vm.maxSpeechRate),
+                  min: vm.minSpeechRate,
+                  max: vm.maxSpeechRate,
+                  divisions: ((vm.maxSpeechRate - vm.minSpeechRate) * 10).round(),
                   label: vm.speechRate.toStringAsFixed(2),
                   activeColor: AppColors.buttonPrimary,
                   onChanged: (value) => vm.setSpeechRate(value),

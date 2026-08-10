@@ -8,6 +8,7 @@ import 'package:trading_app/features/radar/domain/voice_announcement_view_model.
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
 import 'monitor_settings_page.dart';
 import 'radar_view_model.dart';
+import 't0_strategy_view_model.dart';
 import 'search_results_panel.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
@@ -25,18 +26,24 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   // 各 tab 的排序状态
   bool _watchLoaded = false;
   bool _allLoaded = false;
+  bool _strategyLoaded = false;
   bool _watchAscending = false;
   bool _allAscending = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
     // _playTestVoiceAnnouncementOnce();
+    // App 启动后触发 T0 主板策略预热（当天已预热则后端跳过）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<T0StrategyViewModel>().warmUpIfNeeded();
+    });
   }
 
   void _onTabChanged() {
@@ -46,10 +53,13 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   void _lazyLoadIfNeeded(int index) {
     final vm = context.read<RadarViewModel>();
-    if (index == 1 && !_watchLoaded) {
+    if (index == 1 && !_strategyLoaded) {
+      _strategyLoaded = true;
+      context.read<T0StrategyViewModel>().loadResults();
+    } else if (index == 2 && !_watchLoaded) {
       _watchLoaded = true;
       vm.loadWatchChanges();
-    } else if (index == 2 && !_allLoaded) {
+    } else if (index == 3 && !_allLoaded) {
       _allLoaded = true;
       vm.loadAllChanges();
     }
@@ -169,7 +179,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
@@ -184,21 +194,28 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             preferredSize: const Size.fromHeight(44),
             child: Container(
               color: Colors.white,
-              child: TabBar(
-                controller: _tabController,
-                labelColor: const Color(0xff2364aa),
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: const Color(0xff2364aa),
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
-                onTap: _lazyLoadIfNeeded,
-                tabs: const [
-                  Tab(text: '监控股票(自选)'),
-                  Tab(text: '自选异动'),
-                  Tab(text: '全市场'),
-                ],
+              child: Selector<T0StrategyViewModel, int>(
+                selector: (_, vm) => vm.results.length,
+                builder: (_, count, __) {
+                  final strategyLabel = count > 0 ? '主板策略($count)' : '主板策略';
+                  return TabBar(
+                    controller: _tabController,
+                    labelColor: const Color(0xff2364aa),
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: const Color(0xff2364aa),
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                    onTap: _lazyLoadIfNeeded,
+                    tabs: [
+                      const Tab(text: '监控股票(自选)'),
+                      Tab(text: strategyLabel),
+                      const Tab(text: '自选异动'),
+                      const Tab(text: '全市场'),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -211,7 +228,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             Consumer<RadarViewModel>(
               builder: (_, vm, __) => _buildStockTab(vm),
             ),
-            // ─── Tab ② 持仓异动 ──────────────────────────────
+            // ─── Tab ② 主板策略 ──────────────────────────────
+            Consumer<T0StrategyViewModel>(
+              builder: (_, vm, __) => _buildStrategyTab(vm),
+            ),
+            // ─── Tab ③ 自选异动 ──────────────────────────────
             Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
               selector: (_, vm) => (changes: vm.watchChanges, loading: vm.watchLoading),
               builder: (_, data, __) => _buildChangeTab(
@@ -223,7 +244,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 emptyText: '暂无持仓异动',
               ),
             ),
-            // ─── Tab ③ 全市场 ────────────────────────────────
+            // ─── Tab ④ 全市场 ────────────────────────────────
             Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
               selector: (_, vm) => (changes: vm.allChanges, loading: vm.allLoading),
               builder: (_, data, __) => _buildChangeTab(
@@ -468,7 +489,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.red,
+                              color: AppColors.tagRed,
                               borderRadius: BorderRadius.circular(3),
                             ),
                             child: const Text(
@@ -478,7 +499,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           ),
                           const SizedBox(width: 6),
                           Icon(Icons.warning_amber_rounded,
-                              size: 12, color: Colors.orange[700]),
+                              size: 12, color: AppColors.warning),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
@@ -487,7 +508,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: Colors.orange[800],
+                                color: AppColors.warning,
                               ),
                             ),
                           ),
@@ -531,6 +552,171 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         const SnackBar(content: Text('未能打开同花顺或浏览器')),
       );
     }
+  }
+
+  // ─── Tab ④ 主板策略 ─────────────────────────────────────
+
+  Widget _buildStrategyTab(T0StrategyViewModel vm) {
+    final wp = vm.warmProgress;
+
+    // 预热进度 / 等待中
+    if (wp != null) {
+      return SafeArea(
+        top: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                Text(
+                  wp.isWarming ? '服务端正在预热数据...' : '数据预热完成，等待选股...',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 12),
+                if (wp.stockCount > 0)
+                  Text(
+                    '已拉取 ${wp.stockCount} 只主板股票',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                if (wp.dailyFetched > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '日线进度: ${wp.dailyFetched}/${wp.dailyTotal}',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
+                if (wp.candidateCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '候选股票: ${wp.candidateCount} 只（涨停 + 成交额过滤后）',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Text(
+                  '每10秒自动刷新',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: vm.loading
+          ? const Center(child: CircularProgressIndicator())
+          : vm.error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      '加载失败: ${vm.error}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    ),
+                  ),
+                )
+              : vm.results.isEmpty
+                  ? Center(
+                      child: Text(
+                        '暂无符合条件的股票',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: vm.results.length,
+                      itemBuilder: (_, i) => _buildStrategyCard(vm.results[i]),
+                    ),
+    );
+  }
+
+  Widget _buildStrategyCard(T0StrategyStock stock) {
+    final isUp = stock.openGap >= 0;
+    final changeColor = isUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 第一行：名称 + 代码 + 涨幅 + 同花顺按钮
+          Row(
+            children: [
+              Text(
+                stock.stockName,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                stock.rawCode,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              const Spacer(),
+              Text(
+                '${isUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: changeColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _openInTongHuaShun(context, stock.rawCode),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(
+                    'assets/images/kline_button.png',
+                    width: 24,
+                    height: 24,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // 第二行：前收盘 + 成交额 + 涨停日期
+          Row(
+            children: [
+              Text(
+                '¥${stock.prevClose.toStringAsFixed(2)}',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '成交额 ${stock.amountYi.toStringAsFixed(2)}亿',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  stock.limitUpDates != '-' ? '涨停: ${stock.limitUpDates}' : '',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatInflow(double amount) {

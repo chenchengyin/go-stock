@@ -7,6 +7,7 @@ import 'package:trading_app/features/radar/domain/change_type_config.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/data/notification_util.dart';
+import 'package:trading_app/core/widget/stock_widget_manager.dart';
 
 class RadarViewModel extends ChangeNotifier {
   RadarViewModel(this._repository) {
@@ -27,17 +28,17 @@ class RadarViewModel extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(ChangeTypeConfig.storageKey);
     if (raw != null && raw.isNotEmpty) {
-      var ids = raw.split(',').map(int.parse).toSet();
-      // 一次性迁移：老用户补上本地监控类型（9001~9005）
-      if (!ids.contains(9001)) {
-        ids.addAll({9002, 9003, 9005, 9006});
-        await prefs.setString(
-          ChangeTypeConfig.storageKey,
-          ids.join(','),
-        );
-      }
-      _selectedChangeTypes = ids;
+      _selectedChangeTypes = raw
+          .split(',')
+          .where((s) => s.trim().isNotEmpty)
+          .map(int.parse)
+          .where((id) => ChangeTypeConfig.validTypeIds.contains(id))
+          .toSet();
     } else {
+      _selectedChangeTypes = ChangeTypeConfig.defaultMonitorIds;
+    }
+    // 如果过滤后为空，回退到默认，避免监控列表为空
+    if (_selectedChangeTypes.isEmpty) {
       _selectedChangeTypes = ChangeTypeConfig.defaultMonitorIds;
     }
   }
@@ -294,9 +295,14 @@ class RadarViewModel extends ChangeNotifier {
           _preloadReadStates(codes),
         ]);
         final quotes = results[0] as Map<String, Map<String, dynamic>>;
+        _logRealtimeQuotes(quotes);
+
         final newChanges = results[1] as List<StockChange>;
         final todayOnly = filterTodayChanges(newChanges);
-        final filtered = filterChanges(todayOnly);
+        final filtered = _attachCurrentChangeRate(
+          filterChanges(todayOnly),
+          quotes,
+        );
 
         List<StockChange> newLocalAlerts = [];
         if (quotes.isNotEmpty) {
@@ -345,6 +351,8 @@ class RadarViewModel extends ChangeNotifier {
         if (newLocalAlerts.isNotEmpty) {
           _detectNewChanges(newLocalAlerts);
         }
+
+        _updateStockWidget();
       } else {
         final newChanges = await _repository.getLatestChanges([]);
         final todayOnly = filterTodayChanges(newChanges);
@@ -355,6 +363,61 @@ class RadarViewModel extends ChangeNotifier {
 
       notifyListeners();
     } catch (_) {}
+  }
+
+  /// 把监控列表第一只股票同步到桌面组件
+  void _updateStockWidget() {
+    if (monitoredStocks.isEmpty) {
+      StockWidgetManager.clear();
+      return;
+    }
+    final first = monitoredStocks.first;
+    StockWidgetManager.updateStock(
+      name: first.name,
+      price: first.price,
+      changeRate: first.changePercent,
+    );
+  }
+
+  /// 打印实时行情涨幅列表
+  void _logRealtimeQuotes(Map<String, Map<String, dynamic>> quotes) {
+    if (quotes.isEmpty) return;
+    final buffer = StringBuffer('[RealtimeQuotes] 获取到股票涨幅列表：');
+    for (final entry in quotes.entries) {
+      final name = entry.value['name'] as String? ?? entry.key;
+      final rate = (entry.value['changePercent'] as num?)?.toDouble() ?? 0.0;
+      final rateStr = rate >= 0 ? '+${rate.toStringAsFixed(2)}%' : '${rate.toStringAsFixed(2)}%';
+      buffer.write('\n  $name: $rateStr');
+    }
+    debugPrint(buffer.toString());
+  }
+
+  /// 用实时行情的 changePercent 给异动补充当前最新涨幅
+  List<StockChange> _attachCurrentChangeRate(
+    List<StockChange> changes,
+    Map<String, Map<String, dynamic>> quotes,
+  ) {
+    return changes.map((c) {
+      final q = quotes[c.stockCode];
+      if (q == null) return c;
+      final rate = (q['changePercent'] as num?)?.toDouble() ?? 0.0;
+      if (rate == 0.0) return c;
+      return StockChange(
+        id: c.id,
+        changeTime: c.changeTime,
+        changeDate: c.changeDate,
+        stockCode: c.stockCode,
+        stockName: c.stockName,
+        changeType: c.changeType,
+        typeName: c.typeName,
+        price: c.price,
+        changeRate: c.changeRate,
+        currentChangeRate: rate,
+        volume: c.volume,
+        amount: c.amount,
+        description: c.description,
+      );
+    }).toList();
   }
 
   /// 新异动产生时的语音播报回调（由外部注入）
@@ -382,11 +445,12 @@ class RadarViewModel extends ChangeNotifier {
     _triggerVoiceAnnouncements(newOnes);
   }
 
-  /// 触发语音播报：逐个入队，紧急类型插队到下一顺位
+  /// 触发语音播报：逐个入队，只播报用户已勾选的类型，紧急类型插队到下一顺位
   void _triggerVoiceAnnouncements(List<StockChange> changes) {
     final callback = onNewVoiceChange;
     if (callback == null || changes.isEmpty) return;
     for (final change in changes) {
+      if (!_selectedChangeTypes.contains(change.changeType)) continue;
       callback(change, urgent: _isUrgentVoiceChange(change));
     }
   }
@@ -453,6 +517,8 @@ class RadarViewModel extends ChangeNotifier {
         _preloadReadStates(codes),
       ]);
       final quotes = results[0] as Map<String, Map<String, dynamic>>;
+      _logRealtimeQuotes(quotes);
+
       final changes = results[1] as List<StockChange>;
 
       final todayOnly = filterTodayChanges(changes);
@@ -505,6 +571,10 @@ class RadarViewModel extends ChangeNotifier {
       });
       // 排序后验证
       debugPrint('[Radar] after sort top=${monitoredStocks.first.code}(${monitoredStocks.first.createdAt}) bottom=${monitoredStocks.last.code}(${monitoredStocks.last.createdAt})');
+
+      _updateStockWidget();
+    } else {
+      StockWidgetManager.clear();
     }
     notifyListeners();
   }

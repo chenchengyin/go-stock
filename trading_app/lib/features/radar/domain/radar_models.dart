@@ -13,6 +13,7 @@ class StockChange {
     required this.volume,
     required this.amount,
     this.description,
+    this.currentChangeRate = 0.0,
   });
 
   factory StockChange.fromJson(Map<String, dynamic> json) {
@@ -34,6 +35,7 @@ class StockChange {
       changeRate: (json['changeRate'] as num?)?.toDouble() ?? 0.0,
       volume: (json['volume'] as num?)?.toInt() ?? 0,
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      currentChangeRate: (json['currentChangeRate'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -49,6 +51,23 @@ class StockChange {
   final int volume;
   final double amount;
   final String? description;
+  final double currentChangeRate;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'changeTime': changeTime,
+        'changeDate': changeDate,
+        'stockCode': stockCode,
+        'stockName': stockName,
+        'changeType': changeType,
+        'typeName': typeName,
+        'price': price,
+        'changeRate': changeRate,
+        'volume': volume,
+        'amount': amount,
+        'description': description,
+        'currentChangeRate': currentChangeRate,
+      };
 }
 
 /// 监控股票配置（含实时行情）
