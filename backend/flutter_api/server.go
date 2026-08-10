@@ -220,6 +220,17 @@ func Start() {
 		}
 	}()
 
+	// 交易日 00:00~09:00 主动预热 T0 日线，避免早盘前无人访问时才开始拉数据。
+	go func() {
+		runT0AutoPrewarmTick(time.Now())
+
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for tick := range ticker.C {
+			runT0AutoPrewarmTick(tick)
+		}
+	}()
+
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 
@@ -227,6 +238,16 @@ func Start() {
 
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		logger.SugaredLogger.Errorf("HTTP Server error: %v", err)
+	}
+}
+
+func runT0AutoPrewarmTick(now time.Time) {
+	if !shouldAutoPrewarmT0(now) {
+		return
+	}
+	tradeDate := now.In(chinaLocation()).Format("2006-01-02")
+	if started, _ := tryStartT0Prewarm(tradeDate); started {
+		logger.SugaredLogger.Infof("[定时任务] T0 日线主动预热已启动: %s", tradeDate)
 	}
 }
 

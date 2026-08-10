@@ -1107,6 +1107,20 @@ func chinaLocation() *time.Location {
 	return loc
 }
 
+// t0AutoPrewarmEndHM 主动预热窗口结束时分（不含）：09:00
+const t0AutoPrewarmEndHM = 9 * 60
+
+// shouldAutoPrewarmT0 判断 now 是否落在「周一到周五 00:00~09:00（上海时区）」主动预热窗口。
+// 09:00 之后不再主动拉取，交给请求触发的预热逻辑，避免与竞价确认窗口抢资源。
+func shouldAutoPrewarmT0(now time.Time) bool {
+	local := now.In(chinaLocation())
+	switch local.Weekday() {
+	case time.Saturday, time.Sunday:
+		return false
+	}
+	return local.Hour()*60+local.Minute() < t0AutoPrewarmEndHM
+}
+
 // isBeforeT0AuctionCutoff 判断 now 是否仍早于当日 09:25（上海时区）。
 // 仅当 tradeDate 等于「上海时区的今天」时，预竞价窗口才生效。
 func isBeforeT0AuctionCutoff(now time.Time, tradeDate string) bool {
