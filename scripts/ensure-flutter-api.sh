@@ -35,18 +35,43 @@ if ! command -v go >/dev/null 2>&1; then
 fi
 
 log "[ensure] 端口 $PORT 未监听，开始启动服务: go run ./cmd/server"
-nohup go run ./cmd/server >>"$LOG_FILE" 2>&1 &
-START_PID=$!
-log "[ensure] 启动进程 pid=$START_PID，等待端口就绪（最长 ${READY_TIMEOUT_SEC}s）"
+
+# 用 fork + setsid 让服务脱离当前会话与进程组：
+# 调用方所在终端关闭、或调用方进程组被整体结束时，服务都不会被一起带走。
+start_detached() {
+  python3 - "$REPO_ROOT" "$LOG_FILE" <<'PY'
+import os
+import sys
+
+repo, log_path = sys.argv[1], sys.argv[2]
+
+if os.fork() > 0:
+    sys.exit(0)
+
+os.setsid()
+
+log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND)
+null_fd = os.open(os.devnull, os.O_RDONLY)
+os.dup2(null_fd, 0)
+os.dup2(log_fd, 1)
+os.dup2(log_fd, 2)
+
+os.chdir(repo)
+os.execvp("go", ["go", "run", "./cmd/server"])
+PY
+}
+
+if ! start_detached; then
+  log "[ensure] 服务启动命令执行失败，详情见 $LOG_FILE"
+  exit 1
+fi
+
+log "[ensure] 启动命令已下发，等待端口就绪（最长 ${READY_TIMEOUT_SEC}s）"
 
 for ((i = 0; i < READY_TIMEOUT_SEC; i++)); do
   if port_listening; then
     log "[ensure] 服务已就绪，端口 $PORT 正在监听"
     exit 0
-  fi
-  if ! kill -0 "$START_PID" 2>/dev/null; then
-    log "[ensure] 启动进程已退出且端口未就绪，详情见 $LOG_FILE"
-    exit 1
   fi
   sleep 1
 done
