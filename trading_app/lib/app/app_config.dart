@@ -14,6 +14,9 @@ import 'package:trading_app/features/news/presentation/market_news/news_view_mod
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
+import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
+import 'package:trading_app/features/short_term_emotion/data/short_term_emotion_repository.dart';
+import 'package:trading_app/features/short_term_emotion/presentation/short_term_emotion_view_model.dart';
 
 /// 创建所有 Provider 并返回 MultiProvider
 class AppDependencies extends StatelessWidget {
@@ -36,7 +39,12 @@ class AppDependencies extends StatelessWidget {
           create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks(),
         ),
         ChangeNotifierProvider(create: (_) => VoiceAnnouncementViewModel()),
+        ChangeNotifierProvider(create: (_) => T0StrategyViewModel()),
         Provider<RadarRepository>(create: (_) => radarRepo),
+        ChangeNotifierProvider(
+          create: (_) =>
+              ShortTermEmotionViewModel(ShortTermEmotionRepository())..load(),
+        ),
         ChangeNotifierProvider(
           create: (_) {
             final remote = NewsRemoteDataSource();

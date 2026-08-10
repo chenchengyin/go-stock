@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../features/strategy/presentation/strategy_page.dart';
 import '../features/news/presentation/market_news/news_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/radar/presentation/radar_list/radar_page.dart';
 import '../features/radar/presentation/stock_change_detail/stock_change_detail_page.dart';
+import '../features/short_term_emotion/presentation/short_term_emotion_page.dart';
+// 策略吧暂时隐藏入口，页面逻辑保留，后续需要时可恢复。
+// import '../features/strategy/presentation/strategy_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -17,10 +19,8 @@ class AppShell extends StatefulWidget {
   static void navigateToStockDetail(String stockCode, String stockName) {
     navigatorKey.currentState?.push(
       MaterialPageRoute(
-        builder: (context) => StockChangeDetailPage(
-          stockCode: stockCode,
-          stockName: stockName,
-        ),
+        builder: (context) =>
+            StockChangeDetailPage(stockCode: stockCode, stockName: stockName),
       ),
     );
   }
@@ -37,9 +37,11 @@ class _AppShellState extends State<AppShell> {
   static Widget _buildPage(int index, {Key? newsKey}) {
     return switch (index) {
       0 => const RadarPage(),
-      1 => NewsPage(key: newsKey),
-      2 => const StrategyPage(),
+      1 => const ShortTermEmotionPage(),
+      2 => NewsPage(key: newsKey),
       3 => const ProfilePage(),
+      // 策略吧暂时隐藏入口，原映射保留参考：
+      // 3 => const StrategyPage(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -51,15 +53,21 @@ class _AppShellState extends State<AppShell> {
       label: '盘达',
     ),
     BottomNavigationBarItem(
+      icon: Icon(Icons.speed_outlined),
+      activeIcon: Icon(Icons.speed),
+      label: '超短情绪',
+    ),
+    BottomNavigationBarItem(
       icon: Icon(Icons.article_outlined),
       activeIcon: Icon(Icons.article),
       label: '市场快讯',
     ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.local_fire_department_outlined),
-      activeIcon: Icon(Icons.local_fire_department),
-      label: '策略吧',
-    ),
+    // 策略吧暂时隐藏入口，后续恢复时插回底部导航。
+    // BottomNavigationBarItem(
+    //   icon: Icon(Icons.local_fire_department_outlined),
+    //   activeIcon: Icon(Icons.local_fire_department),
+    //   label: '策略吧',
+    // ),
     BottomNavigationBarItem(
       icon: Icon(Icons.person_outline),
       activeIcon: Icon(Icons.person),
@@ -107,14 +115,16 @@ class _AppShellState extends State<AppShell> {
                     return const SizedBox.shrink();
                   }
                   return _buildPage(
-                      index, newsKey: index == 1 ? ValueKey(_newsKey) : null);
+                    index,
+                    newsKey: index == 2 ? ValueKey(_newsKey) : null,
+                  );
                 }),
               ),
               bottomNavigationBar: BottomNavigationBar(
                 currentIndex: _currentIndex,
                 onTap: (index) {
                   setState(() {
-                    if (index == 1 && index == _currentIndex) {
+                    if (index == 2 && index == _currentIndex) {
                       _newsKey++;
                     }
                     _currentIndex = index;
