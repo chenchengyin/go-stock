@@ -45,6 +45,7 @@ func AutoMigrate() {
 		&StrategyPointsLog{},
 		&data.StockBasic{},
 		&data.FollowedStock{},
+		&models.MarketStatistic{},
 	)
 	// Telegraph 表由原项目管理，不在 flutter_api 层修改模型
 	// 仅通过 SQL 迁移补充必要的索引和字段
@@ -97,6 +98,7 @@ func Start() {
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)
 	mux.HandleFunc("/api/stock-changes", handleStockChanges)
 	mux.HandleFunc("/api/stock-changes/save", handleStockChangesSave)
+	mux.HandleFunc("/api/short-term-emotion", handleShortTermEmotion)
 	mux.HandleFunc("/api/follow", handleFollow)
 	mux.HandleFunc("/api/unfollow", handleUnfollow)
 	mux.HandleFunc("/api/follow-list", handleGetFollowList)
@@ -192,6 +194,32 @@ func Start() {
 		}
 	}()
 
+	// 启动市场统计快照采集。用于支撑超短情绪盘中曲线：上涨/下跌家数、红盘率、涨跌停等。
+	go func() {
+		marketApi := data.NewMarketStatisticApi()
+		if captured, err := captureMarketStatisticSnapshot(isTradingTime(), marketApi.FetchAndSave); captured {
+			if err != nil {
+				logger.SugaredLogger.Errorf("[定时任务] 市场统计快照采集失败：%v", err)
+			} else {
+				logger.SugaredLogger.Info("[定时任务] 市场统计快照采集完成")
+			}
+		}
+
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			captured, err := captureMarketStatisticSnapshot(isTradingTime(), marketApi.FetchAndSave)
+			if !captured {
+				continue
+			}
+			if err != nil {
+				logger.SugaredLogger.Errorf("[定时任务] 市场统计快照采集失败：%v", err)
+			} else {
+				logger.SugaredLogger.Info("[定时任务] 市场统计快照采集完成")
+			}
+		}
+	}()
+
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 
@@ -200,6 +228,13 @@ func Start() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		logger.SugaredLogger.Errorf("HTTP Server error: %v", err)
 	}
+}
+
+func captureMarketStatisticSnapshot(isTrading bool, fetch func() error) (bool, error) {
+	if !isTrading {
+		return false, nil
+	}
+	return true, fetch()
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

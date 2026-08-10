@@ -7,7 +7,6 @@ import (
 	"go-stock/backend/models"
 	"go-stock/backend/util"
 	"time"
-
 )
 
 type MarketStatisticApi struct {
@@ -174,6 +173,16 @@ func (a *MarketStatisticApi) GetRecentDaysData(days int) []models.MarketStatisti
 	startDate := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
 	var data []models.MarketStatistic
 	db.Dao.Where("data_date >= ?", startDate).Order("data_date ASC, data_time ASC").Find(&data)
+	return data
+}
+
+func (a *MarketStatisticApi) GetLatestBeforeDate(date string) []models.MarketStatistic {
+	var data []models.MarketStatistic
+	db.Dao.
+		Where("data_date < ?", date).
+		Order("data_date DESC, data_time DESC").
+		Limit(240).
+		Find(&data)
 	return data
 }
 
