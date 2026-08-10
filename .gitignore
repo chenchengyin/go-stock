@@ -116,6 +116,10 @@ frontend/package.json.md5
 /build-dev.bat
 /build-prod.bat
 
+# 编译二进制（不提交到 Git）
+/go-stock
+*.apk
+
 # Go 编译产物
 /backfill_ai
 /backend/backfill_ai
