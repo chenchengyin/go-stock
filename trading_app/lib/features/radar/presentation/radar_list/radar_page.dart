@@ -640,8 +640,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   }
 
   Widget _buildStrategyCard(T0StrategyStock stock) {
-    final isUp = stock.openGap >= 0;
-    final changeColor = isUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+    final openUp = stock.openGap >= 0;
+    final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+    final closeUp = stock.closeRet >= 0;
+    final closeColor = closeUp ? AppColors.textPriceUp : AppColors.textPriceDown;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -654,12 +656,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 第一行：名称 + 代码 + 涨幅 + 同花顺按钮
+          // 第一行：名称 + 最新涨幅 + 代码 + 开盘涨幅 + 同花顺按钮
           Row(
             children: [
               Text(
                 stock.stockName,
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: closeColor),
               ),
               const SizedBox(width: 8),
               Text(
@@ -668,11 +675,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               ),
               const Spacer(),
               Text(
-                '${isUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
+                '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: changeColor,
+                  color: openColor,
                 ),
               ),
               const SizedBox(width: 8),
