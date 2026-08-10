@@ -115,3 +115,28 @@ frontend/package.json.md5
 /build/us.json
 /build-dev.bat
 /build-prod.bat
+
+# Go 编译产物
+/backfill_ai
+/backend/backfill_ai
+/backend/flutter_api_server
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# SQLite 运行时文件
+*.db-shm
+*.db-wal
+
+# 本地运行输出、抓取截图与调试日志
+/data/selected_stocks.json
+eastmoney-*.jpg
+eastmoney-*.png
+raw_byteimg_log.txt
+filtered_5min_speed_logs.txt
+chat_log_*.md
+
+# 编辑器与工具本地状态
+.vscode/
+.superpowers/
