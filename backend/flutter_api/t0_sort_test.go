@@ -1,0 +1,56 @@
+package flutter_api
+
+import "testing"
+
+func TestSortT0ResultsForClient(t *testing.T) {
+	in := []T0SelectionResult{
+		{StockCode: "A", OpenGap: 1.0, Tag: ""},
+		{StockCode: "B", OpenGap: 2.5, Tag: "涨停破板"},
+		{StockCode: "C", OpenGap: 3.0, Tag: ""},
+		{StockCode: "D", OpenGap: 0.5, Tag: "前一天跌停"},
+		{StockCode: "E", OpenGap: 2.5, Tag: ""},
+	}
+
+	got := sortT0ResultsForClient(in)
+
+	// 有标记的 B、D 在前，组内按 OpenGap 降序：B(2.5) 先于 D(0.5)
+	// 无标记 C(3.0) > A(1.0)/E(2.5)：C、E、A
+	wantOrder := []string{"B", "D", "C", "E", "A"}
+	if len(got) != len(wantOrder) {
+		t.Fatalf("len=%d want %d", len(got), len(wantOrder))
+	}
+	for i, code := range wantOrder {
+		if got[i].StockCode != code {
+			t.Fatalf("pos %d = %s want %s (full: %+v)", i, got[i].StockCode, code, codes(got))
+		}
+	}
+
+	// 不得修改输入切片顺序
+	if in[0].StockCode != "A" || in[1].StockCode != "B" {
+		t.Fatalf("input mutated: %+v", codes(in))
+	}
+}
+
+func TestSortT0ResultsForClientStableSameKey(t *testing.T) {
+	in := []T0SelectionResult{
+		{StockCode: "X", OpenGap: 2.0, Tag: "前一天大阴线"},
+		{StockCode: "Y", OpenGap: 2.0, Tag: "前一天跌停"},
+		{StockCode: "Z", OpenGap: 2.0, Tag: "涨停破板"},
+	}
+	got := sortT0ResultsForClient(in)
+	// 三者都有标记且 OpenGap 相同，保持原顺序 X、Y、Z
+	want := []string{"X", "Y", "Z"}
+	for i, code := range want {
+		if got[i].StockCode != code {
+			t.Fatalf("pos %d = %s want %s", i, got[i].StockCode, code)
+		}
+	}
+}
+
+func codes(rs []T0SelectionResult) []string {
+	out := make([]string, len(rs))
+	for i, r := range rs {
+		out[i] = r.StockCode
+	}
+	return out
+}

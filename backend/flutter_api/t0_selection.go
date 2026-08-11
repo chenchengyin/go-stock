@@ -248,6 +248,22 @@ func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
 	return &a, true
 }
 
+// sortT0ResultsForClient 返回用于客户端展示的排序副本：有标记的排在前面，
+// 组内按 T0开盘涨幅 降序，同键稳定保持原顺序。不修改入参切片，也不改动磁盘归档。
+func sortT0ResultsForClient(results []T0SelectionResult) []T0SelectionResult {
+	sorted := make([]T0SelectionResult, len(results))
+	copy(sorted, results)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		ti := sorted[i].Tag != ""
+		tj := sorted[j].Tag != ""
+		if ti != tj {
+			return ti
+		}
+		return sorted[i].OpenGap > sorted[j].OpenGap
+	})
+	return sorted
+}
+
 // findLatestSelectionArchiveBefore 在 selection 目录里找日期严格早于 tradeDate 的最新有效归档。
 // 文件名形如 t0_selection_YYYY-MM-DD.json；损坏或非法文件跳过。
 func findLatestSelectionArchiveBefore(tradeDate string) (*t0SelectionArchive, bool) {
@@ -454,7 +470,7 @@ func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]int
 		if a, found := findLatestSelectionArchiveBefore(tradeDate); found {
 			resp["historical"] = true
 			resp["display_date"] = a.Date
-			resp["results"] = a.Results
+			resp["results"] = sortT0ResultsForClient(a.Results)
 		}
 	}
 	return resp
@@ -623,7 +639,7 @@ func refreshSelectionCloseRet(tradeDate string, force bool) (map[string]any, err
 		"updated":          updated,
 		"kept":             kept,
 		"close_updated_at": now,
-		"results":          a.Results,
+		"results":          sortT0ResultsForClient(a.Results),
 	}, nil
 }
 
@@ -670,7 +686,7 @@ func refreshSelectionTags(tradeDate string) (map[string]any, error) {
 		"count":   a.Count,
 		"tagged":  tagged,
 		"missing": missing,
-		"results": a.Results,
+		"results": sortT0ResultsForClient(a.Results),
 	}, nil
 }
 
@@ -1477,7 +1493,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			"saved_at":         a.SavedAt,
 			"close_updated_at": a.CloseUpdatedAt,
 			"count":            a.Count,
-			"results":          a.Results,
+			"results":          sortT0ResultsForClient(a.Results),
 		})
 		return
 	}
@@ -1549,6 +1565,6 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, map[string]interface{}{
 		"date":    tradeDate,
 		"count":   len(results),
-		"results": results,
+		"results": sortT0ResultsForClient(results),
 	})
 }
