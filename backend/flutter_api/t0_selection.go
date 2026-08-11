@@ -460,6 +460,24 @@ type T0SelectionResult struct {
 	StockName    string  `json:"股票名称"`
 	PrevClose    float64 `json:"前一交易日收盘"`
 	PrevCloseRet float64 `json:"前一交易日收盘涨幅(%)"`
+	Tag          string  `json:"标记"`
+}
+
+// prevDayRetsFromHist 由开盘前历史日线算出前一交易日的最高/开盘/收盘涨幅（相对再前一日收盘）。
+// hist 必须已剔除选股当日 K，故 hist[-1] 即前一交易日。
+func prevDayRetsFromHist(hist []dailyBar) (highRet, openRet, closeRet float64, ok bool) {
+	if len(hist) < 2 {
+		return 0, 0, 0, false
+	}
+	base := hist[len(hist)-2].Close
+	if base == 0 {
+		return 0, 0, 0, false
+	}
+	prev := hist[len(hist)-1]
+	highRet = (prev.High - base) / base * 100
+	openRet = (prev.Open - base) / base * 100
+	closeRet = (prev.Close - base) / base * 100
+	return highRet, openRet, closeRet, true
 }
 
 // pickPrevDayTag 依据前一交易日涨跌结构给出唯一展示标记。
@@ -1070,6 +1088,11 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 			limitUpInfo = strings.Join(limitUpDates[start:], ", ")
 		}
 
+		tag := ""
+		if highRet, openRet, prevDayCloseRet, ok := prevDayRetsFromHist(hist); ok {
+			tag = pickPrevDayTag(highRet, openRet, prevDayCloseRet)
+		}
+
 		var marketSuffix string
 		if strings.HasPrefix(s.Code, "sh") {
 			marketSuffix = ".XSHG"
@@ -1089,6 +1112,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 			StockName:    s.Name,
 			PrevClose:    round2(prevClose),
 			PrevCloseRet: round2(prevRet),
+			Tag:          tag,
 		})
 	}
 

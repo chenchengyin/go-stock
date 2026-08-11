@@ -27,3 +27,27 @@ func TestPickPrevDayTag(t *testing.T) {
 		})
 	}
 }
+
+func TestPrevDayRetsFromHist(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-08-09", Close: 10},
+		{Date: "2026-08-10", Open: 10.2, High: 11.0, Close: 10.5},
+	}
+	high, open, close, ok := prevDayRetsFromHist(hist)
+	if !ok {
+		t.Fatal("expected ok")
+	}
+	if round2(high) != 10 || round2(open) != 2 || round2(close) != 5 {
+		t.Fatalf("got high=%v open=%v close=%v", high, open, close)
+	}
+	if _, _, _, ok := prevDayRetsFromHist(hist[:1]); ok {
+		t.Fatal("len<2 should fail")
+	}
+	zeroBase := []dailyBar{
+		{Date: "2026-08-09", Close: 0},
+		{Date: "2026-08-10", Open: 1, High: 2, Close: 1.5},
+	}
+	if _, _, _, ok := prevDayRetsFromHist(zeroBase); ok {
+		t.Fatal("base==0 should fail")
+	}
+}
