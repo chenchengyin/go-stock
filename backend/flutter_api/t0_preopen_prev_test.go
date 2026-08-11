@@ -1,7 +1,11 @@
 package flutter_api
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -124,6 +128,48 @@ func TestBuildPrewarmReadyResponseNoHistoricalAfter0900(t *testing.T) {
 	}
 	if _, has := resp["results"]; has {
 		t.Fatal("09:00 起不应带 results")
+	}
+}
+
+func TestListSelectionArchiveDates(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	mustSaveArchive(t, "2026-08-06", "600006.XSHG")
+	mustSaveArchive(t, "2026-08-11", "600011.XSHG")
+	mustSaveArchive(t, "2026-08-10", "600010.XSHG")
+	_ = ensureT0CacheDirs()
+	if err := os.WriteFile(filepath.Join(filepath.Dir(t0SelectionCachePath("x")), "t0_selection_bad.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := listSelectionArchiveDates()
+	want := []string{"2026-08-11", "2026-08-10", "2026-08-06"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+}
+
+func TestHandleT0SelectionListDates(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+	mustSaveArchive(t, "2026-08-10", "600010.XSHG")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/t0-selection?list_dates=1", nil)
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "2026-08-10") {
+		t.Fatalf("body: %s", rr.Body.String())
 	}
 }
 

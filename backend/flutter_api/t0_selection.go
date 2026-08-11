@@ -264,6 +264,37 @@ func sortT0ResultsForClient(results []T0SelectionResult) []T0SelectionResult {
 	return sorted
 }
 
+// listSelectionArchiveDates 扫描 selection 目录，返回所有有效归档日期（降序）。
+func listSelectionArchiveDates() []string {
+	dir := filepath.Dir(t0SelectionCachePath("1970-01-01"))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	const prefix = "t0_selection_"
+	const suffix = ".json"
+	dates := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		d := name[len(prefix) : len(name)-len(suffix)]
+		if _, perr := time.Parse("2006-01-02", d); perr != nil {
+			continue
+		}
+		if _, ok := loadT0SelectionArchive(d); !ok {
+			continue
+		}
+		dates = append(dates, d)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	return dates
+}
+
 // findLatestSelectionArchiveBefore 在 selection 目录里找日期严格早于 tradeDate 的最新有效归档。
 // 文件名形如 t0_selection_YYYY-MM-DD.json；损坏或非法文件跳过。
 func findLatestSelectionArchiveBefore(tradeDate string) (*t0SelectionArchive, bool) {
@@ -1474,6 +1505,14 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
+
+	// list_dates：返回所有有效选股归档日期（降序）
+	if isTruthyQuery(q.Get("list_dates")) {
+		WriteJSON(w, map[string]interface{}{
+			"dates": listSelectionArchiveDates(),
+		})
+		return
+	}
 
 	// archived 优先
 	if isTruthyQuery(q.Get("archived")) {
