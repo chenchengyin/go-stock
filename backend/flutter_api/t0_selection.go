@@ -518,6 +518,81 @@ func patchSelectionCloseRets(results []T0SelectionResult, quotes map[string]t0Re
 	return updated, kept
 }
 
+// resultsToT0Stocks 把归档结果还原成行情查询所需的最小股票信息。
+func resultsToT0Stocks(results []T0SelectionResult) []t0Stock {
+	out := make([]t0Stock, 0, len(results))
+	for _, r := range results {
+		sc := t0ShortCodeFromResultCode(r.StockCode)
+		prefix := "sz."
+		if strings.HasSuffix(r.StockCode, ".XSHG") {
+			prefix = "sh."
+		}
+		out = append(out, t0Stock{Code: prefix + sc, ShortCode: sc, Name: r.StockName})
+	}
+	return out
+}
+
+// refreshSelectionCloseRet 收盘后只刷新归档中的 T0收盘涨幅。
+// 不重跑选股、不触碰日线缓存，名单与其余字段保持原样。
+// force=true 时忽略「时间未到 / 已刷新」短路，用于手动修正历史归档。
+func refreshSelectionCloseRet(tradeDate string, force bool) (map[string]any, error) {
+	a, ok := loadT0SelectionArchive(tradeDate)
+	if !ok || a == nil {
+		return nil, fmt.Errorf("该日无选股归档")
+	}
+	if !force && !shouldRefreshSelectionClose(time.Now(), a.CloseUpdatedAt) {
+		return map[string]any{
+			"date":             a.Date,
+			"skipped":          true,
+			"reason":           "not_due_or_already_updated",
+			"close_updated_at": a.CloseUpdatedAt,
+			"count":            a.Count,
+		}, nil
+	}
+
+	quotes := fetchT0Realtime(resultsToT0Stocks(a.Results))
+	updated, kept := patchSelectionCloseRets(a.Results, quotes)
+
+	now := time.Now().In(chinaLocation()).Format(time.RFC3339)
+	a.SavedAt = now
+	a.CloseUpdatedAt = now
+	a.Count = len(a.Results)
+	if err := saveT0SelectionArchiveFull(a, true); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"date":             tradeDate,
+		"count":            a.Count,
+		"updated":          updated,
+		"kept":             kept,
+		"close_updated_at": now,
+		"results":          a.Results,
+	}, nil
+}
+
+// runT0CloseRefreshTick 定时任务入口：交易日 15:05 后把当日归档刷成真收盘涨幅，每天一次。
+func runT0CloseRefreshTick(now time.Time) {
+	tradeDate := now.In(chinaLocation()).Format("2006-01-02")
+	a, ok := loadT0SelectionArchive(tradeDate)
+	if !ok || a == nil {
+		return
+	}
+	if !shouldRefreshSelectionClose(now, a.CloseUpdatedAt) {
+		return
+	}
+	out, err := refreshSelectionCloseRet(tradeDate, false)
+	if err != nil {
+		logger.SugaredLogger.Warnf("[定时任务] T0归档收盘涨幅刷新失败 %s: %v", tradeDate, err)
+		return
+	}
+	if skipped, _ := out["skipped"].(bool); skipped {
+		return
+	}
+	logger.SugaredLogger.Infof("[定时任务] T0归档收盘涨幅已刷新: %s updated=%v kept=%v",
+		tradeDate, out["updated"], out["kept"])
+}
+
 // prevDayRetsFromHist 由开盘前历史日线算出前一交易日的最高/开盘/收盘涨幅（相对再前一日收盘）。
 // hist 必须已剔除选股当日 K，故 hist[-1] 即前一交易日。
 func prevDayRetsFromHist(hist []dailyBar) (highRet, openRet, closeRet float64, ok bool) {
@@ -1282,12 +1357,27 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		WriteJSON(w, map[string]interface{}{
-			"date":     a.Date,
-			"archived": true,
-			"saved_at": a.SavedAt,
-			"count":    a.Count,
-			"results":  a.Results,
+			"date":             a.Date,
+			"archived":         true,
+			"saved_at":         a.SavedAt,
+			"close_updated_at": a.CloseUpdatedAt,
+			"count":            a.Count,
+			"results":          a.Results,
 		})
+		return
+	}
+
+	// refresh_close：只刷新归档中的 T0收盘涨幅，手动调用一律强制执行
+	if isTruthyQuery(q.Get("refresh_close")) {
+		out, err := refreshSelectionCloseRet(tradeDate, true)
+		if err != nil {
+			WriteJSON(w, map[string]interface{}{
+				"error": err.Error(),
+				"date":  tradeDate,
+			})
+			return
+		}
+		WriteJSON(w, out)
 		return
 	}
 

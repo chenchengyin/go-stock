@@ -231,6 +231,17 @@ func Start() {
 		}
 	}()
 
+	// 交易日 15:05 后把当日选股归档的 T0收盘涨幅 刷成真实收盘值，每天只刷一次。
+	go func() {
+		runT0CloseRefreshTick(time.Now())
+
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for tick := range ticker.C {
+			runT0CloseRefreshTick(tick)
+		}
+	}()
+
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 
