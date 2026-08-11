@@ -462,6 +462,28 @@ type T0SelectionResult struct {
 	PrevCloseRet float64 `json:"前一交易日收盘涨幅(%)"`
 }
 
+// pickPrevDayTag 依据前一交易日涨跌结构给出唯一展示标记。
+// 优先级：涨停破板 > 前一天跌停 > 前一天大阴线；同时破板且跌停时不打标记。
+func pickPrevDayTag(highRet, openRet, closeRet float64) string {
+	brokenLimitUp := highRet >= 9.85 && closeRet < 9.85
+	limitDown := closeRet <= -9.9
+	bigYin := openRet-closeRet >= 4.0
+
+	if brokenLimitUp && limitDown {
+		return ""
+	}
+	if brokenLimitUp {
+		return "涨停破板"
+	}
+	if limitDown {
+		return "前一天跌停"
+	}
+	if bigYin {
+		return "前一天大阴线"
+	}
+	return ""
+}
+
 // ── 股票池获取（新浪 API） ──────────────────────────────────────────────────
 
 // sinaFlexibleFloat 兼容新浪 JSON 中 number / string 两种市值字段
