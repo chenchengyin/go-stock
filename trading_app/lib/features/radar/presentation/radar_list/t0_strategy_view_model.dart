@@ -13,6 +13,7 @@ class T0StrategyStock {
   final double amountYi; // 成交额(亿)
   final double prevClose; // 前一交易日收盘
   final double prevCloseRet; // 前一交易日收盘涨幅(%)
+  final String tag; // 标记：涨停破板 / 前一天跌停 / 前一天大阴线，无标记为空串
 
   const T0StrategyStock({
     required this.stockCode,
@@ -24,6 +25,7 @@ class T0StrategyStock {
     required this.amountYi,
     required this.prevClose,
     required this.prevCloseRet,
+    this.tag = '',
   });
 
   factory T0StrategyStock.fromJson(Map<String, dynamic> json) {
@@ -37,6 +39,7 @@ class T0StrategyStock {
       amountYi: (json['成交额(亿)'] as num?)?.toDouble() ?? 0.0,
       prevClose: (json['前一交易日收盘'] as num?)?.toDouble() ?? 0.0,
       prevCloseRet: (json['前一交易日收盘涨幅(%)'] as num?)?.toDouble() ?? 0.0,
+      tag: json['标记'] as String? ?? '',
     );
   }
 

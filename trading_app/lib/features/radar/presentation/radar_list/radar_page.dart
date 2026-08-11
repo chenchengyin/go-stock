@@ -660,6 +660,19 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             stock.stockName,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
+          if (stock.tag.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            Text(
+              '[${stock.tag}]',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: stock.tag == '涨停破板'
+                    ? AppColors.tagRed
+                    : AppColors.tagGreen,
+              ),
+            ),
+          ],
           const SizedBox(width: 6),
           // 最新涨幅
           Text(
