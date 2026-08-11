@@ -58,10 +58,13 @@ type t0DailyCachePayload struct {
 
 // t0SelectionArchive 按日选股结果归档
 type t0SelectionArchive struct {
-	Date    string              `json:"date"`
-	SavedAt string              `json:"saved_at"`
-	Count   int                 `json:"count"`
-	Results []T0SelectionResult `json:"results"`
+	Date string `json:"date"`
+	// SavedAt 首次归档或最近一次覆盖写入时间
+	SavedAt string `json:"saved_at"`
+	// CloseUpdatedAt 收盘后刷新 T0收盘涨幅 的时间，同时作为当日幂等标记
+	CloseUpdatedAt string              `json:"close_updated_at,omitempty"`
+	Count          int                 `json:"count"`
+	Results        []T0SelectionResult `json:"results"`
 }
 
 type t0WarmStatus string
@@ -202,22 +205,26 @@ func saveT0DailyCache(tradeDate string, stocks []t0Stock, daily map[string][]dai
 }
 
 func saveT0SelectionArchive(tradeDate string, results []T0SelectionResult, force bool) error {
+	return saveT0SelectionArchiveFull(&t0SelectionArchive{
+		Date:    tradeDate,
+		SavedAt: time.Now().Format(time.RFC3339),
+		Count:   len(results),
+		Results: results,
+	}, force)
+}
+
+// saveT0SelectionArchiveFull 写入完整归档（含 CloseUpdatedAt），force=false 且文件已存在时跳过。
+func saveT0SelectionArchiveFull(a *t0SelectionArchive, force bool) error {
 	if err := ensureT0CacheDirs(); err != nil {
 		return err
 	}
-	path := t0SelectionCachePath(tradeDate)
+	path := t0SelectionCachePath(a.Date)
 	if !force {
 		if _, err := os.Stat(path); err == nil {
 			return nil
 		}
 	}
-	payload := t0SelectionArchive{
-		Date:    tradeDate,
-		SavedAt: time.Now().Format(time.RFC3339),
-		Count:   len(results),
-		Results: results,
-	}
-	data, err := json.MarshalIndent(payload, "", "  ")
+	data, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -461,6 +468,54 @@ type T0SelectionResult struct {
 	PrevClose    float64 `json:"前一交易日收盘"`
 	PrevCloseRet float64 `json:"前一交易日收盘涨幅(%)"`
 	Tag          string  `json:"标记"`
+}
+
+// t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05
+const t0CloseRefreshStartHM = 15*60 + 5
+
+// t0ShortCodeFromResultCode 从 "600188.XSHG" 取出 "600188"
+func t0ShortCodeFromResultCode(stockCode string) string {
+	if i := strings.IndexByte(stockCode, '.'); i > 0 {
+		return stockCode[:i]
+	}
+	return stockCode
+}
+
+// shouldRefreshSelectionClose 判断是否该刷新当日归档的收盘涨幅：
+// 周一到周五、上海时区 15:05 之后，且当日尚未刷新过。
+func shouldRefreshSelectionClose(now time.Time, closeUpdatedAt string) bool {
+	if strings.TrimSpace(closeUpdatedAt) != "" {
+		return false
+	}
+	local := now.In(chinaLocation())
+	switch local.Weekday() {
+	case time.Saturday, time.Sunday:
+		return false
+	}
+	return local.Hour()*60+local.Minute() >= t0CloseRefreshStartHM
+}
+
+// patchSelectionCloseRets 用行情覆盖归档结果里的 T0收盘涨幅，其余字段一律不动。
+// 行情缺失、现价<=0 或前收无法确定时保留原值，避免把有效数据写成 0。
+func patchSelectionCloseRets(results []T0SelectionResult, quotes map[string]t0Realtime) (updated, kept int) {
+	for i := range results {
+		rt, ok := quotes[t0ShortCodeFromResultCode(results[i].StockCode)]
+		if !ok || rt.Close <= 0 {
+			kept++
+			continue
+		}
+		prev := rt.PrevClose
+		if prev <= 0 {
+			prev = results[i].PrevClose
+		}
+		if prev <= 0 {
+			kept++
+			continue
+		}
+		results[i].CloseRet = round2((rt.Close - prev) / prev * 100)
+		updated++
+	}
+	return updated, kept
 }
 
 // prevDayRetsFromHist 由开盘前历史日线算出前一交易日的最高/开盘/收盘涨幅（相对再前一日收盘）。
