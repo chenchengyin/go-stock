@@ -16,12 +16,29 @@ void main() {
 
     expect(vm.showingHistorical, true);
     expect(vm.displayDate, '2026-08-11');
+    expect(vm.selectedDate, '2026-08-11');
     expect(vm.results.length, 1);
     expect(vm.results.first.tag, '前一天跌停');
     expect(vm.warmProgress, isNull);
   });
 
-  test('当天正常结果：清空历史标记', () {
+  test('archived 响应：设置 selectedDate 与历史标记', () {
+    final vm = T0StrategyViewModel();
+    vm.applyResponseForTest({
+      'archived': true,
+      'date': '2026-08-10',
+      'results': [
+        {'股票代码': '600010.XSHG', '股票名称': '测试股'},
+      ],
+    });
+
+    expect(vm.showingHistorical, true);
+    expect(vm.displayDate, '2026-08-10');
+    expect(vm.selectedDate, '2026-08-10');
+    expect(vm.results.length, 1);
+  });
+
+  test('当天正常结果：清空历史标记并保留 selectedDate', () {
     final vm = T0StrategyViewModel();
     vm.applyResponseForTest({
       'prewarm': true,
@@ -33,6 +50,7 @@ void main() {
       ],
     });
     vm.applyResponseForTest({
+      'date': '2026-08-12',
       'results': [
         {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
       ],
@@ -40,6 +58,21 @@ void main() {
 
     expect(vm.showingHistorical, false);
     expect(vm.displayDate, isNull);
+    expect(vm.selectedDate, '2026-08-12');
     expect(vm.results.first.stockCode, '600000.XSHG');
+  });
+
+  test('dropdownDates：今日不在归档列表时插入首位', () {
+    final vm = T0StrategyViewModel();
+    vm.applyAvailableDatesForTest(['2026-08-11', '2026-08-10']);
+    vm.applyResponseForTest({
+      'date': '2026-08-12',
+      'results': [
+        {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+      ],
+    });
+
+    expect(vm.dropdownDates, ['2026-08-12', '2026-08-11', '2026-08-10']);
+    expect(vm.showDateSelector, true);
   });
 }

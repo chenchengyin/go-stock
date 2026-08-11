@@ -80,6 +80,8 @@ class T0StrategyViewModel extends ChangeNotifier {
   bool _warmUpTriggered = false;
   String? _displayDate;
   bool _showingHistorical = false;
+  List<String> _availableDates = [];
+  String? _selectedDate;
 
   List<T0StrategyStock> get results => _results;
   bool get loading => _loading;
@@ -89,13 +91,38 @@ class T0StrategyViewModel extends ChangeNotifier {
   /// 当前展示的归档日期（历史结果时为归档实际日期，否则为 null）
   String? get displayDate => _displayDate;
 
-  /// 是否正在展示历史归档（凌晨窗口内的前一交易日结果）
+  /// 是否正在展示历史归档（凌晨窗口或手动切到归档日）
   bool get showingHistorical => _showingHistorical;
+
+  /// 服务端已有选股归档日期（降序）
+  List<String> get availableDates => List.unmodifiable(_availableDates);
+
+  /// 当前选中的展示日期
+  String? get selectedDate => _selectedDate;
+
+  /// 下拉选项：归档日 +（今日正式结果且不在列表时）把今日放首位
+  List<String> get dropdownDates {
+    final out = List<String>.from(_availableDates);
+    if (_selectedDate != null && !out.contains(_selectedDate)) {
+      out.insert(0, _selectedDate!);
+    }
+    return out;
+  }
+
+  /// 有结果且有可选日期时显示顶部日期条
+  bool get showDateSelector =>
+      _results.isNotEmpty && dropdownDates.isNotEmpty && _selectedDate != null;
 
   /// 测试用同步入口：直接套用一次响应体
   @visibleForTesting
   void applyResponseForTest(Map<String, dynamic> data) {
     _applyResponse(data, null);
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void applyAvailableDatesForTest(List<String> dates) {
+    _availableDates = List<String>.from(dates);
     notifyListeners();
   }
 
@@ -115,8 +142,36 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
   }
 
+  /// 拉取可用归档日期列表
+  Future<void> loadAvailableDates() async {
+    try {
+      final dio = createApiClient();
+      final resp = await dio.get(
+        '/api/t0-selection',
+        queryParameters: {'list_dates': '1'},
+      );
+      final data = resp.data as Map<String, dynamic>;
+      final raw = data['dates'] as List<dynamic>? ?? [];
+      _availableDates = raw.map((e) => e.toString()).toList();
+      notifyListeners();
+    } catch (_) {
+      // 列表失败不影响主列表展示
+    }
+  }
+
+  /// 切换展示日期：今日走正式选股；其他日走 archived
+  Future<void> selectDate(String date) async {
+    if (date.isEmpty || date == _selectedDate) return;
+    final today = _shanghaiToday();
+    if (date == today) {
+      await loadResults();
+    } else {
+      await loadResults(date: date, archived: true);
+    }
+  }
+
   /// 加载 T0 选股结果
-  Future<void> loadResults({String? date}) async {
+  Future<void> loadResults({String? date, bool archived = false}) async {
     if (_loading) return;
 
     _loading = true;
@@ -129,10 +184,17 @@ class T0StrategyViewModel extends ChangeNotifier {
       if (date != null && date.isNotEmpty) {
         queryParams['date'] = date;
       }
+      if (archived) {
+        queryParams['archived'] = '1';
+      }
 
-      final resp = await dio.get('/api/t0-selection', queryParameters: queryParams);
+      final resp =
+          await dio.get('/api/t0-selection', queryParameters: queryParams);
       final data = resp.data as Map<String, dynamic>;
       _applyResponse(data, date);
+      if (_results.isNotEmpty) {
+        await loadAvailableDates();
+      }
     } catch (e) {
       _error = e.toString();
       _results = [];
@@ -143,10 +205,19 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
   }
 
+  String _shanghaiToday() {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
   /// 解析一次 /api/t0-selection 响应，更新结果与预热/历史状态
   void _applyResponse(Map<String, dynamic> data, String? date) {
     final status = data['status'] as String?;
     final prewarm = data['prewarm'] as bool? ?? false;
+    final archived = data['archived'] as bool? ?? false;
     final rawList = data['results'] as List<dynamic>?;
 
     if (prewarm || (status != null && status != 'ready')) {
@@ -166,6 +237,7 @@ class T0StrategyViewModel extends ChangeNotifier {
             .toList();
         _displayDate = data['display_date'] as String?;
         _showingHistorical = data['historical'] as bool? ?? false;
+        _selectedDate = _displayDate ?? data['date'] as String?;
         _warmProgress = null;
         _stopPolling();
       } else if (_warmProgress!.isReady && rawList == null) {
@@ -180,12 +252,20 @@ class T0StrategyViewModel extends ChangeNotifier {
         _stopPolling();
       }
     } else if (rawList != null) {
-      // 当天正常数据：停止轮询并清空历史标记
       _results = rawList
           .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))
           .toList();
-      _displayDate = null;
-      _showingHistorical = false;
+      if (archived || (data['historical'] as bool? ?? false)) {
+        _displayDate = (data['display_date'] as String?) ??
+            (data['date'] as String?) ??
+            date;
+        _showingHistorical = true;
+        _selectedDate = _displayDate;
+      } else {
+        _displayDate = null;
+        _showingHistorical = false;
+        _selectedDate = data['date'] as String? ?? date;
+      }
       _warmProgress = null;
       _stopPolling();
     } else {
@@ -193,6 +273,7 @@ class T0StrategyViewModel extends ChangeNotifier {
       _results = [];
       _displayDate = null;
       _showingHistorical = false;
+      _selectedDate = null;
       _warmProgress = null;
       _stopPolling();
     }
