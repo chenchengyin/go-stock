@@ -58,6 +58,21 @@ func TestPatchSelectionCloseRets(t *testing.T) {
 	}
 }
 
+func TestRound2HandlesNegatives(t *testing.T) {
+	cases := map[float64]float64{
+		-6.7214: -6.72,
+		-6.715:  -6.72,
+		6.715:   6.72,
+		9.994:   9.99,
+		-0.004:  0,
+	}
+	for in, want := range cases {
+		if got := round2(in); got != want {
+			t.Fatalf("round2(%v)=%v want %v", in, got, want)
+		}
+	}
+}
+
 func TestT0ShortCodeFromResultCode(t *testing.T) {
 	cases := map[string]string{
 		"600188.XSHG": "600188",

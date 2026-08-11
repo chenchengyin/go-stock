@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1258,7 +1259,9 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 }
 
 func round2(v float64) float64 {
-	return float64(int(v*100+0.5)) / 100
+	// math.Round 对负数同样按绝对值四舍五入；早期的 int(v*100+0.5) 会向零截断，
+	// 导致所有下跌幅度偏小 0.01。
+	return math.Round(v*100) / 100
 }
 
 // ── API Handler ─────────────────────────────────────────────────────────────
