@@ -631,10 +631,31 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: vm.results.length,
-                      itemBuilder: (_, i) => _buildStrategyCard(vm.results[i]),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (vm.showingHistorical && vm.displayDate != null)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            color: AppColors.cardBg,
+                            child: Text(
+                              '当前显示 ${vm.displayDate} 选股结果',
+                              style: TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            itemCount: vm.results.length,
+                            itemBuilder: (_, i) =>
+                                _buildStrategyCard(vm.results[i]),
+                          ),
+                        ),
+                      ],
                     ),
     );
   }
