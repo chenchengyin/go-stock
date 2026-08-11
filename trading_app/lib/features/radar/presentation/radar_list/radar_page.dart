@@ -634,16 +634,48 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (vm.showingHistorical && vm.displayDate != null)
+                        if (vm.showDateSelector)
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                                horizontal: 16, vertical: 4),
                             color: AppColors.cardBg,
-                            child: Text(
-                              '当前显示 ${vm.displayDate} 选股结果',
-                              style: TextStyle(
-                                  fontSize: 12, color: AppColors.textSecondary),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '当前显示',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary),
+                                ),
+                                const SizedBox(width: 8),
+                                DropdownButton<String>(
+                                  value: vm.selectedDate,
+                                  underline: const SizedBox.shrink(),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  items: vm.dropdownDates
+                                      .map(
+                                        (d) => DropdownMenuItem(
+                                          value: d,
+                                          child: Text(d),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (d) {
+                                    if (d != null) vm.selectDate(d);
+                                  },
+                                ),
+                                Text(
+                                  '选股结果',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary),
+                                ),
+                              ],
                             ),
                           ),
                         Expanded(
