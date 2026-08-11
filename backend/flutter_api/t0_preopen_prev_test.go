@@ -79,6 +79,54 @@ func TestFindLatestSelectionArchiveBefore_SkipsCorrupt(t *testing.T) {
 	}
 }
 
+func TestBuildPrewarmReadyResponseInjectsHistorical(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	if err := saveT0DailyCache("2026-08-12",
+		[]t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "浦发银行"}},
+		map[string][]dailyBar{"600000": {{Date: "2026-08-11", Close: 10}}}); err != nil {
+		t.Fatal(err)
+	}
+	mustSaveArchive(t, "2026-08-11", "600011.XSHG")
+
+	resp := buildPrewarmReadyResponseAt("2026-08-12",
+		time.Date(2026, 8, 12, 8, 0, 0, 0, chinaLocation()))
+	if resp["historical"] != true {
+		t.Fatalf("historical=%v", resp["historical"])
+	}
+	if resp["display_date"] != "2026-08-11" {
+		t.Fatalf("display_date=%v", resp["display_date"])
+	}
+	results, ok := resp["results"].([]T0SelectionResult)
+	if !ok || len(results) != 1 || results[0].StockCode != "600011.XSHG" {
+		t.Fatalf("results=%v", resp["results"])
+	}
+}
+
+func TestBuildPrewarmReadyResponseNoHistoricalAfter0900(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	if err := saveT0DailyCache("2026-08-12",
+		[]t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "浦发银行"}},
+		map[string][]dailyBar{"600000": {{Date: "2026-08-11", Close: 10}}}); err != nil {
+		t.Fatal(err)
+	}
+	mustSaveArchive(t, "2026-08-11", "600011.XSHG")
+
+	resp := buildPrewarmReadyResponseAt("2026-08-12",
+		time.Date(2026, 8, 12, 9, 0, 0, 0, chinaLocation()))
+	if _, has := resp["historical"]; has {
+		t.Fatal("09:00 起不应注入历史结果")
+	}
+	if _, has := resp["results"]; has {
+		t.Fatal("09:00 起不应带 results")
+	}
+}
+
 func mustSaveArchive(t *testing.T, date, code string) {
 	t.Helper()
 	if err := saveT0SelectionArchive(date, []T0SelectionResult{{StockCode: code}}, true); err != nil {

@@ -413,6 +413,10 @@ func runT0PrewarmJob(tradeDate string) {
 }
 
 func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
+	return buildPrewarmReadyResponseAt(tradeDate, time.Now())
+}
+
+func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]interface{} {
 	tStart := time.Now()
 	stocks, daily, ok := []t0Stock(nil), map[string][]dailyBar(nil), false
 	if cached, hit := loadT0DailyCache(tradeDate); hit {
@@ -432,7 +436,7 @@ func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
 	if prog.CandidateCount > 0 {
 		candidateCount = prog.CandidateCount
 	}
-	return map[string]interface{}{
+	resp := map[string]interface{}{
 		"date":            tradeDate,
 		"prewarm":         true,
 		"status":          string(t0WarmStatusReady),
@@ -444,6 +448,16 @@ func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
 		"cache_hit":       true,
 		"elapsed_sec":     round2(time.Since(tStart).Seconds()),
 	}
+
+	// 凌晨窗口内：附带最近历史归档，供前端直接展示前一交易日结果
+	if isPreopenPrevResultWindow(now, tradeDate) {
+		if a, found := findLatestSelectionArchiveBefore(tradeDate); found {
+			resp["historical"] = true
+			resp["display_date"] = a.Date
+			resp["results"] = a.Results
+		}
+	}
+	return resp
 }
 
 func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[string]interface{} {
