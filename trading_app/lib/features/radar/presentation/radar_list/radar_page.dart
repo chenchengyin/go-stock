@@ -646,80 +646,56 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final closeColor = closeUp ? AppColors.textPriceUp : AppColors.textPriceDown;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // 第一行：名称 + 最新涨幅 + 代码 + 开盘涨幅 + 同花顺按钮
-          Row(
-            children: [
-              Text(
-                stock.stockName,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: closeColor),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                stock.rawCode,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-              const Spacer(),
-              Text(
-                '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: openColor,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _openInTongHuaShun(context, stock.rawCode),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.asset(
-                    'assets/images/kline_button.png',
-                    width: 24,
-                    height: 24,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ],
+          // 名称
+          Text(
+            stock.stockName,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
-          const SizedBox(height: 6),
-          // 第二行：前收盘 + 成交额 + 涨停日期
-          Row(
-            children: [
-              Text(
-                '¥${stock.prevClose.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          // 最新涨幅
+          Text(
+            '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: closeColor),
+          ),
+          const SizedBox(width: 6),
+          // 代码
+          Text(
+            stock.rawCode,
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+          const Spacer(),
+          // 开盘涨幅
+          Text(
+            '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: openColor,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 同花顺按钮
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _openInTongHuaShun(context, stock.rawCode),
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset(
+                'assets/images/kline_button.png',
+                width: 22,
+                height: 22,
+                fit: BoxFit.contain,
               ),
-              const SizedBox(width: 12),
-              Text(
-                '成交额 ${stock.amountYi.toStringAsFixed(2)}亿',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  stock.limitUpDates != '-' ? '涨停: ${stock.limitUpDates}' : '',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
