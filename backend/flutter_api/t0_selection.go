@@ -248,6 +248,47 @@ func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
 	return &a, true
 }
 
+// findLatestSelectionArchiveBefore 在 selection 目录里找日期严格早于 tradeDate 的最新有效归档。
+// 文件名形如 t0_selection_YYYY-MM-DD.json；损坏或非法文件跳过。
+func findLatestSelectionArchiveBefore(tradeDate string) (*t0SelectionArchive, bool) {
+	dir := filepath.Dir(t0SelectionCachePath(tradeDate))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, false
+	}
+
+	const prefix = "t0_selection_"
+	const suffix = ".json"
+	dates := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		d := name[len(prefix) : len(name)-len(suffix)]
+		if _, perr := time.Parse("2006-01-02", d); perr != nil {
+			continue
+		}
+		if d >= tradeDate {
+			continue
+		}
+		dates = append(dates, d)
+	}
+	if len(dates) == 0 {
+		return nil, false
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	for _, d := range dates {
+		if a, ok := loadT0SelectionArchive(d); ok {
+			return a, true
+		}
+	}
+	return nil, false
+}
+
 // loadOrFetchT0Daily 优先读磁盘缓存；未命中则拉股票池+日线并写入。
 func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]dailyBar, fromCache bool, err error) {
 	if cached, ok := loadT0DailyCache(tradeDate); ok {
@@ -1342,6 +1383,16 @@ func shouldAutoPrewarmT0(now time.Time) bool {
 	local := now.In(chinaLocation())
 	switch local.Weekday() {
 	case time.Saturday, time.Sunday:
+		return false
+	}
+	return local.Hour()*60+local.Minute() < t0AutoPrewarmEndHM
+}
+
+// isPreopenPrevResultWindow 判断 now 是否处于「上海时区当天 00:00~09:00」且 tradeDate 即当天。
+// 命中时主板策略可展示前一交易日归档；09:00 起交回等待流程。
+func isPreopenPrevResultWindow(now time.Time, tradeDate string) bool {
+	local := now.In(chinaLocation())
+	if local.Format("2006-01-02") != tradeDate {
 		return false
 	}
 	return local.Hour()*60+local.Minute() < t0AutoPrewarmEndHM
