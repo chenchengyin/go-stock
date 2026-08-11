@@ -572,6 +572,53 @@ func refreshSelectionCloseRet(tradeDate string, force bool) (map[string]any, err
 	}, nil
 }
 
+// patchSelectionTags 用日线缓存重算归档结果的前日标记，其余字段不动。
+// 日线缺失或历史不足两根时记入 missing 并留空标记。
+func patchSelectionTags(results []T0SelectionResult, daily map[string][]dailyBar, tradeDate string) (tagged, missing int) {
+	for i := range results {
+		hist := histBarsBeforeTradeDate(daily[t0ShortCodeFromResultCode(results[i].StockCode)], tradeDate)
+		highRet, openRet, closeRet, ok := prevDayRetsFromHist(hist)
+		if !ok {
+			results[i].Tag = ""
+			missing++
+			continue
+		}
+		results[i].Tag = pickPrevDayTag(highRet, openRet, closeRet)
+		if results[i].Tag != "" {
+			tagged++
+		}
+	}
+	return tagged, missing
+}
+
+// refreshSelectionTags 为早于标记功能生成的历史归档补算前日标记。
+// 只依赖前一交易日及更早的 K 线，故不受当日日线是否完整影响。
+func refreshSelectionTags(tradeDate string) (map[string]any, error) {
+	a, ok := loadT0SelectionArchive(tradeDate)
+	if !ok || a == nil {
+		return nil, fmt.Errorf("该日无选股归档")
+	}
+	cache, ok := loadT0DailyCache(tradeDate)
+	if !ok || cache == nil {
+		return nil, fmt.Errorf("该日无日线缓存，无法重算标记")
+	}
+
+	tagged, missing := patchSelectionTags(a.Results, cache.Daily, tradeDate)
+	a.SavedAt = time.Now().In(chinaLocation()).Format(time.RFC3339)
+	a.Count = len(a.Results)
+	if err := saveT0SelectionArchiveFull(a, true); err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"date":    tradeDate,
+		"count":   a.Count,
+		"tagged":  tagged,
+		"missing": missing,
+		"results": a.Results,
+	}, nil
+}
+
 // runT0CloseRefreshTick 定时任务入口：交易日 15:05 后把当日归档刷成真收盘涨幅，每天一次。
 func runT0CloseRefreshTick(now time.Time) {
 	tradeDate := now.In(chinaLocation()).Format("2006-01-02")
@@ -1367,6 +1414,20 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			"count":            a.Count,
 			"results":          a.Results,
 		})
+		return
+	}
+
+	// refresh_tags：用日线缓存补算历史归档的前日标记
+	if isTruthyQuery(q.Get("refresh_tags")) {
+		out, err := refreshSelectionTags(tradeDate)
+		if err != nil {
+			WriteJSON(w, map[string]interface{}{
+				"error": err.Error(),
+				"date":  tradeDate,
+			})
+			return
+		}
+		WriteJSON(w, out)
 		return
 	}
 

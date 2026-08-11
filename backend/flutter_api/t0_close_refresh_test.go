@@ -58,6 +58,41 @@ func TestPatchSelectionCloseRets(t *testing.T) {
 	}
 }
 
+func TestPatchSelectionTags(t *testing.T) {
+	results := []T0SelectionResult{
+		{StockCode: "600001.XSHG"}, // 破板
+		{StockCode: "000002.XSHE"}, // 跌停
+		{StockCode: "000003.XSHE"}, // 无标记
+		{StockCode: "000004.XSHE"}, // 缓存缺失
+	}
+	daily := map[string][]dailyBar{
+		"600001": {
+			{Date: "2026-08-07", Close: 10},
+			{Date: "2026-08-10", Open: 10.2, High: 11.0, Close: 10.6},
+			{Date: "2026-08-11", Open: 10.7, High: 11.5, Close: 11.2}, // 当日K应被剔除
+		},
+		"000002": {
+			{Date: "2026-08-07", Close: 10},
+			{Date: "2026-08-10", Open: 9.5, High: 9.6, Close: 9.0},
+		},
+		"000003": {
+			{Date: "2026-08-07", Close: 10},
+			{Date: "2026-08-10", Open: 10.1, High: 10.3, Close: 10.2},
+		},
+	}
+
+	tagged, missing := patchSelectionTags(results, daily, "2026-08-11")
+	if tagged != 2 || missing != 1 {
+		t.Fatalf("tagged=%d missing=%d", tagged, missing)
+	}
+	want := []string{"涨停破板", "前一天跌停", "", ""}
+	for i, w := range want {
+		if results[i].Tag != w {
+			t.Fatalf("results[%d].Tag=%q want %q", i, results[i].Tag, w)
+		}
+	}
+}
+
 func TestRound2HandlesNegatives(t *testing.T) {
 	cases := map[float64]float64{
 		-6.7214: -6.72,
