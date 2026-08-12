@@ -89,6 +89,12 @@ func Start() {
 	port := defaultHTTPServerPort
 	mux := http.NewServeMux()
 
+	// 解析并校验 T0 缓存根目录（gob/json 固定写入项目内 backend/data/cache），
+	// 无法定位时直接终止，避免静默写到错误目录。
+	if err := initT0CacheRoot(); err != nil {
+		logger.SugaredLogger.Fatalf("[T0选股] 初始化缓存目录失败：%v", err)
+	}
+
 	mux.HandleFunc("/api/news", handleGetNews)
 	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
 	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)

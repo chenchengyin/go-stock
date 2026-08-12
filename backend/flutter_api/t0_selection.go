@@ -44,11 +44,84 @@ import (
 const (
 	t0MinMarketCapYi = 50.0
 	t0MaxMarketCapYi = 9000.0
-	t0CacheRoot      = "backend/data/cache"
+	// t0CacheRoot 仅作最后兜底（相对当前工作目录），正常由 resolveT0CacheRoot 解析为绝对路径
+	t0CacheRoot = "backend/data/cache"
 )
 
-// t0CacheRootPath 可在测试中改写为临时目录
+// t0CacheRootPath 缓存根目录，服务启动时由 initT0CacheRoot 解析为绝对路径；测试可改写为临时目录
 var t0CacheRootPath = t0CacheRoot
+
+// isProjectRoot 判断目录是否为 go-stock 项目根：同时含 go.mod 与 backend/
+func isProjectRoot(dir string) bool {
+	if fi, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil || fi.IsDir() {
+		return false
+	}
+	if fi, err := os.Stat(filepath.Join(dir, "backend")); err != nil || !fi.IsDir() {
+		return false
+	}
+	return true
+}
+
+// findProjectRootUpward 从 start 逐级向上查找项目根，找不到返回 ""
+func findProjectRootUpward(start string) string {
+	if start == "" {
+		return ""
+	}
+	dir, err := filepath.Abs(start)
+	if err != nil {
+		return ""
+	}
+	for {
+		if isProjectRoot(dir) {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// resolveT0CacheRoot 解析缓存根目录，优先级：
+// 1) 环境变量目录（envDir 非空）→ 绝对路径直接使用
+// 2) 从工作目录向上定位项目根 → <root>/backend/data/cache
+// 3) 从可执行文件目录向上定位项目根 → <root>/backend/data/cache
+// 都失败返回错误，避免静默写到错误目录。
+func resolveT0CacheRoot(envDir, cwd, exeDir string) (string, error) {
+	if strings.TrimSpace(envDir) != "" {
+		abs, err := filepath.Abs(envDir)
+		if err != nil {
+			return "", err
+		}
+		return abs, nil
+	}
+	for _, start := range []string{cwd, exeDir} {
+		if root := findProjectRootUpward(start); root != "" {
+			return filepath.Join(root, "backend", "data", "cache"), nil
+		}
+	}
+	return "", fmt.Errorf("无法定位 go-stock 项目根（含 go.mod 与 backend/），请设置 GO_STOCK_CACHE_DIR")
+}
+
+// initT0CacheRoot 在服务启动时确定缓存根目录并创建。
+func initT0CacheRoot() error {
+	cwd, _ := os.Getwd()
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
+	}
+	root, err := resolveT0CacheRoot(os.Getenv("GO_STOCK_CACHE_DIR"), cwd, exeDir)
+	if err != nil {
+		return err
+	}
+	t0CacheRootPath = root
+	if err := ensureT0CacheDirs(); err != nil {
+		return err
+	}
+	logger.SugaredLogger.Infof("[T0选股] 缓存根目录: %s", t0CacheRootPath)
+	return nil
+}
 
 // t0DailyCachePayload 按交易日落盘的股票池 + 日线缓存
 type t0DailyCachePayload struct {

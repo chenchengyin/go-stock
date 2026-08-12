@@ -11,7 +11,7 @@ import (
 
 func TestT0DailyCachePathUsesGoStockCacheDir(t *testing.T) {
 	p := t0DailyCachePath("2026-08-05")
-	if !strings.Contains(p, filepath.Join("go-stock-cache", "t0", "daily")) {
+	if !strings.Contains(p, filepath.Join("t0", "daily")) {
 		t.Fatalf("unexpected daily path: %s", p)
 	}
 	if !strings.HasSuffix(p, "t0_daily_cache_2026-08-05.gob") {
@@ -21,7 +21,7 @@ func TestT0DailyCachePathUsesGoStockCacheDir(t *testing.T) {
 
 func TestT0SelectionCachePathUsesGoStockCacheDir(t *testing.T) {
 	p := t0SelectionCachePath("2026-08-05")
-	if !strings.Contains(p, filepath.Join("go-stock-cache", "t0", "selection")) {
+	if !strings.Contains(p, filepath.Join("t0", "selection")) {
 		t.Fatalf("unexpected selection path: %s", p)
 	}
 	if !strings.HasSuffix(p, "t0_selection_2026-08-05.json") {
