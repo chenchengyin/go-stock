@@ -5,14 +5,21 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 /// Base API URL, override via `--dart-define=API_BASE_URL=...`.
-/// Default points to Alibaba Cloud; local override example:
+/// Dev server example:
 /// `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080`
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+/// 非 web 端（Android/桌面）无页面 origin 可用，需要显式后端地址。
 const _defaultApiBaseUrl = 'http://118.178.19.165:8080';
 
 String get kApiBaseUrl {
   if (_configuredApiBaseUrl.isNotEmpty) {
     return _configuredApiBaseUrl;
+  }
+  // 网页由后端同端口托管，用当前页面 origin 即可，
+  // 同一份产物在本机 localhost 与公网 IP 下都能正确访问 API。
+  if (kIsWeb) {
+    return Uri.base.origin;
   }
   return _defaultApiBaseUrl;
 }
