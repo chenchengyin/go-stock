@@ -8,32 +8,25 @@ class StockLauncher {
     required String code,
     String? marketId,
   }) async {
-    final normalizedCode = _normalizeCode(code);
+    final normalizedCode = normalizeStockCode(code);
     if (normalizedCode.isEmpty) {
       return false;
     }
 
     final resolvedMarketId =
         marketId ?? inferTongHuaShunMarketId(normalizedCode);
-    final appUri = Uri.parse(
-      'amihexin://command//=XXXX//'
-      '&action//=GGFS//'
-      '&stockcode//=$normalizedCode//'
-      '&applicationScheme//=XXXX//',
-      // '&marketId//=$resolvedMarketId',
-    );
+    final appUri = buildTongHuaShunAppUri(normalizedCode);
+    // '&marketId//=$resolvedMarketId',
 
     if (await _tryLaunch(appUri)) {
       return true;
     }
 
-    return _tryLaunch(
-      Uri.parse('https://stockpage.10jqka.com.cn/$normalizedCode/'),
-    );
+    return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
   }
 
   static String inferTongHuaShunMarketId(String code) {
-    final normalizedCode = _normalizeCode(code);
+    final normalizedCode = normalizeStockCode(code);
 
     if (normalizedCode.startsWith('688') || normalizedCode.startsWith('689')) {
       return '20';
@@ -52,8 +45,42 @@ class StockLauncher {
     return '33';
   }
 
-  static String _normalizeCode(String code) {
+  static String normalizeStockCode(String code) {
     return code.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  static bool shouldUseAndroidWebIntent({
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    return isWeb && platform == TargetPlatform.android;
+  }
+
+  static bool isAndroidMobileUserAgent(String userAgent) {
+    return userAgent.toLowerCase().contains('android');
+  }
+
+  static Uri buildTongHuaShunAppUri(String normalizedCode) {
+    return Uri.parse(
+      'amihexin://command//=XXXX//'
+      '&action//=GGFS//'
+      '&stockcode//=$normalizedCode//'
+      '&applicationScheme//=XXXX//',
+    );
+  }
+
+  static Uri buildTongHuaShunIntentUri(String normalizedCode) {
+    return Uri.parse(
+      'intent://command//=XXXX//'
+      '&action//=GGFS//'
+      '&stockcode//=$normalizedCode//'
+      '&applicationScheme//=XXXX//'
+      '#Intent;scheme=amihexin;package=com.hexin.plat.android;end',
+    );
+  }
+
+  static Uri buildTongHuaShunWebUri(String normalizedCode) {
+    return Uri.parse('https://stockpage.10jqka.com.cn/$normalizedCode/');
   }
 
   static Future<bool> _tryLaunch(Uri uri) async {
