@@ -85,12 +85,16 @@ class StockLauncher {
   }
 
   static Uri buildTongHuaShunIntentUri(String normalizedCode) {
+    final fallbackUrl = Uri.encodeComponent(
+      buildTongHuaShunWebUri(normalizedCode).toString(),
+    );
     return Uri.parse(
       'intent://command//=XXXX//'
       '&action//=GGFS//'
       '&stockcode//=$normalizedCode//'
       '&applicationScheme//=XXXX//'
-      '#Intent;scheme=amihexin;package=com.hexin.plat.android;end',
+      '#Intent;scheme=amihexin;package=com.hexin.plat.android;'
+      'S.browser_fallback_url=$fallbackUrl;end',
     );
   }
 
@@ -101,7 +105,11 @@ class StockLauncher {
   /// Web Intent：跳过 canLaunchUrl（Flutter Web 对 intent:// 常误报不可用）
   static Future<bool> _tryLaunchPreferLaunch(Uri uri) async {
     try {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_self' : null,
+      );
     } catch (error) {
       debugPrint('Launch stock url failed: $uri, $error');
       return false;
@@ -113,7 +121,11 @@ class StockLauncher {
       if (!await canLaunchUrl(uri)) {
         return false;
       }
-      return launchUrl(uri, mode: LaunchMode.externalApplication);
+      return launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_self' : null,
+      );
     } catch (error) {
       debugPrint('Launch stock url failed: $uri, $error');
       return false;

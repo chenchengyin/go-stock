@@ -77,13 +77,20 @@ void main() {
       expect(uri.toString(), contains('stockcode//=601318//'));
     });
 
-    test('intent uri embeds scheme package and stockcode', () {
+    test('intent uri embeds scheme package stockcode and browser fallback', () {
       final uri = StockLauncher.buildTongHuaShunIntentUri('002558');
       final s = uri.toString();
       expect(s.startsWith('intent://'), isTrue);
       expect(s, contains('stockcode//=002558//'));
       expect(s, contains('scheme=amihexin'));
       expect(s, contains('package=com.hexin.plat.android'));
+      expect(s, contains('S.browser_fallback_url='));
+      expect(
+        s,
+        contains(
+          Uri.encodeComponent('https://stockpage.10jqka.com.cn/002558/'),
+        ),
+      );
       expect(s.endsWith(';end') || s.contains(';end'), isTrue);
     });
 
