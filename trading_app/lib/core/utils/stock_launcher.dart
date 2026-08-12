@@ -7,21 +7,36 @@ class StockLauncher {
   static Future<bool> openTongHuaShun({
     required String code,
     String? marketId,
+    @visibleForTesting bool? isWebOverride,
+    @visibleForTesting TargetPlatform? platformOverride,
   }) async {
     final normalizedCode = normalizeStockCode(code);
     if (normalizedCode.isEmpty) {
       return false;
     }
 
-    final resolvedMarketId =
-        marketId ?? inferTongHuaShunMarketId(normalizedCode);
-    final appUri = buildTongHuaShunAppUri(normalizedCode);
-    // '&marketId//=$resolvedMarketId',
+    // marketId 保留参数与 inferTongHuaShunMarketId，供未来使用；当前唤起串不强制附带
+    final _ = marketId ?? inferTongHuaShunMarketId(normalizedCode);
 
-    if (await _tryLaunch(appUri)) {
-      return true;
+    final isWeb = isWebOverride ?? kIsWeb;
+    final platform = platformOverride ?? defaultTargetPlatform;
+
+    if (shouldUseAndroidWebIntent(isWeb: isWeb, platform: platform)) {
+      if (await _tryLaunchPreferLaunch(
+        buildTongHuaShunIntentUri(normalizedCode),
+      )) {
+        return true;
+      }
+      return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
     }
 
+    if (isWeb) {
+      return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
+    }
+
+    if (await _tryLaunch(buildTongHuaShunAppUri(normalizedCode))) {
+      return true;
+    }
     return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
   }
 
@@ -81,6 +96,16 @@ class StockLauncher {
 
   static Uri buildTongHuaShunWebUri(String normalizedCode) {
     return Uri.parse('https://stockpage.10jqka.com.cn/$normalizedCode/');
+  }
+
+  /// Web Intent：跳过 canLaunchUrl（Flutter Web 对 intent:// 常误报不可用）
+  static Future<bool> _tryLaunchPreferLaunch(Uri uri) async {
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (error) {
+      debugPrint('Launch stock url failed: $uri, $error');
+      return false;
+    }
   }
 
   static Future<bool> _tryLaunch(Uri uri) async {
