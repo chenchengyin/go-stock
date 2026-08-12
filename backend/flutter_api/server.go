@@ -127,6 +127,15 @@ func Start() {
 
 	mux.HandleFunc("/ws", handleWebSocket)
 
+	// 托管 Flutter web 静态产物：根路径提供页面，未知路由回退 index.html（SPA）。
+	// 缺产物时仅告警，服务继续以 API-only 模式运行。
+	if webRoot, err := resolveFlutterWebRoot(); err != nil {
+		logger.SugaredLogger.Warnf("[Web] 未托管前端页面：%v", err)
+	} else {
+		logger.SugaredLogger.Infof("[Web] 托管 Flutter 页面目录: %s", webRoot)
+		mux.Handle("/", spaFileServer(webRoot))
+	}
+
 	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
 	go func() {
 		newsApi := data.NewMarketNewsApi()
@@ -256,6 +265,52 @@ func Start() {
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		logger.SugaredLogger.Errorf("HTTP Server error: %v", err)
 	}
+}
+
+// resolveFlutterWebRoot 解析 Flutter web 静态产物目录：
+// 优先 GO_STOCK_WEB_DIR，否则项目根下 trading_app/build/web；
+// 目录不存在或无 index.html 返回错误。
+func resolveFlutterWebRoot() (string, error) {
+	candidates := []string{}
+	if env := strings.TrimSpace(os.Getenv("GO_STOCK_WEB_DIR")); env != "" {
+		candidates = append(candidates, env)
+	}
+	cwd, _ := os.Getwd()
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
+	}
+	for _, start := range []string{cwd, exeDir} {
+		if root := findProjectRootUpward(start); root != "" {
+			candidates = append(candidates, filepath.Join(root, "trading_app", "build", "web"))
+		}
+	}
+	for _, dir := range candidates {
+		if fi, err := os.Stat(filepath.Join(dir, "index.html")); err == nil && !fi.IsDir() {
+			abs, err := filepath.Abs(dir)
+			if err != nil {
+				return "", err
+			}
+			return abs, nil
+		}
+	}
+	return "", fmt.Errorf("未找到 Flutter web 产物（需含 index.html），可设置 GO_STOCK_WEB_DIR 指定")
+}
+
+// spaFileServer 返回一个静态文件处理器：命中文件直接返回，
+// 未命中且非 API 资源时回退 index.html，支持前端路由刷新。
+func spaFileServer(webRoot string) http.Handler {
+	fs := http.FileServer(http.Dir(webRoot))
+	indexPath := filepath.Join(webRoot, "index.html")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clean := filepath.Clean(r.URL.Path)
+		full := filepath.Join(webRoot, clean)
+		if fi, err := os.Stat(full); err == nil && !fi.IsDir() {
+			fs.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, indexPath)
+	})
 }
 
 func runT0AutoPrewarmTick(now time.Time) {
