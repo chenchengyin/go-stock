@@ -601,7 +601,9 @@ func fetchFromEastMoney(stockCode, stockName, klt string, limit int, end string)
 	if strings.TrimSpace(end) == "" {
 		data = api.GetKLineDataBefore(stockCode, klt, "", limit, "20500101")
 	} else {
-		data = api.GetKLineDataBefore(stockCode, klt, "", limit, end)
+		// 东财日/周线 end 需 YYYYMMDD；传入 2006-01-02 时规范化，避免被忽略后落到「最新」窗口
+		emEnd := strings.ReplaceAll(strings.TrimSpace(end), "-", "")
+		data = api.GetKLineDataBefore(stockCode, klt, "", limit, emEnd)
 	}
 	return &KLineSourceResult{Data: data}
 }

@@ -1005,9 +1005,15 @@ func parseKLineToDailyBar(kd data.KLineData) (dailyBar, bool) {
 	return bar, true
 }
 
-// fetchDailyKLine 获取单只股票日线（最多 30 根），返回按期排序的 bar 列表
+// fetchDailyKLine 获取单只股票日线，返回按期排序的 bar 列表。
+// 有 endDate 时多取一些（60 根），避免新浪/腾讯回退只有「近端」窗口时，
+// 截断到较早历史日后条数不足（MA20 / 涨停记忆）。
 func fetchDailyKLine(shortCode string, endDate string) []dailyBar {
-	result := data.FetchKLineWithFallback(shortCode, "", "101", 30, endDate)
+	limit := 30
+	if strings.TrimSpace(endDate) != "" {
+		limit = 60
+	}
+	result := data.FetchKLineWithFallback(shortCode, "", "101", limit, endDate)
 	if result == nil || result.Data == nil {
 		return nil
 	}
