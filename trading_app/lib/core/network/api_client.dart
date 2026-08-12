@@ -4,30 +4,17 @@ library;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-/// Base API URL, override via environment or config.
-/// Web uses localhost, Android uses local network IP.
+/// Base API URL, override via `--dart-define=API_BASE_URL=...`.
+/// Default points to Alibaba Cloud; local override example:
+/// `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080`
 const _configuredApiBaseUrl = String.fromEnvironment('API_BASE_URL');
+const _defaultApiBaseUrl = 'http://118.178.19.165:8080';
 
 String get kApiBaseUrl {
   if (_configuredApiBaseUrl.isNotEmpty) {
     return _configuredApiBaseUrl;
   }
-  if (kIsWeb) {
-    // 基于当前页面地址推导后端地址（同 host，端口改为 8080）
-    // flutter run --web-hostname 0.0.0.0 时 Uri.base.host 可能是 0.0.0.0，修正为 localhost
-    // Mac Chrome:  localhost:8080
-    // 局域网设备: 192.168.x.x:8080
-    final host = Uri.base.host == '0.0.0.0' ? 'localhost' : Uri.base.host;
-    return 'http://$host:8080';
-  }
-  // Android device needs local network IP
-  if (defaultTargetPlatform == TargetPlatform.android) {
-    
-// 之前：'http://192.168.2.36:8080'
-// 现在：'http://192.168.2.177:8080'
-    return 'http://192.168.2.177:8080';
-  }
-  return 'http://localhost:8080';
+  return _defaultApiBaseUrl;
 }
 
 Dio? _apiClient;
