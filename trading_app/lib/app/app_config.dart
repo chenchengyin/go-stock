@@ -39,7 +39,11 @@ class AppDependencies extends StatelessWidget {
           create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks(),
         ),
         ChangeNotifierProvider(create: (_) => VoiceAnnouncementViewModel()),
-        ChangeNotifierProvider(create: (_) => T0StrategyViewModel()),
+        ChangeNotifierProvider(
+          create: (_) => T0StrategyViewModel(
+            fetchRealtimeQuotes: radarRepo.fetchRealtimeQuotes,
+          ),
+        ),
         Provider<RadarRepository>(create: (_) => radarRepo),
         ChangeNotifierProvider(
           create: (_) =>

@@ -683,8 +683,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 8),
                             itemCount: vm.results.length,
-                            itemBuilder: (_, i) =>
-                                _buildStrategyCard(vm.results[i]),
+                            itemBuilder: (_, i) => _buildStrategyCard(
+                                  vm.results[i],
+                                  preview: vm.showingCandidatePreview,
+                                ),
                           ),
                         ),
                       ],
@@ -692,11 +694,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStrategyCard(T0StrategyStock stock) {
+  Widget _buildStrategyCard(T0StrategyStock stock, {bool preview = false}) {
     final openUp = stock.openGap >= 0;
     final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
     final closeUp = stock.closeRet >= 0;
     final closeColor = closeUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+    final livePct = stock.liveChangePercent ?? 0.0;
+    final liveUp = livePct >= 0;
+    final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -727,27 +732,40 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ),
           ],
           const SizedBox(width: 6),
-          // 最新涨幅
-          Text(
-            '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: closeColor),
-          ),
-          const SizedBox(width: 6),
-          // 代码
+          if (!preview)
+            Text(
+              '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: closeColor),
+            ),
+          if (!preview) const SizedBox(width: 6),
           Text(
             stock.rawCode,
             style: TextStyle(fontSize: 11, color: Colors.grey[600]),
           ),
           const Spacer(),
-          // 开盘涨幅
-          Text(
-            '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: openColor,
+          if (preview) ...[
+            Text(
+              '竞价预览（未确认）',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             ),
-          ),
+            const SizedBox(width: 8),
+            Text(
+              '${liveUp ? "+" : ""}${livePct.toStringAsFixed(2)}%',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: liveColor,
+              ),
+            ),
+          ] else
+            Text(
+              '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: openColor,
+              ),
+            ),
           const SizedBox(width: 8),
           // 同花顺按钮
           Material(

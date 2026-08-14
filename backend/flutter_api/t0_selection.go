@@ -542,14 +542,17 @@ func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]int
 	if cached, hit := loadT0DailyCache(tradeDate); hit {
 		stocks, daily, ok = cached.Stocks, cached.Daily, true
 	}
-	candidateCount := 0
+	hist := make(map[string][]dailyBar, len(daily))
 	if ok {
-		hist := make(map[string][]dailyBar, len(daily))
 		for sc, bars := range daily {
 			hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
 		}
+	}
+	var step2 []t0Stock
+	candidateCount := 0
+	if ok {
 		step1 := filterLimitUpRecent(stocks, hist, 7, 9.8)
-		step2 := filterTurnover(step1, hist, 5.0)
+		step2 = filterTurnover(step1, hist, 5.0)
 		candidateCount = len(step2)
 	}
 	prog := getT0WarmProgress(tradeDate)
@@ -569,15 +572,102 @@ func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]int
 		"elapsed_sec":     round2(time.Since(tStart).Seconds()),
 	}
 
-	// 凌晨窗口内：附带最近历史归档，供前端直接展示前一交易日结果
+	// 凌晨窗口内：附带最近历史归档，供前端直接展示前一交易日结果；不附当日 candidates
 	if isPreopenPrevResultWindow(now, tradeDate) {
 		if a, found := findLatestSelectionArchiveBefore(tradeDate); found {
 			resp["historical"] = true
 			resp["display_date"] = a.Date
 			resp["results"] = sortT0ResultsForClient(a.Results)
 		}
+		return resp
+	}
+
+	if ok {
+		cands := assembleT0CandidateResults(tradeDate, step2, hist)
+		resp["candidates"] = cands
+		resp["phase"] = "candidates"
+		resp["candidate_count"] = len(cands)
 	}
 	return resp
+}
+
+// buildT0CandidateList 从当日日线缓存构建竞价前候选（涨停记忆+成交额），不含开盘涨幅过滤。
+func buildT0CandidateList(tradeDate string) ([]T0SelectionResult, bool) {
+	cached, ok := loadT0DailyCache(tradeDate)
+	if !ok || cached == nil {
+		return nil, false
+	}
+	hist := make(map[string][]dailyBar, len(cached.Daily))
+	for sc, bars := range cached.Daily {
+		hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
+	}
+	step1 := filterLimitUpRecent(cached.Stocks, hist, 7, 9.8)
+	step2 := filterTurnover(step1, hist, 5.0)
+	return assembleT0CandidateResults(tradeDate, step2, hist), true
+}
+
+// assembleT0CandidateResults 把过滤后的股票编成预览条目；开盘/收盘涨幅固定为 0，留给客户端行情覆盖。
+func assembleT0CandidateResults(tradeDate string, stocks []t0Stock, histCache map[string][]dailyBar) []T0SelectionResult {
+	out := make([]T0SelectionResult, 0, len(stocks))
+	for _, s := range stocks {
+		hist := histCache[s.ShortCode]
+		if len(hist) == 0 {
+			continue
+		}
+		prevClose := hist[len(hist)-1].Close
+		prevAmountYi := hist[len(hist)-1].AmountYi
+		var prevRet float64
+		if len(hist) >= 2 && hist[len(hist)-2].Close != 0 {
+			prevRet = (hist[len(hist)-1].Close - hist[len(hist)-2].Close) / hist[len(hist)-2].Close * 100
+		}
+
+		var limitUpDates []string
+		tail := hist
+		if len(hist) > 7+1 {
+			tail = hist[len(hist)-7-1:]
+		}
+		for i := 1; i < len(tail); i++ {
+			if tail[i-1].Close == 0 {
+				continue
+			}
+			ret := (tail[i].Close - tail[i-1].Close) / tail[i-1].Close * 100
+			if ret >= 9.8 {
+				limitUpDates = append(limitUpDates, tail[i].Date)
+			}
+		}
+		limitUpInfo := "-"
+		if len(limitUpDates) > 0 {
+			start := 0
+			if len(limitUpDates) > 3 {
+				start = len(limitUpDates) - 3
+			}
+			limitUpInfo = strings.Join(limitUpDates[start:], ", ")
+		}
+
+		tag := ""
+		if highRet, openRet, prevDayCloseRet, ok := prevDayRetsFromHist(hist); ok {
+			tag = pickPrevDayTag(highRet, openRet, prevDayCloseRet)
+		}
+
+		marketSuffix := ".XSHE"
+		if strings.HasPrefix(s.Code, "sh") {
+			marketSuffix = ".XSHG"
+		}
+		out = append(out, T0SelectionResult{
+			Time:         tradeDate,
+			OpenGap:      0,
+			CloseRet:     0,
+			LimitUpDates: limitUpInfo,
+			MA20:         round2(calcMA20(hist)),
+			AmountYi:     round2(prevAmountYi),
+			StockCode:    s.ShortCode + marketSuffix,
+			StockName:    s.Name,
+			PrevClose:    round2(prevClose),
+			PrevCloseRet: round2(prevRet),
+			Tag:          tag,
+		})
+	}
+	return out
 }
 
 func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[string]interface{} {
