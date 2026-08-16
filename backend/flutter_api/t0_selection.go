@@ -925,10 +925,11 @@ func prevDayRetsFromHist(hist []dailyBar) (highRet, openRet, closeRet float64, o
 
 // pickPrevDayTag 依据前一交易日涨跌结构给出唯一展示标记。
 // 优先级：涨停破板 > 前一天跌停 > 前一天大阴线；同时破板且跌停时不打标记。
+// 大阴线：开盘涨幅−收盘涨幅≥4，且收盘涨幅≥−2%（跌超 2% 不在关注范围）。
 func pickPrevDayTag(highRet, openRet, closeRet float64) string {
 	brokenLimitUp := highRet >= 9.85 && closeRet < 9.85
 	limitDown := closeRet <= -9.9
-	bigYin := openRet-closeRet >= 4.0
+	bigYin := openRet-closeRet >= 4.0 && closeRet >= -2.0
 
 	if brokenLimitUp && limitDown {
 		return ""
