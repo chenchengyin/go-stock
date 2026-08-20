@@ -42,8 +42,11 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 const (
-	t0MinMarketCapYi = 50.0
-	t0MaxMarketCapYi = 9000.0
+	t0MinMarketCapYi    = 50.0
+	t0MaxMarketCapYi    = 9000.0
+	t0LimitUpCloseRet   = 9.89
+	t0BrokenLimitRet    = 9.85
+	t0LimitUpMemoryDays = 7
 	// t0CacheRoot 仅作最后兜底（相对当前工作目录），正常由 resolveT0CacheRoot 解析为绝对路径
 	t0CacheRoot = "backend/data/cache"
 )
@@ -1248,6 +1251,61 @@ func fetchT0Realtime(stocks []t0Stock) map[string]t0Realtime {
 	}
 
 	return result
+}
+
+func isLimitUpMemoryDay(prevClose float64, bar dailyBar, closeThreshold float64) bool {
+	if prevClose == 0 {
+		return false
+	}
+	closeRet := (bar.Close - prevClose) / prevClose * 100
+	highRet := (bar.High - prevClose) / prevClose * 100
+	if closeRet >= closeThreshold {
+		return true
+	}
+	return highRet >= t0BrokenLimitRet && closeRet < t0BrokenLimitRet
+}
+
+func limitUpMemoryTail(hist []dailyBar, days int) []dailyBar {
+	if days < 1 || len(hist) < 2 {
+		return nil
+	}
+	need := days + 1
+	if len(hist) <= need {
+		return hist
+	}
+	return hist[len(hist)-need:]
+}
+
+func hasLimitUpMemory(hist []dailyBar, days int, closeThreshold float64) bool {
+	tail := limitUpMemoryTail(hist, days)
+	for i := 1; i < len(tail); i++ {
+		if isLimitUpMemoryDay(tail[i-1].Close, tail[i], closeThreshold) {
+			return true
+		}
+	}
+	return false
+}
+
+func collectLimitUpMemoryDates(hist []dailyBar, days int, closeThreshold float64) []string {
+	tail := limitUpMemoryTail(hist, days)
+	var dates []string
+	for i := 1; i < len(tail); i++ {
+		if isLimitUpMemoryDay(tail[i-1].Close, tail[i], closeThreshold) {
+			dates = append(dates, tail[i].Date)
+		}
+	}
+	return dates
+}
+
+func formatLimitUpDates(dates []string) string {
+	if len(dates) == 0 {
+		return "-"
+	}
+	start := 0
+	if len(dates) > 3 {
+		start = len(dates) - 3
+	}
+	return strings.Join(dates[start:], ", ")
 }
 
 // ── 过滤层 ──────────────────────────────────────────────────────────────────
