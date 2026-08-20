@@ -105,3 +105,26 @@ func TestHasLimitUpMemoryAgreesWithCollect(t *testing.T) {
 		}
 	}
 }
+
+func TestFilterLimitUpRecentUsesMemoryRules(t *testing.T) {
+	makeStock := func(code string) t0Stock {
+		return t0Stock{Code: "sz." + code, ShortCode: code, Name: code}
+	}
+	cache := map[string][]dailyBar{
+		"000001": {memBar("2026-08-18", 10, 10), memBar("2026-08-19", 11.0, 10.5)},
+		"000002": {memBar("2026-08-18", 10, 10), memBar("2026-08-19", 10.986, 10.986)},
+		"000003": {memBar("2026-08-18", 10, 10), memBar("2026-08-19", 10.989, 10.989)},
+	}
+	in := []t0Stock{makeStock("000001"), makeStock("000002"), makeStock("000003")}
+	got := filterLimitUpRecent(in, cache, t0LimitUpMemoryDays, t0LimitUpCloseRet)
+	if len(got) != 2 {
+		t.Fatalf("got %d stocks, want 2 (broken + sealed)", len(got))
+	}
+	names := map[string]bool{}
+	for _, s := range got {
+		names[s.ShortCode] = true
+	}
+	if !names["000001"] || !names["000003"] || names["000002"] {
+		t.Fatalf("unexpected set: %+v", names)
+	}
+}

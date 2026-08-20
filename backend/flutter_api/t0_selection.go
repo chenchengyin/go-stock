@@ -29,7 +29,7 @@ import (
 //
 // 过滤链：
 //  1. 主板（60/00 开头）+ 流通市值（优先，否则总市值）50～9000 亿
-//  2. 近 7 日有涨停（日涨幅 ≥ 9.8%）
+//  2. 近 7 日有涨停记忆（收盘涨幅 ≥ 9.89%，或最高 ≥ 9.85% 且收盘 < 9.85% 的涨停破板）
 //  3. 前一交易日成交额 ≥ 5 亿
 //  4. 前一交易日收盘价 > MA20（已暂缓，不作为入选条件；函数保留便于恢复）
 //  5. T0 开盘涨幅 0.01% ~ 3%
@@ -521,7 +521,7 @@ func runT0PrewarmJob(tradeDate string) {
 	for sc, bars := range daily {
 		hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
 	}
-	step1 := filterLimitUpRecent(stocks, hist, 7, 9.8)
+	step1 := filterLimitUpRecent(stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 	step2 := filterTurnover(step1, hist, 5.0)
 	updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 		p.Status = t0WarmStatusReady
@@ -554,7 +554,7 @@ func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]int
 	var step2 []t0Stock
 	candidateCount := 0
 	if ok {
-		step1 := filterLimitUpRecent(stocks, hist, 7, 9.8)
+		step1 := filterLimitUpRecent(stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 		step2 = filterTurnover(step1, hist, 5.0)
 		candidateCount = len(step2)
 	}
@@ -604,7 +604,7 @@ func buildT0CandidateList(tradeDate string) ([]T0SelectionResult, bool) {
 	for sc, bars := range cached.Daily {
 		hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
 	}
-	step1 := filterLimitUpRecent(cached.Stocks, hist, 7, 9.8)
+	step1 := filterLimitUpRecent(cached.Stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 	step2 := filterTurnover(step1, hist, 5.0)
 	return assembleT0CandidateResults(tradeDate, step2, hist), true
 }
@@ -624,28 +624,7 @@ func assembleT0CandidateResults(tradeDate string, stocks []t0Stock, histCache ma
 			prevRet = (hist[len(hist)-1].Close - hist[len(hist)-2].Close) / hist[len(hist)-2].Close * 100
 		}
 
-		var limitUpDates []string
-		tail := hist
-		if len(hist) > 7+1 {
-			tail = hist[len(hist)-7-1:]
-		}
-		for i := 1; i < len(tail); i++ {
-			if tail[i-1].Close == 0 {
-				continue
-			}
-			ret := (tail[i].Close - tail[i-1].Close) / tail[i-1].Close * 100
-			if ret >= 9.8 {
-				limitUpDates = append(limitUpDates, tail[i].Date)
-			}
-		}
-		limitUpInfo := "-"
-		if len(limitUpDates) > 0 {
-			start := 0
-			if len(limitUpDates) > 3 {
-				start = len(limitUpDates) - 3
-			}
-			limitUpInfo = strings.Join(limitUpDates[start:], ", ")
-		}
+		limitUpInfo := formatLimitUpDates(collectLimitUpMemoryDates(hist, t0LimitUpMemoryDays, t0LimitUpCloseRet))
 
 		tag := ""
 		if highRet, openRet, prevDayCloseRet, ok := prevDayRetsFromHist(hist); ok {
@@ -1310,29 +1289,13 @@ func formatLimitUpDates(dates []string) string {
 
 // ── 过滤层 ──────────────────────────────────────────────────────────────────
 
-// filterLimitUpRecent 过滤2：近 N 日有涨停（日涨幅 ≥ threshold%）
+// filterLimitUpRecent 过滤2：近 N 日有涨停记忆（收盘涨幅 ≥ threshold%，或涨停破板）
 func filterLimitUpRecent(stocks []t0Stock, cache map[string][]dailyBar, days int, threshold float64) []t0Stock {
-	logger.SugaredLogger.Infof("[T0选股] 过滤2(涨停记忆): %d只 -> 检查近%d日涨幅≥%.1f%%", len(stocks), days, threshold)
+	logger.SugaredLogger.Infof("[T0选股] 过滤2(涨停记忆): %d只 -> 检查近%d日收盘≥%.2f%%或涨停破板", len(stocks), days, threshold)
 
 	var result []t0Stock
 	for _, s := range stocks {
-		bars := cache[s.ShortCode]
-		if len(bars) < days+1 {
-			continue
-		}
-		recent := bars[len(bars)-days:]
-		hasLimitUp := false
-		for i := 1; i < len(recent); i++ {
-			if recent[i-1].Close == 0 {
-				continue
-			}
-			ret := (recent[i].Close - recent[i-1].Close) / recent[i-1].Close * 100
-			if ret >= threshold {
-				hasLimitUp = true
-				break
-			}
-		}
-		if hasLimitUp {
+		if hasLimitUpMemory(cache[s.ShortCode], days, threshold) {
 			result = append(result, s)
 		}
 	}
@@ -1513,7 +1476,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 
 	// ── 3. 日线过滤（基于前一交易日及更早；MA20 门闸已暂缓）──
 	t3 := time.Now()
-	step1 := filterLimitUpRecent(allStocks, histCache, 7, 9.8)
+	step1 := filterLimitUpRecent(allStocks, histCache, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 	step2 := filterTurnover(step1, histCache, 5.0)
 	if len(step2) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] 成交额过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
@@ -1573,28 +1536,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 			t0CloseRet = (closePx - prevClose) / prevClose * 100
 		}
 
-		var limitUpDates []string
-		tail := hist
-		if len(hist) > 7+1 {
-			tail = hist[len(hist)-7-1:]
-		}
-		for i := 1; i < len(tail); i++ {
-			if tail[i-1].Close == 0 {
-				continue
-			}
-			ret := (tail[i].Close - tail[i-1].Close) / tail[i-1].Close * 100
-			if ret >= 9.8 {
-				limitUpDates = append(limitUpDates, tail[i].Date)
-			}
-		}
-		limitUpInfo := "-"
-		if len(limitUpDates) > 0 {
-			start := 0
-			if len(limitUpDates) > 3 {
-				start = len(limitUpDates) - 3
-			}
-			limitUpInfo = strings.Join(limitUpDates[start:], ", ")
-		}
+		limitUpInfo := formatLimitUpDates(collectLimitUpMemoryDates(hist, t0LimitUpMemoryDays, t0LimitUpCloseRet))
 
 		tag := ""
 		if highRet, openRet, prevDayCloseRet, ok := prevDayRetsFromHist(hist); ok {
