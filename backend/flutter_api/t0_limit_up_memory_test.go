@@ -19,7 +19,8 @@ func TestIsLimitUpMemoryDay(t *testing.T) {
 		{"收盘刚好9.89", memBar("d", 10.989, 10.989), true},
 		{"收盘9.88不算涨停也不算破板", memBar("d", 10.988, 10.988), false},
 		{"破板最高10收盘5", memBar("d", 11.0, 10.5), true},
-		{"最高刚好9.85收盘更低", memBar("d", 10.986, 10.98), true},
+		{"最高9.86收盘更低不算破板", memBar("d", 10.986, 10.98), false},
+		{"最高9.89收盘更低算破板", memBar("d", 10.989, 10.98), true},
 		{"封死涨停走收盘门槛", memBar("d", 11.0, 11.0), true},
 		{"夹缝收盘9.86", memBar("d", 10.986, 10.986), false},
 		{"冲涨停后收跌停", memBar("d", 11.0, 9.01), true},
@@ -71,6 +72,19 @@ func TestLimitUpMemoryWindowAndDates(t *testing.T) {
 		t.Fatalf("broken dates=%v", got)
 	}
 
+	// 破板只认前一交易日：更早那天破板、昨日普通、近7日无收盘涨停 → 不算记忆
+	olderBroken := []dailyBar{
+		memBar("2026-08-17", 10, 10),
+		memBar("2026-08-18", 11.0, 10.5),
+		memBar("2026-08-19", 10.5, 10.5),
+	}
+	if hasLimitUpMemory(olderBroken, 7, t0LimitUpCloseRet) {
+		t.Fatal("broken limit-up before yesterday must not count")
+	}
+	if got := collectLimitUpMemoryDates(olderBroken, 7, t0LimitUpCloseRet); len(got) != 0 {
+		t.Fatalf("older broken dates=%v want none", got)
+	}
+
 	// 夹缝不得因这一天命中
 	gap := []dailyBar{
 		memBar("2026-08-18", 10, 10),
@@ -94,6 +108,7 @@ func TestHasLimitUpMemoryAgreesWithCollect(t *testing.T) {
 		{memBar("d0", 10, 10), memBar("d1", 11, 10.5)},
 		{memBar("d0", 10, 10), memBar("d1", 10.986, 10.986)},
 		{memBar("d0", 10, 10), memBar("d1", 10.989, 10.989)},
+		{memBar("d0", 10, 10), memBar("d1", 11, 10.5), memBar("d2", 10.5, 10.5)},
 		nil,
 		{memBar("d0", 10, 10)},
 	}
@@ -114,8 +129,13 @@ func TestFilterLimitUpRecentUsesMemoryRules(t *testing.T) {
 		"000001": {memBar("2026-08-18", 10, 10), memBar("2026-08-19", 11.0, 10.5)},
 		"000002": {memBar("2026-08-18", 10, 10), memBar("2026-08-19", 10.986, 10.986)},
 		"000003": {memBar("2026-08-18", 10, 10), memBar("2026-08-19", 10.989, 10.989)},
+		"000004": {
+			memBar("2026-08-17", 10, 10),
+			memBar("2026-08-18", 11.0, 10.5),
+			memBar("2026-08-19", 10.5, 10.5),
+		},
 	}
-	in := []t0Stock{makeStock("000001"), makeStock("000002"), makeStock("000003")}
+	in := []t0Stock{makeStock("000001"), makeStock("000002"), makeStock("000003"), makeStock("000004")}
 	got := filterLimitUpRecent(in, cache, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 	if len(got) != 2 {
 		t.Fatalf("got %d stocks, want 2 (broken + sealed)", len(got))
@@ -124,7 +144,7 @@ func TestFilterLimitUpRecentUsesMemoryRules(t *testing.T) {
 	for _, s := range got {
 		names[s.ShortCode] = true
 	}
-	if !names["000001"] || !names["000003"] || names["000002"] {
+	if !names["000001"] || !names["000003"] || names["000002"] || names["000004"] {
 		t.Fatalf("unexpected set: %+v", names)
 	}
 }

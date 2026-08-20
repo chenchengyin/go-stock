@@ -29,7 +29,7 @@ import (
 //
 // 过滤链：
 //  1. 主板（60/00 开头）+ 流通市值（优先，否则总市值）50～9000 亿
-//  2. 近 7 日有涨停记忆（收盘涨幅 ≥ 9.89%，或最高 ≥ 9.85% 且收盘 < 9.85% 的涨停破板）
+//  2. 近 7 日收盘涨幅 ≥ 9.89%，或前一交易日涨停破板（最高 ≥ 9.89% 且收盘 < 9.85%）
 //  3. 前一交易日成交额 ≥ 5 亿
 //  4. 前一交易日收盘价 > MA20（已暂缓，不作为入选条件；函数保留便于恢复）
 //  5. T0 开盘涨幅 0.01% ~ 3%
@@ -44,8 +44,8 @@ import (
 const (
 	t0MinMarketCapYi    = 50.0
 	t0MaxMarketCapYi    = 9000.0
-	t0LimitUpCloseRet   = 9.89
-	t0BrokenLimitRet    = 9.85
+	t0LimitUpCloseRet   = 9.89 // 收盘涨停；昨日破板的最高涨幅门槛
+	t0BrokenLimitRet    = 9.85 // 昨日破板：收盘须低于此（最高仍须 ≥ 9.89）
 	t0LimitUpMemoryDays = 7
 	// t0CacheRoot 仅作最后兜底（相对当前工作目录），正常由 resolveT0CacheRoot 解析为绝对路径
 	t0CacheRoot = "backend/data/cache"
@@ -909,7 +909,7 @@ func prevDayRetsFromHist(hist []dailyBar) (highRet, openRet, closeRet float64, o
 // 优先级：涨停破板 > 前一天跌停 > 前一天大阴线；同时破板且跌停时不打标记。
 // 大阴线：开盘涨幅−收盘涨幅≥4，且收盘涨幅≥−2%（跌超 2% 不在关注范围）。
 func pickPrevDayTag(highRet, openRet, closeRet float64) string {
-	brokenLimitUp := highRet >= 9.85 && closeRet < 9.85
+	brokenLimitUp := highRet >= t0LimitUpCloseRet && closeRet < t0BrokenLimitRet
 	limitDown := closeRet <= -9.9
 	bigYin := openRet-closeRet >= 4.0 && closeRet >= -2.0
 
@@ -1232,16 +1232,27 @@ func fetchT0Realtime(stocks []t0Stock) map[string]t0Realtime {
 	return result
 }
 
-func isLimitUpMemoryDay(prevClose float64, bar dailyBar, closeThreshold float64) bool {
+func barCloseHighRet(prevClose float64, bar dailyBar) (closeRet, highRet float64, ok bool) {
 	if prevClose == 0 {
-		return false
+		return 0, 0, false
 	}
-	closeRet := (bar.Close - prevClose) / prevClose * 100
-	highRet := (bar.High - prevClose) / prevClose * 100
-	if closeRet >= closeThreshold {
-		return true
-	}
-	return highRet >= t0BrokenLimitRet && closeRet < t0BrokenLimitRet
+	closeRet = (bar.Close - prevClose) / prevClose * 100
+	highRet = (bar.High - prevClose) / prevClose * 100
+	return closeRet, highRet, true
+}
+
+func isCloseLimitUpDay(prevClose float64, bar dailyBar, closeThreshold float64) bool {
+	closeRet, _, ok := barCloseHighRet(prevClose, bar)
+	return ok && closeRet >= closeThreshold
+}
+
+func isBrokenLimitUpDay(prevClose float64, bar dailyBar) bool {
+	closeRet, highRet, ok := barCloseHighRet(prevClose, bar)
+	return ok && highRet >= t0LimitUpCloseRet && closeRet < t0BrokenLimitRet
+}
+
+func isLimitUpMemoryDay(prevClose float64, bar dailyBar, closeThreshold float64) bool {
+	return isCloseLimitUpDay(prevClose, bar, closeThreshold) || isBrokenLimitUpDay(prevClose, bar)
 }
 
 func limitUpMemoryTail(hist []dailyBar, days int) []dailyBar {
@@ -1257,8 +1268,13 @@ func limitUpMemoryTail(hist []dailyBar, days int) []dailyBar {
 
 func hasLimitUpMemory(hist []dailyBar, days int, closeThreshold float64) bool {
 	tail := limitUpMemoryTail(hist, days)
+	last := len(tail) - 1
 	for i := 1; i < len(tail); i++ {
-		if isLimitUpMemoryDay(tail[i-1].Close, tail[i], closeThreshold) {
+		prev, bar := tail[i-1].Close, tail[i]
+		if isCloseLimitUpDay(prev, bar, closeThreshold) {
+			return true
+		}
+		if i == last && isBrokenLimitUpDay(prev, bar) {
 			return true
 		}
 	}
@@ -1267,10 +1283,16 @@ func hasLimitUpMemory(hist []dailyBar, days int, closeThreshold float64) bool {
 
 func collectLimitUpMemoryDates(hist []dailyBar, days int, closeThreshold float64) []string {
 	tail := limitUpMemoryTail(hist, days)
+	last := len(tail) - 1
 	var dates []string
 	for i := 1; i < len(tail); i++ {
-		if isLimitUpMemoryDay(tail[i-1].Close, tail[i], closeThreshold) {
-			dates = append(dates, tail[i].Date)
+		prev, bar := tail[i-1].Close, tail[i]
+		if isCloseLimitUpDay(prev, bar, closeThreshold) {
+			dates = append(dates, bar.Date)
+			continue
+		}
+		if i == last && isBrokenLimitUpDay(prev, bar) {
+			dates = append(dates, bar.Date)
 		}
 	}
 	return dates
@@ -1289,9 +1311,9 @@ func formatLimitUpDates(dates []string) string {
 
 // ── 过滤层 ──────────────────────────────────────────────────────────────────
 
-// filterLimitUpRecent 过滤2：近 N 日有涨停记忆（收盘涨幅 ≥ threshold%，或涨停破板）
+// filterLimitUpRecent 过滤2：近 N 日收盘涨停（≥ threshold%），或前一交易日涨停破板
 func filterLimitUpRecent(stocks []t0Stock, cache map[string][]dailyBar, days int, threshold float64) []t0Stock {
-	logger.SugaredLogger.Infof("[T0选股] 过滤2(涨停记忆): %d只 -> 检查近%d日收盘≥%.2f%%或涨停破板", len(stocks), days, threshold)
+	logger.SugaredLogger.Infof("[T0选股] 过滤2(涨停记忆): %d只 -> 检查近%d日收盘≥%.2f%%或昨日涨停破板", len(stocks), days, threshold)
 
 	var result []t0Stock
 	for _, s := range stocks {
