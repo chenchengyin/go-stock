@@ -150,5 +150,10 @@ chat_log_*.md
 # 本地 Go 工具链拷贝（体积大，勿提交）
 .tools/
 
-# T0 日线运行时缓存：新 gob 不出现在 status；已入库的历史文件仍跟踪
+# 本地实验与分析报告
+.codex_work/
+reports/
+
+# T0 运行时缓存：新文件不出现在 status；已入库的历史文件仍跟踪
 backend/data/cache/t0/daily/*.gob
+backend/data/cache/t0/selection/*.json
