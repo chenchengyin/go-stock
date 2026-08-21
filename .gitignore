@@ -154,6 +154,5 @@ chat_log_*.md
 .codex_work/
 reports/
 
-# T0 运行时缓存：新文件不出现在 status；已入库的历史文件仍跟踪
 backend/data/cache/t0/daily/*.gob
 backend/data/cache/t0/selection/*.json
