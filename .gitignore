@@ -154,5 +154,3 @@ chat_log_*.md
 .codex_work/
 reports/
 
-backend/data/cache/t0/daily/*.gob
-backend/data/cache/t0/selection/*.json
