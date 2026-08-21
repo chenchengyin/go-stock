@@ -144,3 +144,9 @@ chat_log_*.md
 # 编辑器与工具本地状态
 .vscode/
 .superpowers/
+
+# 本地 Go 工具链拷贝（体积大，勿提交）
+.tools/
+
+# T0 日线运行时缓存：新 gob 不出现在 status；已入库的历史文件仍跟踪
+backend/data/cache/t0/daily/*.gob
