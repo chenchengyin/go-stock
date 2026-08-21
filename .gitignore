@@ -118,6 +118,8 @@ frontend/package.json.md5
 
 # 编译二进制（不提交到 Git）
 /go-stock
+/server
+/go-stock-server-linux-amd64
 *.apk
 
 # Go 编译产物
