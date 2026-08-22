@@ -21,7 +21,7 @@
 - Phase 1 **不回填** 已有 `t0_selection_*.json` 归档。
 - 不在 Phase 1 做 UI 展示；UI 落地留 Phase 2，验证后再做。
 - 不改动现有 T0 过滤链顺序与阈值。
-- 1 小时线 Phase 1 只看 **3 个交易日**（约 12 根）；后续如需扩展到 5 天，单独迭代，不影响日 K 主流程。
+- 1 小时线 Phase 1 只看 **3 个交易日**（约 12 根）；扩展到 5 天见独立 spec [`2026-08-22-t0-hourly-5day-extension-design.md`](./2026-08-22-t0-hourly-5day-extension-design.md)。
 
 ## 决策摘要
 
@@ -106,7 +106,7 @@
 ### 范围
 
 - 固定回看 **前 3 个交易日**（不含观察日 T），约 12 根 60 分钟 K 线。
-- 后续如需 5 天，仅在本模块扩展参数，不改 T0 主链。
+- 扩展到 5 天见独立 spec [`2026-08-22-t0-hourly-5day-extension-design.md`](./2026-08-22-t0-hourly-5day-extension-design.md)；本 spec 仅实现 3 日版。
 
 ### 分类（简化 6 类）
 
