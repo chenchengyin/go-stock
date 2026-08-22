@@ -210,6 +210,43 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
   }
 
+  /// 归档列表中比当前选中更旧的一项；已在最早归档时为 null
+  String? get previousArchiveDate {
+    final selected = _selectedDate;
+    if (selected == null) return null;
+    final dates = dropdownDates;
+    final index = dates.indexOf(selected);
+    if (index < 0 || index + 1 >= dates.length) return null;
+    return dates[index + 1];
+  }
+
+  /// 归档列表中比当前选中更新的一项；已在最新项时为 null
+  String? get nextArchiveDate {
+    final selected = _selectedDate;
+    if (selected == null) return null;
+    final dates = dropdownDates;
+    final index = dates.indexOf(selected);
+    if (index <= 0) return null;
+    return dates[index - 1];
+  }
+
+  bool get canGoPreviousArchive =>
+      previousArchiveDate != null && !_loading;
+
+  bool get canGoNextArchive => nextArchiveDate != null && !_loading;
+
+  Future<void> selectPreviousArchive() async {
+    final date = previousArchiveDate;
+    if (date == null) return;
+    await selectDate(date);
+  }
+
+  Future<void> selectNextArchive() async {
+    final date = nextArchiveDate;
+    if (date == null) return;
+    await selectDate(date);
+  }
+
   /// 切换展示日期：今日走正式选股；其他日走 archived
   Future<void> selectDate(String date) async {
     if (date.isEmpty || date == _selectedDate) return;

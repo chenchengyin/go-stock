@@ -159,4 +159,86 @@ void main() {
     expect(vm.isQuotePolling, false);
     expect(vm.results.first.openGap, 1.1);
   });
+
+  group('archive date navigation', () {
+    T0StrategyViewModel vmWithDates({
+      required List<String> available,
+      required String selectedDate,
+    }) {
+      final vm = T0StrategyViewModel();
+      vm.applyAvailableDatesForTest(available);
+      vm.applyResponseForTest({
+        'archived': true,
+        'date': selectedDate,
+        'results': [
+          {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+        ],
+      });
+      return vm;
+    }
+
+    test('中间项：前后相邻日期均可导航', () {
+      final vm = vmWithDates(
+        available: ['2026-08-12', '2026-08-11', '2026-08-10'],
+        selectedDate: '2026-08-11',
+      );
+
+      expect(vm.previousArchiveDate, '2026-08-10');
+      expect(vm.nextArchiveDate, '2026-08-12');
+      expect(vm.canGoPreviousArchive, true);
+      expect(vm.canGoNextArchive, true);
+    });
+
+    test('最新项：仅可前往更早归档', () {
+      final vm = vmWithDates(
+        available: ['2026-08-12', '2026-08-11'],
+        selectedDate: '2026-08-12',
+      );
+
+      expect(vm.nextArchiveDate, isNull);
+      expect(vm.canGoNextArchive, false);
+      expect(vm.previousArchiveDate, '2026-08-11');
+      expect(vm.canGoPreviousArchive, true);
+    });
+
+    test('最旧项：仅可前往更新归档', () {
+      final vm = vmWithDates(
+        available: ['2026-08-12', '2026-08-11'],
+        selectedDate: '2026-08-11',
+      );
+
+      expect(vm.previousArchiveDate, isNull);
+      expect(vm.canGoPreviousArchive, false);
+      expect(vm.nextArchiveDate, '2026-08-12');
+      expect(vm.canGoNextArchive, true);
+    });
+
+    test('仅一项：两方向均不可导航', () {
+      final vm = vmWithDates(
+        available: ['2026-08-10'],
+        selectedDate: '2026-08-10',
+      );
+
+      expect(vm.previousArchiveDate, isNull);
+      expect(vm.nextArchiveDate, isNull);
+      expect(vm.canGoPreviousArchive, false);
+      expect(vm.canGoNextArchive, false);
+    });
+
+    test('今日不在 availableDates 时，前一天指向归档最新日', () {
+      final vm = T0StrategyViewModel();
+      vm.applyAvailableDatesForTest(['2026-08-11', '2026-08-10']);
+      vm.applyResponseForTest({
+        'date': '2026-08-12',
+        'results': [
+          {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+        ],
+      });
+
+      expect(vm.dropdownDates, ['2026-08-12', '2026-08-11', '2026-08-10']);
+      expect(vm.selectedDate, '2026-08-12');
+      expect(vm.previousArchiveDate, '2026-08-11');
+      expect(vm.nextArchiveDate, isNull);
+    });
+  });
 }
