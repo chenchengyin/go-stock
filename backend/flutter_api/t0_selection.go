@@ -1086,6 +1086,13 @@ func fetchDailyKLine(shortCode string, endDate string) []dailyBar {
 	if strings.TrimSpace(endDate) != "" {
 		limit = 60
 	}
+	return fetchDailyKLineWithLimit(shortCode, endDate, limit)
+}
+
+func fetchDailyKLineWithLimit(shortCode string, endDate string, limit int) []dailyBar {
+	if limit <= 0 {
+		limit = 30
+	}
 	result := data.FetchKLineWithFallback(shortCode, "", "101", limit, endDate)
 	if result == nil || result.Data == nil {
 		return nil
