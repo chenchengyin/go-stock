@@ -649,6 +649,29 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                                       color: AppColors.textSecondary),
                                 ),
                                 const SizedBox(width: 8),
+                                TextButton(
+                                  onPressed: vm.canGoPreviousArchive
+                                      ? vm.selectPreviousArchive
+                                      : null,
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(
+                                    '前一天',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: vm.canGoPreviousArchive
+                                          ? AppColors.textSecondary
+                                          : AppColors.textSecondary
+                                              .withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
                                 DropdownButton<String>(
                                   value: vm.selectedDate,
                                   underline: const SizedBox.shrink(),
@@ -669,6 +692,30 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                                     if (d != null) vm.selectDate(d);
                                   },
                                 ),
+                                const SizedBox(width: 4),
+                                TextButton(
+                                  onPressed: vm.canGoNextArchive
+                                      ? vm.selectNextArchive
+                                      : null,
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(
+                                    '后一天',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: vm.canGoNextArchive
+                                          ? AppColors.textSecondary
+                                          : AppColors.textSecondary
+                                              .withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                                 Text(
                                   '选股结果',
                                   style: TextStyle(
