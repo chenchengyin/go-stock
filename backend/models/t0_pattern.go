@@ -37,7 +37,7 @@ func DefaultT0PatternConfig(batchID string) T0PatternConfig {
 		GreenMinWin:  30,
 		RedMinFail:   52,
 		RedMaxWin:    22,
-		MinSamples:   1, // 保留字段；灯色不再因样本数不足而降级
+		MinSamples:   10,
 		BatchID:      batchID,
 		UpdatedAt:    time.Now(),
 	}

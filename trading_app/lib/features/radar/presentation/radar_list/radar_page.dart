@@ -761,15 +761,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         dotColor = AppColors.textTertiary;
     }
 
-    final hasRates = stock.patternT0N > 0 ||
-        stock.patternWinPct != 0 ||
-        stock.patternFailPct != 0;
-    final rateText = hasRates
-        ? '${stock.patternWinPct.round()}/${stock.patternFailPct.round()}'
-        : '—/—';
-    final textColor = stock.buySignal == 'insufficient' && !hasRates
-        ? AppColors.textTertiary
-        : AppColors.textSecondary;
+    // 灰灯仅表示样本不足/无库记录；只要有形态统计就显示整数率，不用 —/—
+    final noStats = stock.pattern.isEmpty ||
+        (stock.patternT0N == 0 &&
+            stock.patternWinPct == 0 &&
+            stock.patternFailPct == 0);
+    final rateText = noStats
+        ? '—/—'
+        : '${stock.patternWinPct.round()}/${stock.patternFailPct.round()}';
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -782,7 +781,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         const SizedBox(width: 2),
         Text(
           rateText,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: textColor),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
+          ),
         ),
       ],
     );

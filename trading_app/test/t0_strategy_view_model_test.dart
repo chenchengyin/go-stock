@@ -36,6 +36,22 @@ void main() {
     expect(s.pattern, 'XY|ZT|ZT');
   });
 
+  test('insufficient 仍解析并保留形态统计数字', () {
+    final s = T0StrategyStock.fromJson({
+      '股票代码': '002721.XSHE',
+      '股票名称': '金一文化',
+      '形态': 'ZT|MYIN|DT',
+      '形态样本数': 9,
+      '形态达标率(%)': 44.4,
+      '形态真亏率(%)': 55.6,
+      '买入信号': 'insufficient',
+    });
+    expect(s.buySignal, 'insufficient');
+    expect(s.patternT0N, 9);
+    expect(s.patternWinPct, closeTo(44.4, 0.01));
+    expect(s.patternFailPct, closeTo(55.6, 0.01));
+  });
+
   test('凌晨 ready 历史响应：解析列表并标记历史', () {
     final vm = T0StrategyViewModel();
     vm.applyResponseForTest({

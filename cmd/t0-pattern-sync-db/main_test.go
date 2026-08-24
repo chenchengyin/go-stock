@@ -52,7 +52,7 @@ func TestSyncPatternStats(t *testing.T) {
 	if err := db.Dao.First(&cfg, 1).Error; err != nil {
 		t.Fatal(err)
 	}
-	if cfg.BatchID != "2025-01-02:2026-08-22" || cfg.MinSamples != 1 {
+	if cfg.BatchID != "2025-01-02:2026-08-22" || cfg.MinSamples != 10 {
 		t.Fatalf("cfg=%+v", cfg)
 	}
 }
