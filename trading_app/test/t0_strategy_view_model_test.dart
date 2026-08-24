@@ -16,6 +16,26 @@ Map<String, dynamic> _candidateReady({
 }
 
 void main() {
+  test('parses pattern buy signal fields', () {
+    final s = T0StrategyStock.fromJson({
+      '股票代码': '001203.XSHE',
+      '股票名称': '大中矿业',
+      'T0开盘涨幅(%)': 1.27,
+      'T0收盘涨幅(%)': -1.73,
+      '标记': '涨停破板',
+      '形态': 'XY|ZT|ZT',
+      '形态样本数': 56,
+      '形态达标率(%)': 41.1,
+      '形态真亏率(%)': 44.6,
+      '买入信号': 'green',
+    });
+    expect(s.buySignal, 'green');
+    expect(s.patternWinPct, 41.1);
+    expect(s.patternFailPct, 44.6);
+    expect(s.patternT0N, 56);
+    expect(s.pattern, 'XY|ZT|ZT');
+  });
+
   test('凌晨 ready 历史响应：解析列表并标记历史', () {
     final vm = T0StrategyViewModel();
     vm.applyResponseForTest({

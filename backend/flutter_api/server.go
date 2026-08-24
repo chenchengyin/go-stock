@@ -46,6 +46,8 @@ func AutoMigrate() {
 		&data.StockBasic{},
 		&data.FollowedStock{},
 		&models.MarketStatistic{},
+		&models.T0PatternStat{},
+		&models.T0PatternConfig{},
 	)
 	// Telegraph 表由原项目管理，不在 flutter_api 层修改模型
 	// 仅通过 SQL 迁移补充必要的索引和字段

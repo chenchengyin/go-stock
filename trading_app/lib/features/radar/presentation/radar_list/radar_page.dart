@@ -741,6 +741,53 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildBuySignalChip(T0StrategyStock stock) {
+    if (stock.buySignal.isEmpty && stock.pattern.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    Color dotColor;
+    switch (stock.buySignal) {
+      case 'green':
+        dotColor = AppColors.success;
+        break;
+      case 'yellow':
+        dotColor = AppColors.warning;
+        break;
+      case 'red':
+        dotColor = AppColors.error;
+        break;
+      default:
+        dotColor = AppColors.textTertiary;
+    }
+
+    final hasRates = stock.patternT0N > 0 ||
+        stock.patternWinPct != 0 ||
+        stock.patternFailPct != 0;
+    final rateText = hasRates
+        ? '${stock.patternWinPct.round()}/${stock.patternFailPct.round()}'
+        : '—/—';
+    final textColor = stock.buySignal == 'insufficient' && !hasRates
+        ? AppColors.textTertiary
+        : AppColors.textSecondary;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 2),
+        Text(
+          rateText,
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: textColor),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStrategyCard(T0StrategyStock stock, {bool preview = false}) {
     final openUp = stock.openGap >= 0;
     final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
@@ -789,6 +836,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             stock.rawCode,
             style: TextStyle(fontSize: 11, color: Colors.grey[600]),
           ),
+          const SizedBox(width: 6),
+          _buildBuySignalChip(stock),
           const Spacer(),
           if (preview) ...[
             Text(

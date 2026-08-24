@@ -1,7 +1,8 @@
 package candlepattern
 
 func BuildPatternLabels(hist []DailyBar, window int) ([]BarType, bool) {
-	if len(hist) < window {
+	// 首根 K 线分类需要前一日收盘价，故至少 window+1 根历史。
+	if len(hist) < window+1 {
 		return nil, false
 	}
 	seg := hist[len(hist)-window:]

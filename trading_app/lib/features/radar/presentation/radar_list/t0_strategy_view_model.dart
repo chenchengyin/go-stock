@@ -23,6 +23,11 @@ class T0StrategyStock {
   final double prevCloseRet; // 前一交易日收盘涨幅(%)
   final String tag; // 标记：涨停破板 / 前一天跌停 / 前一天大阴线，无标记为空串
   final double? liveChangePercent; // 候选预览用实时涨幅；null 表示尚无行情
+  final String pattern; // 3K 形态键
+  final int patternT0N; // 形态样本数
+  final double patternWinPct; // 形态达标率(%)
+  final double patternFailPct; // 形态真亏率(%)
+  final String buySignal; // green | yellow | red | insufficient
 
   const T0StrategyStock({
     required this.stockCode,
@@ -36,6 +41,11 @@ class T0StrategyStock {
     required this.prevCloseRet,
     this.tag = '',
     this.liveChangePercent,
+    this.pattern = '',
+    this.patternT0N = 0,
+    this.patternWinPct = 0,
+    this.patternFailPct = 0,
+    this.buySignal = '',
   });
 
   factory T0StrategyStock.fromJson(Map<String, dynamic> json) {
@@ -50,6 +60,11 @@ class T0StrategyStock {
       prevClose: (json['前一交易日收盘'] as num?)?.toDouble() ?? 0.0,
       prevCloseRet: (json['前一交易日收盘涨幅(%)'] as num?)?.toDouble() ?? 0.0,
       tag: json['标记'] as String? ?? '',
+      pattern: json['形态'] as String? ?? '',
+      patternT0N: (json['形态样本数'] as num?)?.toInt() ?? 0,
+      patternWinPct: (json['形态达标率(%)'] as num?)?.toDouble() ?? 0.0,
+      patternFailPct: (json['形态真亏率(%)'] as num?)?.toDouble() ?? 0.0,
+      buySignal: json['买入信号'] as String? ?? '',
     );
   }
 
@@ -66,6 +81,11 @@ class T0StrategyStock {
       prevCloseRet: prevCloseRet,
       tag: tag,
       liveChangePercent: liveChangePercent ?? this.liveChangePercent,
+      pattern: pattern,
+      patternT0N: patternT0N,
+      patternWinPct: patternWinPct,
+      patternFailPct: patternFailPct,
+      buySignal: buySignal,
     );
   }
 

@@ -648,6 +648,7 @@ func assembleT0CandidateResults(tradeDate string, stocks []t0Stock, histCache ma
 			PrevCloseRet: round2(prevRet),
 			Tag:          tag,
 		})
+		enrichResultWithPattern(&out[len(out)-1], hist)
 	}
 	return out
 }
@@ -716,6 +717,11 @@ type T0SelectionResult struct {
 	PrevClose    float64 `json:"前一交易日收盘"`
 	PrevCloseRet float64 `json:"前一交易日收盘涨幅(%)"`
 	Tag          string  `json:"标记"`
+	Pattern          string  `json:"形态"`
+	PatternT0N       int     `json:"形态样本数"`
+	PatternWinPct    float64 `json:"形态达标率(%)"`
+	PatternFailPct   float64 `json:"形态真亏率(%)"`
+	BuySignal        string  `json:"买入信号"`
 }
 
 // t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05
@@ -1593,6 +1599,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 			PrevCloseRet: round2(prevRet),
 			Tag:          tag,
 		})
+		enrichResultWithPattern(&results[len(results)-1], hist)
 	}
 
 	sort.Slice(results, func(i, j int) bool {
@@ -1731,7 +1738,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			"saved_at":         a.SavedAt,
 			"close_updated_at": a.CloseUpdatedAt,
 			"count":            a.Count,
-			"results":          sortT0ResultsForClient(a.Results),
+			"results":          sortT0ResultsForClient(enrichArchivedResults(tradeDate, a.Results)),
 		})
 		return
 	}
