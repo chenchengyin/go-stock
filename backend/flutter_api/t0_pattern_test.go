@@ -21,7 +21,10 @@ func TestSignalFromRates(t *testing.T) {
 		n         int
 		want      string
 	}{
-		{"green", 41, 44, 56, BuySignalGreen},
+		{"blue super win", 50, 35, 20, BuySignalBlue},
+		{"blue boundary", 45, 40, 10, BuySignalBlue},
+		{"green not blue", 41, 44, 56, BuySignalGreen},
+		{"green below blue win", 44, 38, 12, BuySignalGreen},
 		{"red high fail", 19, 62, 42, BuySignalRed},
 		{"red low win", 20, 48, 30, BuySignalRed},
 		{"yellow", 28, 48, 30, BuySignalYellow},

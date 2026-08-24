@@ -19,6 +19,8 @@ func (T0PatternStat) TableName() string { return "t0_pattern_stats" }
 
 type T0PatternConfig struct {
 	ID           uint      `gorm:"primaryKey"`
+	BlueMinWin   float64   `gorm:"column:blue_min_win"`
+	BlueMaxFail  float64   `gorm:"column:blue_max_fail"`
 	GreenMaxFail float64   `gorm:"column:green_max_fail"`
 	GreenMinWin  float64   `gorm:"column:green_min_win"`
 	RedMinFail   float64   `gorm:"column:red_min_fail"`
@@ -33,6 +35,8 @@ func (T0PatternConfig) TableName() string { return "t0_pattern_config" }
 func DefaultT0PatternConfig(batchID string) T0PatternConfig {
 	return T0PatternConfig{
 		ID:           1,
+		BlueMinWin:   45, // 全池约 26%；N≥10 中 ~5% 形态可达此档
+		BlueMaxFail:  40,
 		GreenMaxFail: 45,
 		GreenMinWin:  30,
 		RedMinFail:   52,

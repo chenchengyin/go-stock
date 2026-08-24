@@ -27,7 +27,7 @@ class T0StrategyStock {
   final int patternT0N; // 形态样本数
   final double patternWinPct; // 形态达标率(%)
   final double patternFailPct; // 形态真亏率(%)
-  final String buySignal; // green | yellow | red | insufficient
+  final String buySignal; // blue | green | yellow | red | insufficient
 
   const T0StrategyStock({
     required this.stockCode,

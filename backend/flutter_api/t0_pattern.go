@@ -7,6 +7,7 @@ import (
 )
 
 const (
+	BuySignalBlue         = "blue"
 	BuySignalGreen        = "green"
 	BuySignalYellow       = "yellow"
 	BuySignalRed          = "red"
@@ -21,6 +22,9 @@ func signalFromRates(winPct, failPct float64, t0N int, cfg models.T0PatternConfi
 	}
 	if t0N < cfg.MinSamples {
 		return BuySignalInsufficient
+	}
+	if winPct >= cfg.BlueMinWin && failPct <= cfg.BlueMaxFail {
+		return BuySignalBlue
 	}
 	if failPct <= cfg.GreenMaxFail && winPct >= cfg.GreenMinWin {
 		return BuySignalGreen

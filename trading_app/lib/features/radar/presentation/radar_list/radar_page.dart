@@ -748,6 +748,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
     Color dotColor;
     switch (stock.buySignal) {
+      case 'blue':
+        dotColor = AppColors.info;
+        break;
       case 'green':
         dotColor = AppColors.success;
         break;
