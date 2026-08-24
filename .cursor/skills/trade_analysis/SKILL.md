@@ -160,9 +160,9 @@ go run ./cmd/t0-pattern-aggregate/ \
   --out backend/data/cache/t0/pattern/pattern_aggregate_2025-2026.json
 
 # 2. JSON → SQLite（全量替换 stats + 更新 config.batch_id）
+# 默认写入 data/stock.db（与 cmd/server 一致）
 go run ./cmd/t0-pattern-sync-db/ \
-  --from backend/data/cache/t0/pattern/pattern_aggregate_2025-2026.json \
-  --db backend/data/stock.db
+  --from backend/data/cache/t0/pattern/pattern_aggregate_2025-2026.json
 ```
 
 - 每次扩展 `--date-range` 重跑 aggregate 后，**必须**再跑 `sync-db`

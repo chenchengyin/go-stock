@@ -25,7 +25,7 @@ func TestSignalFromRates(t *testing.T) {
 		{"red high fail", 19, 62, 42, BuySignalRed},
 		{"red low win", 20, 48, 30, BuySignalRed},
 		{"yellow", 28, 48, 30, BuySignalYellow},
-		{"insufficient sample", 50, 40, 5, BuySignalInsufficient},
+		{"small sample green", 50, 40, 5, BuySignalGreen},
 		{"insufficient zero", 41, 44, 0, BuySignalInsufficient},
 		{"green boundary", 30, 45, 10, BuySignalGreen},
 		{"red fail boundary", 25, 52.1, 10, BuySignalRed},

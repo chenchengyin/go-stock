@@ -16,7 +16,8 @@ const (
 )
 
 func signalFromRates(winPct, failPct float64, t0N int, cfg models.T0PatternConfig) string {
-	if t0N < cfg.MinSamples {
+	_ = cfg
+	if t0N <= 0 {
 		return BuySignalInsufficient
 	}
 	if failPct <= cfg.GreenMaxFail && winPct >= cfg.GreenMinWin {
