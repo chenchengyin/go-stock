@@ -47,6 +47,37 @@ func TestSortT0ResultsForClientStableSameKey(t *testing.T) {
 	}
 }
 
+func TestSortT0ResultsForClientBlueFirst(t *testing.T) {
+	in := []T0SelectionResult{
+		{StockCode: "A", OpenGap: 3.0, Tag: "涨停破板", BuySignal: BuySignalGreen},
+		{StockCode: "B", OpenGap: 1.0, Tag: "", BuySignal: BuySignalBlue},
+		{StockCode: "C", OpenGap: 2.5, Tag: "", BuySignal: BuySignalRed},
+		{StockCode: "D", OpenGap: 0.5, Tag: "前一天跌停", BuySignal: BuySignalBlue},
+	}
+	got := sortT0ResultsForClient(in)
+	// blue 最前；组内仍有标记优先：D(蓝+标记) 先于 B(蓝)；再 A(绿+标记)、C(红)
+	want := []string{"D", "B", "A", "C"}
+	for i, code := range want {
+		if got[i].StockCode != code {
+			t.Fatalf("pos %d = %s want %s (full %v)", i, got[i].StockCode, code, codes(got))
+		}
+	}
+}
+
+func TestSortT0ResultsForClientBlueThenOpenGap(t *testing.T) {
+	in := []T0SelectionResult{
+		{StockCode: "L", OpenGap: 1.0, BuySignal: BuySignalBlue},
+		{StockCode: "H", OpenGap: 2.8, BuySignal: BuySignalBlue},
+	}
+	got := sortT0ResultsForClient(in)
+	want := []string{"H", "L"}
+	for i, code := range want {
+		if got[i].StockCode != code {
+			t.Fatalf("pos %d = %s want %s", i, got[i].StockCode, code)
+		}
+	}
+}
+
 func codes(rs []T0SelectionResult) []string {
 	out := make([]string, len(rs))
 	for i, r := range rs {

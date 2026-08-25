@@ -454,6 +454,8 @@ class T0StrategyViewModel extends ChangeNotifier {
       return s.copyWith(liveChangePercent: pct);
     }).toList();
     merged.sort((a, b) {
+      final br = buySignalSortRank(a.buySignal).compareTo(buySignalSortRank(b.buySignal));
+      if (br != 0) return br;
       final am = a.liveChangePercent != null;
       final bm = b.liveChangePercent != null;
       if (am != bm) return am ? -1 : 1;
@@ -461,6 +463,33 @@ class T0StrategyViewModel extends ChangeNotifier {
       return b.liveChangePercent!.compareTo(a.liveChangePercent!);
     });
     _results = merged;
+  }
+
+  @visibleForTesting
+  static int buySignalSortRank(String buySignal) =>
+      buySignal == 'blue' ? 0 : 1;
+
+  @visibleForTesting
+  static List<T0StrategyStock> sortStrategyStocksForDisplay(
+    List<T0StrategyStock> list, {
+    required double? Function(T0StrategyStock s) liveChangePercent,
+    bool preview = false,
+  }) {
+    final out = List<T0StrategyStock>.from(list);
+    out.sort((a, b) {
+      final br = buySignalSortRank(a.buySignal).compareTo(buySignalSortRank(b.buySignal));
+      if (br != 0) return br;
+      if (preview) {
+        final am = liveChangePercent(a) != null;
+        final bm = liveChangePercent(b) != null;
+        if (am != bm) return am ? -1 : 1;
+        if (am && bm) {
+          return liveChangePercent(b)!.compareTo(liveChangePercent(a)!);
+        }
+      }
+      return 0;
+    });
+    return out;
   }
 
   void _startPollingIfNeeded(String? date) {

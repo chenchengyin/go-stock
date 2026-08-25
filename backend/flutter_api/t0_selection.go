@@ -324,12 +324,17 @@ func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
 	return &a, true
 }
 
-// sortT0ResultsForClient 返回用于客户端展示的排序副本：有标记的排在前面，
-// 组内按 T0开盘涨幅 降序，同键稳定保持原顺序。不修改入参切片，也不改动磁盘归档。
+// sortT0ResultsForClient 返回用于客户端展示的排序副本：
+// 1) 买入信号 blue 最前；2) 有标记优先；3) T0开盘涨幅降序；稳定排序。不修改入参切片与磁盘归档。
 func sortT0ResultsForClient(results []T0SelectionResult) []T0SelectionResult {
 	sorted := make([]T0SelectionResult, len(results))
 	copy(sorted, results)
 	sort.SliceStable(sorted, func(i, j int) bool {
+		bi := sorted[i].BuySignal == BuySignalBlue
+		bj := sorted[j].BuySignal == BuySignalBlue
+		if bi != bj {
+			return bi
+		}
 		ti := sorted[i].Tag != ""
 		tj := sorted[j].Tag != ""
 		if ti != tj {
@@ -587,6 +592,7 @@ func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]int
 
 	if ok {
 		cands := assembleT0CandidateResults(tradeDate, step2, hist)
+		cands = sortT0ResultsForClient(cands)
 		resp["candidates"] = cands
 		resp["phase"] = "candidates"
 		resp["candidate_count"] = len(cands)

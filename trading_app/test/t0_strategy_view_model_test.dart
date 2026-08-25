@@ -16,6 +16,41 @@ Map<String, dynamic> _candidateReady({
 }
 
 void main() {
+  test('sortStrategyStocksForDisplay：blue 排在实时涨幅更高的非 blue 之前', () {
+    final green = T0StrategyStock(
+      stockCode: '600000.XSHG',
+      stockName: '浦发银行',
+      openGap: 0,
+      closeRet: 0,
+      limitUpDates: '-',
+      ma20: 0,
+      amountYi: 0,
+      prevClose: 0,
+      prevCloseRet: 0,
+      buySignal: 'green',
+      liveChangePercent: 5.0,
+    );
+    final blue = T0StrategyStock(
+      stockCode: '600519.XSHG',
+      stockName: '贵州茅台',
+      openGap: 0,
+      closeRet: 0,
+      limitUpDates: '-',
+      ma20: 0,
+      amountYi: 0,
+      prevClose: 0,
+      prevCloseRet: 0,
+      buySignal: 'blue',
+      liveChangePercent: 1.0,
+    );
+    final sorted = T0StrategyViewModel.sortStrategyStocksForDisplay(
+      [green, blue],
+      liveChangePercent: (s) => s.liveChangePercent,
+      preview: true,
+    );
+    expect(sorted.first.buySignal, 'blue');
+  });
+
   test('parses pattern buy signal fields', () {
     final s = T0StrategyStock.fromJson({
       '股票代码': '001203.XSHE',
