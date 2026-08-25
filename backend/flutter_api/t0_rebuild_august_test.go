@@ -3,6 +3,7 @@ package flutter_api
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -172,6 +173,101 @@ func TestRebuildAprilMayPoolAndSelection(t *testing.T) {
 	rebuildT0PoolAndSelection(t, "2026-08-21", 180, dates)
 }
 
+// TestRebuildJanAug2025PoolAndSelection 重拉 2025 年 1–8 月全部交易日（一次拉取，limit=750）。
+// 用法: RUN_REBUILD_JAN_AUG_2025=1 go test ./backend/flutter_api -run TestRebuildJanAug2025PoolAndSelection -count=1 -v -timeout 120m
+func TestRebuildJanAug2025PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_JAN_AUG_2025") != "1" {
+		t.Skip("set RUN_REBUILD_JAN_AUG_2025=1 to rebuild Jan–Aug 2025 T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	dates := weekdaysMonths2025([]monthSpan{
+		{time.January, 31},
+		{time.February, 28},
+		{time.March, 31},
+		{time.April, 30},
+		{time.May, 31},
+		{time.June, 30},
+		{time.July, 31},
+		{time.August, 31},
+	})
+	rebuildT0PoolAndSelection(t, "2026-08-21", 750, dates)
+}
+
+// TestRebuildSep2025PoolAndSelection 重拉 2025 年 9 月全部交易日股池日线并强制覆盖选股归档。
+// 9 月早于 10 月，需 limit≥330（10 月用 300）。
+// 用法: RUN_REBUILD_SEP_2025=1 go test ./backend/flutter_api -run TestRebuildSep2025PoolAndSelection -count=1 -v -timeout 90m
+func TestRebuildSep2025PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_SEP_2025") != "1" {
+		t.Skip("set RUN_REBUILD_SEP_2025=1 to rebuild full September 2025 T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	dates := weekdaysThrough(2025, time.September, 30)
+	rebuildT0PoolAndSelection(t, "2026-08-21", 350, dates)
+}
+
+// TestRebuildOct2025PoolAndSelection 重拉 2025 年 10 月全部交易日股池日线并强制覆盖选股归档。
+// 10 月早于 11 月，需 limit≥280（11 月用 250）。
+// 用法: RUN_REBUILD_OCT_2025=1 go test ./backend/flutter_api -run TestRebuildOct2025PoolAndSelection -count=1 -v -timeout 90m
+func TestRebuildOct2025PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_OCT_2025") != "1" {
+		t.Skip("set RUN_REBUILD_OCT_2025=1 to rebuild full October 2025 T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	dates := weekdaysThrough(2025, time.October, 31)
+	rebuildT0PoolAndSelection(t, "2026-08-21", 300, dates)
+}
+
+// TestRebuildNov2025PoolAndSelection 重拉 2025 年 11 月全部交易日股池日线并强制覆盖选股归档。
+// 需 limit≥220：180 根从 2026-08 end 回看仅能覆盖到 11-27 附近。
+// 用法: RUN_REBUILD_NOV_2025=1 go test ./backend/flutter_api -run TestRebuildNov2025PoolAndSelection -count=1 -v -timeout 90m
+func TestRebuildNov2025PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_NOV_2025") != "1" {
+		t.Skip("set RUN_REBUILD_NOV_2025=1 to rebuild full November 2025 T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	dates := weekdaysThrough(2025, time.November, 30)
+	rebuildT0PoolAndSelection(t, "2026-08-21", 250, dates)
+}
+
+// TestRebuildNovSecondHalf2025PoolAndSelection 重拉 2025 年 11 月后半月（17 日~月末）股池日线并强制覆盖选股归档。
+// 用法: RUN_REBUILD_NOV_2H_2025=1 go test ./backend/flutter_api -run TestRebuildNovSecondHalf2025PoolAndSelection -count=1 -v -timeout 90m
+func TestRebuildNovSecondHalf2025PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_NOV_2H_2025") != "1" {
+		t.Skip("set RUN_REBUILD_NOV_2H_2025=1 to rebuild Nov 2025 second-half T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	var dates []string
+	for _, d := range weekdaysThrough(2025, time.November, 30) {
+		if d >= "2025-11-17" {
+			dates = append(dates, d)
+		}
+	}
+	rebuildT0PoolAndSelection(t, "2026-08-21", 250, dates)
+}
+
+func setupRebuildTest(t *testing.T) {
+	t.Helper()
+	if logger.SugaredLogger == nil {
+		logger.InitLogger()
+	}
+
+	db.Init(stockDBPath(t))
+	AutoMigrate()
+
+	projectRoot := filepath.Clean(filepath.Join(filepath.Dir(stockDBPath(t)), "..", ".."))
+	root, err := resolveT0CacheRoot("", projectRoot, "")
+	if err != nil {
+		t.Fatalf("resolve cache root: %v", err)
+	}
+	orig := t0CacheRootPath
+	t0CacheRootPath = root
+	t.Cleanup(func() { t0CacheRootPath = orig })
+	if err := ensureT0CacheDirs(); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("cache root: %s", t0CacheRootPath)
+}
+
 func rebuildT0PoolAndSelection(t *testing.T, fetchEnd string, klineLimit int, dates []string) {
 	t.Helper()
 	if len(dates) == 0 {
@@ -280,6 +376,20 @@ func weekdaysThrough(year int, month time.Month, lastDay int) []string {
 		out = append(out, d.Format("2006-01-02"))
 	}
 	return out
+}
+
+type monthSpan struct {
+	month   time.Month
+	lastDay int
+}
+
+func weekdaysMonths2025(spans []monthSpan) []string {
+	var dates []string
+	for _, s := range spans {
+		dates = append(dates, weekdaysThrough(2025, s.month, s.lastDay)...)
+	}
+	sort.Strings(dates)
+	return dates
 }
 
 func truncateDailyBarsTo(daily map[string][]dailyBar, endDate string) map[string][]dailyBar {
