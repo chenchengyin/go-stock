@@ -556,6 +556,23 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   // ─── Tab ④ 主板策略 ─────────────────────────────────────
 
+  String _backfillTitle(T0WarmProgress wp) {
+    if (wp.backfillDate != null && wp.backfillDate!.isNotEmpty) {
+      return '正在补全 ${wp.backfillDate} 数据...';
+    }
+    return wp.isWarming ? '服务端正在预热数据...' : '数据预热完成，等待选股...';
+  }
+
+  String? _backfillSubtitle(T0WarmProgress wp) {
+    if (wp.backfillPhase == 'selection' && wp.backfillDate != null) {
+      return '生成 ${wp.backfillDate} 选股结果...';
+    }
+    if (wp.backfillPhase == 'close_refresh' && wp.backfillDate != null) {
+      return '刷新 ${wp.backfillDate} 收盘涨幅...';
+    }
+    return null;
+  }
+
   Widget _buildStrategyTab(T0StrategyViewModel vm) {
     final wp = vm.warmProgress;
 
@@ -572,9 +589,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 const CircularProgressIndicator(),
                 const SizedBox(height: 20),
                 Text(
-                  wp.isWarming ? '服务端正在预热数据...' : '数据预热完成，等待选股...',
+                  _backfillTitle(wp),
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 ),
+                if (_backfillSubtitle(wp) != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _backfillSubtitle(wp)!,
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 if (wp.stockCount > 0)
                   Text(
