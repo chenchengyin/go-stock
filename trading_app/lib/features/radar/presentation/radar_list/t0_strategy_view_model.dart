@@ -101,6 +101,8 @@ class T0WarmProgress {
   final int dailyTotal;
   final int candidateCount;
   final bool prewarm;
+  final String? backfillDate;
+  final String? backfillPhase;
 
   const T0WarmProgress({
     required this.status,
@@ -109,6 +111,8 @@ class T0WarmProgress {
     this.dailyTotal = 0,
     this.candidateCount = 0,
     this.prewarm = false,
+    this.backfillDate,
+    this.backfillPhase,
   });
 
   bool get isWarming => status == 'warming';
@@ -351,6 +355,8 @@ class T0StrategyViewModel extends ChangeNotifier {
         candidateCount: (data['candidate_count'] as num?)?.toInt() ??
             (rawCands?.length ?? 0),
         prewarm: prewarm,
+        backfillDate: data['backfill_date'] as String?,
+        backfillPhase: data['backfill_phase'] as String?,
       );
 
       if (_warmProgress!.isReady && rawList != null && rawList.isNotEmpty) {

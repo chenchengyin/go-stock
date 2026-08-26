@@ -87,6 +87,23 @@ void main() {
     expect(s.patternFailPct, closeTo(55.6, 0.01));
   });
 
+  test('warming 响应解析 backfill_date 与 backfill_phase', () {
+    final vm = T0StrategyViewModel();
+    vm.applyResponseForTest({
+      'prewarm': true,
+      'status': 'warming',
+      'backfill_date': '2026-08-25',
+      'backfill_phase': 'daily',
+      'daily_fetched': 10,
+      'daily_total': 100,
+    });
+
+    final wp = vm.warmProgress!;
+    expect(wp.backfillDate, '2026-08-25');
+    expect(wp.backfillPhase, 'daily');
+    expect(wp.isWarming, isTrue);
+  });
+
   test('凌晨 ready 历史响应：解析列表并标记历史', () {
     final vm = T0StrategyViewModel();
     vm.applyResponseForTest({
