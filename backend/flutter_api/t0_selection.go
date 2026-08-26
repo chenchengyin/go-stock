@@ -162,6 +162,8 @@ type t0WarmProgress struct {
 	CandidateCount int
 	Err            string
 	StartedAt      time.Time
+	BackfillDate   string
+	BackfillPhase  string // daily | selection | close_refresh
 }
 
 var (
@@ -678,6 +680,12 @@ func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[str
 	}
 	if prog.Status == t0WarmStatusFailed && prog.Err != "" {
 		resp["error"] = prog.Err
+	}
+	if prog.BackfillDate != "" {
+		resp["backfill_date"] = prog.BackfillDate
+	}
+	if prog.BackfillPhase != "" {
+		resp["backfill_phase"] = prog.BackfillPhase
 	}
 	return resp
 }

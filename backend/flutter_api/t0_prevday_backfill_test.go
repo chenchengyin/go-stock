@@ -83,3 +83,22 @@ func TestNeedsPrevDayBackfill_SkipsWhenArchiveExists(t *testing.T) {
 		t.Fatal("归档已存在时不应补全")
 	}
 }
+
+func TestBuildPrewarmProgressResponse_IncludesBackfillFields(t *testing.T) {
+	prog := t0WarmProgress{
+		Status:        t0WarmStatusWarming,
+		StockCount:    100,
+		DailyFetched:  50,
+		DailyTotal:    100,
+		BackfillDate:  "2026-08-25",
+		BackfillPhase: "daily",
+		StartedAt:     time.Now(),
+	}
+	resp := buildPrewarmProgressResponse("2026-08-26", prog)
+	if resp["backfill_date"] != "2026-08-25" {
+		t.Fatalf("backfill_date=%v", resp["backfill_date"])
+	}
+	if resp["backfill_phase"] != "daily" {
+		t.Fatalf("backfill_phase=%v", resp["backfill_phase"])
+	}
+}
