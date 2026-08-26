@@ -84,6 +84,21 @@ func TestNeedsPrevDayBackfill_SkipsWhenArchiveExists(t *testing.T) {
 	}
 }
 
+func TestIsPrevDayBackfillInProgress(t *testing.T) {
+	setT0WarmProgressForTest("2026-08-26", t0WarmProgress{
+		Status:        t0WarmStatusWarming,
+		BackfillDate:  "2026-08-25",
+		BackfillPhase: "daily",
+	})
+	if !isPrevDayBackfillInProgress("2026-08-26") {
+		t.Fatal("warming + backfill_date 应视为补全进行中")
+	}
+	setT0WarmProgressForTest("2026-08-26", t0WarmProgress{Status: t0WarmStatusReady})
+	if isPrevDayBackfillInProgress("2026-08-26") {
+		t.Fatal("ready 不应视为补全进行中")
+	}
+}
+
 func TestBuildPrewarmProgressResponse_IncludesBackfillFields(t *testing.T) {
 	prog := t0WarmProgress{
 		Status:        t0WarmStatusWarming,

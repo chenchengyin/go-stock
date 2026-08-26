@@ -320,6 +320,10 @@ func runT0AutoPrewarmTick(now time.Time) {
 		return
 	}
 	tradeDate := now.In(chinaLocation()).Format("2006-01-02")
+	ensurePrevTradingDayBackfillStarted(tradeDate, now)
+	if isPrevDayBackfillInProgress(tradeDate) {
+		return
+	}
 	if started, _ := tryStartT0Prewarm(tradeDate); started {
 		logger.SugaredLogger.Infof("[定时任务] T0 日线主动预热已启动: %s", tradeDate)
 	}

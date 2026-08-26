@@ -1693,6 +1693,13 @@ func isBeforeT0AuctionCutoff(now time.Time, tradeDate string) bool {
 }
 
 func writeT0PrewarmHTTP(w http.ResponseWriter, tradeDate string) {
+	now := time.Now()
+	ensurePrevTradingDayBackfillStarted(tradeDate, now)
+	if isPrevDayBackfillInProgress(tradeDate) {
+		syncBackfillDailyProgress(tradeDate, getT0WarmProgress(tradeDate).BackfillDate)
+		WriteJSON(w, buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
+		return
+	}
 	if isT0DailyCacheFilePresent(tradeDate) {
 		WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
 		return
