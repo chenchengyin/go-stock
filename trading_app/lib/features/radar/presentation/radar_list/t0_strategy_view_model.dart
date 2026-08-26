@@ -175,10 +175,9 @@ class T0StrategyViewModel extends ChangeNotifier {
     return out;
   }
 
-  /// 有结果且有可选日期时显示顶部日期条（候选预览不显示）
+  /// 有可选归档日期时显示顶部日期条（候选预览不显示；预热/等待时也可切换历史日）
   bool get showDateSelector =>
       !showingCandidatePreview &&
-      _results.isNotEmpty &&
       dropdownDates.isNotEmpty &&
       _selectedDate != null;
 
@@ -228,6 +227,11 @@ class T0StrategyViewModel extends ChangeNotifier {
       final data = resp.data as Map<String, dynamic>;
       final raw = data['dates'] as List<dynamic>? ?? [];
       _availableDates = raw.map((e) => e.toString()).toList();
+      if (_selectedDate == null && _availableDates.isNotEmpty) {
+        final today = _shanghaiToday();
+        _selectedDate =
+            _availableDates.contains(today) ? today : _availableDates.first;
+      }
       notifyListeners();
     } catch (_) {
       // 列表失败不影响主列表展示
@@ -304,7 +308,7 @@ class T0StrategyViewModel extends ChangeNotifier {
           await dio.get('/api/t0-selection', queryParameters: queryParams);
       final data = resp.data as Map<String, dynamic>;
       _applyResponse(data, date);
-      if (_results.isNotEmpty && !showingCandidatePreview) {
+      if (!showingCandidatePreview) {
         await loadAvailableDates();
       }
     } catch (e) {
@@ -359,7 +363,9 @@ class T0StrategyViewModel extends ChangeNotifier {
         backfillPhase: data['backfill_phase'] as String?,
       );
 
-      if (_warmProgress!.isReady && rawList != null && rawList.isNotEmpty) {
+      if (_warmProgress!.isReady &&
+          rawList != null &&
+          (data['historical'] as bool? ?? false || rawList.isNotEmpty)) {
         // ready 且带 results：凌晨窗口的历史归档，直接展示
         _results = rawList
             .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))

@@ -55,7 +55,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final vm = context.read<RadarViewModel>();
     if (index == 1 && !_strategyLoaded) {
       _strategyLoaded = true;
-      context.read<T0StrategyViewModel>().loadResults();
+      final t0Vm = context.read<T0StrategyViewModel>();
+      t0Vm.loadAvailableDates();
+      t0Vm.loadResults();
     } else if (index == 2 && !_watchLoaded) {
       _watchLoaded = true;
       vm.loadWatchChanges();
@@ -573,6 +575,85 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     return null;
   }
 
+  Widget _buildStrategyDateBar(T0StrategyViewModel vm) {
+    if (!vm.showDateSelector) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: AppColors.cardBg,
+      child: Row(
+        children: [
+          Text(
+            '当前显示',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: vm.canGoPreviousArchive ? vm.selectPreviousArchive : null,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              '前一天',
+              style: TextStyle(
+                fontSize: 12,
+                color: vm.canGoPreviousArchive
+                    ? AppColors.textSecondary
+                    : AppColors.textSecondary.withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          DropdownButton<String>(
+            value: vm.selectedDate,
+            underline: const SizedBox.shrink(),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            items: vm.dropdownDates
+                .map(
+                  (d) => DropdownMenuItem(
+                    value: d,
+                    child: Text(d),
+                  ),
+                )
+                .toList(),
+            onChanged: (d) {
+              if (d != null) vm.selectDate(d);
+            },
+          ),
+          const SizedBox(width: 4),
+          TextButton(
+            onPressed: vm.canGoNextArchive ? vm.selectNextArchive : null,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              '后一天',
+              style: TextStyle(
+                fontSize: 12,
+                color: vm.canGoNextArchive
+                    ? AppColors.textSecondary
+                    : AppColors.textSecondary.withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '选股结果',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStrategyTab(T0StrategyViewModel vm) {
     final wp = vm.warmProgress;
 
@@ -580,56 +661,69 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     if (wp != null) {
       return SafeArea(
         top: false,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 20),
-                Text(
-                  _backfillTitle(wp),
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildStrategyDateBar(vm),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 20),
+                      Text(
+                        _backfillTitle(wp),
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w500),
+                      ),
+                      if (_backfillSubtitle(wp) != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _backfillSubtitle(wp)!,
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      if (wp.stockCount > 0)
+                        Text(
+                          '已拉取 ${wp.stockCount} 只主板股票',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary),
+                        ),
+                      if (wp.dailyFetched > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '日线进度: ${wp.dailyFetched}/${wp.dailyTotal}',
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      if (wp.candidateCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '候选股票: ${wp.candidateCount} 只（涨停 + 成交额过滤后）',
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '每10秒自动刷新',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
                 ),
-                if (_backfillSubtitle(wp) != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _backfillSubtitle(wp)!,
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                if (wp.stockCount > 0)
-                  Text(
-                    '已拉取 ${wp.stockCount} 只主板股票',
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                if (wp.dailyFetched > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '日线进度: ${wp.dailyFetched}/${wp.dailyTotal}',
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    ),
-                  ),
-                if (wp.candidateCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '候选股票: ${wp.candidateCount} 只（涨停 + 成交额过滤后）',
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                Text(
-                  '每10秒自动刷新',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
@@ -649,120 +743,31 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                     ),
                   ),
                 )
-              : vm.results.isEmpty
-                  ? Center(
-                      child: Text(
-                        '暂无符合条件的股票',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                      ),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (vm.showDateSelector)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 4),
-                            color: AppColors.cardBg,
-                            child: Row(
-                              children: [
-                                Text(
-                                  '当前显示',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary),
-                                ),
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: vm.canGoPreviousArchive
-                                      ? vm.selectPreviousArchive
-                                      : null,
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStrategyDateBar(vm),
+                    Expanded(
+                      child: vm.results.isEmpty
+                          ? Center(
+                              child: Text(
+                                '暂无符合条件的股票',
+                                style: TextStyle(
+                                    fontSize: 14, color: Colors.grey[500]),
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              itemCount: vm.results.length,
+                              itemBuilder: (_, i) => _buildStrategyCard(
+                                    vm.results[i],
+                                    preview: vm.showingCandidatePreview,
                                   ),
-                                  child: Text(
-                                    '前一天',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: vm.canGoPreviousArchive
-                                          ? AppColors.textSecondary
-                                          : AppColors.textSecondary
-                                              .withValues(alpha: 0.4),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                DropdownButton<String>(
-                                  value: vm.selectedDate,
-                                  underline: const SizedBox.shrink(),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  items: vm.dropdownDates
-                                      .map(
-                                        (d) => DropdownMenuItem(
-                                          value: d,
-                                          child: Text(d),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (d) {
-                                    if (d != null) vm.selectDate(d);
-                                  },
-                                ),
-                                const SizedBox(width: 4),
-                                TextButton(
-                                  onPressed: vm.canGoNextArchive
-                                      ? vm.selectNextArchive
-                                      : null,
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(
-                                    '后一天',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: vm.canGoNextArchive
-                                          ? AppColors.textSecondary
-                                          : AppColors.textSecondary
-                                              .withValues(alpha: 0.4),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '选股结果',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary),
-                                ),
-                              ],
                             ),
-                          ),
-                        Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            itemCount: vm.results.length,
-                            itemBuilder: (_, i) => _buildStrategyCard(
-                                  vm.results[i],
-                                  preview: vm.showingCandidatePreview,
-                                ),
-                          ),
-                        ),
-                      ],
                     ),
+                  ],
+                ),
     );
   }
 
