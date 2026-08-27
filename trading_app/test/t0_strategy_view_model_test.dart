@@ -67,6 +67,7 @@ void main() {
     expect(s.buySignal, 'green');
     expect(s.patternWinPct, 41.1);
     expect(s.patternFailPct, 44.6);
+    expect(s.patternEarnPct, closeTo(55.4, 0.01));
     expect(s.patternT0N, 56);
     expect(s.pattern, 'XY|ZT|ZT');
   });
@@ -85,6 +86,7 @@ void main() {
     expect(s.patternT0N, 9);
     expect(s.patternWinPct, closeTo(44.4, 0.01));
     expect(s.patternFailPct, closeTo(55.6, 0.01));
+    expect(s.patternEarnPct, closeTo(44.4, 0.01));
   });
 
   test('warming 响应解析 backfill_date 与 backfill_phase', () {

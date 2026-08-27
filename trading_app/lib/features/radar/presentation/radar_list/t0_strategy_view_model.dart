@@ -25,9 +25,12 @@ class T0StrategyStock {
   final double? liveChangePercent; // 候选预览用实时涨幅；null 表示尚无行情
   final String pattern; // 3K 形态键
   final int patternT0N; // 形态样本数
-  final double patternWinPct; // 形态达标率(%)
-  final double patternFailPct; // 形态真亏率(%)
+  final double patternWinPct; // 形态达标率(%) T0≥2.5%
+  final double patternFailPct; // 形态真亏率(%) T0<0，库内口径；展示用赚率
   final String buySignal; // blue | green | yellow | red | insufficient
+
+  /// 赚率：T0≥0 的比例 = 100% − 真亏率（含未达标的小赚和打平，不等于达标率）。
+  double get patternEarnPct => 100 - patternFailPct;
 
   const T0StrategyStock({
     required this.stockCode,

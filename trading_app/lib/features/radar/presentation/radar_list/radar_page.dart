@@ -801,26 +801,31 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             stock.patternFailPct == 0);
     final rateText = noStats
         ? '—/—'
-        : '${stock.patternWinPct.round()}/${stock.patternFailPct.round()}';
+        : '${stock.patternWinPct.round()}/${stock.patternEarnPct.round()}';
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 2),
-        Text(
-          rateText,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
+    return Tooltip(
+      message: noStats
+          ? '形态样本不足'
+          : '达标 ${stock.patternWinPct.round()}%  ·  赚率 ${stock.patternEarnPct.round()}%（T0≥0，含小赚，不是达标率）',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
-        ),
-      ],
+          const SizedBox(width: 2),
+          Text(
+            rateText,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -833,16 +838,19 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openInTongHuaShun(context, stock.rawCode),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
           // 名称
           Text(
             stock.stockName,
@@ -914,6 +922,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ),
           ),
         ],
+        ),
       ),
     );
   }
