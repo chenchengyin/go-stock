@@ -31,15 +31,15 @@ func TestSortT0ResultsForClient(t *testing.T) {
 	}
 }
 
-func TestSortT0ResultsForClientStableSameKey(t *testing.T) {
+func TestSortT0ResultsForClientTagPriority(t *testing.T) {
 	in := []T0SelectionResult{
 		{StockCode: "X", OpenGap: 2.0, Tag: "前一天大阴线"},
 		{StockCode: "Y", OpenGap: 2.0, Tag: "前一天跌停"},
 		{StockCode: "Z", OpenGap: 2.0, Tag: "涨停破板"},
 	}
 	got := sortT0ResultsForClient(in)
-	// 三者都有标记且 OpenGap 相同，保持原顺序 X、Y、Z
-	want := []string{"X", "Y", "Z"}
+	// 标签顺序：涨停破板 > 前一天跌停 > 前一天大阴线。
+	want := []string{"Z", "Y", "X"}
 	for i, code := range want {
 		if got[i].StockCode != code {
 			t.Fatalf("pos %d = %s want %s", i, got[i].StockCode, code)
@@ -74,6 +74,25 @@ func TestSortT0ResultsForClientBlueThenOpenGap(t *testing.T) {
 	for i, code := range want {
 		if got[i].StockCode != code {
 			t.Fatalf("pos %d = %s want %s", i, got[i].StockCode, code)
+		}
+	}
+}
+
+func TestSortT0ResultsForClientSignalThenTagPriority(t *testing.T) {
+	in := []T0SelectionResult{
+		{StockCode: "N", OpenGap: 9.0, BuySignal: BuySignalRed},
+		{StockCode: "Y", OpenGap: 0.3, Tag: "前一天大阴线", BuySignal: BuySignalRed},
+		{StockCode: "G", OpenGap: 0.2, BuySignal: BuySignalGreen},
+		{StockCode: "D", OpenGap: 0.4, Tag: "前一天跌停", BuySignal: BuySignalRed},
+		{StockCode: "B", OpenGap: 1.0, BuySignal: BuySignalBlue},
+		{StockCode: "P", OpenGap: 0.1, Tag: "涨停破板", BuySignal: BuySignalRed},
+	}
+
+	got := sortT0ResultsForClient(in)
+	want := []string{"B", "G", "P", "D", "Y", "N"}
+	for i, code := range want {
+		if got[i].StockCode != code {
+			t.Fatalf("pos %d = %s want %s (full %v)", i, got[i].StockCode, code, codes(got))
 		}
 	}
 }

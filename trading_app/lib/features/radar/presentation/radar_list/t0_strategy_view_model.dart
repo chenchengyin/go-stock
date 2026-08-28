@@ -469,8 +469,11 @@ class T0StrategyViewModel extends ChangeNotifier {
       return s.copyWith(liveChangePercent: pct);
     }).toList();
     merged.sort((a, b) {
-      final br = buySignalSortRank(a.buySignal).compareTo(buySignalSortRank(b.buySignal));
+      final br = strategySortRank(a).compareTo(strategySortRank(b));
       if (br != 0) return br;
+      final at = a.tag.isNotEmpty ? 0 : 1;
+      final bt = b.tag.isNotEmpty ? 0 : 1;
+      if (at != bt) return at - bt;
       final am = a.liveChangePercent != null;
       final bm = b.liveChangePercent != null;
       if (am != bm) return am ? -1 : 1;
@@ -482,7 +485,24 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   @visibleForTesting
   static int buySignalSortRank(String buySignal) =>
-      buySignal == 'blue' ? 0 : 1;
+      buySignal == 'blue' ? 0 : (buySignal == 'green' ? 1 : 2);
+
+  @visibleForTesting
+  static int strategySortRank(T0StrategyStock stock) {
+    final signalRank = buySignalSortRank(stock.buySignal);
+    if (signalRank < 2) return signalRank;
+
+    switch (stock.tag) {
+      case '涨停破板':
+        return 2;
+      case '前一天跌停':
+        return 3;
+      case '前一天大阴线':
+        return 4;
+      default:
+        return 5;
+    }
+  }
 
   @visibleForTesting
   static List<T0StrategyStock> sortStrategyStocksForDisplay(
@@ -492,8 +512,11 @@ class T0StrategyViewModel extends ChangeNotifier {
   }) {
     final out = List<T0StrategyStock>.from(list);
     out.sort((a, b) {
-      final br = buySignalSortRank(a.buySignal).compareTo(buySignalSortRank(b.buySignal));
+      final br = strategySortRank(a).compareTo(strategySortRank(b));
       if (br != 0) return br;
+      final at = a.tag.isNotEmpty ? 0 : 1;
+      final bt = b.tag.isNotEmpty ? 0 : 1;
+      if (at != bt) return at - bt;
       if (preview) {
         final am = liveChangePercent(a) != null;
         final bm = liveChangePercent(b) != null;
@@ -502,7 +525,7 @@ class T0StrategyViewModel extends ChangeNotifier {
           return liveChangePercent(b)!.compareTo(liveChangePercent(a)!);
         }
       }
-      return 0;
+      return b.openGap.compareTo(a.openGap);
     });
     return out;
   }
