@@ -27,7 +27,7 @@ class T0StrategyStock {
   final int patternT0N; // 形态样本数
   final double patternWinPct; // 形态达标率(%) T0≥2.5%
   final double patternFailPct; // 形态真亏率(%) T0<0，库内口径；展示用赚率
-  final String buySignal; // blue | green | yellow | red | insufficient
+  final String buySignal; // blue | orange | green | yellow | red | insufficient
 
   /// 赚率：T0≥0 的比例 = 100% − 真亏率（含未达标的小赚和打平，不等于达标率）。
   double get patternEarnPct => 100 - patternFailPct;
@@ -485,22 +485,24 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   @visibleForTesting
   static int buySignalSortRank(String buySignal) =>
-      buySignal == 'blue' ? 0 : (buySignal == 'green' ? 1 : 2);
+      buySignal == 'blue'
+          ? 0
+          : (buySignal == 'orange' ? 1 : (buySignal == 'green' ? 2 : 3));
 
   @visibleForTesting
   static int strategySortRank(T0StrategyStock stock) {
     final signalRank = buySignalSortRank(stock.buySignal);
-    if (signalRank < 2) return signalRank;
+    if (signalRank < 3) return signalRank;
 
     switch (stock.tag) {
       case '涨停破板':
-        return 2;
-      case '前一天跌停':
         return 3;
-      case '前一天大阴线':
+      case '前一天跌停':
         return 4;
-      default:
+      case '前一天大阴线':
         return 5;
+      default:
+        return 6;
     }
   }
 

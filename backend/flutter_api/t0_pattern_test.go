@@ -23,6 +23,10 @@ func TestSignalFromRates(t *testing.T) {
 	}{
 		{"blue super win", 50, 35, 20, BuySignalBlue},
 		{"blue boundary", 45, 40, 10, BuySignalBlue},
+		{"orange boundary", 55, 45, 10, BuySignalOrange},
+		{"orange overrides blue", 60, 35, 10, BuySignalOrange},
+		{"orange requires win threshold", 54.9, 45, 10, BuySignalGreen},
+		{"orange requires earn threshold", 55, 45.1, 10, BuySignalYellow},
 		{"green not blue", 41, 44, 56, BuySignalGreen},
 		{"green below blue win", 44, 38, 12, BuySignalGreen},
 		{"red high fail", 19, 62, 42, BuySignalRed},

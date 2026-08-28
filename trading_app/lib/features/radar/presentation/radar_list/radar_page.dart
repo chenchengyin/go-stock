@@ -781,6 +781,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       case 'blue':
         dotColor = AppColors.info;
         break;
+      case 'orange':
+        dotColor = AppColors.tagOrange;
+        break;
       case 'green':
         dotColor = AppColors.success;
         break;
@@ -1086,5 +1089,4 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 }
-
 

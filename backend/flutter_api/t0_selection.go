@@ -327,8 +327,8 @@ func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
 }
 
 // sortT0ResultsForClient 返回用于客户端展示的排序副本：
-// 1) blue；2) green；3) 涨停破板；4) 前一天跌停；5) 前一天大阴线；
-// 6) 其他结果。组内保留有标记优先和 T0 开盘涨幅降序，稳定排序。
+// 1) blue；2) orange；3) green；4) 涨停破板；5) 前一天跌停；
+// 6) 前一天大阴线；7) 其他结果。组内保留有标记优先和 T0 开盘涨幅降序，稳定排序。
 // 不修改入参切片与磁盘归档。
 func sortT0ResultsForClient(results []T0SelectionResult) []T0SelectionResult {
 	sorted := make([]T0SelectionResult, len(results))
@@ -353,19 +353,21 @@ func t0DisplaySortRank(result T0SelectionResult) int {
 	switch result.BuySignal {
 	case BuySignalBlue:
 		return 0
-	case BuySignalGreen:
+	case BuySignalOrange:
 		return 1
+	case BuySignalGreen:
+		return 2
 	}
 
 	switch result.Tag {
 	case "涨停破板":
-		return 2
-	case "前一天跌停":
 		return 3
-	case "前一天大阴线":
+	case "前一天跌停":
 		return 4
-	default:
+	case "前一天大阴线":
 		return 5
+	default:
+		return 6
 	}
 }
 

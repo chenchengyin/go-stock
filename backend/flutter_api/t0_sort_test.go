@@ -82,6 +82,7 @@ func TestSortT0ResultsForClientSignalThenTagPriority(t *testing.T) {
 	in := []T0SelectionResult{
 		{StockCode: "N", OpenGap: 9.0, BuySignal: BuySignalRed},
 		{StockCode: "Y", OpenGap: 0.3, Tag: "前一天大阴线", BuySignal: BuySignalRed},
+		{StockCode: "O", OpenGap: 0.6, BuySignal: BuySignalOrange},
 		{StockCode: "G", OpenGap: 0.2, BuySignal: BuySignalGreen},
 		{StockCode: "D", OpenGap: 0.4, Tag: "前一天跌停", BuySignal: BuySignalRed},
 		{StockCode: "B", OpenGap: 1.0, BuySignal: BuySignalBlue},
@@ -89,7 +90,7 @@ func TestSortT0ResultsForClientSignalThenTagPriority(t *testing.T) {
 	}
 
 	got := sortT0ResultsForClient(in)
-	want := []string{"B", "G", "P", "D", "Y", "N"}
+	want := []string{"B", "O", "G", "P", "D", "Y", "N"}
 	for i, code := range want {
 		if got[i].StockCode != code {
 			t.Fatalf("pos %d = %s want %s (full %v)", i, got[i].StockCode, code, codes(got))

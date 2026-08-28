@@ -74,10 +74,11 @@ void main() {
     expect(sorted.first.buySignal, 'blue');
   });
 
-  test('sortStrategyStocksForDisplay：blue、green、标签按业务优先级排序', () {
+  test('sortStrategyStocksForDisplay：blue、orange、green、标签按业务优先级排序', () {
     final stocks = [
       _stock(code: 'N', buySignal: 'red', liveChangePercent: 99),
       _stock(code: 'Y', buySignal: 'red', tag: '前一天大阴线', liveChangePercent: 7),
+      _stock(code: 'O', buySignal: 'orange', liveChangePercent: 100),
       _stock(code: 'G', buySignal: 'green', liveChangePercent: 0.5),
       _stock(code: 'D', buySignal: 'red', tag: '前一天跌停', liveChangePercent: 8),
       _stock(code: 'B', buySignal: 'blue', liveChangePercent: 1),
@@ -92,6 +93,7 @@ void main() {
 
     expect(sorted.map((s) => s.stockName).toList(), [
       'B',
+      'O',
       'G',
       'P',
       'D',
