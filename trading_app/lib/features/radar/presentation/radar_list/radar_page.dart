@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/utils/stock_launcher.dart';
@@ -12,6 +13,40 @@ import 't0_strategy_view_model.dart';
 import 'search_results_panel.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
+
+class StockCodeCopyButton extends StatelessWidget {
+  const StockCodeCopyButton({super.key, required this.code});
+
+  final String code;
+
+  Future<void> _copy(BuildContext context) async {
+    final normalizedCode = StockLauncher.normalizeStockCode(code);
+    if (normalizedCode.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: normalizedCode));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('股票代码已复制')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '复制股票代码',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _copy(context),
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(2),
+            child: Icon(Icons.copy, size: 18, color: Colors.grey),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class RadarPage extends StatefulWidget {
   const RadarPage({super.key});
@@ -912,20 +947,21 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               ),
             ),
           const SizedBox(width: 8),
-          // 同花顺按钮
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openInTongHuaShun(context, stock.rawCode),
-              borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                'assets/images/kline_button.png',
-                width: 22,
-                height: 22,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
+          // 同花顺按钮暂时隐藏，保留原代码逻辑，后续需要时可恢复。
+          // Material(
+          //   color: Colors.transparent,
+          //   child: InkWell(
+          //     onTap: () => _openInTongHuaShun(context, stock.rawCode),
+          //     borderRadius: BorderRadius.circular(6),
+          //     child: Image.asset(
+          //       'assets/images/kline_button.png',
+          //       width: 22,
+          //       height: 22,
+          //       fit: BoxFit.contain,
+          //     ),
+          //   ),
+          // ),
+          StockCodeCopyButton(code: stock.rawCode),
         ],
         ),
       ),

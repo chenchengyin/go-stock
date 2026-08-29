@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,5 +35,39 @@ void main() {
     radarVm.dispose();
     strategyVm.dispose();
     voiceVm.dispose();
+  });
+
+  testWidgets('主板策略条目复制按钮复制纯数字股票代码', (tester) async {
+    String? copiedText;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copiedText =
+            (call.arguments as Map<dynamic, dynamic>)['text'] as String?;
+      }
+      if (call.method == 'Clipboard.getData') {
+        return {'text': copiedText};
+      }
+      return null;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const Scaffold(body: StockCodeCopyButton(code: '600519.XSHG')),
+      ),
+    );
+
+    final copyButton = find.byTooltip('复制股票代码', skipOffstage: false);
+    expect(copyButton, findsOneWidget);
+    await tester.tap(copyButton);
+    await tester.pump();
+
+    final clipboard = await Clipboard.getData('text/plain');
+    expect(clipboard?.text, '600519');
+    expect(find.text('股票代码已复制'), findsOneWidget);
   });
 }
