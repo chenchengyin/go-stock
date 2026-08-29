@@ -22,6 +22,7 @@ class RadarPage extends StatefulWidget {
 
 class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   late final TabController _tabController;
+  late final RadarViewModel _radarViewModel;
 
   // 各 tab 的排序状态
   bool _watchLoaded = false;
@@ -35,6 +36,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
+    _radarViewModel = context.read<RadarViewModel>();
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
@@ -77,17 +79,15 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   /// 绑定语音播报：把新异动抛给 VoiceAnnouncementViewModel
   void _bindVoiceAnnouncement() {
-    final radarVm = context.read<RadarViewModel>();
     final voiceVm = context.read<VoiceAnnouncementViewModel>();
-    radarVm.onNewVoiceChange = (change, {bool urgent = false}) {
+    _radarViewModel.onNewVoiceChange = (change, {bool urgent = false}) {
       voiceVm.enqueueChange(change, urgent: urgent);
     };
   }
 
   /// 解绑语音播报回调，避免内存泄漏
   void _unbindVoiceAnnouncement() {
-    final radarVm = context.read<RadarViewModel>();
-    radarVm.onNewVoiceChange = null;
+    _radarViewModel.onNewVoiceChange = null;
   }
 
   /// 构建完成后检查是否需要弹出语音授权提示
@@ -232,7 +232,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ),
             // ─── Tab ② 主板策略 ──────────────────────────────
             Consumer<T0StrategyViewModel>(
-              builder: (_, vm, __) => _buildStrategyTab(vm),
+              builder: (_, vm, __) => SelectionArea(
+                child: _buildStrategyTab(vm),
+              ),
             ),
             // ─── Tab ③ 自选异动 ──────────────────────────────
             Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
@@ -1089,4 +1091,3 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 }
-
