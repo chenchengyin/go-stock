@@ -15,6 +15,29 @@ Map<String, dynamic> _candidateReady({
   };
 }
 
+T0StrategyStock _stock({
+  required String code,
+  required String buySignal,
+  String tag = '',
+  double openGap = 0,
+  double liveChangePercent = 0,
+}) {
+  return T0StrategyStock(
+    stockCode: '$code.XSHG',
+    stockName: code,
+    openGap: openGap,
+    closeRet: 0,
+    limitUpDates: '-',
+    ma20: 0,
+    amountYi: 0,
+    prevClose: 0,
+    prevCloseRet: 0,
+    tag: tag,
+    buySignal: buySignal,
+    liveChangePercent: liveChangePercent,
+  );
+}
+
 void main() {
   test('sortStrategyStocksForDisplay：blue 排在实时涨幅更高的非 blue 之前', () {
     final green = T0StrategyStock(
@@ -49,6 +72,34 @@ void main() {
       preview: true,
     );
     expect(sorted.first.buySignal, 'blue');
+  });
+
+  test('sortStrategyStocksForDisplay：blue、orange、green、标签按业务优先级排序', () {
+    final stocks = [
+      _stock(code: 'N', buySignal: 'red', liveChangePercent: 99),
+      _stock(code: 'Y', buySignal: 'red', tag: '前一天大阴线', liveChangePercent: 7),
+      _stock(code: 'O', buySignal: 'orange', liveChangePercent: 100),
+      _stock(code: 'G', buySignal: 'green', liveChangePercent: 0.5),
+      _stock(code: 'D', buySignal: 'red', tag: '前一天跌停', liveChangePercent: 8),
+      _stock(code: 'B', buySignal: 'blue', liveChangePercent: 1),
+      _stock(code: 'P', buySignal: 'red', tag: '涨停破板', liveChangePercent: 9),
+    ];
+
+    final sorted = T0StrategyViewModel.sortStrategyStocksForDisplay(
+      stocks,
+      liveChangePercent: (s) => s.liveChangePercent,
+      preview: true,
+    );
+
+    expect(sorted.map((s) => s.stockName).toList(), [
+      'B',
+      'O',
+      'G',
+      'P',
+      'D',
+      'Y',
+      'N',
+    ]);
   });
 
   test('parses pattern buy signal fields', () {

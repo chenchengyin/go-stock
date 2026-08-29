@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/utils/stock_launcher.dart';
@@ -13,6 +14,40 @@ import 'search_results_panel.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 
+class StockCodeCopyButton extends StatelessWidget {
+  const StockCodeCopyButton({super.key, required this.code});
+
+  final String code;
+
+  Future<void> _copy(BuildContext context) async {
+    final normalizedCode = StockLauncher.normalizeStockCode(code);
+    if (normalizedCode.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: normalizedCode));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('股票代码已复制')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '复制股票代码',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _copy(context),
+          borderRadius: BorderRadius.circular(6),
+          child: const Padding(
+            padding: EdgeInsets.all(2),
+            child: Icon(Icons.copy, size: 18, color: Colors.grey),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class RadarPage extends StatefulWidget {
   const RadarPage({super.key});
 
@@ -22,6 +57,7 @@ class RadarPage extends StatefulWidget {
 
 class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   late final TabController _tabController;
+  late final RadarViewModel _radarViewModel;
 
   // 各 tab 的排序状态
   bool _watchLoaded = false;
@@ -35,6 +71,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
+    _radarViewModel = context.read<RadarViewModel>();
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
@@ -77,17 +114,15 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   /// 绑定语音播报：把新异动抛给 VoiceAnnouncementViewModel
   void _bindVoiceAnnouncement() {
-    final radarVm = context.read<RadarViewModel>();
     final voiceVm = context.read<VoiceAnnouncementViewModel>();
-    radarVm.onNewVoiceChange = (change, {bool urgent = false}) {
+    _radarViewModel.onNewVoiceChange = (change, {bool urgent = false}) {
       voiceVm.enqueueChange(change, urgent: urgent);
     };
   }
 
   /// 解绑语音播报回调，避免内存泄漏
   void _unbindVoiceAnnouncement() {
-    final radarVm = context.read<RadarViewModel>();
-    radarVm.onNewVoiceChange = null;
+    _radarViewModel.onNewVoiceChange = null;
   }
 
   /// 构建完成后检查是否需要弹出语音授权提示
@@ -232,7 +267,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ),
             // ─── Tab ② 主板策略 ──────────────────────────────
             Consumer<T0StrategyViewModel>(
-              builder: (_, vm, __) => _buildStrategyTab(vm),
+              builder: (_, vm, __) => SelectionArea(
+                child: _buildStrategyTab(vm),
+              ),
             ),
             // ─── Tab ③ 自选异动 ──────────────────────────────
             Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
@@ -781,6 +818,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       case 'blue':
         dotColor = AppColors.info;
         break;
+      case 'orange':
+        dotColor = AppColors.tagOrange;
+        break;
       case 'green':
         dotColor = AppColors.success;
         break;
@@ -907,20 +947,21 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               ),
             ),
           const SizedBox(width: 8),
-          // 同花顺按钮
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openInTongHuaShun(context, stock.rawCode),
-              borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                'assets/images/kline_button.png',
-                width: 22,
-                height: 22,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
+          // 同花顺按钮暂时隐藏，保留原代码逻辑，后续需要时可恢复。
+          // Material(
+          //   color: Colors.transparent,
+          //   child: InkWell(
+          //     onTap: () => _openInTongHuaShun(context, stock.rawCode),
+          //     borderRadius: BorderRadius.circular(6),
+          //     child: Image.asset(
+          //       'assets/images/kline_button.png',
+          //       width: 22,
+          //       height: 22,
+          //       fit: BoxFit.contain,
+          //     ),
+          //   ),
+          // ),
+          StockCodeCopyButton(code: stock.rawCode),
         ],
         ),
       ),
@@ -1086,5 +1127,3 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 }
-
-
