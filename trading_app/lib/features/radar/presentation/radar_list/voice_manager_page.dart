@@ -9,14 +9,18 @@ class VoiceManagerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('语音播报', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: const Text(
+          '语音播报',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: AppColors.appBarBg,
+        foregroundColor: AppColors.appBarFg,
         elevation: 0.5,
       ),
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: AppColors.scaffoldBg,
       body: Consumer<VoiceAnnouncementViewModel>(
         builder: (_, vm, __) {
           return ListView(
@@ -57,13 +61,15 @@ class VoiceManagerPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
           Icon(
             vm.enabled ? Icons.volume_up : Icons.volume_off,
-            color: vm.enabled ? AppColors.buttonPrimary : Colors.grey,
+            color: vm.enabled
+                ? AppColors.buttonPrimary
+                : AppColors.textTertiary,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -77,7 +83,10 @@ class VoiceManagerPage extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   vm.enabled ? '有新异动时自动语音播报' : '已暂停自动语音播报',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -92,13 +101,16 @@ class VoiceManagerPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSpeechRateCard(BuildContext context, VoiceAnnouncementViewModel vm) {
+  Widget _buildSpeechRateCard(
+    BuildContext context,
+    VoiceAnnouncementViewModel vm,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,26 +124,40 @@ class VoiceManagerPage extends StatelessWidget {
               ),
               Text(
                 vm.speechRate.toStringAsFixed(2),
-                style: TextStyle(fontSize: 14, color: AppColors.buttonPrimary, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.buttonPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Text('慢', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Text(
+                '慢',
+                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+              ),
               Expanded(
                 child: Slider(
-                  value: vm.speechRate.clamp(vm.minSpeechRate, vm.maxSpeechRate),
+                  value: vm.speechRate.clamp(
+                    vm.minSpeechRate,
+                    vm.maxSpeechRate,
+                  ),
                   min: vm.minSpeechRate,
                   max: vm.maxSpeechRate,
-                  divisions: ((vm.maxSpeechRate - vm.minSpeechRate) * 10).round(),
+                  divisions: ((vm.maxSpeechRate - vm.minSpeechRate) * 10)
+                      .round(),
                   label: vm.speechRate.toStringAsFixed(2),
                   activeColor: AppColors.buttonPrimary,
                   onChanged: (value) => vm.setSpeechRate(value),
                 ),
               ),
-              Text('快', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Text(
+                '快',
+                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+              ),
             ],
           ),
         ],
@@ -145,7 +171,9 @@ class VoiceManagerPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.buttonPrimary.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.buttonPrimary.withValues(alpha: 0.3),
+        ),
       ),
       child: Row(
         children: [
@@ -154,7 +182,9 @@ class VoiceManagerPage extends StatelessWidget {
             height: 24,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.buttonPrimary),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                AppColors.buttonPrimary,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -164,13 +194,14 @@ class VoiceManagerPage extends StatelessWidget {
               children: [
                 Text(
                   '正在播报',
-                  style: TextStyle(fontSize: 12, color: AppColors.buttonPrimary, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.buttonPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  text,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                Text(text, style: const TextStyle(fontSize: 14)),
               ],
             ),
           ),
@@ -179,14 +210,17 @@ class VoiceManagerPage extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, VoiceAnnouncementViewModel vm) {
+  Widget _buildActionButtons(
+    BuildContext context,
+    VoiceAnnouncementViewModel vm,
+  ) {
     return Row(
       children: [
         Expanded(
           child: _ActionButton(
             icon: Icons.stop,
             label: '停止播报',
-            color: Colors.orange,
+            color: AppColors.warning,
             onPressed: vm.isSpeaking ? () => vm.stopSpeaking() : null,
           ),
         ),
@@ -218,7 +252,11 @@ class VoiceManagerPage extends StatelessWidget {
       children: [
         Text(
           '待播报队列',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
         ),
         Text(
           '共 $count 条',
@@ -235,16 +273,16 @@ class VoiceManagerPage extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.cardBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: AppColors.border),
         ),
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.queue_music, size: 40, color: Colors.grey[400]),
+              Icon(Icons.queue_music, size: 40, color: AppColors.textTertiary),
               const SizedBox(height: 8),
               Text(
                 '暂无待播报内容',
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -256,20 +294,21 @@ class VoiceManagerPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: vm.queue.length,
-        separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+        separatorBuilder: (_, __) =>
+            Divider(height: 1, color: AppColors.divider),
         itemBuilder: (_, index) {
           final item = vm.queue[index];
           return ListTile(
             dense: true,
             leading: Text(
               '${index + 1}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
             title: Text(
               item.text,
@@ -279,7 +318,7 @@ class VoiceManagerPage extends StatelessWidget {
             ),
             subtitle: Text(
               _formatTime(item.enqueuedAt),
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
             ),
           );
         },
@@ -297,7 +336,11 @@ class VoiceManagerPage extends StatelessWidget {
       children: [
         Text(
           '已播报队列',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey[800]),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
         ),
         Row(
           children: [
@@ -312,7 +355,9 @@ class VoiceManagerPage extends StatelessWidget {
                 '清空',
                 style: TextStyle(
                   fontSize: 12,
-                  color: count > 0 ? AppColors.buttonPrimary : Colors.grey[400],
+                  color: count > 0
+                      ? AppColors.buttonPrimary
+                      : AppColors.textTertiary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -330,16 +375,20 @@ class VoiceManagerPage extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.cardBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: AppColors.border),
         ),
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.check_circle_outline, size: 40, color: Colors.grey[400]),
+              Icon(
+                Icons.check_circle_outline,
+                size: 40,
+                color: AppColors.textTertiary,
+              ),
               const SizedBox(height: 8),
               Text(
                 '暂无已播报内容',
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -351,27 +400,28 @@ class VoiceManagerPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: vm.spokenQueue.length,
-        separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+        separatorBuilder: (_, __) =>
+            Divider(height: 1, color: AppColors.divider),
         itemBuilder: (_, index) {
           final item = vm.spokenQueue[index];
           return ListTile(
             dense: true,
-            leading: Icon(Icons.done, size: 16, color: Colors.grey[400]),
+            leading: Icon(Icons.done, size: 16, color: AppColors.textTertiary),
             title: Text(
               item.text,
-              style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
             subtitle: Text(
               _formatTime(item.enqueuedAt),
-              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+              style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
             ),
           );
         },
@@ -402,8 +452,8 @@ class _ActionButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        disabledBackgroundColor: Colors.grey[300],
-        disabledForegroundColor: Colors.grey[500],
+        disabledBackgroundColor: AppColors.surfaceBg,
+        disabledForegroundColor: AppColors.textTertiary,
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         padding: const EdgeInsets.symmetric(vertical: 12),

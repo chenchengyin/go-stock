@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/cupertino.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../features/news/domain/news_models.dart';
 import '../../features/news/presentation/news_detail/news_detail_page.dart';
 
@@ -22,18 +23,20 @@ class NewsCard extends StatelessWidget {
     return const Color(0xff4caf50);
   }
 
-  Color get _titleColor => item.isRed ? const Color(0xffb71c1c) : CupertinoColors.black;
+  Color get _titleColor =>
+      item.isRed ? const Color(0xffb71c1c) : AppColors.textPrimary;
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return GestureDetector(
       onTap: () => _navigateToDetail(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: const BoxDecoration(
-          color: CupertinoColors.white,
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
           border: Border(
-            bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+            bottom: BorderSide(color: AppColors.divider, width: 0.5),
           ),
         ),
         child: Column(
@@ -69,10 +72,7 @@ class NewsCard extends StatelessWidget {
                         ),
                 ),
                 const SizedBox(width: 8),
-                _TimeColumn(
-                  time: item.time,
-                  dataTime: item.dataTime,
-                ),
+                _TimeColumn(time: item.time, dataTime: item.dataTime),
               ],
             ),
             if (item.subjects.isNotEmpty ||
@@ -85,13 +85,15 @@ class NewsCard extends StatelessWidget {
                   // 看涨/看跌标签排在第一位
                   if (item.sentimentResult.isNotEmpty)
                     _buildSentimentTag(item.sentimentResult),
-                  ...item.subjects.take(3).map(
-                    (s) => _Tag(
-                      text: s,
-                      textColor: _sourceColor,
-                      bgColor: _sourceColor.withValues(alpha: 0.08),
-                    ),
-                  ),
+                  ...item.subjects
+                      .take(3)
+                      .map(
+                        (s) => _Tag(
+                          text: s,
+                          textColor: _sourceColor,
+                          bgColor: _sourceColor.withValues(alpha: 0.08),
+                        ),
+                      ),
                   // 来源标签放在最后
                   _Tag(
                     text: item.source,
@@ -110,26 +112,21 @@ class NewsCard extends StatelessWidget {
   Widget _buildSentimentTag(String sentiment) {
     final (Color textColor, Color bgColor) = switch (sentiment) {
       '看涨' => (
-          const Color(0xffe53935),
-          const Color(0xffe53935).withValues(alpha: 0.08)
-        ),
+        const Color(0xffe53935),
+        const Color(0xffe53935).withValues(alpha: 0.08),
+      ),
       '看跌' => (
-          const Color(0xff0d904f),
-          const Color(0xff0d904f).withValues(alpha: 0.08)
-        ),
-      _ => (
-          CupertinoColors.systemGrey,
-          CupertinoColors.systemGrey6
-        ),
+        const Color(0xff0d904f),
+        const Color(0xff0d904f).withValues(alpha: 0.08),
+      ),
+      _ => (AppColors.textTertiary, AppColors.surfaceBg),
     };
     return _Tag(text: sentiment, textColor: textColor, bgColor: bgColor);
   }
 
   void _navigateToDetail(BuildContext context) {
     Navigator.of(context).push(
-      CupertinoPageRoute(
-        builder: (context) => NewsDetailPage(item: item),
-      ),
+      CupertinoPageRoute(builder: (context) => NewsDetailPage(item: item)),
     );
   }
 }
@@ -174,18 +171,12 @@ class _TimeColumn extends StatelessWidget {
         if (displayLabel.isNotEmpty)
           Text(
             displayLabel,
-            style: const TextStyle(
-              fontSize: 11,
-              color: CupertinoColors.systemGrey2,
-            ),
+            style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
           ),
         if (hms.isNotEmpty)
           Text(
             hms,
-            style: const TextStyle(
-              fontSize: 11,
-              color: CupertinoColors.systemGrey2,
-            ),
+            style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
           ),
       ],
     );

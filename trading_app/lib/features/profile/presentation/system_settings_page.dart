@@ -51,7 +51,7 @@ class SystemSettingsPage extends StatelessWidget {
               tm.setVariant(AppThemeVariant.dark);
               Navigator.of(ctx).pop();
             },
-            child: const Text('深色'),
+            child: const Text('耀夜'),
           ),
           CupertinoActionSheetAction(
             isDefaultAction: current == AppThemeVariant.grey,
@@ -75,7 +75,7 @@ class SystemSettingsPage extends StatelessWidget {
       case AppThemeVariant.light:
         return '浅色';
       case AppThemeVariant.dark:
-        return '深色';
+        return '耀夜';
       case AppThemeVariant.grey:
         return '灰色';
     }
@@ -85,9 +85,10 @@ class SystemSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
     final tm = context.watch<ThemeManager>();
+    AppColors.of(context);
 
     return Container(
-      color: CupertinoColors.systemGroupedBackground,
+      color: AppColors.scaffoldBg,
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -99,7 +100,7 @@ class SystemSettingsPage extends StatelessWidget {
                 children: [
                   const SizedBox(height: 8),
                   Container(
-                    color: CupertinoColors.white,
+                    color: AppColors.cardBg,
                     child: Column(
                       children: [
                         _SettingsItem(
@@ -136,7 +137,7 @@ class SystemSettingsPage extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: CupertinoButton(
-                        color: CupertinoColors.white,
+                        color: AppColors.cardBg,
                         borderRadius: BorderRadius.circular(12),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -198,9 +199,10 @@ class _SettingsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Container(
       height: 44,
-      color: CupertinoColors.systemGroupedBackground,
+      color: AppColors.appBarBg,
       child: Row(
         children: [
           CupertinoButton(
@@ -246,6 +248,7 @@ class _SettingsItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Column(
       children: [
         GestureDetector(
@@ -254,7 +257,7 @@ class _SettingsItem extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(icon, size: 22, color: CupertinoColors.systemGrey),
+                Icon(icon, size: 22, color: AppColors.textTertiary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -270,18 +273,18 @@ class _SettingsItem extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: CupertinoColors.systemGrey,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   CupertinoIcons.chevron_right,
                   size: 16,
-                  color: CupertinoColors.systemGrey3,
+                  color: AppColors.textTertiary,
                 ),
               ],
             ),
@@ -291,7 +294,7 @@ class _SettingsItem extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(left: 16, right: 16),
             height: 0.5,
-            color: CupertinoColors.systemGrey5,
+            color: AppColors.divider,
           ),
       ],
     );

@@ -61,11 +61,13 @@ class _SearchResultsPanelState extends State<SearchResultsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<RadarViewModel, ({
-      List<Map<String, String>> results,
-      bool searching,
-    })>(
-      selector: (_, vm) => (results: vm.searchResults, searching: vm.isSearching),
+    AppColors.of(context);
+    return Selector<
+      RadarViewModel,
+      ({List<Map<String, String>> results, bool searching})
+    >(
+      selector: (_, vm) =>
+          (results: vm.searchResults, searching: vm.isSearching),
       builder: (_, data, __) {
         final vm = context.read<RadarViewModel>();
         return Padding(
@@ -80,7 +82,7 @@ class _SearchResultsPanelState extends State<SearchResultsPanel> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey[600],
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -90,7 +92,10 @@ class _SearchResultsPanelState extends State<SearchResultsPanel> {
                   alignment: Alignment.center,
                   child: Text(
                     '未找到匹配的股票',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
                 )
               else
@@ -101,7 +106,7 @@ class _SearchResultsPanelState extends State<SearchResultsPanel> {
                     decoration: BoxDecoration(
                       color: AppColors.cardBg,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       children: [
@@ -121,7 +126,7 @@ class _SearchResultsPanelState extends State<SearchResultsPanel> {
                                 result['code'] ?? '',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[600],
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
@@ -132,20 +137,28 @@ class _SearchResultsPanelState extends State<SearchResultsPanel> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : _isMonitored(vm, result['code'] ?? '')
-                                  ? const Icon(Icons.check_circle,
-                                      color: Colors.green, size: 22)
-                                  : const Icon(Icons.add_circle_outline,
-                                      color: Color(0xff2364aa)),
-                          onPressed: _adding.contains(result['code']) ||
+                              ? Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.success,
+                                  size: 22,
+                                )
+                              : Icon(
+                                  Icons.add_circle_outline,
+                                  color: AppColors.brand,
+                                ),
+                          onPressed:
+                              _adding.contains(result['code']) ||
                                   _isMonitored(vm, result['code'] ?? '')
                               ? null
                               : () => _addStock(
-                                    result['code'] ?? '',
-                                    result['name'] ?? '',
-                                  ),
+                                  result['code'] ?? '',
+                                  result['name'] ?? '',
+                                ),
                         ),
                       ],
                     ),

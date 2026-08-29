@@ -67,20 +67,17 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
 
   Future<void> _save() async {
     if (_selected.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请至少选择一个异动类型')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请至少选择一个异动类型')));
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      ChangeTypeConfig.storageKey,
-      _selected.join(','),
-    );
+    await prefs.setString(ChangeTypeConfig.storageKey, _selected.join(','));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('设置已保存')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('设置已保存')));
       Navigator.of(context).pop(true);
     }
   }
@@ -93,23 +90,21 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('监控异动设置'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.appBarBg,
+        foregroundColor: AppColors.appBarFg,
         elevation: 0.5,
         actions: [
           TextButton(
             onPressed: _resetToDefault,
-            child: Text(
-              '恢复默认',
-              style: TextStyle(color: AppColors.brand),
-            ),
+            child: Text('恢复默认', style: TextStyle(color: AppColors.brand)),
           ),
         ],
       ),
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: AppColors.scaffoldBg,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -117,9 +112,10 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                 // 类型列表
                 Expanded(
                   child: Container(
-                    
                     margin: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: ListView.separated(
                       itemCount: ChangeTypeConfig.allTypes.length,
                       separatorBuilder: (_, __) =>
@@ -130,11 +126,10 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                         return Container(
                           color: AppColors.cardBg,
                           child: CheckboxListTile(
-                                                
                             contentPadding: EdgeInsets.all(4),
                             title: Text(
                               item.name,
-                                              
+
                               style: TextStyle(
                                 fontSize: 16,
                                 color: _commonTypeIds.contains(item.id)
@@ -162,12 +157,14 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                 // 底部操作栏
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 40, vertical: 16),
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.cardBg,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
+                        color: AppColors.overlay.withValues(alpha: 0.05),
                         blurRadius: 8,
                         offset: const Offset(0, -2),
                       ),
@@ -180,12 +177,12 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                         child: OutlinedButton(
                           onPressed: _toggleAll,
                           style: OutlinedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(
-                                color: _isAllSelected
-                                    ? Colors.grey
-                                    : AppColors.brand),
+                              color: _isAllSelected
+                                  ? AppColors.textTertiary
+                                  : AppColors.brand,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -195,7 +192,7 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                             style: TextStyle(
                               fontSize: 15,
                               color: _isAllSelected
-                                  ? Colors.grey
+                                  ? AppColors.textTertiary
                                   : AppColors.brand,
                               fontWeight: FontWeight.w600,
                             ),
@@ -210,8 +207,7 @@ class _MonitorSettingsPageState extends State<MonitorSettingsPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
                             foregroundColor: Colors.white,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),

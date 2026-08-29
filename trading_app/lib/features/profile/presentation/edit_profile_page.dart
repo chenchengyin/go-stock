@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../shared/view_state.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
@@ -30,6 +31,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    AppColors.of(context);
     final user = auth.user;
     if (user == null) {
       return const CupertinoPageScaffold(
@@ -39,8 +41,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
 
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
-      navigationBar: const CupertinoNavigationBar(
+      backgroundColor: AppColors.scaffoldBg,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppColors.appBarBg,
         middle: Text('编辑资料'),
       ),
       child: SafeArea(
@@ -51,7 +54,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: CupertinoColors.white,
+                color: AppColors.cardBg,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -60,25 +63,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: CupertinoColors.systemGrey5,
+                      color: AppColors.surfaceBg,
                       borderRadius: BorderRadius.circular(32),
                     ),
-                    child: const Icon(CupertinoIcons.person,
-                        size: 32, color: CupertinoColors.systemGrey),
+                    child: Icon(
+                      CupertinoIcons.person,
+                      size: 32,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(user.nickname,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 18)),
+                      Text(
+                        user.nickname,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         '${user.phone} · ${user.role}',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            color: CupertinoColors.systemGrey),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -91,24 +102,27 @@ class _EditProfilePageState extends State<EditProfilePage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: CupertinoColors.white,
+                color: AppColors.cardBg,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('昵称',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: CupertinoColors.systemGrey)),
+                  Text(
+                    '昵称',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   CupertinoTextField(
                     controller: _nicknameController,
                     placeholder: '请输入昵称',
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: CupertinoColors.systemGrey6,
+                      color: AppColors.inputFill,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -145,7 +159,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     },
               child: auth.state.isLoading
                   ? const CupertinoActivityIndicator(
-                      color: CupertinoColors.white)
+                      color: CupertinoColors.white,
+                    )
                   : const Text('保存资料'),
             ),
 
@@ -155,7 +170,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 child: Text(
                   auth.state.message,
                   style: const TextStyle(
-                      color: CupertinoColors.systemRed, fontSize: 14),
+                    color: CupertinoColors.systemRed,
+                    fontSize: 14,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),

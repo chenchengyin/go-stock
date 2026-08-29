@@ -3,6 +3,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
+
 /// Importance badge widget - iOS style rounded pill.
 class ImportanceBadge extends StatelessWidget {
   const ImportanceBadge({
@@ -24,9 +26,9 @@ class ImportanceBadge extends StatelessWidget {
         return const Color(0xfff29900);
       case 'low':
       case '普通':
-        return const Color(0xff5f6368);
+        return AppColors.textSecondary;
       default:
-        return const Color(0xff5f6368);
+        return AppColors.textSecondary;
     }
   }
 
@@ -45,6 +47,7 @@ class ImportanceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     final color = _getColor();
     final label = _getLabel();
     final fontSize = small ? 10.0 : 11.0;
@@ -72,34 +75,31 @@ class ImportanceBadge extends StatelessWidget {
 
 /// AI summary block - iOS style blue info box.
 class AISummaryBlock extends StatelessWidget {
-  const AISummaryBlock({
-    super.key,
-    required this.summary,
-    this.maxLines = 3,
-  });
+  const AISummaryBlock({super.key, required this.summary, this.maxLines = 3});
 
   final String summary;
   final int maxLines;
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xffe8f0fe),
+        color: AppColors.brandLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xffaecbfa)),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.5)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.auto_awesome_outlined, size: 16, color: const Color(0xff1967d2)),
+          Icon(Icons.auto_awesome_outlined, size: 16, color: AppColors.brand),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               summary,
-              style: const TextStyle(
-                color: Color(0xff1967d2),
+              style: TextStyle(
+                color: AppColors.brand,
                 fontSize: 13,
                 height: 1.4,
               ),
@@ -126,18 +126,21 @@ class TimeLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     final month = dateTime.month.toString().padLeft(2, '0');
     final day = dateTime.day.toString().padLeft(2, '0');
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
     final second = dateTime.second.toString().padLeft(2, '0');
 
-    final time = showSeconds ? '$month/$day $hour:$minute:$second' : '$month/$day $hour:$minute';
+    final time = showSeconds
+        ? '$month/$day $hour:$minute:$second'
+        : '$month/$day $hour:$minute';
 
     return Text(
       time,
       style: TextStyle(
-        color: const Color(0xff5f6368),
+        color: AppColors.textSecondary,
         fontSize: 12,
         fontFeatures: [const FontFeature.tabularFigures()],
       ),
@@ -147,11 +150,7 @@ class TimeLabel extends StatelessWidget {
 
 /// Source chip widget - iOS style compact chip.
 class SourceChip extends StatelessWidget {
-  const SourceChip({
-    super.key,
-    required this.source,
-    this.icon,
-  });
+  const SourceChip({super.key, required this.source, this.icon});
 
   final String source;
   final IconData? icon;
@@ -169,23 +168,21 @@ class SourceChip extends StatelessWidget {
 
 /// Section header widget - iOS style section title.
 class SectionHeader extends StatelessWidget {
-  const SectionHeader({
-    super.key,
-    required this.title,
-  });
+  const SectionHeader({super.key, required this.title});
 
   final String title;
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Color(0xff5f6368),
+          color: AppColors.textSecondary,
           letterSpacing: 0.3,
         ),
       ),
@@ -195,15 +192,13 @@ class SectionHeader extends StatelessWidget {
 
 /// Key points list widget - iOS style bullet list.
 class KeyPointsList extends StatelessWidget {
-  const KeyPointsList({
-    super.key,
-    required this.points,
-  });
+  const KeyPointsList({super.key, required this.points});
 
   final List<String> points;
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Column(
       children: points.map((point) {
         return Padding(
@@ -211,7 +206,10 @@ class KeyPointsList extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('• ', style: TextStyle(fontSize: 16, color: Color(0xff1967d2))),
+              Text(
+                '• ',
+                style: TextStyle(fontSize: 16, color: AppColors.brand),
+              ),
               Expanded(
                 child: Text(
                   point,
@@ -232,9 +230,10 @@ class IOSDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Divider(height: 1, color: const Color(0xffe0e0e0)),
+      child: Divider(height: 1, color: AppColors.divider),
     );
   }
 }
@@ -267,6 +266,7 @@ class _ExpandableSectionState extends State<ExpandableSection> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -277,17 +277,19 @@ class _ExpandableSectionState extends State<ExpandableSection> {
             child: Row(
               children: [
                 Icon(
-                  _expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                  _expanded
+                      ? Icons.keyboard_arrow_down
+                      : Icons.keyboard_arrow_right,
                   size: 20,
-                  color: const Color(0xff1967d2),
+                  color: AppColors.brand,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   widget.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xff1967d2),
+                    color: AppColors.brand,
                   ),
                 ),
               ],

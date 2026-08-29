@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_colors.dart';
 import '../features/news/presentation/market_news/news_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/radar/presentation/radar_list/radar_page.dart';
 import '../features/radar/presentation/stock_change_detail/stock_change_detail_page.dart';
 import '../features/short_term_emotion/presentation/short_term_emotion_page.dart';
+
 // 策略吧暂时隐藏入口，页面逻辑保留，后续需要时可恢复。
 // import '../features/strategy/presentation/strategy_page.dart';
 
@@ -94,6 +96,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
+
     return WillPopScope(
       onWillPop: () async {
         final navigator = AppShell.navigatorKey.currentState;
@@ -132,9 +136,9 @@ class _AppShellState extends State<AppShell> {
                   });
                 },
                 type: BottomNavigationBarType.fixed,
-                backgroundColor: Colors.white,
-                selectedItemColor: Colors.blue,
-                unselectedItemColor: Colors.grey,
+                backgroundColor: AppColors.cardBg,
+                selectedItemColor: AppColors.brand,
+                unselectedItemColor: AppColors.textTertiary,
                 selectedFontSize: 11,
                 unselectedFontSize: 11,
                 elevation: 0,

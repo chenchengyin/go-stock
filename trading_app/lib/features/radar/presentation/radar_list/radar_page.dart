@@ -24,9 +24,9 @@ class StockCodeCopyButton extends StatelessWidget {
     if (normalizedCode.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: normalizedCode));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('股票代码已复制')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('股票代码已复制')));
   }
 
   @override
@@ -38,9 +38,9 @@ class StockCodeCopyButton extends StatelessWidget {
         child: InkWell(
           onTap: () => _copy(context),
           borderRadius: BorderRadius.circular(6),
-          child: const Padding(
+          child: Padding(
             padding: EdgeInsets.all(2),
-            child: Icon(Icons.copy, size: 18, color: Colors.grey),
+            child: Icon(Icons.copy, size: 18, color: AppColors.textTertiary),
           ),
         ),
       ),
@@ -151,21 +151,29 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   /// 顶部语音播报喇叭按钮
   Widget _buildVoiceButton() {
-    return Selector<VoiceAnnouncementViewModel, ({bool enabled, bool speaking})>(
+    return Selector<
+      VoiceAnnouncementViewModel,
+      ({bool enabled, bool speaking})
+    >(
       selector: (_, vm) => (enabled: vm.enabled, speaking: vm.isSpeaking),
       builder: (_, state, __) {
         final icon = !state.enabled
             ? Icons.volume_off_outlined
             : state.speaking
-                ? Icons.volume_up
-                : Icons.volume_up_outlined;
+            ? Icons.volume_up
+            : Icons.volume_up_outlined;
         return IconButton(
-          icon: Icon(icon, color: state.enabled ? AppColors.buttonPrimary : Colors.grey),
+          icon: Icon(
+            icon,
+            color: state.enabled
+                ? AppColors.buttonPrimary
+                : AppColors.textTertiary,
+          ),
           tooltip: '语音播报管理',
           onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const VoiceManagerPage()),
-            );
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const VoiceManagerPage()));
           },
         );
       },
@@ -181,9 +189,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         final voiceVm = dialogContext.read<VoiceAnnouncementViewModel>();
         return AlertDialog(
           title: const Text('开启语音播报？'),
-          content: const Text(
-            '开启后，当自选股出现新的异动信息时，系统会自动进行语音播报，帮助您及时把握盘中变化。',
-          ),
+          content: const Text('开启后，当自选股出现新的异动信息时，系统会自动进行语音播报，帮助您及时把握盘中变化。'),
           actions: [
             TextButton(
               onPressed: () async {
@@ -215,31 +221,33 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
-          title: const Text('盘达', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
+          title: const Text(
+            '盘达',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: AppColors.appBarBg,
+          foregroundColor: AppColors.appBarFg,
           elevation: 0.5,
-          actions: [
-            _buildVoiceButton(),
-          ],
+          actions: [_buildVoiceButton()],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(44),
             child: Container(
-              color: Colors.white,
+              color: AppColors.appBarBg,
               child: Selector<T0StrategyViewModel, int>(
                 selector: (_, vm) => vm.results.length,
                 builder: (_, count, __) {
                   final strategyLabel = count > 0 ? '主板策略($count)' : '主板策略';
                   return TabBar(
                     controller: _tabController,
-                    labelColor: const Color(0xff2364aa),
-                    unselectedLabelColor: Colors.grey,
-                    indicatorColor: const Color(0xff2364aa),
+                    labelColor: AppColors.brand,
+                    unselectedLabelColor: AppColors.textTertiary,
+                    indicatorColor: AppColors.brand,
                     labelStyle: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
@@ -257,7 +265,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ),
           ),
         ),
-        backgroundColor: AppColors.backgroundColor,
+        backgroundColor: AppColors.scaffoldBg,
         body: TabBarView(
           controller: _tabController,
           children: [
@@ -267,13 +275,16 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ),
             // ─── Tab ② 主板策略 ──────────────────────────────
             Consumer<T0StrategyViewModel>(
-              builder: (_, vm, __) => SelectionArea(
-                child: _buildStrategyTab(vm),
-              ),
+              builder: (_, vm, __) =>
+                  SelectionArea(child: _buildStrategyTab(vm)),
             ),
             // ─── Tab ③ 自选异动 ──────────────────────────────
-            Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
-              selector: (_, vm) => (changes: vm.watchChanges, loading: vm.watchLoading),
+            Selector<
+              RadarViewModel,
+              ({List<StockChange> changes, bool loading})
+            >(
+              selector: (_, vm) =>
+                  (changes: vm.watchChanges, loading: vm.watchLoading),
               builder: (_, data, __) => _buildChangeTab(
                 changes: data.changes,
                 loading: data.loading,
@@ -284,8 +295,12 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               ),
             ),
             // ─── Tab ④ 全市场 ────────────────────────────────
-            Selector<RadarViewModel, ({List<StockChange> changes, bool loading})>(
-              selector: (_, vm) => (changes: vm.allChanges, loading: vm.allLoading),
+            Selector<
+              RadarViewModel,
+              ({List<StockChange> changes, bool loading})
+            >(
+              selector: (_, vm) =>
+                  (changes: vm.allChanges, loading: vm.allLoading),
               builder: (_, data, __) => _buildChangeTab(
                 changes: data.changes,
                 loading: data.loading,
@@ -318,27 +333,34 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 // 空状态
                 if (vm.monitoredStocks.isEmpty &&
                     vm.searchKeyword.trim().isEmpty)
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Center(
                       child: Padding(
                         padding: EdgeInsets.all(60),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.radar, size: 64, color: Colors.grey),
+                            Icon(
+                              Icons.radar,
+                              size: 64,
+                              color: AppColors.textTertiary,
+                            ),
                             SizedBox(height: 16),
                             Text(
                               '暂无监控股票',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: Colors.grey,
+                                color: AppColors.textSecondary,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                             SizedBox(height: 8),
                             Text(
                               '在上方搜索框搜索股票并添加监控',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textTertiary,
+                              ),
                             ),
                           ],
                         ),
@@ -379,10 +401,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       child: TextField(
         decoration: InputDecoration(
           hintText: '搜索股票代码/名称后按确定，点击 + 添加监控',
-          hintStyle: TextStyle(
-            fontSize: 14,
-
-          ),
+          hintStyle: TextStyle(fontSize: 14),
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
@@ -402,7 +421,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                   onPressed: () => vm.searchKeyword = '',
                 ),
               IconButton(
-                icon: Icon(Icons.settings, size: 20, color: AppColors.buttonPrimary),
+                icon: Icon(
+                  Icons.settings,
+                  size: 20,
+                  color: AppColors.buttonPrimary,
+                ),
                 onPressed: () async {
                   final changed = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
@@ -424,7 +447,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
-          fillColor: Colors.grey[100],
+          fillColor: AppColors.inputFill,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 12,
@@ -438,8 +461,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Widget _buildStockCard(BuildContext context, MonitoredStock stock) {
     final vm = context.read<RadarViewModel>();
     final isUp = stock.changePercent >= 0;
-    final changeColor =
-        isUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+    final changeColor = isUp ? AppColors.textPriceUp : AppColors.textPriceDown;
     final hasNew = vm.hasNewChanges(stock.code);
 
     return GestureDetector(
@@ -460,7 +482,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           color: AppColors.cardBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
@@ -484,7 +506,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       const SizedBox(width: 8),
                       Text(
                         stock.code,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -506,61 +531,74 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       const SizedBox(width: 8),
                       // 盘口语言标签
                       _buildPanKouTags(stock),
-                      
                     ],
                   ),
-      
+
                   const SizedBox(height: 4),
                   // 成交额
                   if (stock.amount > 0)
                     Text(
                       '成交额 ${formatAmount(stock.amount)}',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   // 最新异动描述
-                  Builder(builder: (_) {
-                    final desc = vm.getLatestAlertDescription(stock.code);
-                    if (desc == null) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.tagRed,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: const Text(
-                              '异动',
-                              style: TextStyle(color: Colors.white, fontSize: 10),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(Icons.warning_amber_rounded,
-                              size: 12, color: AppColors.warning),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              desc,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.warning,
+                  Builder(
+                    builder: (_) {
+                      final desc = vm.getLatestAlertDescription(stock.code);
+                      if (desc == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.tagRed,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: const Text(
+                                '异动',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 12,
+                              color: AppColors.warning,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                desc,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
             // X（移除监控）
             IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+              icon: Icon(Icons.close, size: 18, color: AppColors.textTertiary),
               onPressed: () => vm.removeMonitoredStock(stock.code),
               tooltip: '移除监控',
             ),
@@ -587,9 +625,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Future<void> _openInTongHuaShun(BuildContext context, String code) async {
     final opened = await StockLauncher.openTongHuaShun(code: code);
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未能打开同花顺或浏览器')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('未能打开同花顺或浏览器')));
     }
   }
 
@@ -626,7 +664,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 8),
           TextButton(
-            onPressed: vm.canGoPreviousArchive ? vm.selectPreviousArchive : null,
+            onPressed: vm.canGoPreviousArchive
+                ? vm.selectPreviousArchive
+                : null,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               minimumSize: Size.zero,
@@ -652,12 +692,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               color: AppColors.textPrimary,
             ),
             items: vm.dropdownDates
-                .map(
-                  (d) => DropdownMenuItem(
-                    value: d,
-                    child: Text(d),
-                  ),
-                )
+                .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                 .toList(),
             onChanged: (d) {
               if (d != null) vm.selectDate(d);
@@ -714,7 +749,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       Text(
                         _backfillTitle(wp),
                         style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w500),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       if (_backfillSubtitle(wp) != null)
                         Padding(
@@ -722,7 +759,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           child: Text(
                             _backfillSubtitle(wp)!,
                             style: TextStyle(
-                                fontSize: 13, color: AppColors.textSecondary),
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       const SizedBox(height: 12),
@@ -730,7 +769,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         Text(
                           '已拉取 ${wp.stockCount} 只主板股票',
                           style: TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary),
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       if (wp.dailyFetched > 0)
                         Padding(
@@ -738,7 +779,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           child: Text(
                             '日线进度: ${wp.dailyFetched}/${wp.dailyTotal}',
                             style: TextStyle(
-                                fontSize: 13, color: AppColors.textSecondary),
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       if (wp.candidateCount > 0)
@@ -747,13 +790,18 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           child: Text(
                             '候选股票: ${wp.candidateCount} 只（涨停 + 成交额过滤后）',
                             style: TextStyle(
-                                fontSize: 13, color: AppColors.textSecondary),
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       const SizedBox(height: 16),
                       Text(
                         '每10秒自动刷新',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
                       ),
                     ],
                   ),
@@ -770,41 +818,48 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       child: vm.loading
           ? const Center(child: CircularProgressIndicator())
           : vm.error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      '加载失败: ${vm.error}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-                    ),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  '加载失败: ${vm.error}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
                   ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildStrategyDateBar(vm),
-                    Expanded(
-                      child: vm.results.isEmpty
-                          ? Center(
-                              child: Text(
-                                '暂无符合条件的股票',
-                                style: TextStyle(
-                                    fontSize: 14, color: Colors.grey[500]),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              itemCount: vm.results.length,
-                              itemBuilder: (_, i) => _buildStrategyCard(
-                                    vm.results[i],
-                                    preview: vm.showingCandidatePreview,
-                                  ),
-                            ),
-                    ),
-                  ],
                 ),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildStrategyDateBar(vm),
+                Expanded(
+                  child: vm.results.isEmpty
+                      ? Center(
+                          child: Text(
+                            '暂无符合条件的股票',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          itemCount: vm.results.length,
+                          itemBuilder: (_, i) => _buildStrategyCard(
+                            vm.results[i],
+                            preview: vm.showingCandidatePreview,
+                          ),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -835,7 +890,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     }
 
     // 灰灯仅表示样本不足/无库记录；只要有形态统计就显示整数率，不用 —/—
-    final noStats = stock.pattern.isEmpty ||
+    final noStats =
+        stock.pattern.isEmpty ||
         (stock.patternT0N == 0 &&
             stock.patternWinPct == 0 &&
             stock.patternFailPct == 0);
@@ -873,7 +929,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final openUp = stock.openGap >= 0;
     final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
     final closeUp = stock.closeRet >= 0;
-    final closeColor = closeUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+    final closeColor = closeUp
+        ? AppColors.textPriceUp
+        : AppColors.textPriceDown;
     final livePct = stock.liveChangePercent ?? 0.0;
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
@@ -891,78 +949,82 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         ),
         child: Row(
           children: [
-          // 名称
-          Text(
-            stock.stockName,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          ),
-          if (stock.tag.isNotEmpty) ...[
-            const SizedBox(width: 4),
+            // 名称
             Text(
-              '[${stock.tag}]',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: stock.tag == '涨停破板'
-                    ? AppColors.tagRed
-                    : AppColors.tagGreen,
+              stock.stockName,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+            if (stock.tag.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Text(
+                '[${stock.tag}]',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: stock.tag == '涨停破板'
+                      ? AppColors.tagRed
+                      : AppColors.tagGreen,
+                ),
               ),
-            ),
-          ],
-          const SizedBox(width: 6),
-          if (!preview)
+            ],
+            const SizedBox(width: 6),
+            if (!preview)
+              Text(
+                '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: closeColor,
+                ),
+              ),
+            if (!preview) const SizedBox(width: 6),
             Text(
-              '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: closeColor),
+              stock.rawCode,
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
             ),
-          if (!preview) const SizedBox(width: 6),
-          Text(
-            stock.rawCode,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          ),
-          const SizedBox(width: 6),
-          _buildBuySignalChip(stock),
-          const Spacer(),
-          if (preview) ...[
-            Text(
-              '竞价预览（未确认）',
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
+            const SizedBox(width: 6),
+            _buildBuySignalChip(stock),
+            const Spacer(),
+            if (preview) ...[
+              Text(
+                '竞价预览（未确认）',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${liveUp ? "+" : ""}${livePct.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: liveColor,
+                ),
+              ),
+            ] else
+              Text(
+                '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: openColor,
+                ),
+              ),
             const SizedBox(width: 8),
-            Text(
-              '${liveUp ? "+" : ""}${livePct.toStringAsFixed(2)}%',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: liveColor,
-              ),
-            ),
-          ] else
-            Text(
-              '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: openColor,
-              ),
-            ),
-          const SizedBox(width: 8),
-          // 同花顺按钮暂时隐藏，保留原代码逻辑，后续需要时可恢复。
-          // Material(
-          //   color: Colors.transparent,
-          //   child: InkWell(
-          //     onTap: () => _openInTongHuaShun(context, stock.rawCode),
-          //     borderRadius: BorderRadius.circular(6),
-          //     child: Image.asset(
-          //       'assets/images/kline_button.png',
-          //       width: 22,
-          //       height: 22,
-          //       fit: BoxFit.contain,
-          //     ),
-          //   ),
-          // ),
-          StockCodeCopyButton(code: stock.rawCode),
-        ],
+            // 同花顺按钮暂时隐藏，保留原代码逻辑，后续需要时可恢复。
+            // Material(
+            //   color: Colors.transparent,
+            //   child: InkWell(
+            //     onTap: () => _openInTongHuaShun(context, stock.rawCode),
+            //     borderRadius: BorderRadius.circular(6),
+            //     child: Image.asset(
+            //       'assets/images/kline_button.png',
+            //       width: 22,
+            //       height: 22,
+            //       fit: BoxFit.contain,
+            //     ),
+            //   ),
+            // ),
+            StockCodeCopyButton(code: stock.rawCode),
+          ],
         ),
       ),
     );
@@ -1028,12 +1090,15 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           if (changes.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.backgroundColor,
+              color: AppColors.scaffoldBg,
               child: Row(
                 children: [
                   Text(
                     '共 ${changes.length} 条',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const Spacer(),
                   GestureDetector(
@@ -1043,14 +1108,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         Icon(
                           ascending ? Icons.arrow_upward : Icons.arrow_downward,
                           size: 16,
-                          color: const Color(0xff2364aa),
+                          color: AppColors.brand,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           ascending ? '正序' : '倒序',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Color(0xff2364aa),
+                            color: AppColors.brand,
                           ),
                         ),
                       ],
@@ -1064,13 +1129,16 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             child: loading
                 ? const Center(child: CircularProgressIndicator())
                 : changes.isEmpty
-                    ? Center(
-                        child: Text(
-                          emptyText,
-                          style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                        ),
-                      )
-                    : _buildChangeListView(changes, ascending),
+                ? Center(
+                    child: Text(
+                      emptyText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  )
+                : _buildChangeListView(changes, ascending),
           ),
         ],
       ),
@@ -1080,8 +1148,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Widget _buildChangeListView(List<StockChange> changes, bool ascending) {
     final sorted = List<StockChange>.of(changes)
       ..sort((a, b) {
-        final cmp = '${a.changeDate}${a.changeTime}'
-            .compareTo('${b.changeDate}${b.changeTime}');
+        final cmp = '${a.changeDate}${a.changeTime}'.compareTo(
+          '${b.changeDate}${b.changeTime}',
+        );
         return ascending ? cmp : -cmp;
       });
 

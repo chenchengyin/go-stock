@@ -28,10 +28,12 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    AppColors.of(context);
 
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
-      navigationBar: const CupertinoNavigationBar(
+      backgroundColor: AppColors.scaffoldBg,
+      navigationBar: CupertinoNavigationBar(
+        backgroundColor: AppColors.appBarBg,
         middle: Text('注册'),
       ),
       child: SafeArea(
@@ -43,10 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 40),
               const Text(
                 '创建新账号',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
@@ -56,7 +55,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 keyboardType: TextInputType.phone,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
+                  color: AppColors.inputFill,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -67,7 +66,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 obscureText: true,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
+                  color: AppColors.inputFill,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -77,7 +76,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 placeholder: '请输入昵称',
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
+                  color: AppColors.inputFill,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),

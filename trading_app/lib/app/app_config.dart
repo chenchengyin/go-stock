@@ -31,7 +31,7 @@ class AppDependencies extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ThemeManager()),
+        ChangeNotifierProvider(create: (_) => ThemeManager()..restore()),
         ChangeNotifierProvider(
           create: (_) => AuthViewModel(MockAuthRepository(cache))..restore(),
         ),

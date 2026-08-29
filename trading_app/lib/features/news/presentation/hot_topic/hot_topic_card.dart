@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/cupertino.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../domain/news_models.dart';
 
 class HotTopicCard extends StatelessWidget {
@@ -13,14 +14,15 @@ class HotTopicCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: const BoxDecoration(
-          color: CupertinoColors.white,
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
           border: Border(
-            bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+            bottom: BorderSide(color: AppColors.divider, width: 0.5),
           ),
         ),
         child: Row(
@@ -39,11 +41,11 @@ class HotTopicCard extends StatelessWidget {
                 children: [
                   Text(
                     item.nickname,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                       height: 1.35,
-                      color: CupertinoColors.black,
+                      color: AppColors.textPrimary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -51,9 +53,9 @@ class HotTopicCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     item.desc,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: CupertinoColors.systemGrey,
+                      color: AppColors.textSecondary,
                       height: 1.4,
                     ),
                     maxLines: 2,
@@ -76,9 +78,9 @@ class HotTopicCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             item.stockList.take(3).join(' '),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: CupertinoColors.systemGrey,
+                              color: AppColors.textSecondary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -115,13 +117,13 @@ class HotTopicCard extends StatelessWidget {
       width: 68,
       height: 68,
       decoration: BoxDecoration(
-        color: CupertinoColors.systemGrey6,
+        color: AppColors.surfaceBg,
         borderRadius: BorderRadius.circular(6),
       ),
-      child: const Icon(
+      child: Icon(
         CupertinoIcons.doc_text,
         size: 28,
-        color: CupertinoColors.systemGrey4,
+        color: AppColors.textTertiary,
       ),
     );
   }
@@ -144,13 +146,13 @@ class _Badge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: CupertinoColors.systemGrey),
+        Icon(icon, size: 13, color: AppColors.textTertiary),
         const SizedBox(width: 3),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            color: CupertinoColors.systemGrey,
+            color: AppColors.textTertiary,
             fontWeight: FontWeight.w500,
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../domain/strategy_models.dart';
 import 'strategy_view_model.dart';
 
@@ -177,10 +178,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
+      backgroundColor: AppColors.scaffoldBg,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: CupertinoColors.white,
+        backgroundColor: AppColors.appBarBg,
         middle: const Text(
           '帖子详情',
           style: TextStyle(fontWeight: FontWeight.w600),
@@ -218,13 +220,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
                     children: [
                       _buildPostContent(),
                       if (_comments.isNotEmpty) ...[
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Text(
                             '评论',
                             style: TextStyle(
                               fontSize: 13,
-                              color: CupertinoColors.systemGrey,
+                              color: AppColors.textTertiary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -253,8 +255,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
               Container(
                 width: 32,
                 height: 32,
-                decoration: const BoxDecoration(
-                  color: CupertinoColors.systemGrey5,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceBg,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
@@ -269,18 +271,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
               const SizedBox(width: 8),
               Text(
                 _post!.nickname,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
               Text(
                 _formatTime(_post!.createdAt),
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: CupertinoColors.systemGrey,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -323,7 +319,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       size: 20,
                       color: _liked
                           ? const Color(0xffe53935)
-                          : CupertinoColors.systemGrey,
+                          : AppColors.textTertiary,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -332,7 +328,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         fontSize: 13,
                         color: _liked
                             ? const Color(0xffe53935)
-                            : CupertinoColors.systemGrey,
+                            : AppColors.textTertiary,
                       ),
                     ),
                   ],
@@ -341,17 +337,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
               const SizedBox(width: 24),
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     CupertinoIcons.bubble_left_bubble_right,
                     size: 20,
-                    color: CupertinoColors.systemGrey,
+                    color: AppColors.textTertiary,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     _post!.commentCnt.toString(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: CupertinoColors.systemGrey,
+                      color: AppColors.textTertiary,
                     ),
                   ),
                 ],
@@ -366,9 +362,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget _buildComment(StrategyComment comment) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: CupertinoColors.systemGrey6, width: 0.5),
+          bottom: BorderSide(color: AppColors.divider, width: 0.5),
         ),
       ),
       child: Column(
@@ -384,12 +380,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 ),
               ),
               if (comment.replyToName != null) ...[
-                const Text(
+                Text(
                   ' 回复 ',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.systemGrey,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
                 ),
                 Text(
                   comment.replyToName!,
@@ -402,19 +395,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
               const SizedBox(width: 8),
               Text(
                 _formatTime(comment.createdAt),
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: CupertinoColors.systemGrey,
-                ),
+                style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
               ),
               const Spacer(),
               GestureDetector(
                 onTap: () =>
                     _startReply(comment.id, comment.userId, comment.nickname),
-                child: const Icon(
+                child: Icon(
                   CupertinoIcons.reply,
                   size: 14,
-                  color: CupertinoColors.systemGrey,
+                  color: AppColors.textTertiary,
                 ),
               ),
             ],
@@ -459,23 +449,21 @@ class _PostDetailPageState extends State<PostDetailPage> {
         top: 8,
         bottom: MediaQuery.of(context).padding.bottom + 8,
       ),
-      decoration: const BoxDecoration(
-        color: CupertinoColors.white,
-        border: Border(
-          top: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
-        ),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: Row(
         children: [
           if (_replyToCommentId != null)
             GestureDetector(
               onTap: _cancelReply,
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.only(right: 8),
                 child: Icon(
                   CupertinoIcons.xmark_circle,
                   size: 18,
-                  color: CupertinoColors.systemGrey,
+                  color: AppColors.textTertiary,
                 ),
               ),
             ),
@@ -487,7 +475,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   : '写评论...',
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey6,
+                color: AppColors.inputFill,
                 borderRadius: BorderRadius.circular(20),
               ),
               onSubmitted: (_) => _submitComment(),
@@ -498,11 +486,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
             onTap: _submitComment,
             child: Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Color(0xff2364aa),
+              decoration: BoxDecoration(
+                color: AppColors.brand,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.arrow_up,
                 size: 16,
                 color: CupertinoColors.white,

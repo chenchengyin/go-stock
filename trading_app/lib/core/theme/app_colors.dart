@@ -80,7 +80,7 @@ class AppColors {
   static void applyDark() => _apply(_dark);
 
   /// 应用灰色主题
-  static void applyGrey() => _apply(_grey);
+  static void applyGrey() => _apply(_light);
 
   static void applyVariant(AppThemeVariant v) {
     switch (v) {
@@ -216,41 +216,6 @@ class AppColors {
     tagBlue: const Color(0xff42a5f5),
     tagPurple: const Color(0xffab47bc),
   );
-
-  static final _Palette _grey = _Palette(
-    brand: const Color(0xff888888),
-    brandLight: const Color(0xfff0f0f0),
-    scaffoldBg: const Color(0xfff5f5f5),
-    cardBg: Colors.white,
-    backgroundColor: const Color(0xfff8f8f8),
-    surfaceBg: const Color(0xfff6f8fb),
-    textPrimary: const Color(0xff333333),
-    textSecondary: const Color(0xff888888),
-    textTertiary: const Color(0xffaaaaaa),
-    textPriceUp: const Color(0xff888888),
-    textPriceDown: const Color(0xff888888),
-    stockUpBg: const Color(0xfff5f5f5),
-    stockDownBg: const Color(0xfff5f5f5),
-    divider: const Color(0xffe0e0e0),
-    border: const Color(0xffeeeeee),
-    appBarBg: const Color(0xfff6f8fb),
-    appBarFg: const Color(0xff333333),
-    inputFill: const Color(0xfff5f5f5),
-    warning: const Color(0xff999999),
-    success: const Color(0xff999999),
-    error: const Color(0xff999999),
-    info: const Color(0xff999999),
-    link: const Color(0xff888888),
-    disabled: const Color(0xffcccccc),
-    shimmerBase: const Color(0xffe0e0e0),
-    shimmerHighlight: const Color(0xfff5f5f5),
-    overlay: const Color(0x66000000),
-    tagRed: const Color(0xff888888),
-    tagOrange: const Color(0xff888888),
-    tagGreen: const Color(0xff888888),
-    tagBlue: const Color(0xff888888),
-    tagPurple: const Color(0xff888888),
-  );
 }
 
 /// 调色板数据类（私有，仅用于预设）
@@ -331,11 +296,13 @@ class AppColorsWidget extends InheritedWidget {
   const AppColorsWidget({
     super.key,
     required this.colors,
+    required this.variant,
     required super.child,
   });
 
   final AppColors colors;
+  final AppThemeVariant variant;
 
   @override
-  bool updateShouldNotify(AppColorsWidget old) => old.colors != colors;
+  bool updateShouldNotify(AppColorsWidget old) => old.variant != variant;
 }

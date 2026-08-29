@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/network/api_client.dart';
 import 'strategy_view_model.dart';
 
@@ -114,12 +115,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Stack(
       children: [
         CupertinoPageScaffold(
-          backgroundColor: CupertinoColors.white,
+          backgroundColor: AppColors.scaffoldBg,
           navigationBar: CupertinoNavigationBar(
-            backgroundColor: CupertinoColors.white,
+            backgroundColor: AppColors.appBarBg,
             leading: GestureDetector(
               onTap: () => Navigator.of(context).pop(),
               child: const Padding(
@@ -134,19 +136,17 @@ class _CreatePostPageState extends State<CreatePostPage> {
             trailing: GestureDetector(
               onTap: _isSubmitting ? null : _submit,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: _isSubmitting
-                      ? CupertinoColors.systemGrey5
-                      : const Color(0xff2364aa),
+                  color: _isSubmitting ? AppColors.surfaceBg : AppColors.brand,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Text(
                   '发布',
-                  style: TextStyle(
-                    color: CupertinoColors.white,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: CupertinoColors.white, fontSize: 14),
                 ),
               ),
             ),
@@ -161,7 +161,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                   placeholder: '标题（必填）',
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6,
+                    color: AppColors.inputFill,
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
@@ -172,14 +172,17 @@ class _CreatePostPageState extends State<CreatePostPage> {
                   maxLines: 8,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6,
+                    color: AppColors.inputFill,
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   '配图（最多6张）',
-                  style: TextStyle(fontSize: 13, color: CupertinoColors.systemGrey),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -221,12 +224,12 @@ class _CreatePostPageState extends State<CreatePostPage> {
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(
-                            color: CupertinoColors.systemGrey6,
+                            color: AppColors.inputFill,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             CupertinoIcons.camera_viewfinder,
-                            color: CupertinoColors.systemGrey,
+                            color: AppColors.textTertiary,
                             size: 28,
                           ),
                         ),
@@ -235,7 +238,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 ),
                 if (_isUploading) ...[
                   const SizedBox(height: 12),
-                  const Row(
+                  Row(
                     children: [
                       CupertinoActivityIndicator(),
                       SizedBox(width: 8),
@@ -243,7 +246,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                         '正在上传图片...',
                         style: TextStyle(
                           fontSize: 13,
-                          color: CupertinoColors.systemGrey,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -255,10 +258,8 @@ class _CreatePostPageState extends State<CreatePostPage> {
         ),
         if (_isSubmitting)
           Container(
-            color: CupertinoColors.systemBackground.withValues(alpha: 0.6),
-            child: const Center(
-              child: CupertinoActivityIndicator(radius: 16),
-            ),
+            color: AppColors.scaffoldBg.withValues(alpha: 0.6),
+            child: const Center(child: CupertinoActivityIndicator(radius: 16)),
           ),
       ],
     );

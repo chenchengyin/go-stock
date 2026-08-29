@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../domain/news_models.dart';
 
 class NewsDetailPage extends StatelessWidget {
@@ -14,17 +15,18 @@ class NewsDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    AppColors.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: const Text('详情'),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        surfaceTintColor: Colors.white,
+        backgroundColor: AppColors.appBarBg,
+        foregroundColor: AppColors.appBarFg,
+        surfaceTintColor: AppColors.appBarBg,
         elevation: 0.5,
-        shadowColor: Colors.black12,
+        shadowColor: AppColors.overlay.withValues(alpha: 0.12),
       ),
       body: SafeArea(
         child: Column(
@@ -60,17 +62,17 @@ class NewsDetailPage extends StatelessWidget {
                         if (item.isRed) const SizedBox(width: 8),
                         Text(
                           item.source,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         const Spacer(),
                         Text(
                           item.time,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -80,11 +82,11 @@ class NewsDetailPage extends StatelessWidget {
                     if (item.title.isNotEmpty) ...[
                       Text(
                         item.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           height: 1.3,
-                          color: Colors.black,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -95,10 +97,10 @@ class NewsDetailPage extends StatelessWidget {
                     // 正文
                     Text(
                       item.content,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         height: 1.6,
-                        color: Colors.black87,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     // AI 意见区块
@@ -108,10 +110,10 @@ class NewsDetailPage extends StatelessWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: const Color(0xfff0f5ff),
+                          color: AppColors.brandLight,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: const Color(0xff2364aa).withValues(alpha: 0.15),
+                            color: AppColors.brand.withValues(alpha: 0.15),
                           ),
                         ),
                         child: Column(
@@ -119,15 +121,18 @@ class NewsDetailPage extends StatelessWidget {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.auto_awesome,
-                                    size: 16, color: const Color(0xff2364aa)),
+                                Icon(
+                                  Icons.auto_awesome,
+                                  size: 16,
+                                  color: AppColors.brand,
+                                ),
                                 const SizedBox(width: 6),
-                                const Text(
+                                Text(
                                   'AI 分析意见',
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: Color(0xff2364aa),
+                                    color: AppColors.brand,
                                   ),
                                 ),
                               ],
@@ -135,10 +140,10 @@ class NewsDetailPage extends StatelessWidget {
                             const SizedBox(height: 10),
                             Text(
                               item.aiOpinion,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 height: 1.6,
-                                color: Colors.black87,
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ],
@@ -158,14 +163,14 @@ class NewsDetailPage extends StatelessWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
+                              color: AppColors.surfaceBg,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               subject,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.black87,
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           );

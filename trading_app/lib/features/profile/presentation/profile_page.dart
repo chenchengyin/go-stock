@@ -25,8 +25,9 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    AppColors.of(context);
     return Container(
-      color: CupertinoColors.white,
+      color: AppColors.scaffoldBg,
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -42,7 +43,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     _LoginPrompt(),
                   const _SectionHeader(title: '设置'),
                   Container(
-                    color: CupertinoColors.white,
+                    color: AppColors.cardBg,
                     child: Column(
                       children: [
                         _SettingsRow(
@@ -58,7 +59,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           showDivider: true,
                           onTap: () {
                             Navigator.of(context).push(
-                              CupertinoPageRoute(builder: (_) => const _QgqpBidPageWrapper()),
+                              CupertinoPageRoute(
+                                builder: (_) => const _QgqpBidPageWrapper(),
+                              ),
                             );
                           },
                         ),
@@ -75,7 +78,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           showDivider: false,
                           onTap: () {
                             Navigator.of(context).push(
-                              CupertinoPageRoute(builder: (_) => const SystemSettingsPage()),
+                              CupertinoPageRoute(
+                                builder: (_) => const SystemSettingsPage(),
+                              ),
                             );
                           },
                         ),
@@ -98,14 +103,15 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: CupertinoColors.systemGrey,
+          color: AppColors.textSecondary,
           letterSpacing: 0.3,
         ),
       ),
@@ -130,6 +136,7 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -138,25 +145,35 @@ class _SettingsRow extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(icon, size: 22, color: CupertinoColors.systemGrey),
+                Icon(icon, size: 22, color: AppColors.textTertiary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w500, fontSize: 15)),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: CupertinoColors.systemGrey)),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const Icon(CupertinoIcons.chevron_right,
-                    size: 16, color: CupertinoColors.systemGrey3),
+                Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 16,
+                  color: AppColors.textTertiary,
+                ),
               ],
             ),
           ),
@@ -164,7 +181,7 @@ class _SettingsRow extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(left: 16, right: 16),
               height: 0.5,
-              color: CupertinoColors.systemGrey5,
+              color: AppColors.divider,
             ),
         ],
       ),
@@ -177,8 +194,9 @@ class _LoginPrompt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Container(
-      color: CupertinoColors.white,
+      color: AppColors.cardBg,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,18 +209,18 @@ class _LoginPrompt extends StatelessWidget {
           CupertinoButton.filled(
             color: AppColors.buttonPrimary,
             onPressed: () {
-              Navigator.of(context).push(
-                CupertinoPageRoute(builder: (_) => const LoginPage()),
-              );
+              Navigator.of(
+                context,
+              ).push(CupertinoPageRoute(builder: (_) => const LoginPage()));
             },
             child: const Text('登录'),
           ),
           const SizedBox(height: 8),
           CupertinoButton(
             onPressed: () {
-              Navigator.of(context).push(
-                CupertinoPageRoute(builder: (_) => const RegisterPage()),
-              );
+              Navigator.of(
+                context,
+              ).push(CupertinoPageRoute(builder: (_) => const RegisterPage()));
             },
             child: const Text('没有账号？去注册'),
           ),
@@ -217,9 +235,10 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Container(
       height: 44,
-      color: CupertinoColors.white,
+      color: AppColors.appBarBg,
       alignment: Alignment.center,
       child: const Text(
         '我的',
@@ -230,9 +249,7 @@ class _Header extends StatelessWidget {
 }
 
 class _ProfileCard extends StatefulWidget {
-  const _ProfileCard({
-    required this.auth,
-  });
+  const _ProfileCard({required this.auth});
 
   final AuthViewModel auth;
 
@@ -243,6 +260,7 @@ class _ProfileCard extends StatefulWidget {
 class _ProfileCardState extends State<_ProfileCard> {
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     final user = widget.auth.user!;
     return GestureDetector(
       onTap: () {
@@ -251,12 +269,12 @@ class _ProfileCardState extends State<_ProfileCard> {
         //     pageBuilder: (context, animation, secondaryAnimation) => EditProfilePage(),
         //   ),
         // );
-        Navigator.of(context).push(
-                              CupertinoPageRoute(builder: (_) => const EditProfilePage()),
-                            );
+        Navigator.of(
+          context,
+        ).push(CupertinoPageRoute(builder: (_) => const EditProfilePage()));
       },
       child: Container(
-        color: CupertinoColors.white,
+        color: AppColors.cardBg,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -264,25 +282,32 @@ class _ProfileCardState extends State<_ProfileCard> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey5,
+                color: AppColors.surfaceBg,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: const Icon(CupertinoIcons.person,
-                  size: 24, color: CupertinoColors.systemGrey),
+              child: Icon(
+                CupertinoIcons.person,
+                size: 24,
+                color: AppColors.textTertiary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(user.nickname,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 16)),
+                  Text(
+                    user.nickname,
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
                   const SizedBox(height: 2),
-                  Text('${user.phone} · ${user.role}',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: CupertinoColors.systemGrey)),
+                  Text(
+                    '${user.phone} · ${user.role}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),

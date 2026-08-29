@@ -52,10 +52,12 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    AppColors.of(context);
 
     return Scaffold(
-      backgroundColor: CupertinoColors.white,
-      appBar: const CupertinoNavigationBar(
+      backgroundColor: AppColors.scaffoldBg,
+      appBar: CupertinoNavigationBar(
+        backgroundColor: AppColors.appBarBg,
         middle: Text('登录'),
       ),
       body: SafeArea(
@@ -67,10 +69,7 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 40),
               const Text(
                 '欢迎回来',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
@@ -79,7 +78,7 @@ class _LoginPageState extends State<LoginPage> {
                 placeholder: '请输入手机号/账号',
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
+                  color: AppColors.inputFill,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -90,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
                 obscureText: true,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey6,
+                  color: AppColors.inputFill,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -125,9 +124,7 @@ class _LoginPageState extends State<LoginPage> {
               CupertinoButton(
                 onPressed: () {
                   Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (_) => const RegisterPage(),
-                    ),
+                    CupertinoPageRoute(builder: (_) => const RegisterPage()),
                   );
                 },
                 child: const Text('还没有账号？去注册'),

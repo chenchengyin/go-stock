@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'news_view_model.dart';
 import '../../domain/news_models.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/shared/widgets/news_card.dart';
 import '../hot_topic/hot_topic_card.dart';
 import '../hot_topic/hot_topic_detail_page.dart';
@@ -57,10 +58,11 @@ class _NewsPageState extends State<NewsPage>
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<NewsViewModel>();
+    AppColors.of(context);
     final tabs = ['重要', '国内资讯', '热门话题', '外媒'];
 
     return Container(
-      color: CupertinoColors.white,
+      color: AppColors.scaffoldBg,
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -69,18 +71,18 @@ class _NewsPageState extends State<NewsPage>
               onRefresh: _onRefresh,
               refreshController: _refreshController,
             ),
-          _TabBar(
-            tabs: tabs,
-            selectedIndex: _selectedTab,
-            onSelect: (i) => setState(() {
-              _selectedTab = i;
-              // 切到"国内资讯"tab 时异步加载
-              if (i == 1 && vm.domesticNews.isEmpty) {
-                context.read<NewsViewModel>().loadDomesticNews();
-              }
-            }),
-          ),
-          Expanded(child: _buildBody(vm)),
+            _TabBar(
+              tabs: tabs,
+              selectedIndex: _selectedTab,
+              onSelect: (i) => setState(() {
+                _selectedTab = i;
+                // 切到"国内资讯"tab 时异步加载
+                if (i == 1 && vm.domesticNews.isEmpty) {
+                  context.read<NewsViewModel>().loadDomesticNews();
+                }
+              }),
+            ),
+            Expanded(child: _buildBody(vm)),
           ],
         ),
       ),
@@ -99,15 +101,15 @@ class _NewsPageState extends State<NewsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               CupertinoIcons.exclamationmark_triangle,
               size: 48,
-              color: CupertinoColors.systemGrey,
+              color: AppColors.textTertiary,
             ),
             const SizedBox(height: 16),
             Text(
               vm.state.message,
-              style: const TextStyle(color: CupertinoColors.systemGrey),
+              style: TextStyle(color: AppColors.textTertiary),
             ),
             const SizedBox(height: 16),
             CupertinoButton.filled(
@@ -139,11 +141,8 @@ class _NewsPageState extends State<NewsPage>
 
   Widget _buildNewsList(List<NewsItem> items) {
     if (items.isEmpty) {
-      return const Center(
-        child: Text(
-          '暂无数据',
-          style: TextStyle(color: CupertinoColors.systemGrey),
-        ),
+      return Center(
+        child: Text('暂无数据', style: TextStyle(color: AppColors.textTertiary)),
       );
     }
     return ListView.builder(
@@ -155,11 +154,8 @@ class _NewsPageState extends State<NewsPage>
 
   Widget _buildHotTopicsList(List<HotTopicItem> items) {
     if (items.isEmpty) {
-      return const Center(
-        child: Text(
-          '暂无热门话题',
-          style: TextStyle(color: CupertinoColors.systemGrey),
-        ),
+      return Center(
+        child: Text('暂无热门话题', style: TextStyle(color: AppColors.textTertiary)),
       );
     }
     return ListView.builder(
@@ -172,19 +168,17 @@ class _NewsPageState extends State<NewsPage>
 }
 
 class _Header extends StatelessWidget {
-  const _Header({
-    required this.onRefresh,
-    required this.refreshController,
-  });
+  const _Header({required this.onRefresh, required this.refreshController});
 
   final VoidCallback onRefresh;
   final AnimationController refreshController;
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Container(
       height: 44,
-      color: CupertinoColors.white,
+      color: AppColors.appBarBg,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Stack(
         alignment: Alignment.center,
@@ -201,10 +195,10 @@ class _Header extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 child: RotationTransition(
                   turns: refreshController,
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.refresh,
                     size: 22,
-                    color: CupertinoColors.systemBlue,
+                    color: AppColors.brand,
                   ),
                 ),
               ),
@@ -232,8 +226,9 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Container(
-      color: CupertinoColors.white,
+      color: AppColors.appBarBg,
       child: Column(
         children: [
           SingleChildScrollView(
@@ -262,9 +257,10 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
                             //     CupertinoColors.activeBlue
                             //     : CupertinoColors.darkBackgroundGray,
                             color: i == 0
-                                ? CupertinoColors.systemRed: isSelected ?
-                            CupertinoColors.activeBlue
-                                : CupertinoColors.darkBackgroundGray,
+                                ? CupertinoColors.systemRed
+                                : isSelected
+                                ? AppColors.brand
+                                : AppColors.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -273,7 +269,7 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
                           width: 24,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? CupertinoColors.systemBlue
+                                ? AppColors.brand
                                 : CupertinoColors.transparent,
                             borderRadius: BorderRadius.circular(1),
                           ),
@@ -286,7 +282,7 @@ class _TabBar extends StatelessWidget implements PreferredSizeWidget {
               }),
             ),
           ),
-          Container(height: 0.5, color: CupertinoColors.systemGrey5),
+          Container(height: 0.5, color: AppColors.divider),
         ],
       ),
     );

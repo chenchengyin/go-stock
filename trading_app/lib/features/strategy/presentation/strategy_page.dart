@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../auth/presentation/auth_view_model.dart';
 import '../../auth/presentation/login_page.dart';
 import '../domain/strategy_models.dart';
@@ -36,13 +37,14 @@ class _StrategyPageState extends State<StrategyPage> {
   Widget build(BuildContext context) {
     final vm = context.watch<StrategyViewModel>();
     final auth = context.watch<AuthViewModel>();
+    AppColors.of(context);
     final isLoggedIn = auth.user != null;
     _syncCurrentUser(auth, vm);
 
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
+      backgroundColor: AppColors.scaffoldBg,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: CupertinoColors.white,
+        backgroundColor: AppColors.appBarBg,
         middle: const Text(
           '策略吧',
           style: TextStyle(fontWeight: FontWeight.w600),
@@ -66,7 +68,7 @@ class _StrategyPageState extends State<StrategyPage> {
                   ),
                   decoration: BoxDecoration(
                     color: vm.checkedInToday
-                        ? CupertinoColors.systemGrey5
+                        ? AppColors.surfaceBg
                         : const Color(0xffe53935),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -75,7 +77,7 @@ class _StrategyPageState extends State<StrategyPage> {
                     style: TextStyle(
                       fontSize: 11,
                       color: vm.checkedInToday
-                          ? CupertinoColors.systemGrey
+                          ? AppColors.textTertiary
                           : CupertinoColors.white,
                       fontWeight: FontWeight.w600,
                     ),
@@ -91,7 +93,7 @@ class _StrategyPageState extends State<StrategyPage> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: CupertinoColors.systemGrey6,
+                    color: AppColors.inputFill,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -208,8 +210,8 @@ class _StrategyPageState extends State<StrategyPage> {
             child: Container(
               width: 52,
               height: 52,
-              decoration: const BoxDecoration(
-                color: Color(0xff2364aa),
+              decoration: BoxDecoration(
+                color: AppColors.brand,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -294,14 +296,15 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: const BoxDecoration(
-          color: CupertinoColors.white,
+        decoration: BoxDecoration(
+          color: AppColors.cardBg,
           border: Border(
-            bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+            bottom: BorderSide(color: AppColors.divider, width: 0.5),
           ),
         ),
         child: Column(
@@ -313,8 +316,8 @@ class _PostCard extends StatelessWidget {
                 Container(
                   width: 28,
                   height: 28,
-                  decoration: const BoxDecoration(
-                    color: CupertinoColors.systemGrey5,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceBg,
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
@@ -337,19 +340,19 @@ class _PostCard extends StatelessWidget {
                 const Spacer(),
                 Text(
                   _formatTime(post.createdAt),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: CupertinoColors.systemGrey,
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 if (isOwner) ...[
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: onDelete,
-                    child: const Icon(
+                    child: Icon(
                       CupertinoIcons.trash,
                       size: 14,
-                      color: CupertinoColors.systemGrey,
+                      color: AppColors.textTertiary,
                     ),
                   ),
                 ],
@@ -370,10 +373,7 @@ class _PostCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 post.title!,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: CupertinoColors.systemGrey,
-                ),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ],
             // 图片（仅展示第一张）
@@ -431,17 +431,15 @@ class _ActionIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: CupertinoColors.systemGrey),
+        Icon(icon, size: 16, color: AppColors.textTertiary),
         const SizedBox(width: 4),
         Text(
           count > 999 ? '999+' : count.toString(),
-          style: const TextStyle(
-            fontSize: 12,
-            color: CupertinoColors.systemGrey,
-          ),
+          style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
         ),
       ],
     );

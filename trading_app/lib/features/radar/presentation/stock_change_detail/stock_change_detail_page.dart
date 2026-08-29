@@ -48,7 +48,12 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
       final merged = <StockChange>[...changes];
       for (final c in vm.watchChanges) {
         if (widget.stockCode == null || c.stockCode == widget.stockCode) {
-          if (!merged.any((e) => e.id == c.id && e.changeType == c.changeType && e.changeTime == c.changeTime)) {
+          if (!merged.any(
+            (e) =>
+                e.id == c.id &&
+                e.changeType == c.changeType &&
+                e.changeTime == c.changeTime,
+          )) {
             merged.add(c);
           }
         }
@@ -75,22 +80,23 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
   Future<void> _openInTongHuaShun(String code) async {
     final opened = await StockLauncher.openTongHuaShun(code: code);
     if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未安装同花顺或跳转失败')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('未安装同花顺或跳转失败')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    AppColors.of(context);
     final title = widget.stockName != null
         ? '${widget.stockName} 异动详情'
         : '今日异动（${_changes.length}条）';
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.appBarBg,
+        foregroundColor: AppColors.appBarFg,
         elevation: 0.5,
         actions: [
           if (widget.stockCode == null)
@@ -106,9 +112,9 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
             ),
         ],
       ),
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: AppColors.scaffoldBg,
       body: _buildBody(),
-      
+
       bottomNavigationBar: _buildBottomBar(),
     );
   }
@@ -122,9 +128,9 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+            Icon(Icons.error_outline, size: 48, color: AppColors.textTertiary),
             const SizedBox(height: 12),
-            Text('加载失败', style: TextStyle(color: Colors.grey[600])),
+            Text('加载失败', style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 8),
             ElevatedButton(onPressed: _load, child: const Text('重试')),
           ],
@@ -132,21 +138,29 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
       );
     }
     if (_changes.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle_outline, size: 48, color: Colors.green),
+            Icon(
+              Icons.check_circle_outline,
+              size: 48,
+              color: AppColors.success,
+            ),
             SizedBox(height: 12),
-            Text('暂无异动记录', style: TextStyle(color: Colors.grey, fontSize: 15)),
+            Text(
+              '暂无异动记录',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+            ),
           ],
         ),
       );
     }
     final sorted = List<StockChange>.of(_changes)
       ..sort((a, b) {
-        final cmp = '${a.changeDate}${a.changeTime}'
-            .compareTo('${b.changeDate}${b.changeTime}');
+        final cmp = '${a.changeDate}${a.changeTime}'.compareTo(
+          '${b.changeDate}${b.changeTime}',
+        );
         return _ascending ? cmp : -cmp;
       });
     final vm = context.read<RadarViewModel>();
@@ -163,8 +177,8 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
             change: change,
             isRead: vm.isChangeRead(change),
             onOpenTongHuaShun: widget.stockCode != null
-                 ? () => _openInTongHuaShun(change.stockCode)
-                 : null,
+                ? () => _openInTongHuaShun(change.stockCode)
+                : null,
           );
         },
       ),
@@ -175,7 +189,7 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        color: Colors.white,
+        color: AppColors.cardBg,
         child: SizedBox(
           width: double.infinity,
           height: 48,
@@ -199,7 +213,9 @@ class _StockChangeDetailPageState extends State<StockChangeDetailPage> {
 
   Future<void> _markAllRead() async {
     if (widget.stockCode != null) {
-      await context.read<RadarViewModel>().markAllChangesExposedForCode(widget.stockCode!);
+      await context.read<RadarViewModel>().markAllChangesExposedForCode(
+        widget.stockCode!,
+      );
     }
     if (mounted) {
       Navigator.of(context).pop();

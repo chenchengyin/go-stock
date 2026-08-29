@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import 'hotlist_view_model.dart';
 
 class HotlistPage extends StatelessWidget {
@@ -9,8 +10,9 @@ class HotlistPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<HotlistViewModel>();
+    AppColors.of(context);
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.white,
+      backgroundColor: AppColors.scaffoldBg,
       // navigationBar: CupertinoNavigationBar(
       //   middle: const Text('全网热榜'),
       //   trailing: GestureDetector(
@@ -34,14 +36,14 @@ class HotlistPage extends StatelessWidget {
         final isUp = stock.changePercent >= 0;
         final rankColor = index < 3
             ? const Color(0xffe53935)
-            : CupertinoColors.systemGrey;
+            : AppColors.textTertiary;
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: const BoxDecoration(
-            color: CupertinoColors.white,
+          decoration: BoxDecoration(
+            color: AppColors.cardBg,
             border: Border(
-              bottom: BorderSide(color: CupertinoColors.systemGrey5, width: 0.5),
+              bottom: BorderSide(color: AppColors.divider, width: 0.5),
             ),
           ),
           child: Row(
@@ -66,15 +68,20 @@ class HotlistPage extends StatelessWidget {
                     Text(
                       '${stock.name} ${stock.symbol}',
                       style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 15),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 3),
-                    Text(stock.reason,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: CupertinoColors.systemGrey),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      stock.reason,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
@@ -85,7 +92,9 @@ class HotlistPage extends StatelessWidget {
                   Text(
                     stock.heatScore.toStringAsFixed(1),
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 15),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
                   ),
                   Text(
                     '${isUp ? '+' : ''}${stock.changePercent.toStringAsFixed(2)}%',
