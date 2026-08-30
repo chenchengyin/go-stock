@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'auth_storage.dart';
+import 'session_controller.dart';
 import '../domain/auth_models.dart';
 
 abstract class AuthRepository {
@@ -53,9 +54,13 @@ class AuthApiException implements Exception {
 }
 
 class ApiAuthRepository implements AuthRepository {
-  ApiAuthRepository({required Dio dio, required AuthStorage storage})
-    : _dio = dio,
-      _storage = storage;
+  ApiAuthRepository({
+    required Dio dio,
+    required AuthStorage storage,
+    SessionController? sessionController,
+  }) : _dio = dio,
+       _storage = storage,
+       _sessionController = sessionController;
 
   static const _tokenKey = 'auth:token';
   static const _userKey = 'auth:user';
@@ -63,10 +68,12 @@ class ApiAuthRepository implements AuthRepository {
 
   final Dio _dio;
   final AuthStorage _storage;
+  final SessionController? _sessionController;
 
   @override
   Future<AuthSession?> restoreSession() async {
-    final token = await _storage.read(_tokenKey);
+    final token =
+        await (_sessionController?.readToken() ?? _storage.read(_tokenKey));
     if (token == null || token.isEmpty) {
       return null;
     }
@@ -83,7 +90,7 @@ class ApiAuthRepository implements AuthRepository {
       await _persistSession(session);
       return session;
     } catch (_) {
-      await _storage.clearAuth();
+      await _clearSession();
       rethrow;
     }
   }
@@ -154,17 +161,31 @@ class ApiAuthRepository implements AuthRepository {
     } catch (_) {
       // Logout is best effort; local auth state must always be removed.
     } finally {
-      await _storage.clearAuth();
+      await _clearSession();
     }
   }
 
   Future<void> _persistSession(AuthSession session) async {
+    final sessionController = _sessionController;
+    if (sessionController != null) {
+      await sessionController.save(session);
+      return;
+    }
     await _storage.write(_tokenKey, session.accessToken);
     await _storage.write(_userKey, jsonEncode(session.user.toJson()));
     await _storage.write(
       _expiresAtKey,
       session.expiresAt.toUtc().toIso8601String(),
     );
+  }
+
+  Future<void> _clearSession() async {
+    final sessionController = _sessionController;
+    if (sessionController != null) {
+      await sessionController.clear();
+      return;
+    }
+    await _storage.clearAuth();
   }
 
   Future<T> _execute<T>(Future<T> Function() request) async {

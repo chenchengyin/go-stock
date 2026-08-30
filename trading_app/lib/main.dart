@@ -5,6 +5,7 @@ import 'app/app_config.dart';
 import 'app/app_shell.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/theme_manager.dart';
+import 'features/auth/presentation/auth_gate.dart';
 import 'features/radar/data/notification_util.dart';
 
 void main() async {
@@ -84,7 +85,7 @@ class TradingRadarApp extends StatelessWidget {
               debugShowCheckedModeBanner: false,
               color: AppColors.scaffoldBg,
               theme: tm.themeData,
-              home: const AppShell(),
+              home: const AuthGate(),
             ),
           );
 

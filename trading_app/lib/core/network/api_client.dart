@@ -4,6 +4,8 @@ library;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../features/auth/data/session_controller.dart';
+
 /// Base API URL, override via `--dart-define=API_BASE_URL=...`.
 /// Dev server example:
 /// `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080`
@@ -25,13 +27,18 @@ String get kApiBaseUrl {
 }
 
 Dio? _apiClient;
+SessionController? _apiSessionController;
 
 /// Return the app-wide Dio instance.
-Dio createApiClient({String? baseUrl}) {
+Dio createApiClient({String? baseUrl, SessionController? sessionController}) {
   final resolvedBaseUrl = baseUrl ?? kApiBaseUrl;
   final existing = _apiClient;
   if (existing != null) {
-    if (existing.options.baseUrl == resolvedBaseUrl) {
+    final keepsExistingController =
+        sessionController == null ||
+        identical(sessionController, _apiSessionController);
+    if (existing.options.baseUrl == resolvedBaseUrl &&
+        keepsExistingController) {
       return existing;
     }
     debugPrint(
@@ -40,7 +47,8 @@ Dio createApiClient({String? baseUrl}) {
     existing.close(force: true);
   }
 
-  _apiClient = _buildApiClient(resolvedBaseUrl);
+  _apiSessionController = sessionController;
+  _apiClient = _buildApiClient(resolvedBaseUrl, sessionController);
   return _apiClient!;
 }
 
@@ -49,9 +57,10 @@ Dio createApiClient({String? baseUrl}) {
 void resetApiClientForTesting() {
   _apiClient?.close(force: true);
   _apiClient = null;
+  _apiSessionController = null;
 }
 
-Dio _buildApiClient(String baseUrl) {
+Dio _buildApiClient(String baseUrl, SessionController? sessionController) {
   debugPrint('[API BASE] $baseUrl');
   final dio = Dio(
     BaseOptions(
@@ -60,6 +69,35 @@ Dio _buildApiClient(String baseUrl) {
       receiveTimeout: const Duration(seconds: 30),
     ),
   );
+
+  if (sessionController != null) {
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          if (options.extra['skipAuth'] != true) {
+            final token = await sessionController.readToken();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          }
+          handler.next(options);
+        },
+        onError: (error, handler) async {
+          final isAuthRequest = error.requestOptions.extra['skipAuth'] == true;
+          if (!isAuthRequest && error.response?.statusCode == 401) {
+            final reason = _invalidationReason(error.response?.data);
+            try {
+              await sessionController.clear(reason: reason);
+            } finally {
+              handler.next(error);
+            }
+            return;
+          }
+          handler.next(error);
+        },
+      ),
+    );
+  }
 
   dio.interceptors.add(
     LogInterceptor(
@@ -76,6 +114,15 @@ Dio _buildApiClient(String baseUrl) {
   dio.interceptors.add(ApiPathLogger());
 
   return dio;
+}
+
+SessionInvalidationReason _invalidationReason(dynamic data) {
+  final code = data is Map ? data['code'] : null;
+  return switch (code) {
+    'SESSION_REPLACED' => SessionInvalidationReason.replaced,
+    'SESSION_EXPIRED' => SessionInvalidationReason.expired,
+    _ => SessionInvalidationReason.revoked,
+  };
 }
 
 /// Interceptor that logs every API request path.

@@ -3,11 +3,13 @@ library;
 
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
 import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/core/storage/local_cache.dart';
 import 'package:trading_app/core/theme/theme_manager.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
 import 'package:trading_app/features/auth/data/auth_storage.dart';
+import 'package:trading_app/features/auth/data/session_controller.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/features/strategy/presentation/strategy_view_model.dart';
 import 'package:trading_app/features/news/data/news_remote_datasource.dart';
@@ -28,43 +30,80 @@ class AppDependencies extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cache = MemoryLocalCache();
     final authStorage = SharedPreferencesAuthStorage();
-    final radarRepo = RadarRepositoryImpl();
 
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeManager()..restore()),
-        ChangeNotifierProvider(
-          create: (_) => AuthViewModel(
-            ApiAuthRepository(dio: createApiClient(), storage: authStorage),
-          )..restore(),
+        ChangeNotifierProvider<SessionController>(
+          create: (_) => AuthSessionController(authStorage),
+        ),
+        Provider<Dio>(
+          create: (context) => createApiClient(
+            sessionController: context.read<SessionController>(),
+          ),
+        ),
+        Provider<AuthRepository>(
+          create: (context) => ApiAuthRepository(
+            dio: context.read<Dio>(),
+            storage: authStorage,
+            sessionController: context.read<SessionController>(),
+          ),
         ),
         ChangeNotifierProvider(
-          create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks(),
+          create: (context) => AuthViewModel(
+            context.read<AuthRepository>(),
+            sessionController: context.read<SessionController>(),
+          )..restore(),
+        ),
+      ],
+      child: child,
+    );
+  }
+}
+
+/// Dependencies that may load protected, per-user business data.
+class AuthenticatedDependencies extends StatelessWidget {
+  const AuthenticatedDependencies({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final dio = context.read<Dio>();
+
+    return MultiProvider(
+      providers: [
+        Provider<RadarRepository>(create: (_) => RadarRepositoryImpl(dio: dio)),
+        ChangeNotifierProvider(
+          create: (context) =>
+              RadarViewModel(context.read<RadarRepository>())
+                ..loadMonitoredStocks(),
         ),
         ChangeNotifierProvider(create: (_) => VoiceAnnouncementViewModel()),
         ChangeNotifierProvider(
-          create: (_) => T0StrategyViewModel(
-            fetchRealtimeQuotes: radarRepo.fetchRealtimeQuotes,
+          create: (context) => T0StrategyViewModel(
+            fetchRealtimeQuotes: context
+                .read<RadarRepository>()
+                .fetchRealtimeQuotes,
           ),
         ),
-        Provider<RadarRepository>(create: (_) => radarRepo),
         ChangeNotifierProvider(
           create: (_) =>
-              ShortTermEmotionViewModel(ShortTermEmotionRepository())..load(),
+              ShortTermEmotionViewModel(ShortTermEmotionRepository(dio: dio))
+                ..load(),
         ),
         ChangeNotifierProvider(
           create: (_) {
-            final remote = NewsRemoteDataSource();
+            final remote = NewsRemoteDataSource(dio: dio);
             final repo = NewsRepositoryImpl(
-              cache: cache,
+              cache: MemoryLocalCache(),
               remoteDataSource: remote,
             );
             return NewsViewModel(repo)..load();
           },
         ),
-        ChangeNotifierProvider(create: (_) => StrategyViewModel()),
+        ChangeNotifierProvider(create: (_) => StrategyViewModel(dio: dio)),
       ],
       child: child,
     );
