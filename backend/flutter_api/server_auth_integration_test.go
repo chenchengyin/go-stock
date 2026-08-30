@@ -292,6 +292,46 @@ func TestWebSocketAuthClosesOldSessionAfterReplacement(t *testing.T) {
 	waitForWebSocketClientCount(t, 1)
 }
 
+func TestWebSocketAuthClosesLoggedOutSession(t *testing.T) {
+	resetWebSocketClients(t)
+	service := newTestAuthService(t)
+	service.onSessionsReplaced = func(userID, _ string, revokedSessionIDs []string) {
+		closeWebSocketsForSessions(userID, revokedSessionIDs)
+	}
+	session := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+	server := httptest.NewServer(newHTTPHandler(service.AuthService))
+	defer server.Close()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	conn := dialAuthenticatedWebSocket(t, wsURL, session.AccessToken)
+	defer conn.Close()
+	waitForWebSocketClientCount(t, 1)
+
+	logoutRequest, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/logout", nil)
+	if err != nil {
+		t.Fatalf("create logout request: %v", err)
+	}
+	logoutRequest.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	logoutResponse, err := server.Client().Do(logoutRequest)
+	if err != nil {
+		t.Fatalf("logout request: %v", err)
+	}
+	defer logoutResponse.Body.Close()
+	if logoutResponse.StatusCode != http.StatusOK {
+		t.Fatalf("logout status = %d, want 200", logoutResponse.StatusCode)
+	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set read deadline: %v", err)
+	}
+	if _, _, err := conn.ReadMessage(); err == nil {
+		t.Fatal("logged-out session websocket remained open")
+	}
+	waitForWebSocketClientCount(t, 0)
+
+	Broadcast("logout-probe", map[string]bool{"current": true})
+	waitForWebSocketClientCount(t, 0)
+}
+
 func TestWebSocketAuthRejectsHandshakeRevokedBeforeRegistration(t *testing.T) {
 	resetWebSocketClients(t)
 	service := newTestAuthService(t)

@@ -133,6 +133,57 @@ void main() {
     );
 
     test(
+      'delayed 401 only invalidates the token used by its request',
+      () async {
+        for (final requestToken in <String?>[_token, null]) {
+          resetApiClientForTesting();
+          final storage = MemoryAuthStorage(<String, String>{
+            if (requestToken != null) 'auth:token': requestToken,
+            'device:id': _deviceId,
+          });
+          final controller = AuthSessionController(storage);
+          var invalidationNotifications = 0;
+          controller.addListener(() => invalidationNotifications++);
+          final requestStarted = Completer<void>();
+          final releaseResponse = Completer<void>();
+          final adapter = DioTestAdapter((request) async {
+            expect(
+              request.headers['Authorization'],
+              requestToken == null ? isNull : 'Bearer $requestToken',
+            );
+            requestStarted.complete();
+            await releaseResponse.future;
+            return const TestResponse.json(401, <String, dynamic>{
+              'code': 'SESSION_REPLACED',
+              'message': '账号已在其他设备登录，请重新登录',
+            });
+          });
+          final dio = createApiClient(
+            baseUrl: 'https://auth.test',
+            sessionController: controller,
+          )..httpClientAdapter = adapter;
+
+          final staleRequest = _expectDioFailure(dio.get<dynamic>('/api/news'));
+          await requestStarted.future;
+          await controller.save(
+            AuthSession(
+              accessToken: 'token-b',
+              user: _user,
+              expiresAt: DateTime.utc(2026, 10, 30),
+            ),
+          );
+          releaseResponse.complete();
+          await staleRequest;
+
+          expect(await storage.read('auth:token'), 'token-b');
+          expect(storage.clearAuthCalls, 0);
+          expect(controller.lastInvalidationReason, isNull);
+          expect(invalidationNotifications, 0);
+        }
+      },
+    );
+
+    test(
       'maps expired and generic 401 codes to invalidation reasons',
       () async {
         for (final testCase in <(String, SessionInvalidationReason)>[

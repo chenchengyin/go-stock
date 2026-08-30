@@ -42,8 +42,7 @@ func handleAuthRegister(service *AuthService) http.HandlerFunc {
 			return
 		}
 
-		w.WriteHeader(http.StatusCreated)
-		WriteJSON(w, session)
+		WriteJSONStatus(w, http.StatusCreated, session)
 	}
 }
 

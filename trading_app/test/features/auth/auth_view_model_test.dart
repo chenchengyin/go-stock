@@ -427,6 +427,16 @@ class _FakeSessionController extends SessionController {
   }
 
   @override
+  Future<void> clearIfCurrent(
+    SessionTokenSnapshot snapshot, {
+    SessionInvalidationReason? reason,
+  }) => clear(reason: reason);
+
+  @override
+  Future<SessionTokenSnapshot> captureToken() async =>
+      SessionTokenSnapshot(token: await readToken(), generation: 0);
+
+  @override
   Future<String?> readToken() async => null;
 
   @override

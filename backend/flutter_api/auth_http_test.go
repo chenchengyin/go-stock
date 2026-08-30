@@ -31,6 +31,9 @@ func TestRequireAuthRejectsMissingToken(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "UNAUTHENTICATED") {
 		t.Fatalf("body = %s, want auth code", rec.Body.String())
 	}
+	if got := rec.Result().Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Fatalf("content type = %q, want JSON", got)
+	}
 }
 
 func TestRequireAuthReadsCaseInsensitiveBearerAndStoresPrincipal(t *testing.T) {
@@ -112,6 +115,9 @@ func TestAuthHTTPRegisterLoginMeAndProfile(t *testing.T) {
 
 	if registerRec.Code != http.StatusCreated {
 		t.Fatalf("register status = %d, want 201, body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	if got := registerRec.Result().Header.Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Fatalf("register content type = %q, want JSON", got)
 	}
 
 	var registerBody AuthSessionResponse
@@ -280,6 +286,23 @@ func TestAuthHTTPUnauthenticatedProtectedResponseIncludesCORSHeaders(t *testing.
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Fatalf("allow-origin = %q, want %q", got, "*")
+	}
+}
+
+func TestAuthHTTPProfilePreflightAllowsPatch(t *testing.T) {
+	service := newTestAuthService(t)
+	req := httptest.NewRequest(http.MethodOptions, "/api/auth/profile", nil)
+	req.Header.Set("Origin", "https://app.example")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+	rec := httptest.NewRecorder()
+
+	newHTTPHandler(service.AuthService).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, http.MethodPatch) {
+		t.Fatalf("allow methods = %q, want PATCH", got)
 	}
 }
 

@@ -436,7 +436,7 @@ func captureMarketStatisticSnapshot(isTrading bool, fetch func() error) (bool, e
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == http.MethodOptions {
@@ -453,6 +453,13 @@ func WriteJSON(w http.ResponseWriter, v interface{}) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		logger.SugaredLogger.Errorf("writeJSON error: %v", err)
 	}
+}
+
+// WriteJSONStatus commits a JSON content type before the response status.
+func WriteJSONStatus(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	WriteJSON(w, v)
 }
 
 func handleGetNews(w http.ResponseWriter, r *http.Request) {

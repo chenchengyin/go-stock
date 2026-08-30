@@ -50,16 +50,14 @@ func isProtectedPath(path string) bool {
 func WriteAuthError(w http.ResponseWriter, err error) {
 	var authErr *AuthError
 	if errors.As(err, &authErr) {
-		w.WriteHeader(authErr.Status)
-		WriteJSON(w, map[string]string{
+		WriteJSONStatus(w, authErr.Status, map[string]string{
 			"code":    authErr.Code,
 			"message": authErr.Message,
 		})
 		return
 	}
 
-	w.WriteHeader(http.StatusInternalServerError)
-	WriteJSON(w, map[string]string{
+	WriteJSONStatus(w, http.StatusInternalServerError, map[string]string{
 		"code":    "INTERNAL",
 		"message": "服务器开小差了",
 	})

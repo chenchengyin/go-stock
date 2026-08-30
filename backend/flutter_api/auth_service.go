@@ -231,12 +231,32 @@ func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
 	}
 
 	now := s.now().UTC()
-	return s.dao.WithContext(ctx).Model(&AuthSession{}).
-		Where("token_hash = ? AND revoked_at IS NULL", hashToken(token)).
+	var revokedSession AuthSession
+	if err := s.dao.WithContext(ctx).
+		First(&revokedSession, "token_hash = ? AND revoked_at IS NULL", hashToken(token)).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	result := s.dao.WithContext(ctx).Model(&AuthSession{}).
+		Where("id = ? AND revoked_at IS NULL", revokedSession.ID).
 		Updates(map[string]any{
 			"revoked_at":    now,
 			"revoke_reason": "logout",
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
+
+	if s.onSessionsReplaced != nil {
+		s.onSessionsReplaced(revokedSession.UserID, "", []string{revokedSession.ID})
+	}
+	return nil
 }
 
 func (s *AuthService) UpdateProfile(ctx context.Context, principal AuthPrincipal, input UpdateProfileInput) (*PublicUser, error) {

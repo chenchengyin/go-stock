@@ -331,6 +331,33 @@ void main() {
         ),
       );
     });
+
+    test(
+      'standard JSON auth response preserves server code and message',
+      () async {
+        final storage = MemoryAuthStorage();
+        final adapter = DioTestAdapter(
+          (_) => TestResponse.json(401, <String, dynamic>{
+            'code': 'SESSION_REPLACED',
+            'message': '账号已在其他设备登录，请重新登录',
+          }),
+        );
+        final repository = ApiAuthRepository(
+          dio: _dioWith(adapter),
+          storage: storage,
+        );
+
+        await expectLater(
+          repository.login(phone: '13800000000', password: 'secret123'),
+          throwsA(
+            isA<AuthApiException>()
+                .having((error) => error.code, 'code', 'SESSION_REPLACED')
+                .having((error) => error.message, 'message', '账号已在其他设备登录，请重新登录')
+                .having((error) => error.statusCode, 'statusCode', 401),
+          ),
+        );
+      },
+    );
   });
 }
 

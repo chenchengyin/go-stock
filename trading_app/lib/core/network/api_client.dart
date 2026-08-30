@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 
 import '../../features/auth/data/session_controller.dart';
 
+const _requestSessionSnapshotKey = 'authSessionSnapshot';
+
 /// Base API URL, override via `--dart-define=API_BASE_URL=...`.
 /// Dev server example:
 /// `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080`
@@ -75,9 +77,10 @@ Dio _buildApiClient(String baseUrl, SessionController? sessionController) {
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           if (options.extra['skipAuth'] != true) {
-            final token = await sessionController.readToken();
-            if (token != null && token.isNotEmpty) {
-              options.headers['Authorization'] = 'Bearer $token';
+            final snapshot = await sessionController.captureToken();
+            options.extra[_requestSessionSnapshotKey] = snapshot;
+            if (snapshot.token != null && snapshot.token!.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer ${snapshot.token}';
             }
           }
           handler.next(options);
@@ -86,8 +89,15 @@ Dio _buildApiClient(String baseUrl, SessionController? sessionController) {
           final isAuthRequest = error.requestOptions.extra['skipAuth'] == true;
           if (!isAuthRequest && error.response?.statusCode == 401) {
             final reason = _invalidationReason(error.response?.data);
+            final snapshot =
+                error.requestOptions.extra[_requestSessionSnapshotKey];
             try {
-              await sessionController.clear(reason: reason);
+              if (snapshot is SessionTokenSnapshot) {
+                await sessionController.clearIfCurrent(
+                  snapshot,
+                  reason: reason,
+                );
+              }
             } finally {
               handler.next(error);
             }

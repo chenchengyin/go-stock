@@ -252,6 +252,10 @@ func TestAuthServiceLogoutRevokesSessionIdempotently(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
+	principal, err := service.Authenticate(context.Background(), session.AccessToken)
+	if err != nil {
+		t.Fatalf("authenticate before logout: %v", err)
+	}
 
 	if err := service.Logout(context.Background(), session.AccessToken); err != nil {
 		t.Fatalf("first logout: %v", err)
@@ -262,6 +266,23 @@ func TestAuthServiceLogoutRevokesSessionIdempotently(t *testing.T) {
 
 	if _, err := service.Authenticate(context.Background(), session.AccessToken); !IsAuthCode(err, "UNAUTHENTICATED") {
 		t.Fatalf("authenticate after logout err = %v, want UNAUTHENTICATED", err)
+	}
+	if len(service.replacedCalls) != 1 {
+		t.Fatalf("session callbacks = %d, want 1", len(service.replacedCalls))
+	}
+	call := service.replacedCalls[0]
+	if call.userID != session.User.ID || call.newSessionID != "" {
+		t.Fatalf("logout callback = %+v, want user %q and no replacement session", call, session.User.ID)
+	}
+	if len(call.revokedSessionIDs) != 1 || call.revokedSessionIDs[0] != principal.SessionID {
+		t.Fatalf("revoked session IDs = %v, want [%s]", call.revokedSessionIDs, principal.SessionID)
+	}
+
+	if err := service.Logout(context.Background(), "unknown-token"); err != nil {
+		t.Fatalf("unknown logout: %v", err)
+	}
+	if len(service.replacedCalls) != 1 {
+		t.Fatalf("session callbacks after no-op logouts = %d, want 1", len(service.replacedCalls))
 	}
 
 	assertActiveSessionCount(t, service, session.User.ID, 0)
