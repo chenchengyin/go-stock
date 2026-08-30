@@ -3,10 +3,15 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trading_app/app/app_shell.dart';
 import 'package:trading_app/core/network/api_client.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
+import 'package:trading_app/core/theme/theme_manager.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
 import 'package:trading_app/features/auth/data/auth_storage.dart';
 import 'package:trading_app/features/auth/data/session_controller.dart';
@@ -14,6 +19,10 @@ import 'package:trading_app/features/auth/domain/auth_models.dart';
 import 'package:trading_app/features/auth/presentation/auth_gate.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/features/auth/presentation/login_page.dart';
+import 'package:trading_app/features/radar/data/radar_repository.dart';
+import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
+import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
+import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
 
 const _token = 'test-access-token';
 const _deviceId = '0123456789abcdef0123456789abcdef';
@@ -233,6 +242,76 @@ void main() {
 
   group('AuthGate', () {
     testWidgets(
+      'root login keeps the home route and lets AuthGate show AppShell',
+      (tester) async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'voice_announcement_asked': true,
+        });
+        final adapter = DioTestAdapter(
+          (_) => const TestResponse.json(200, <String, dynamic>{}),
+        );
+        final dio = createApiClient()..httpClientAdapter = adapter;
+        final controller = AuthSessionController(MemoryAuthStorage());
+        final auth = AuthViewModel(
+          FakeAuthRepository(loginResult: _session),
+          sessionController: controller,
+        );
+        await auth.restore();
+        final radar = RadarViewModel(RadarRepositoryImpl(dio: dio));
+        final t0Strategy = T0StrategyViewModel();
+        final voice = VoiceAnnouncementViewModel();
+        final navigatorObserver = RecordingNavigatorObserver();
+        final theme = ThemeManager();
+
+        try {
+          await tester.pumpWidget(
+            AppColorsWidget(
+              colors: theme.colors,
+              variant: theme.variant,
+              child: MultiProvider(
+                providers: [
+                  ChangeNotifierProvider<AuthViewModel>.value(value: auth),
+                  ChangeNotifierProvider<RadarViewModel>.value(value: radar),
+                  ChangeNotifierProvider<T0StrategyViewModel>.value(
+                    value: t0Strategy,
+                  ),
+                  ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+                    value: voice,
+                  ),
+                ],
+                child: MaterialApp(
+                  navigatorObservers: <NavigatorObserver>[navigatorObserver],
+                  home: const AuthGate(
+                    authenticatedBuilder: _buildTestAppShell,
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          await tester.tap(find.widgetWithText(CupertinoDialogAction, '确定'));
+          await tester.pumpAndSettle();
+          final popsBeforeLogin = navigatorObserver.popCount;
+
+          await tester.tap(find.widgetWithText(CupertinoButton, '登录'));
+          await tester.pumpAndSettle();
+
+          expect(find.byType(AppShell), findsOneWidget);
+          expect(navigatorObserver.popCount, popsBeforeLogin);
+          expect(AppShell.navigatorKey.currentState, isNotNull);
+          await tester.pump(const Duration(milliseconds: 500));
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          radar.dispose();
+          t0Strategy.dispose();
+          voice.dispose();
+          auth.dispose();
+          AppColors.applyLight();
+        }
+      },
+    );
+
+    testWidgets(
       'keeps authenticated content unbuilt while restoring then shows it',
       (tester) async {
         final restore = Completer<AuthSession?>();
@@ -300,6 +379,8 @@ void main() {
     });
   });
 }
+
+Widget _buildTestAppShell(BuildContext context) => const AppShell();
 
 Future<void> _expectDioFailure(Future<dynamic> request) async {
   try {
@@ -412,4 +493,14 @@ class DioTestAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+class RecordingNavigatorObserver extends NavigatorObserver {
+  int popCount = 0;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    popCount++;
+    super.didPop(route, previousRoute);
+  }
 }

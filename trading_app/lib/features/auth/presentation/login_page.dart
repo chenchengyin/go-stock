@@ -112,7 +112,9 @@ class _LoginPageState extends State<LoginPage> {
                           phone: _phoneController.text,
                           password: _passwordController.text,
                         );
-                        if (context.mounted && auth.isLoggedIn) {
+                        if (context.mounted &&
+                            auth.isLoggedIn &&
+                            Navigator.canPop(context)) {
                           Navigator.of(context).pop();
                         }
                       },
