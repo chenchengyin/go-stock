@@ -49,8 +49,11 @@ class _CreatePostPageState extends State<CreatePostPage> {
       });
       final resp = await dio.post('/api/upload', data: formData);
       return resp.data['url'] as String?;
-    } catch (e) {
-      debugPrint('上传失败: $e');
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      debugPrint('上传失败: $error');
       return null;
     }
   }

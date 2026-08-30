@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 
-import '../../../shared/view_state.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -16,6 +15,10 @@ class _RegisterPageState extends State<RegisterPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nicknameController = TextEditingController();
+
+  bool get _canSubmit =>
+      _phoneController.text.trim().length >= 5 &&
+      _passwordController.text.length >= 6;
 
   @override
   void dispose() {
@@ -51,8 +54,9 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 40),
               CupertinoTextField(
                 controller: _phoneController,
-                placeholder: '请输入手机号',
+                placeholder: '请输入手机号/账号（至少5位）',
                 keyboardType: TextInputType.phone,
+                onChanged: (_) => setState(() {}),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.inputFill,
@@ -64,6 +68,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 controller: _passwordController,
                 placeholder: '请输入密码（至少6位）',
                 obscureText: true,
+                onChanged: (_) => setState(() {}),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.inputFill,
@@ -81,7 +86,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              if (auth.state.status == ViewStatus.error)
+              if (auth.state.message.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
@@ -92,7 +97,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               CupertinoButton.filled(
                 color: AppColors.buttonPrimary,
-                onPressed: auth.state.isLoading
+                onPressed: auth.state.isLoading || !_canSubmit
                     ? null
                     : () async {
                         if (_phoneController.text.trim().length < 5) {
@@ -108,7 +113,9 @@ class _RegisterPageState extends State<RegisterPage> {
                           password: _passwordController.text,
                           nickname: _nicknameController.text,
                         );
-                        if (context.mounted && auth.isLoggedIn) {
+                        if (context.mounted &&
+                            auth.isLoggedIn &&
+                            Navigator.canPop(context)) {
                           Navigator.of(context).pop();
                         }
                       },

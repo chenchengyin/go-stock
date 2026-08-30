@@ -6,8 +6,7 @@ import '../domain/strategy_models.dart';
 import '../data/strategy_repository.dart';
 
 class StrategyViewModel extends ChangeNotifier {
-  StrategyViewModel({Dio? dio, this.currentUserId, this.currentNickname})
-    : _repo = StrategyRepository(dio: dio);
+  StrategyViewModel({Dio? dio}) : _repo = StrategyRepository(dio: dio);
 
   final StrategyRepository _repo;
 
@@ -23,31 +22,10 @@ class StrategyViewModel extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
 
-  /// 当前用户
-  String? currentUserId;
-  String? currentNickname;
-
   /// 积分信息
   StrategyUser pointsInfo = const StrategyUser();
   bool checkedInToday = false;
   int todayReplyPoints = 0;
-
-  void setCurrentUser(String userId, String nickname) {
-    currentUserId = userId;
-    currentNickname = nickname;
-    if (userId.isNotEmpty) {
-      loadPoints();
-    }
-  }
-
-  void clearCurrentUser() {
-    currentUserId = null;
-    currentNickname = null;
-    pointsInfo = const StrategyUser();
-    checkedInToday = false;
-    todayReplyPoints = 0;
-    notifyListeners();
-  }
 
   Future<void> load({bool refresh = false}) async {
     if (_isLoading) return;
@@ -77,8 +55,14 @@ class StrategyViewModel extends ChangeNotifier {
       hasMore = posts.length < total;
       page++;
       state = const ViewState(status: ViewStatus.ready);
-    } catch (error) {
+    } catch (error, stackTrace) {
       state = ViewState(status: ViewStatus.error, message: error.toString());
+      _isLoading = false;
+      notifyListeners();
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      return;
     }
     _isLoading = false;
     notifyListeners();
@@ -105,27 +89,31 @@ class StrategyViewModel extends ChangeNotifier {
   }
 
   Future<void> loadPoints() async {
-    if (currentUserId == null || currentUserId!.isEmpty) return;
     try {
-      pointsInfo = await _repo.getUserPoints(currentUserId!);
-      checkedInToday = await _repo.hasCheckedIn(currentUserId!);
-      todayReplyPoints = await _repo.getTodayReplyPoints(currentUserId!);
+      pointsInfo = await _repo.getUserPoints();
+      checkedInToday = await _repo.hasCheckedIn();
+      todayReplyPoints = await _repo.getTodayReplyPoints();
       notifyListeners();
-    } catch (_) {}
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    }
   }
 
   Future<bool> checkIn() async {
-    if (currentUserId == null || currentUserId!.isEmpty) return false;
     try {
-      final result = await _repo.checkIn(currentUserId!, currentNickname ?? '');
+      final result = await _repo.checkIn();
       checkedInToday = result['checkedIn'] == true;
       pointsInfo = StrategyUser(
-        userId: currentUserId ?? '',
         points: (result['points'] ?? pointsInfo.points).toInt(),
       );
       notifyListeners();
       return checkedInToday;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       return false;
     }
   }
@@ -135,17 +123,8 @@ class StrategyViewModel extends ChangeNotifier {
     String? content,
     List<String> images = const [],
   }) async {
-    debugPrint(
-      '[createPost] currentUserId=$currentUserId nickname=$currentNickname',
-    );
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      debugPrint('[createPost] ERROR: currentUserId is empty');
-      return null;
-    }
     try {
       final post = await _repo.createPost(
-        userId: currentUserId!,
-        nickname: currentNickname ?? '用户',
         title: title,
         content: content,
         images: images,
@@ -153,29 +132,23 @@ class StrategyViewModel extends ChangeNotifier {
       posts.insert(0, post);
       notifyListeners();
       return post;
-    } catch (e, st) {
-      debugPrint('createPost error: $e\n$st');
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      debugPrint('createPost error: $error\n$stackTrace');
       return null;
     }
   }
 
   /// 查看帖子（含扣分逻辑）
   Future<Map<String, dynamic>> viewPost(int postId) async {
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      final post = await _repo.getPostDetail(postId);
-      return {'post': post.toJson(), 'deducted': false, 'remain': 0};
-    }
-    return await _repo.viewPost(
-      postId,
-      currentUserId!,
-      currentNickname ?? '用户',
-    );
+    return _repo.viewPost(postId);
   }
 
   Future<bool> toggleLike(int postId) async {
-    if (currentUserId == null || currentUserId!.isEmpty) return false;
     try {
-      final result = await _repo.toggleLike(postId, currentUserId!);
+      final result = await _repo.toggleLike(postId);
       // 更新本地帖子数据
       final idx = posts.indexWhere((p) => p.id == postId);
       if (idx >= 0) {
@@ -195,7 +168,10 @@ class StrategyViewModel extends ChangeNotifier {
         notifyListeners();
       }
       return result['liked'] == true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       return false;
     }
   }
@@ -208,15 +184,10 @@ class StrategyViewModel extends ChangeNotifier {
     String? replyToUid,
     String? replyToName,
   }) async {
-    if (currentUserId == null || currentUserId!.isEmpty) {
-      return {'comment': null, 'addedPoints': false, 'remain': 0};
-    }
     try {
       final result = await _repo.addComment(
         postId: postId,
         parentId: parentId,
-        userId: currentUserId!,
-        nickname: currentNickname ?? '用户',
         content: content,
         images: images,
         replyToUid: replyToUid,
@@ -244,17 +215,31 @@ class StrategyViewModel extends ChangeNotifier {
         loadPoints();
       }
       return result;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       return {'comment': null, 'addedPoints': false, 'remain': 0};
     }
   }
 
   Future<void> deletePost(int postId) async {
-    if (currentUserId == null || currentUserId!.isEmpty) return;
     try {
-      await _repo.deletePost(postId, currentUserId!);
+      await _repo.deletePost(postId);
       posts.removeWhere((p) => p.id == postId);
       notifyListeners();
-    } catch (_) {}
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    }
   }
+}
+
+bool isSessionReplacedError(Object error) {
+  if (error is! DioException) {
+    return false;
+  }
+  final data = error.response?.data;
+  return data is Map && data['code'] == 'SESSION_REPLACED';
 }

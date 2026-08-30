@@ -24,8 +24,8 @@ class _StrategyPageState extends State<StrategyPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final vm = context.read<StrategyViewModel>();
       final auth = context.read<AuthViewModel>();
-      if (auth.user != null) {
-        vm.setCurrentUser(auth.user!.id, auth.user!.nickname);
+      if (auth.isLoggedIn) {
+        vm.loadPoints();
       }
       if (vm.posts.isEmpty) {
         vm.load();
@@ -38,8 +38,7 @@ class _StrategyPageState extends State<StrategyPage> {
     final vm = context.watch<StrategyViewModel>();
     final auth = context.watch<AuthViewModel>();
     AppColors.of(context);
-    final isLoggedIn = auth.user != null;
-    _syncCurrentUser(auth, vm);
+    final isLoggedIn = auth.isLoggedIn;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -55,10 +54,7 @@ class _StrategyPageState extends State<StrategyPage> {
             // 签到按钮
             if (isLoggedIn) ...[
               GestureDetector(
-                onTap:
-                    vm.currentUserId != null &&
-                        vm.currentUserId!.isNotEmpty &&
-                        !vm.checkedInToday
+                onTap: isLoggedIn && !vm.checkedInToday
                     ? () => vm.checkIn()
                     : null,
                 child: Container(
@@ -125,13 +121,13 @@ class _StrategyPageState extends State<StrategyPage> {
                 ),
               ),
             ),
-          Expanded(child: _buildList(vm)),
+          Expanded(child: _buildList(vm, auth.user?.id)),
         ],
       ),
     );
   }
 
-  Widget _buildList(StrategyViewModel vm) {
+  Widget _buildList(StrategyViewModel vm, String? currentUserId) {
     if (vm.state.isLoading && vm.posts.isEmpty) {
       return const Center(child: CupertinoActivityIndicator());
     }
@@ -162,7 +158,7 @@ class _StrategyPageState extends State<StrategyPage> {
               final post = vm.posts[index];
               return _PostCard(
                 post: post,
-                isOwner: post.userId == vm.currentUserId,
+                isOwner: post.userId == currentUserId,
                 onTap: () => _openDetail(context, post.id),
                 onDelete: () => _deletePost(context, vm, post.id),
               );
@@ -187,10 +183,6 @@ class _StrategyPageState extends State<StrategyPage> {
                 final latestAuth = context.read<AuthViewModel>();
                 if (latestAuth.user == null) return;
 
-                vm.setCurrentUser(
-                  latestAuth.user!.id,
-                  latestAuth.user!.nickname,
-                );
                 final result = await Navigator.of(context).push<bool>(
                   CupertinoPageRoute(builder: (_) => const CreatePostPage()),
                 );
@@ -231,23 +223,6 @@ class _StrategyPageState extends State<StrategyPage> {
         ),
       ],
     );
-  }
-
-  void _syncCurrentUser(AuthViewModel auth, StrategyViewModel vm) {
-    final user = auth.user;
-    if (user != null && vm.currentUserId != user.id) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          vm.setCurrentUser(user.id, user.nickname);
-        }
-      });
-    } else if (user == null && vm.currentUserId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          vm.clearCurrentUser();
-        }
-      });
-    }
   }
 
   void _openDetail(BuildContext context, int postId) {

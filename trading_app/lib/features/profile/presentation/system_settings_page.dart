@@ -170,10 +170,13 @@ class SystemSettingsPage extends StatelessWidget {
                                 ),
                                 CupertinoDialogAction(
                                   isDestructiveAction: true,
-                                  onPressed: () {
+                                  onPressed: () async {
                                     Navigator.of(ctx).pop();
-                                    auth.logout();
-                                    Navigator.of(context).pop();
+                                    await auth.logout();
+                                    if (context.mounted &&
+                                        Navigator.canPop(context)) {
+                                      Navigator.of(context).pop();
+                                    }
                                   },
                                   child: const Text('退出'),
                                 ),

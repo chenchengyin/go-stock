@@ -35,7 +35,7 @@ class AuthViewModel extends ChangeNotifier {
       final reason = _sessionController?.lastInvalidationReason;
       state = ViewState(
         status: reason == null ? ViewStatus.error : ViewStatus.ready,
-        message: reason == null ? error.toString() : _messageFor(reason),
+        message: reason == null ? _messageForError(error) : _messageFor(reason),
       );
     }
     notifyListeners();
@@ -61,27 +61,40 @@ class AuthViewModel extends ChangeNotifier {
     );
   }
 
-  Future<void> updateNickname(String nickname) async {
+  Future<bool> updateNickname(String nickname) async {
     state = const ViewState(status: ViewStatus.loading);
     notifyListeners();
     try {
       user = await _repository.updateNickname(nickname);
       state = const ViewState(status: ViewStatus.ready);
+      notifyListeners();
+      return true;
     } catch (error) {
       final reason = _sessionController?.lastInvalidationReason;
       state = reason != null && !isLoggedIn
           ? ViewState(status: ViewStatus.ready, message: _messageFor(reason))
-          : ViewState(status: ViewStatus.error, message: error.toString());
+          : ViewState(
+              status: ViewStatus.error,
+              message: _messageForError(error),
+            );
+      notifyListeners();
+      return false;
     }
-    notifyListeners();
   }
 
   Future<void> logout() async {
-    await _repository.logout();
-    user = null;
-    accessToken = null;
-    state = const ViewState(status: ViewStatus.ready);
+    state = const ViewState(status: ViewStatus.loading);
     notifyListeners();
+    try {
+      await _repository.logout();
+    } catch (_) {
+      // Remote logout is best effort. Local auth must always be removed.
+    } finally {
+      user = null;
+      accessToken = null;
+      state = const ViewState(status: ViewStatus.ready);
+      notifyListeners();
+    }
   }
 
   Future<void> _authenticate(Future<AuthSession> Function() action) async {
@@ -93,7 +106,10 @@ class AuthViewModel extends ChangeNotifier {
       accessToken = session.accessToken;
       state = const ViewState(status: ViewStatus.ready);
     } catch (error) {
-      state = ViewState(status: ViewStatus.error, message: error.toString());
+      state = ViewState(
+        status: ViewStatus.error,
+        message: _messageForError(error),
+      );
     }
     notifyListeners();
   }
@@ -115,6 +131,10 @@ class AuthViewModel extends ChangeNotifier {
       SessionInvalidationReason.expired ||
       SessionInvalidationReason.revoked => '登录状态已失效，请重新登录',
     };
+  }
+
+  String _messageForError(Object error) {
+    return error is AuthApiException ? error.message : error.toString();
   }
 
   @override

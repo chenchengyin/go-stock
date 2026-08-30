@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 
-import '../../../shared/view_state.dart';
 import '../../auth/presentation/auth_view_model.dart';
 import '../../auth/presentation/register_page.dart';
 
@@ -15,8 +14,12 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _phoneController = TextEditingController(text: '13800000000');
-  final _passwordController = TextEditingController(text: 'secret123');
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  bool get _canSubmit =>
+      _phoneController.text.trim().length >= 5 &&
+      _passwordController.text.length >= 6;
 
   @override
   void initState() {
@@ -76,6 +79,7 @@ class _LoginPageState extends State<LoginPage> {
               CupertinoTextField(
                 controller: _phoneController,
                 placeholder: '请输入手机号/账号',
+                onChanged: (_) => setState(() {}),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.inputFill,
@@ -87,6 +91,7 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _passwordController,
                 placeholder: '请输入密码',
                 obscureText: true,
+                onChanged: (_) => setState(() {}),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.inputFill,
@@ -94,7 +99,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              if (auth.state.status == ViewStatus.error)
+              if (auth.state.message.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
@@ -105,7 +110,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               CupertinoButton.filled(
                 color: AppColors.buttonPrimary,
-                onPressed: auth.state.isLoading
+                onPressed: auth.state.isLoading || !_canSubmit
                     ? null
                     : () async {
                         await auth.login(

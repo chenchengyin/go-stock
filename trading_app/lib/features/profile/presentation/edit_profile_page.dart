@@ -152,8 +152,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         );
                         return;
                       }
-                      await auth.updateNickname(name);
-                      if (context.mounted) {
+                      final updated = await auth.updateNickname(name);
+                      if (context.mounted && updated) {
                         Navigator.of(context).pop();
                       }
                     },

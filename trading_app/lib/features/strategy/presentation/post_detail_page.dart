@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../auth/presentation/auth_view_model.dart';
 import '../domain/strategy_models.dart';
 import 'strategy_view_model.dart';
 
@@ -41,6 +42,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Future<void> _loadData() async {
     final vm = context.read<StrategyViewModel>();
+    final isLoggedIn = context.read<AuthViewModel>().isLoggedIn;
     try {
       // 查看帖子（触发扣分）
       final viewResult = await vm.viewPost(widget.postId);
@@ -62,11 +64,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
       _comments = await vm.repository.getComments(widget.postId);
 
       // 加载点赞状态
-      if (vm.currentUserId != null && vm.currentUserId!.isNotEmpty) {
-        final status = await vm.repository.getLikeStatus(
-          widget.postId,
-          vm.currentUserId!,
-        );
+      if (isLoggedIn) {
+        final status = await vm.repository.getLikeStatus(widget.postId);
         _liked = status['liked'] ?? false;
       }
 
@@ -75,7 +74,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
       }
 
       setState(() => _loading = false);
-    } catch (e) {
+    } catch (error, stackTrace) {
+      if (isSessionReplacedError(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
       setState(() => _loading = false);
     }
   }

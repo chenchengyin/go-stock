@@ -293,6 +293,15 @@ void main() {
           await tester.pumpAndSettle();
           final popsBeforeLogin = navigatorObserver.popCount;
 
+          await tester.enterText(
+            find.byType(CupertinoTextField).first,
+            _user.phone,
+          );
+          await tester.enterText(
+            find.byType(CupertinoTextField).last,
+            'secret123',
+          );
+          await tester.pump();
           await tester.tap(find.widgetWithText(CupertinoButton, '登录'));
           await tester.pumpAndSettle();
 
