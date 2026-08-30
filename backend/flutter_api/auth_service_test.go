@@ -2,6 +2,7 @@ package flutter_api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -81,6 +82,19 @@ func TestAuthServiceRegisterRejectsDuplicateAccount(t *testing.T) {
 	}
 }
 
+func TestAuthServiceRegisterReturnsStructuredValidationError(t *testing.T) {
+	service := newTestAuthService(t)
+
+	_, err := service.Register(context.Background(), RegisterInput{
+		Phone:    " 1234 ",
+		Password: "secret123",
+		Nickname: "A",
+		DeviceID: "device-a",
+	})
+
+	assertAuthError(t, err, 400, "INVALID_ARGUMENT", "账号或密码格式不正确")
+}
+
 func TestAuthServiceLoginRejectsInvalidCredentials(t *testing.T) {
 	service := newTestAuthService(t)
 
@@ -98,18 +112,47 @@ func TestAuthServiceLoginRejectsInvalidCredentials(t *testing.T) {
 		Password: "bad-pass",
 		DeviceID: "device-b",
 	})
-	if !IsAuthCode(wrongPasswordErr, "INVALID_CREDENTIALS") {
-		t.Fatalf("wrong password err = %v, want INVALID_CREDENTIALS", wrongPasswordErr)
-	}
+	assertAuthError(t, wrongPasswordErr, 401, "INVALID_CREDENTIALS", "账号或密码错误")
 
 	_, missingUserErr := service.Login(context.Background(), LoginInput{
 		Phone:    "13900000000",
 		Password: "secret123",
 		DeviceID: "device-b",
 	})
-	if !IsAuthCode(missingUserErr, "INVALID_CREDENTIALS") {
-		t.Fatalf("missing user err = %v, want INVALID_CREDENTIALS", missingUserErr)
+	assertAuthError(t, missingUserErr, 401, "INVALID_CREDENTIALS", "账号或密码错误")
+}
+
+func TestAuthServiceLoginPreservesPasswordWhitespace(t *testing.T) {
+	service := newTestAuthService(t)
+
+	registerResult, err := service.Register(context.Background(), RegisterInput{
+		Phone:    " 13800000000 ",
+		Password: " secret123 ",
+		Nickname: "A",
+		DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
 	}
+
+	loggedIn, err := service.Login(context.Background(), LoginInput{
+		Phone:    "13800000000",
+		Password: " secret123 ",
+		DeviceID: "device-b",
+	})
+	if err != nil {
+		t.Fatalf("login with exact password: %v", err)
+	}
+	if loggedIn.User.ID != registerResult.User.ID {
+		t.Fatalf("logged in user id = %q, want %q", loggedIn.User.ID, registerResult.User.ID)
+	}
+
+	_, err = service.Login(context.Background(), LoginInput{
+		Phone:    "13800000000",
+		Password: "secret123",
+		DeviceID: "device-c",
+	})
+	assertAuthError(t, err, 401, "INVALID_CREDENTIALS", "账号或密码错误")
 }
 
 func TestAuthServiceNewLoginReplacesOldDevice(t *testing.T) {
@@ -129,9 +172,11 @@ func TestAuthServiceNewLoginReplacesOldDevice(t *testing.T) {
 		t.Fatalf("login from device b: %v", err)
 	}
 
-	if _, err := service.Authenticate(context.Background(), first.AccessToken); !IsAuthCode(err, "SESSION_REPLACED") {
+	err = service.mustAuthenticateErr(context.Background(), first.AccessToken)
+	if !IsAuthCode(err, "SESSION_REPLACED") {
 		t.Fatalf("old token error = %v, want SESSION_REPLACED", err)
 	}
+	assertAuthError(t, err, 401, "SESSION_REPLACED", "账号已在其他设备登录，请重新登录")
 
 	principal, err := service.Authenticate(context.Background(), second.AccessToken)
 	if err != nil || principal.DeviceID != "device-b" {
@@ -230,9 +275,11 @@ func TestAuthServiceAuthenticateRejectsExpiredSession(t *testing.T) {
 
 	service.nowValue = service.nowValue.Add(authSessionTTL + time.Minute)
 
-	if _, err := service.Authenticate(context.Background(), session.AccessToken); !IsAuthCode(err, "SESSION_EXPIRED") {
+	err = service.mustAuthenticateErr(context.Background(), session.AccessToken)
+	if !IsAuthCode(err, "SESSION_EXPIRED") {
 		t.Fatalf("authenticate expired err = %v, want SESSION_EXPIRED", err)
 	}
+	assertAuthError(t, err, 401, "SESSION_EXPIRED", "会话已过期")
 
 	assertActiveSessionCount(t, service, session.User.ID, 0)
 }
@@ -321,5 +368,31 @@ func assertActiveSessionCount(t *testing.T, service *testAuthService, userID str
 	}
 	if got != want {
 		t.Fatalf("active sessions = %d, want %d", got, want)
+	}
+}
+
+func (s *testAuthService) mustAuthenticateErr(ctx context.Context, token string) error {
+	_, err := s.Authenticate(ctx, token)
+	return err
+}
+
+func assertAuthError(t *testing.T, err error, wantStatus int, wantCode, wantMessage string) {
+	t.Helper()
+
+	var authErr *AuthError
+	if !errors.As(err, &authErr) {
+		t.Fatalf("error = %v, want *AuthError", err)
+	}
+	if authErr.Status != wantStatus {
+		t.Fatalf("status = %d, want %d", authErr.Status, wantStatus)
+	}
+	if authErr.Code != wantCode {
+		t.Fatalf("code = %q, want %q", authErr.Code, wantCode)
+	}
+	if authErr.Message != wantMessage {
+		t.Fatalf("message = %q, want %q", authErr.Message, wantMessage)
+	}
+	if !IsAuthCode(err, wantCode) {
+		t.Fatalf("IsAuthCode(%q) = false, want true", wantCode)
 	}
 }

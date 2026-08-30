@@ -328,12 +328,10 @@ func randomHex(size int) (string, error) {
 }
 
 func newAuthError(status int, code, message string) error {
-	return &authStatusError{
-		status: status,
-		err: AuthError{
-			Code:    code,
-			Message: message,
-		},
+	return &AuthError{
+		Status:  status,
+		Code:    code,
+		Message: message,
 	}
 }
 
@@ -346,14 +344,3 @@ func isUniqueConstraintError(err error) bool {
 		strings.Contains(message, "duplicate key") ||
 		strings.Contains(message, "unique failed")
 }
-
-type authStatusError struct {
-	status int
-	err    AuthError
-}
-
-func (e *authStatusError) Error() string { return e.err.Message }
-
-func (e *authStatusError) Unwrap() error { return &e.err }
-
-func (e *authStatusError) StatusCode() int { return e.status }
