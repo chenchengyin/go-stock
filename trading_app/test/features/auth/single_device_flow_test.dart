@@ -78,6 +78,11 @@ void main() {
           isA<DioException>()
               .having((error) => error.response?.statusCode, 'status', 401)
               .having(
+                (error) => error.requestOptions.headers['Authorization'],
+                'bearer token',
+                'Bearer token-device-a',
+              )
+              .having(
                 (error) =>
                     (error.response?.data as Map<String, dynamic>)['code'],
                 'code',
@@ -103,7 +108,57 @@ void main() {
       expect(await storageB.read('device:id'), 'device-b');
       expect(controllerB.lastInvalidationReason, isNull);
       expect(authB.isLoggedIn, isTrue);
+
+      final probe = Dio(BaseOptions(baseUrl: 'https://probe.test'))
+        ..httpClientAdapter = MemoryServerAdapter(server.handle);
+      addTearDown(() => probe.close(force: true));
+      await expectAuthErrorCode(
+        probe.get<dynamic>('/api/news'),
+        'UNAUTHENTICATED',
+      );
+      await expectAuthErrorCode(
+        probe.get<dynamic>(
+          '/api/news',
+          options: Options(
+            headers: <String, dynamic>{'Authorization': 'Bearer token-unknown'},
+          ),
+        ),
+        'UNAUTHENTICATED',
+      );
+
+      await authB.logout();
+      expect(authB.isLoggedIn, isFalse);
+      expect(await storageB.read('auth:token'), isNull);
+      await expectAuthErrorCode(
+        probe.get<dynamic>(
+          '/api/news',
+          options: Options(
+            headers: <String, dynamic>{
+              'Authorization': 'Bearer token-device-b',
+            },
+          ),
+        ),
+        'UNAUTHENTICATED',
+      );
     },
+  );
+}
+
+Future<void> expectAuthErrorCode(
+  Future<Response<dynamic>> request,
+  String code,
+) async {
+  await expectLater(
+    request,
+    throwsA(
+      isA<DioException>()
+          .having((error) => error.response?.statusCode, 'status', 401)
+          .having(
+            (error) => (error.response?.data as Map<String, dynamic>)['code'],
+            'code',
+            code,
+          ),
+    ),
   );
 }
 
@@ -164,6 +219,8 @@ class MemorySingleDeviceServer {
 
   String? _registeredPhone;
   String? _activeToken;
+  final Map<String, MemoryTokenState> _tokenStates =
+      <String, MemoryTokenState>{};
 
   TestResponse handle(RequestOptions request) {
     switch ((request.method, request.uri.path)) {
@@ -182,14 +239,9 @@ class MemorySingleDeviceServer {
         }
         return _createSession(body['deviceId'] as String, 200);
       case ('GET', '/api/news'):
-        final authorization = request.headers['Authorization'];
-        if (authorization != 'Bearer $_activeToken') {
-          return const TestResponse.json(401, <String, dynamic>{
-            'code': 'SESSION_REPLACED',
-            'message': '账号已在其他设备登录，请重新登录',
-          });
-        }
-        return const TestResponse.json(200, <String, dynamic>{'ok': true});
+        return _protectedResponse(request);
+      case ('POST', '/api/auth/logout'):
+        return _logout(request);
       default:
         return const TestResponse.json(404, <String, dynamic>{
           'code': 'NOT_FOUND',
@@ -198,14 +250,60 @@ class MemorySingleDeviceServer {
   }
 
   TestResponse _createSession(String deviceId, int statusCode) {
+    final previousToken = _activeToken;
+    if (previousToken != null) {
+      _tokenStates[previousToken] = MemoryTokenState.replaced;
+    }
     _activeToken = 'token-$deviceId';
+    _tokenStates[_activeToken!] = MemoryTokenState.active;
     return TestResponse.json(statusCode, <String, dynamic>{
       'accessToken': _activeToken,
       'user': _user,
       'expiresAt': _expiresAt,
     });
   }
+
+  TestResponse _protectedResponse(RequestOptions request) {
+    final token = _bearerToken(request);
+    final state = token == null ? null : _tokenStates[token];
+    if (state == MemoryTokenState.active && token == _activeToken) {
+      return const TestResponse.json(200, <String, dynamic>{'ok': true});
+    }
+    if (state == MemoryTokenState.replaced) {
+      return const TestResponse.json(401, <String, dynamic>{
+        'code': 'SESSION_REPLACED',
+        'message': '账号已在其他设备登录，请重新登录',
+      });
+    }
+    return const TestResponse.json(401, <String, dynamic>{
+      'code': 'UNAUTHENTICATED',
+      'message': '未认证',
+    });
+  }
+
+  TestResponse _logout(RequestOptions request) {
+    final token = _bearerToken(request);
+    if (token == null ||
+        token != _activeToken ||
+        _tokenStates[token] != MemoryTokenState.active) {
+      return _protectedResponse(request);
+    }
+    _tokenStates[token] = MemoryTokenState.loggedOut;
+    _activeToken = null;
+    return const TestResponse.json(200, <String, dynamic>{'status': 'ok'});
+  }
+
+  String? _bearerToken(RequestOptions request) {
+    final authorization = request.headers['Authorization'];
+    if (authorization is! String || !authorization.startsWith('Bearer ')) {
+      return null;
+    }
+    final token = authorization.substring('Bearer '.length).trim();
+    return token.isEmpty ? null : token;
+  }
 }
+
+enum MemoryTokenState { active, replaced, loggedOut }
 
 class TestResponse {
   const TestResponse.json(this.statusCode, this.data);

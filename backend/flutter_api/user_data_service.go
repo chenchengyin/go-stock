@@ -64,6 +64,44 @@ func (s *UserDataService) ListFollowedStocks(ctx context.Context, userID string,
 	return items, err
 }
 
+func (s *UserDataService) ListGroups(ctx context.Context, userID string) ([]data.Group, error) {
+	groups := []data.Group{}
+	err := s.dao.WithContext(ctx).
+		Model(&data.Group{}).
+		Where("user_id = ?", userID).
+		Order("sort ASC, id ASC").
+		Find(&groups).Error
+	return groups, err
+}
+
+func (s *UserDataService) ListGroupStocks(ctx context.Context, userID string, groupID uint) ([]data.GroupStock, error) {
+	owns, err := s.OwnsGroup(ctx, userID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if !owns {
+		return []data.GroupStock{}, nil
+	}
+
+	stocks := []data.GroupStock{}
+	err = s.dao.WithContext(ctx).
+		Model(&data.GroupStock{}).
+		Where("group_id = ? AND user_id = ?", groupID, userID).
+		Order("id ASC").
+		Find(&stocks).Error
+	return stocks, err
+}
+
+func (s *UserDataService) ListTradingRecords(ctx context.Context, userID string) ([]data.TradingRecord, error) {
+	records := []data.TradingRecord{}
+	err := s.dao.WithContext(ctx).
+		Model(&data.TradingRecord{}).
+		Where("user_id = ?", userID).
+		Order("trading_time DESC, id DESC").
+		Find(&records).Error
+	return records, err
+}
+
 func (s *UserDataService) Follow(ctx context.Context, userID, stockCode string) (string, error) {
 	normalizedCode := normalizeUserOwnedStockCode(stockCode)
 	if normalizedCode == "" {

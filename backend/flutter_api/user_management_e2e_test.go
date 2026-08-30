@@ -17,6 +17,7 @@ import (
 type ownedDataSnapshot struct {
 	FollowedStocks []string `json:"followedStocks"`
 	Groups         []string `json:"groups"`
+	GroupStocks    []string `json:"groupStocks"`
 	TradingRecords []string `json:"tradingRecords"`
 }
 
@@ -72,10 +73,10 @@ func TestUserManagementSingleDeviceHTTPFlow(t *testing.T) {
 	seedOwnedData(t, dao, deviceB.User.ID, otherAccount.User.ID)
 
 	ownerSnapshot := requestOwnedData(t, handler, deviceB.AccessToken)
-	assertOwnedDataSnapshot(t, ownerSnapshot, "owner-stock", "owner-group", "owner-trade")
+	assertOwnedDataSnapshot(t, ownerSnapshot, "owner-stock", "owner-group", "sz000001", "owner-trade")
 
 	otherSnapshot := requestOwnedData(t, handler, otherAccount.AccessToken)
-	assertOwnedDataSnapshot(t, otherSnapshot, "other-stock", "other-group", "other-trade")
+	assertOwnedDataSnapshot(t, otherSnapshot, "other-stock", "other-group", "sz000003", "other-trade")
 
 	assertLegacyRowsRemainUnowned(t, dao, legacyCounts)
 
@@ -123,12 +124,11 @@ func newUserManagementE2EHandler(authService *AuthService, dao *gorm.DB) http.Ha
 			"deviceId": principal.DeviceID,
 		})
 	})
-	mux.HandleFunc("/api/e2e/owned-data", ownedDataSnapshotHandler(dao))
+	mux.HandleFunc("/api/e2e/owned-data", ownedDataSnapshotHandler(NewUserDataService(dao)))
 	return RequireAuth(authService, mux)
 }
 
-func ownedDataSnapshotHandler(dao *gorm.DB) http.HandlerFunc {
-	userData := NewUserDataService(dao)
+func ownedDataSnapshotHandler(userData *UserDataService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		principal, ok := PrincipalFromContext(r.Context())
 		if !ok {
@@ -149,19 +149,31 @@ func ownedDataSnapshotHandler(dao *gorm.DB) http.HandlerFunc {
 		for _, stock := range followed {
 			snapshot.FollowedStocks = append(snapshot.FollowedStocks, stock.Name)
 		}
-		if err := dao.WithContext(r.Context()).Model(&data.Group{}).
-			Where("user_id = ?", principal.UserID).
-			Order("sort ASC").
-			Pluck("name", &snapshot.Groups).Error; err != nil {
+
+		groups, err := userData.ListGroups(r.Context(), principal.UserID)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := dao.WithContext(r.Context()).Model(&data.TradingRecord{}).
-			Where("user_id = ?", principal.UserID).
-			Order("trading_time ASC").
-			Pluck("stock_name", &snapshot.TradingRecords).Error; err != nil {
+		for _, group := range groups {
+			snapshot.Groups = append(snapshot.Groups, group.Name)
+			memberships, err := userData.ListGroupStocks(r.Context(), principal.UserID, group.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			for _, membership := range memberships {
+				snapshot.GroupStocks = append(snapshot.GroupStocks, membership.StockCode)
+			}
+		}
+
+		tradingRecords, err := userData.ListTradingRecords(r.Context(), principal.UserID)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		for _, record := range tradingRecords {
+			snapshot.TradingRecords = append(snapshot.TradingRecords, record.StockName)
 		}
 		WriteJSON(w, snapshot)
 	}
@@ -261,12 +273,20 @@ func seedOwnedData(t *testing.T, dao *gorm.DB, ownerID, otherID string) {
 			t.Fatalf("create followed stock %q: %v", stock.Name, err)
 		}
 	}
-	for _, group := range []data.Group{
-		{UserID: &ownerID, Name: "owner-group", Sort: 1},
-		{UserID: &otherID, Name: "other-group", Sort: 1},
-	} {
-		if err := dao.Create(&group).Error; err != nil {
+	ownerGroup := data.Group{UserID: &ownerID, Name: "owner-group", Sort: 1}
+	otherGroup := data.Group{UserID: &otherID, Name: "other-group", Sort: 1}
+	for _, group := range []*data.Group{&ownerGroup, &otherGroup} {
+		if err := dao.Create(group).Error; err != nil {
 			t.Fatalf("create group %q: %v", group.Name, err)
+		}
+	}
+	for _, membership := range []data.GroupStock{
+		{UserID: &ownerID, GroupId: int(ownerGroup.ID), StockCode: "sz000001"},
+		{UserID: &otherID, GroupId: int(ownerGroup.ID), StockCode: "sh600000"},
+		{UserID: &otherID, GroupId: int(otherGroup.ID), StockCode: "sz000003"},
+	} {
+		if err := dao.Create(&membership).Error; err != nil {
+			t.Fatalf("create group membership %q: %v", membership.StockCode, err)
 		}
 	}
 	for _, record := range []data.TradingRecord{
@@ -290,13 +310,16 @@ func requestOwnedData(t *testing.T, handler http.Handler, token string) ownedDat
 	return snapshot
 }
 
-func assertOwnedDataSnapshot(t *testing.T, snapshot ownedDataSnapshot, stock, group, trade string) {
+func assertOwnedDataSnapshot(t *testing.T, snapshot ownedDataSnapshot, stock, group, groupStock, trade string) {
 	t.Helper()
 	if len(snapshot.FollowedStocks) != 1 || snapshot.FollowedStocks[0] != stock {
 		t.Fatalf("followed stocks = %v, want [%s]", snapshot.FollowedStocks, stock)
 	}
 	if len(snapshot.Groups) != 1 || snapshot.Groups[0] != group {
 		t.Fatalf("groups = %v, want [%s]", snapshot.Groups, group)
+	}
+	if len(snapshot.GroupStocks) != 1 || snapshot.GroupStocks[0] != groupStock {
+		t.Fatalf("group stocks = %v, want [%s]", snapshot.GroupStocks, groupStock)
 	}
 	if len(snapshot.TradingRecords) != 1 || snapshot.TradingRecords[0] != trade {
 		t.Fatalf("trading records = %v, want [%s]", snapshot.TradingRecords, trade)

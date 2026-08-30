@@ -219,6 +219,91 @@ func TestUserDataServiceScopesGroupQueriesToOwner(t *testing.T) {
 	}
 }
 
+func TestUserDataServiceListGroupsAndMembershipsAreScopedToOwner(t *testing.T) {
+	dao := newUserDataTestDB(t)
+	if err := MigrateUserOwnedData(dao); err != nil {
+		t.Fatalf("migrate user data: %v", err)
+	}
+
+	userA := "user-a"
+	userB := "user-b"
+	groupA := data.Group{Name: "A", Sort: 1, UserID: &userA}
+	groupB := data.Group{Name: "B", Sort: 1, UserID: &userB}
+	legacyGroup := data.Group{Name: "legacy", Sort: 2}
+	for _, group := range []*data.Group{&groupA, &groupB, &legacyGroup} {
+		if err := dao.Create(group).Error; err != nil {
+			t.Fatalf("create group %q: %v", group.Name, err)
+		}
+	}
+
+	memberships := []data.GroupStock{
+		{UserID: &userA, GroupId: int(groupA.ID), StockCode: "sz000001"},
+		{UserID: &userB, GroupId: int(groupA.ID), StockCode: "sh600000"},
+		{GroupId: int(groupA.ID), StockCode: "sz000002"},
+		{UserID: &userB, GroupId: int(groupB.ID), StockCode: "sz000003"},
+	}
+	for _, membership := range memberships {
+		if err := dao.Create(&membership).Error; err != nil {
+			t.Fatalf("create group membership %q: %v", membership.StockCode, err)
+		}
+	}
+
+	service := NewUserDataService(dao)
+	groups, err := service.ListGroups(context.Background(), userA)
+	if err != nil {
+		t.Fatalf("list user A groups: %v", err)
+	}
+	if len(groups) != 1 || groups[0].Name != "A" {
+		t.Fatalf("user A groups = %+v, want only group A", groups)
+	}
+
+	groupStocks, err := service.ListGroupStocks(context.Background(), userA, groupA.ID)
+	if err != nil {
+		t.Fatalf("list user A group stocks: %v", err)
+	}
+	if len(groupStocks) != 1 || groupStocks[0].StockCode != "sz000001" {
+		t.Fatalf("user A group stocks = %+v, want only owned membership", groupStocks)
+	}
+
+	foreignGroupStocks, err := service.ListGroupStocks(context.Background(), userA, groupB.ID)
+	if err != nil {
+		t.Fatalf("list foreign group stocks: %v", err)
+	}
+	if len(foreignGroupStocks) != 0 {
+		t.Fatalf("foreign group stocks = %+v, want empty", foreignGroupStocks)
+	}
+}
+
+func TestUserDataServiceListTradingRecordsIsScopedToOwner(t *testing.T) {
+	dao := newUserDataTestDB(t)
+	if err := MigrateUserOwnedData(dao); err != nil {
+		t.Fatalf("migrate user data: %v", err)
+	}
+
+	userA := "user-a"
+	userB := "user-b"
+	fixedTime := time.Date(2026, time.August, 30, 10, 0, 0, 0, time.UTC)
+	records := []data.TradingRecord{
+		{UserID: &userA, StockCode: "sz000001", StockName: "A", TradingTime: fixedTime},
+		{UserID: &userB, StockCode: "sh600000", StockName: "B", TradingTime: fixedTime},
+		{StockCode: "sz000002", StockName: "legacy", TradingTime: fixedTime},
+	}
+	for _, record := range records {
+		if err := dao.Create(&record).Error; err != nil {
+			t.Fatalf("create trading record %q: %v", record.StockName, err)
+		}
+	}
+
+	service := NewUserDataService(dao)
+	userRecords, err := service.ListTradingRecords(context.Background(), userA)
+	if err != nil {
+		t.Fatalf("list user A trading records: %v", err)
+	}
+	if len(userRecords) != 1 || userRecords[0].StockName != "A" {
+		t.Fatalf("user A trading records = %+v, want only A", userRecords)
+	}
+}
+
 func TestUserDataServiceUnfollowDoesNotDeleteOtherUsersRecord(t *testing.T) {
 	dao := newUserDataTestDB(t)
 	if err := MigrateUserOwnedData(dao); err != nil {
