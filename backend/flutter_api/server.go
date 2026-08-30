@@ -89,7 +89,6 @@ const defaultHTTPServerPort = 8080
 // Start 启动 REST API + WebSocket 服务（阻塞）
 func Start() {
 	port := defaultHTTPServerPort
-	mux := http.NewServeMux()
 
 	// 解析并校验 T0 缓存根目录（gob/json 固定写入项目内 backend/data/cache），
 	// 无法定位时直接终止，避免静默写到错误目录。
@@ -97,46 +96,12 @@ func Start() {
 		logger.SugaredLogger.Fatalf("[T0选股] 初始化缓存目录失败：%v", err)
 	}
 
-	mux.HandleFunc("/api/news", handleGetNews)
-	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
-	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)
-	mux.HandleFunc("/api/kline", handleGetKLine)
-	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
-	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
-	mux.HandleFunc("/api/hot-topics", handleHotTopics)
-	mux.HandleFunc("/api/stock-changes", handleStockChanges)
-	mux.HandleFunc("/api/stock-changes/save", handleStockChangesSave)
-	mux.HandleFunc("/api/short-term-emotion", handleShortTermEmotion)
-	mux.HandleFunc("/api/follow", handleFollow)
-	mux.HandleFunc("/api/unfollow", handleUnfollow)
-	mux.HandleFunc("/api/follow-list", handleGetFollowList)
-	mux.HandleFunc("/api/stock-search", handleStockSearch)
-	mux.HandleFunc("/api/stock-realtime", handleStockRealtime)
-	mux.HandleFunc("/api/strategy", handleStrategy)
-	mux.HandleFunc("/api/upload", handleFileUpload)
-	mux.HandleFunc("/api/health", handleHealth)
-	mux.HandleFunc("/api/debug-money", handleDebugMoney)
-	mux.HandleFunc("/api/stock-selection-test", handleStockSelectionTest)
-	mux.HandleFunc("/api/ths-selection-test", handleTHSSelectionTest)
-	mux.HandleFunc("/api/get-qgqp-bid", handleGetQgqpBid)
-	mux.HandleFunc("/api/t0-selection", handleT0Selection)
-
-	uploadDir := filepath.Join("data", "uploads")
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
-		logger.SugaredLogger.Errorf("创建上传目录失败: %v", err)
+	if err := MigrateAuthTables(db.Dao); err != nil {
+		logger.SugaredLogger.Errorf("认证表迁移失败: %v", err)
+		return
 	}
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 
-	mux.HandleFunc("/ws", handleWebSocket)
-
-	// 托管 Flutter web 静态产物：根路径提供页面，未知路由回退 index.html（SPA）。
-	// 缺产物时仅告警，服务继续以 API-only 模式运行。
-	if webRoot, err := resolveFlutterWebRoot(); err != nil {
-		logger.SugaredLogger.Warnf("[Web] 未托管前端页面：%v", err)
-	} else {
-		logger.SugaredLogger.Infof("[Web] 托管 Flutter 页面目录: %s", webRoot)
-		mux.Handle("/", spaFileServer(webRoot))
-	}
+	authService := NewAuthService(db.Dao, nil)
 
 	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
 	go func() {
@@ -262,11 +227,58 @@ func Start() {
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 
-	handler := corsMiddleware(mux)
+	handler := newHTTPHandler(authService)
 
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		logger.SugaredLogger.Errorf("HTTP Server error: %v", err)
 	}
+}
+
+func newHTTPHandler(authService *AuthService) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService))
+	mux.HandleFunc("/api/news", handleGetNews)
+	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
+	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)
+	mux.HandleFunc("/api/kline", handleGetKLine)
+	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
+	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
+	mux.HandleFunc("/api/hot-topics", handleHotTopics)
+	mux.HandleFunc("/api/stock-changes", handleStockChanges)
+	mux.HandleFunc("/api/stock-changes/save", handleStockChangesSave)
+	mux.HandleFunc("/api/short-term-emotion", handleShortTermEmotion)
+	mux.HandleFunc("/api/follow", handleFollow)
+	mux.HandleFunc("/api/unfollow", handleUnfollow)
+	mux.HandleFunc("/api/follow-list", handleGetFollowList)
+	mux.HandleFunc("/api/stock-search", handleStockSearch)
+	mux.HandleFunc("/api/stock-realtime", handleStockRealtime)
+	mux.HandleFunc("/api/strategy", handleStrategy)
+	mux.HandleFunc("/api/upload", handleFileUpload)
+	mux.HandleFunc("/api/health", handleHealth)
+	mux.HandleFunc("/api/debug-money", handleDebugMoney)
+	mux.HandleFunc("/api/stock-selection-test", handleStockSelectionTest)
+	mux.HandleFunc("/api/ths-selection-test", handleTHSSelectionTest)
+	mux.HandleFunc("/api/get-qgqp-bid", handleGetQgqpBid)
+	mux.HandleFunc("/api/t0-selection", handleT0Selection)
+
+	uploadDir := filepath.Join("data", "uploads")
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		logger.SugaredLogger.Errorf("创建上传目录失败: %v", err)
+	}
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
+	mux.HandleFunc("/ws", handleWebSocket)
+
+	// 托管 Flutter web 静态产物：根路径提供页面，未知路由回退 index.html（SPA）。
+	// 缺产物时仅告警，服务继续以 API-only 模式运行。
+	if webRoot, err := resolveFlutterWebRoot(); err != nil {
+		logger.SugaredLogger.Warnf("[Web] 未托管前端页面：%v", err)
+	} else {
+		logger.SugaredLogger.Infof("[Web] 托管 Flutter 页面目录: %s", webRoot)
+		mux.Handle("/", spaFileServer(webRoot))
+	}
+
+	return RequireAuth(authService, corsMiddleware(mux))
 }
 
 // resolveFlutterWebRoot 解析 Flutter web 静态产物目录：
