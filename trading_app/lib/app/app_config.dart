@@ -3,9 +3,11 @@ library;
 
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/core/storage/local_cache.dart';
 import 'package:trading_app/core/theme/theme_manager.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
+import 'package:trading_app/features/auth/data/auth_storage.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/features/strategy/presentation/strategy_view_model.dart';
 import 'package:trading_app/features/news/data/news_remote_datasource.dart';
@@ -27,13 +29,16 @@ class AppDependencies extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cache = MemoryLocalCache();
+    final authStorage = SharedPreferencesAuthStorage();
     final radarRepo = RadarRepositoryImpl();
 
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeManager()..restore()),
         ChangeNotifierProvider(
-          create: (_) => AuthViewModel(MockAuthRepository(cache))..restore(),
+          create: (_) => AuthViewModel(
+            ApiAuthRepository(dio: createApiClient(), storage: authStorage),
+          )..restore(),
         ),
         ChangeNotifierProvider(
           create: (_) => RadarViewModel(radarRepo)..loadMonitoredStocks(),

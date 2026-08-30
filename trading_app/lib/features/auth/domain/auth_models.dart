@@ -11,6 +11,24 @@ class AppUser {
   final String nickname;
   final String role;
 
+  factory AppUser.fromJson(Map<String, dynamic> json) {
+    return AppUser(
+      id: json['id'] as String,
+      phone: json['phone'] as String,
+      nickname: json['nickname'] as String,
+      role: json['role'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'phone': phone,
+      'nickname': nickname,
+      'role': role,
+    };
+  }
+
   AppUser copyWith({String? nickname}) {
     return AppUser(
       id: id,
@@ -22,8 +40,29 @@ class AppUser {
 }
 
 class AuthSession {
-  const AuthSession({required this.accessToken, required this.user});
+  const AuthSession({
+    required this.accessToken,
+    required this.user,
+    required this.expiresAt,
+  });
 
   final String accessToken;
   final AppUser user;
+  final DateTime expiresAt;
+
+  factory AuthSession.fromJson(Map<String, dynamic> json) {
+    return AuthSession(
+      accessToken: json['accessToken'] as String,
+      user: AppUser.fromJson(json['user'] as Map<String, dynamic>),
+      expiresAt: DateTime.parse(json['expiresAt'] as String),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'accessToken': accessToken,
+      'user': user.toJson(),
+      'expiresAt': expiresAt.toUtc().toIso8601String(),
+    };
+  }
 }

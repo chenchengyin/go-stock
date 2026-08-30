@@ -1,77 +1,192 @@
-import '../../../core/storage/local_cache.dart';
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+
+import 'auth_storage.dart';
 import '../domain/auth_models.dart';
 
 abstract class AuthRepository {
   Future<AuthSession?> restoreSession();
   Future<AuthSession> login({required String phone, required String password});
-  Future<AuthSession> register({required String phone, required String password, required String nickname});
+  Future<AuthSession> register({
+    required String phone,
+    required String password,
+    required String nickname,
+  });
   Future<AppUser> updateNickname(String nickname);
   Future<void> logout();
 }
 
-class MockAuthRepository implements AuthRepository {
-  MockAuthRepository(this._cache);
+class AuthApiException implements Exception {
+  const AuthApiException({
+    required this.code,
+    required this.message,
+    required this.statusCode,
+  });
 
-  final LocalCache _cache;
-  AuthSession? _session;
+  final String code;
+  final String message;
+  final int? statusCode;
+
+  factory AuthApiException.fromDio(DioException error) {
+    final response = error.response;
+    final data = response?.data;
+    final json = data is Map<String, dynamic> ? data : null;
+    final code = json?['code'];
+    final message = json?['message'];
+
+    return AuthApiException(
+      code: code is String && code.isNotEmpty
+          ? code
+          : response == null
+          ? 'NETWORK_ERROR'
+          : 'REQUEST_FAILED',
+      message: message is String && message.isNotEmpty
+          ? message
+          : '网络请求失败，请稍后重试',
+      statusCode: response?.statusCode,
+    );
+  }
+
+  @override
+  String toString() => message;
+}
+
+class ApiAuthRepository implements AuthRepository {
+  ApiAuthRepository({required Dio dio, required AuthStorage storage})
+    : _dio = dio,
+      _storage = storage;
+
+  static const _tokenKey = 'auth:token';
+  static const _userKey = 'auth:user';
+  static const _expiresAtKey = 'auth:expiresAt';
+
+  final Dio _dio;
+  final AuthStorage _storage;
 
   @override
   Future<AuthSession?> restoreSession() async {
-    final token = await _cache.getString('auth:token');
-    final phone = await _cache.getString('auth:phone');
-    final nickname = await _cache.getString('auth:nickname');
-    if (token == null || phone == null || nickname == null) return null;
-    _session = AuthSession(
-      accessToken: token,
-      user: AppUser(id: phone, phone: phone, nickname: nickname, role: 'user'),
-    );
-    return _session;
+    final token = await _storage.read(_tokenKey);
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+
+    try {
+      final session = await _execute(() async {
+        final response = await _dio.get<dynamic>('/api/auth/me');
+        final json = _jsonObject(response.data);
+        return AuthSession.fromJson(<String, dynamic>{
+          ...json,
+          'accessToken': token,
+        });
+      });
+      await _persistSession(session);
+      return session;
+    } catch (_) {
+      await _storage.clearAuth();
+      rethrow;
+    }
   }
 
   @override
-  Future<AuthSession> login({required String phone, required String password}) async {
-    _validate(phone, password);
-    return _saveSession(phone: phone, nickname: phone);
+  Future<AuthSession> login({
+    required String phone,
+    required String password,
+  }) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    final session = await _execute(() async {
+      final response = await _dio.post<dynamic>(
+        '/api/auth/login',
+        data: <String, dynamic>{
+          'phone': phone,
+          'password': password,
+          'deviceId': deviceId,
+        },
+        options: Options(extra: <String, dynamic>{'skipAuth': true}),
+      );
+      return AuthSession.fromJson(_jsonObject(response.data));
+    });
+    await _persistSession(session);
+    return session;
   }
 
   @override
-  Future<AuthSession> register({required String phone, required String password, required String nickname}) async {
-    _validate(phone, password);
-    return _saveSession(phone: phone, nickname: nickname.trim().isEmpty ? phone : nickname.trim());
+  Future<AuthSession> register({
+    required String phone,
+    required String password,
+    required String nickname,
+  }) async {
+    final deviceId = await _storage.getOrCreateDeviceId();
+    final session = await _execute(() async {
+      final response = await _dio.post<dynamic>(
+        '/api/auth/register',
+        data: <String, dynamic>{
+          'phone': phone,
+          'password': password,
+          'nickname': nickname,
+          'deviceId': deviceId,
+        },
+        options: Options(extra: <String, dynamic>{'skipAuth': true}),
+      );
+      return AuthSession.fromJson(_jsonObject(response.data));
+    });
+    await _persistSession(session);
+    return session;
   }
 
   @override
   Future<AppUser> updateNickname(String nickname) async {
-    final current = _session;
-    if (current == null) throw StateError('请先登录');
-    final nextUser = current.user.copyWith(nickname: nickname.trim());
-    _session = AuthSession(accessToken: current.accessToken, user: nextUser);
-    await _cache.setString('auth:nickname', nextUser.nickname);
-    return nextUser;
+    final user = await _execute(() async {
+      final response = await _dio.patch<dynamic>(
+        '/api/auth/profile',
+        data: <String, dynamic>{'nickname': nickname},
+      );
+      return AppUser.fromJson(_jsonObject(response.data));
+    });
+    await _storage.write(_userKey, jsonEncode(user.toJson()));
+    return user;
   }
 
   @override
   Future<void> logout() async {
-    _session = null;
-    await _cache.setString('auth:token', '');
-    await _cache.setString('auth:phone', '');
-    await _cache.setString('auth:nickname', '');
+    try {
+      await _dio.post<dynamic>('/api/auth/logout');
+    } catch (_) {
+      // Logout is best effort; local auth state must always be removed.
+    } finally {
+      await _storage.clearAuth();
+    }
   }
 
-  void _validate(String phone, String password) {
-    if (phone.trim().length < 5) throw ArgumentError('请输入正确的手机号/账号');
-    if (password.length < 6) throw ArgumentError('密码至少 6 位');
-  }
-
-  Future<AuthSession> _saveSession({required String phone, required String nickname}) async {
-    final session = AuthSession(
-      accessToken: 'mock-token-${DateTime.now().millisecondsSinceEpoch}',
-      user: AppUser(id: phone.trim(), phone: phone.trim(), nickname: nickname, role: 'user'),
+  Future<void> _persistSession(AuthSession session) async {
+    await _storage.write(_tokenKey, session.accessToken);
+    await _storage.write(_userKey, jsonEncode(session.user.toJson()));
+    await _storage.write(
+      _expiresAtKey,
+      session.expiresAt.toUtc().toIso8601String(),
     );
-    _session = session;
-    await _cache.setString('auth:token', session.accessToken);
-    await _cache.setString('auth:phone', session.user.phone);
-    await _cache.setString('auth:nickname', session.user.nickname);
-    return session;
   }
+
+  Future<T> _execute<T>(Future<T> Function() request) async {
+    try {
+      return await request();
+    } on AuthApiException {
+      rethrow;
+    } on DioException catch (error) {
+      throw AuthApiException.fromDio(error);
+    } catch (_) {
+      throw const AuthApiException(
+        code: 'INVALID_RESPONSE',
+        message: '服务器返回数据格式不正确',
+        statusCode: null,
+      );
+    }
+  }
+}
+
+Map<String, dynamic> _jsonObject(dynamic data) {
+  if (data is Map<String, dynamic>) {
+    return data;
+  }
+  throw const FormatException('expected a JSON object');
 }
