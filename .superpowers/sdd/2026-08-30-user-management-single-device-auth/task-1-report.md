@@ -70,3 +70,52 @@ ok  	go-stock/backend/flutter_api	381.158s
 - 仓库里本来就有大量未跟踪的缓存文件和两个已修改的数据库文件，我没有动它们，也没有把它们加入本次提交。
 - `backend/flutter_api` 的全包测试耗时较长，且包含不少联网/重型现有测试；本次验证已确认它们在当前改动下仍然通过。
 
+## Round 1 修复记录
+
+### 问题
+
+Review 指出迁移测试覆盖不足，具体缺少：
+
+- `users` / `user_sessions` 必需字段断言
+- 手工创建的 `idx_auth_sessions_one_active` 过滤索引断言
+- 第二次调用 `MigrateAuthTables` 的幂等性验证
+
+### 修复
+
+只增强了 `[backend/flutter_api/auth_models_test.go](/Users/vb/Projects/go-stock/backend/flutter_api/auth_models_test.go)`，没有修改生产迁移逻辑。
+
+新增了：
+
+- `users` 列断言：`id`, `phone`, `password_hash`, `nickname`, `role`, `status`, `created_at`, `updated_at`
+- `user_sessions` 列断言：`id`, `user_id`, `token_hash`, `device_id`, `created_at`, `last_seen_at`, `expires_at`, `revoked_at`, `revoke_reason`
+- `idx_auth_sessions_one_active` 的 SQL 过滤条件断言，验证包含 `WHERE revoked_at IS NULL`
+- 第二次调用 `MigrateAuthTables(dao)` 的重复迁移断言
+
+### 验证命令与输出
+
+```bash
+export PATH=/Users/vb/.cache/codex-runtimes/go1.26.0/bin:$PATH
+export GOTOOLCHAIN=local
+export GOPATH=/Users/vb/go
+go test ./backend/flutter_api -run TestMigrateAuthTablesCreatesUsersAndSessions -count=1
+```
+
+输出：
+
+```text
+ok  	go-stock/backend/flutter_api	0.392s
+```
+
+```bash
+export PATH=/Users/vb/.cache/codex-runtimes/go1.26.0/bin:$PATH
+export GOTOOLCHAIN=local
+export GOPATH=/Users/vb/go
+go test ./backend/flutter_api -count=1 -timeout 10m
+```
+
+输出：
+
+```text
+ok  	go-stock/backend/flutter_api	427.221s
+```
+
