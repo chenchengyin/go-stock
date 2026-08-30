@@ -278,7 +278,7 @@ func newHTTPHandler(authService *AuthService) http.Handler {
 		mux.Handle("/", spaFileServer(webRoot))
 	}
 
-	return RequireAuth(authService, corsMiddleware(mux))
+	return corsMiddleware(RequireAuth(authService, mux))
 }
 
 // resolveFlutterWebRoot 解析 Flutter web 静态产物目录：

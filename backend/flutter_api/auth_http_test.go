@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -237,5 +239,42 @@ func TestAuthHTTPHealthIsPublicAndBusinessRoutesAreProtected(t *testing.T) {
 	handler.ServeHTTP(wsRec, wsReq)
 	if wsRec.Code != http.StatusUnauthorized {
 		t.Fatalf("ws status = %d, want 401, body = %s", wsRec.Code, wsRec.Body.String())
+	}
+}
+
+func TestAuthHTTPServesUnauthenticatedFlutterStaticResources(t *testing.T) {
+	webRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(webRoot, "index.html"), []byte("login shell"), 0644); err != nil {
+		t.Fatalf("write index: %v", err)
+	}
+	t.Setenv("GO_STOCK_WEB_DIR", webRoot)
+
+	service := newTestAuthService(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+
+	newHTTPHandler(service.AuthService).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("static status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+	if rec.Body.String() != "login shell" {
+		t.Fatalf("static body = %q, want login shell", rec.Body.String())
+	}
+}
+
+func TestAuthHTTPUnauthenticatedProtectedResponseIncludesCORSHeaders(t *testing.T) {
+	service := newTestAuthService(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/news", nil)
+	req.Header.Set("Origin", "https://app.example")
+	rec := httptest.NewRecorder()
+
+	newHTTPHandler(service.AuthService).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("allow-origin = %q, want %q", got, "*")
 	}
 }

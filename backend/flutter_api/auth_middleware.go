@@ -22,7 +22,7 @@ func PrincipalFromContext(ctx context.Context) (AuthPrincipal, bool) {
 
 func RequireAuth(service *AuthService, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions || publicPaths[r.URL.Path] {
+		if r.Method == http.MethodOptions || !isProtectedPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -36,6 +36,15 @@ func RequireAuth(service *AuthService, next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), authPrincipalContextKey{}, principal)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func isProtectedPath(path string) bool {
+	if publicPaths[path] {
+		return false
+	}
+	return path == "/api" || strings.HasPrefix(path, "/api/") ||
+		path == "/uploads" || strings.HasPrefix(path, "/uploads/") ||
+		path == "/ws" || strings.HasPrefix(path, "/ws/")
 }
 
 func WriteAuthError(w http.ResponseWriter, err error) {
