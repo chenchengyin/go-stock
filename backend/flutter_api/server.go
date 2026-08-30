@@ -236,6 +236,7 @@ func Start() {
 
 func newHTTPHandler(authService *AuthService) http.Handler {
 	mux := http.NewServeMux()
+	userDataHandler := userDataHTTPHandler{service: NewUserDataService(authService.dao)}
 
 	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService))
 	mux.HandleFunc("/api/news", handleGetNews)
@@ -248,9 +249,9 @@ func newHTTPHandler(authService *AuthService) http.Handler {
 	mux.HandleFunc("/api/stock-changes", handleStockChanges)
 	mux.HandleFunc("/api/stock-changes/save", handleStockChangesSave)
 	mux.HandleFunc("/api/short-term-emotion", handleShortTermEmotion)
-	mux.HandleFunc("/api/follow", handleFollow)
-	mux.HandleFunc("/api/unfollow", handleUnfollow)
-	mux.HandleFunc("/api/follow-list", handleGetFollowList)
+	mux.HandleFunc("/api/follow", userDataHandler.handleFollow)
+	mux.HandleFunc("/api/unfollow", userDataHandler.handleUnfollow)
+	mux.HandleFunc("/api/follow-list", userDataHandler.handleGetFollowList)
 	mux.HandleFunc("/api/stock-search", handleStockSearch)
 	mux.HandleFunc("/api/stock-realtime", handleStockRealtime)
 	mux.HandleFunc("/api/strategy", handleStrategy)
@@ -576,9 +577,18 @@ func handleStockChanges(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, result)
 }
 
-func handleFollow(w http.ResponseWriter, r *http.Request) {
+type userDataHTTPHandler struct {
+	service *UserDataService
+}
+
+func (h userDataHTTPHandler) handleFollow(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
 		return
 	}
 	var req struct {
@@ -592,13 +602,22 @@ func handleFollow(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, map[string]string{"result": "股票代码不能为空"})
 		return
 	}
-	result := data.NewStockDataApi().Follow(req.StockCode)
+	result, err := h.service.Follow(r.Context(), principal.UserID, req.StockCode)
+	if err != nil {
+		logger.SugaredLogger.Errorf("关注股票失败: %v", err)
+	}
 	// 裸代码（无 sh/sz 前缀）重试：尝试 sz 前缀再试，失败再试 sh 前缀
 	if result == "关注失败" && isBareCode(req.StockCode) {
-		result = data.NewStockDataApi().Follow("sz" + req.StockCode)
+		result, err = h.service.Follow(r.Context(), principal.UserID, "sz"+req.StockCode)
+		if err != nil {
+			logger.SugaredLogger.Errorf("关注股票失败: %v", err)
+		}
 	}
 	if result == "关注失败" && isBareCode(req.StockCode) {
-		result = data.NewStockDataApi().Follow("sh" + req.StockCode)
+		result, err = h.service.Follow(r.Context(), principal.UserID, "sh"+req.StockCode)
+		if err != nil {
+			logger.SugaredLogger.Errorf("关注股票失败: %v", err)
+		}
 	}
 	WriteJSON(w, map[string]string{"result": result})
 }
@@ -620,9 +639,14 @@ func isBareCode(code string) bool {
 	return len(code) > 0
 }
 
-func handleUnfollow(w http.ResponseWriter, r *http.Request) {
+func (h userDataHTTPHandler) handleUnfollow(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
 		return
 	}
 	var req struct {
@@ -636,17 +660,28 @@ func handleUnfollow(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, map[string]string{"result": "股票代码不能为空"})
 		return
 	}
-	result := data.NewStockDataApi().UnFollow(req.StockCode)
+	result, err := h.service.Unfollow(r.Context(), principal.UserID, req.StockCode)
+	if err != nil {
+		logger.SugaredLogger.Errorf("取消关注股票失败: %v", err)
+	}
 	WriteJSON(w, map[string]string{"result": result})
 }
 
-func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
+func (h userDataHTTPHandler) handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	groupId, _ := strconv.Atoi(r.URL.Query().Get("groupId"))
-	result := data.NewStockDataApi().GetFollowList(groupId)
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
+		return
+	}
+	groupID, _ := strconv.Atoi(r.URL.Query().Get("groupId"))
+	result, err := h.service.ListFollowedStocks(r.Context(), principal.UserID, uint(groupID))
+	if err != nil {
+		logger.SugaredLogger.Errorf("获取关注股票列表失败: %v", err)
+	}
 	type FollowItem struct {
 		StockCode          string  `json:"stockCode"`
 		Name               string  `json:"name"`
@@ -656,17 +691,15 @@ func handleGetFollowList(w http.ResponseWriter, r *http.Request) {
 		Time               string  `json:"time"`
 	}
 	var items []FollowItem
-	if result != nil {
-		for _, s := range *result {
-			items = append(items, FollowItem{
-				StockCode:          s.StockCode,
-				Name:               s.Name,
-				Price:              s.Price,
-				ChangePercent:      s.ChangePercent,
-				AlarmChangePercent: s.AlarmChangePercent,
-				Time:               s.Time.Format("2006-01-02 15:04:05"),
-			})
-		}
+	for _, s := range result {
+		items = append(items, FollowItem{
+			StockCode:          s.StockCode,
+			Name:               s.Name,
+			Price:              s.Price,
+			ChangePercent:      s.ChangePercent,
+			AlarmChangePercent: s.AlarmChangePercent,
+			Time:               s.Time.Format("2006-01-02 15:04:05"),
+		})
 	}
 	WriteJSON(w, items)
 }

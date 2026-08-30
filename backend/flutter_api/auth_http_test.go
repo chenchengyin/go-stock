@@ -9,6 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"go-stock/backend/data"
+	"go-stock/backend/db"
 )
 
 func TestRequireAuthRejectsMissingToken(t *testing.T) {
@@ -276,5 +280,201 @@ func TestAuthHTTPUnauthenticatedProtectedResponseIncludesCORSHeaders(t *testing.
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Fatalf("allow-origin = %q, want %q", got, "*")
+	}
+}
+
+func useGlobalTestDB(t *testing.T, service *testAuthService) {
+	t.Helper()
+
+	old := db.Dao
+	db.Dao = service.dao
+	t.Cleanup(func() {
+		db.Dao = old
+	})
+}
+
+func authHTTPRegisterUser(t *testing.T, service *testAuthService, phone, nickname, deviceID string) *AuthSessionResponse {
+	t.Helper()
+
+	session, err := service.Register(context.Background(), RegisterInput{
+		Phone:    phone,
+		Password: "secret123",
+		Nickname: nickname,
+		DeviceID: deviceID,
+	})
+	if err != nil {
+		t.Fatalf("register user %s: %v", phone, err)
+	}
+	return session
+}
+
+func authHTTPRequest(method, path, token, body string) *http.Request {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return req
+}
+
+func TestAuthHTTPFollowCreatesOwnedRowWithoutAdoptingLegacyNullRow(t *testing.T) {
+	service := newTestAuthService(t)
+	useGlobalTestDB(t, service)
+	handler := newHTTPHandler(service.AuthService)
+
+	userA := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+	stubUserDataQuoteFetcher(t, func(stockCodes ...string) (*[]data.StockInfo, error) {
+		return &[]data.StockInfo{{
+			Code:  stockCodes[0],
+			Name:  "PingAn",
+			Price: "12.34",
+		}}, nil
+	})
+
+	if err := service.dao.Create(&data.FollowedStock{
+		StockCode: "sz000001",
+		Name:      "legacy",
+		Time:      time.Now(),
+	}).Error; err != nil {
+		t.Fatalf("create legacy followed stock: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authHTTPRequest(http.MethodPost, "/api/follow", userA.AccessToken, `{"stockCode":"sz000001"}`))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("follow status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var bodyResp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &bodyResp); err != nil {
+		t.Fatalf("decode follow body: %v", err)
+	}
+	if bodyResp["result"] != "关注成功" {
+		t.Fatalf("follow result = %q, want %q", bodyResp["result"], "关注成功")
+	}
+
+	var ownedCount int64
+	if err := service.dao.Model(&data.FollowedStock{}).
+		Where("user_id = ? AND stock_code = ? AND is_del = ?", userA.User.ID, "sz000001", 0).
+		Count(&ownedCount).Error; err != nil {
+		t.Fatalf("count owned followed stock: %v", err)
+	}
+	if ownedCount != 1 {
+		t.Fatalf("owned followed stock count = %d, want 1", ownedCount)
+	}
+
+	var legacyCount int64
+	if err := service.dao.Model(&data.FollowedStock{}).
+		Where("user_id IS NULL AND stock_code = ? AND is_del = ?", "sz000001", 0).
+		Count(&legacyCount).Error; err != nil {
+		t.Fatalf("count legacy followed stock: %v", err)
+	}
+	if legacyCount != 1 {
+		t.Fatalf("legacy followed stock count = %d, want 1", legacyCount)
+	}
+}
+
+func TestAuthHTTPFollowListIsScopedToAuthenticatedUser(t *testing.T) {
+	service := newTestAuthService(t)
+	useGlobalTestDB(t, service)
+	handler := newHTTPHandler(service.AuthService)
+
+	userA := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+	userB := authHTTPRegisterUser(t, service, "13900000000", "Bob", "device-b")
+
+	aID := userA.User.ID
+	bID := userB.User.ID
+	if err := service.dao.Create(&data.FollowedStock{StockCode: "sh600000", Name: "legacy", Time: time.Now()}).Error; err != nil {
+		t.Fatalf("create legacy row: %v", err)
+	}
+	if err := service.dao.Create(&data.FollowedStock{UserID: &aID, StockCode: "sh600001", Name: "A-only", Time: time.Now()}).Error; err != nil {
+		t.Fatalf("create user A row: %v", err)
+	}
+	if err := service.dao.Create(&data.FollowedStock{UserID: &bID, StockCode: "sh600002", Name: "B-only", Time: time.Now()}).Error; err != nil {
+		t.Fatalf("create user B row: %v", err)
+	}
+
+	recA := httptest.NewRecorder()
+	handler.ServeHTTP(recA, authHTTPRequest(http.MethodGet, "/api/follow-list", userA.AccessToken, ""))
+	if recA.Code != http.StatusOK {
+		t.Fatalf("user A list status = %d, want 200, body = %s", recA.Code, recA.Body.String())
+	}
+
+	var itemsA []map[string]any
+	if err := json.Unmarshal(recA.Body.Bytes(), &itemsA); err != nil {
+		t.Fatalf("decode user A list: %v", err)
+	}
+	if len(itemsA) != 1 || itemsA[0]["name"] != "A-only" {
+		t.Fatalf("user A items = %+v, want only A-owned row", itemsA)
+	}
+
+	recB := httptest.NewRecorder()
+	handler.ServeHTTP(recB, authHTTPRequest(http.MethodGet, "/api/follow-list", userB.AccessToken, ""))
+	if recB.Code != http.StatusOK {
+		t.Fatalf("user B list status = %d, want 200, body = %s", recB.Code, recB.Body.String())
+	}
+
+	var itemsB []map[string]any
+	if err := json.Unmarshal(recB.Body.Bytes(), &itemsB); err != nil {
+		t.Fatalf("decode user B list: %v", err)
+	}
+	if len(itemsB) != 1 || itemsB[0]["name"] != "B-only" {
+		t.Fatalf("user B items = %+v, want only B-owned row", itemsB)
+	}
+}
+
+func TestAuthHTTPUnfollowOnlyDeletesAuthenticatedUsersRecord(t *testing.T) {
+	service := newTestAuthService(t)
+	useGlobalTestDB(t, service)
+	handler := newHTTPHandler(service.AuthService)
+
+	userA := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+	userB := authHTTPRegisterUser(t, service, "13900000000", "Bob", "device-b")
+	aID := userA.User.ID
+	bID := userB.User.ID
+
+	if err := service.dao.Create(&data.FollowedStock{UserID: &aID, StockCode: "sh600000", Name: "A", Time: time.Now()}).Error; err != nil {
+		t.Fatalf("create user A row: %v", err)
+	}
+	if err := service.dao.Create(&data.FollowedStock{UserID: &bID, StockCode: "sh600000", Name: "B", Time: time.Now()}).Error; err != nil {
+		t.Fatalf("create user B row: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authHTTPRequest(http.MethodPost, "/api/unfollow", userA.AccessToken, `{"stockCode":"sh600000"}`))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unfollow status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var bodyResp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &bodyResp); err != nil {
+		t.Fatalf("decode unfollow body: %v", err)
+	}
+	if bodyResp["result"] != "取消关注成功" {
+		t.Fatalf("unfollow result = %q, want %q", bodyResp["result"], "取消关注成功")
+	}
+
+	var aCount int64
+	if err := service.dao.Model(&data.FollowedStock{}).
+		Where("user_id = ? AND stock_code = ? AND is_del = ?", userA.User.ID, "sh600000", 0).
+		Count(&aCount).Error; err != nil {
+		t.Fatalf("count user A rows: %v", err)
+	}
+	if aCount != 0 {
+		t.Fatalf("user A active rows = %d, want 0", aCount)
+	}
+
+	var bCount int64
+	if err := service.dao.Model(&data.FollowedStock{}).
+		Where("user_id = ? AND stock_code = ? AND is_del = ?", userB.User.ID, "sh600000", 0).
+		Count(&bCount).Error; err != nil {
+		t.Fatalf("count user B rows: %v", err)
+	}
+	if bCount != 1 {
+		t.Fatalf("user B active rows = %d, want 1", bCount)
 	}
 }
