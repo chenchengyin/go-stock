@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -247,7 +248,9 @@ func TestWebSocketAuthRejectsMissingAndInvalidTokens(t *testing.T) {
 func TestWebSocketAuthClosesOldSessionAfterReplacement(t *testing.T) {
 	resetWebSocketClients(t)
 	service := newTestAuthService(t)
-	service.onSessionsReplaced = closeWebSocketsForUser
+	service.onSessionsReplaced = func(userID, _ string, revokedSessionIDs []string) {
+		closeWebSocketsForSessions(userID, revokedSessionIDs)
+	}
 	first := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
 	server := httptest.NewServer(newHTTPHandler(service.AuthService))
 	defer server.Close()
@@ -289,6 +292,217 @@ func TestWebSocketAuthClosesOldSessionAfterReplacement(t *testing.T) {
 	waitForWebSocketClientCount(t, 1)
 }
 
+func TestWebSocketAuthRejectsHandshakeRevokedBeforeRegistration(t *testing.T) {
+	resetWebSocketClients(t)
+	service := newTestAuthService(t)
+	service.onSessionsReplaced = func(userID, _ string, revokedSessionIDs []string) {
+		closeWebSocketsForSessions(userID, revokedSessionIDs)
+	}
+	first := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+
+	authenticated := make(chan struct{})
+	continueHandshake := make(chan struct{})
+	webSocketHandler := newWebSocketHandler(service.AuthService)
+	blockedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(authenticated)
+		<-continueHandshake
+		webSocketHandler.ServeHTTP(w, r)
+	})
+	handler := webSocketAccessTokenFallback(RequireAuth(service.AuthService, blockedHandler))
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+
+	type dialResult struct {
+		conn *websocket.Conn
+		err  error
+	}
+	dialDone := make(chan dialResult, 1)
+	go func() {
+		header := http.Header{}
+		header.Set("Authorization", "Bearer "+first.AccessToken)
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+		dialDone <- dialResult{conn: conn, err: err}
+	}()
+
+	<-authenticated
+	if _, err := service.Login(context.Background(), LoginInput{
+		Phone:    "13800000000",
+		Password: "secret123",
+		DeviceID: "device-b",
+	}); err != nil {
+		t.Fatalf("replacement login: %v", err)
+	}
+	close(continueHandshake)
+
+	result := <-dialDone
+	if result.err != nil {
+		t.Fatalf("dial raced handshake: %v", result.err)
+	}
+	defer result.conn.Close()
+	if err := result.conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set read deadline: %v", err)
+	}
+	if _, _, err := result.conn.ReadMessage(); err == nil {
+		t.Fatal("revoked in-flight websocket remained open after registration")
+	}
+	waitForWebSocketClientCount(t, 0)
+}
+
+func TestWebSocketAuthDelayedReplacementCallbackCannotCloseNewestSession(t *testing.T) {
+	resetWebSocketClients(t)
+	service := newTestAuthService(t)
+	firstCallbackEntered := make(chan struct{})
+	releaseFirstCallback := make(chan struct{})
+	var callbackCount atomic.Int32
+	service.onSessionsReplaced = func(userID, _ string, revokedSessionIDs []string) {
+		if callbackCount.Add(1) == 1 {
+			close(firstCallbackEntered)
+			<-releaseFirstCallback
+		}
+		closeWebSocketsForSessions(userID, revokedSessionIDs)
+	}
+
+	first := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+	server := httptest.NewServer(newHTTPHandler(service.AuthService))
+	defer server.Close()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	firstConn := dialAuthenticatedWebSocket(t, wsURL, first.AccessToken)
+	defer firstConn.Close()
+	waitForWebSocketClientCount(t, 1)
+
+	firstLoginDone := make(chan error, 1)
+	go func() {
+		_, err := service.Login(context.Background(), LoginInput{
+			Phone:    "13800000000",
+			Password: "secret123",
+			DeviceID: "device-b",
+		})
+		firstLoginDone <- err
+	}()
+	<-firstCallbackEntered
+
+	newest, err := service.Login(context.Background(), LoginInput{
+		Phone:    "13800000000",
+		Password: "secret123",
+		DeviceID: "device-c",
+	})
+	if err != nil {
+		t.Fatalf("newest login: %v", err)
+	}
+	newestConn := dialAuthenticatedWebSocket(t, wsURL, newest.AccessToken)
+	defer newestConn.Close()
+	waitForWebSocketClientCount(t, 2)
+
+	close(releaseFirstCallback)
+	if err := <-firstLoginDone; err != nil {
+		t.Fatalf("delayed login callback: %v", err)
+	}
+	waitForWebSocketClientCount(t, 1)
+
+	if err := firstConn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set old read deadline: %v", err)
+	}
+	if _, _, err := firstConn.ReadMessage(); err == nil {
+		t.Fatal("old websocket remained open after delayed callback")
+	}
+
+	Broadcast("replacement-order-probe", map[string]bool{"current": true})
+	if err := newestConn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("set newest read deadline: %v", err)
+	}
+	if _, _, err := newestConn.ReadMessage(); err != nil {
+		t.Fatalf("newest websocket was closed by delayed callback: %v", err)
+	}
+}
+
+func TestWebSocketAuthSerializesConcurrentBroadcasts(t *testing.T) {
+	resetWebSocketClients(t)
+	service := newTestAuthService(t)
+	session := authHTTPRegisterUser(t, service, "13800000000", "Alice", "device-a")
+	server := httptest.NewServer(newHTTPHandler(service.AuthService))
+	defer server.Close()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+	conn := dialAuthenticatedWebSocket(t, wsURL, session.AccessToken)
+	defer conn.Close()
+	waitForWebSocketClientCount(t, 1)
+
+	client := onlyWebSocketClient(t)
+	var activeWrites atomic.Int32
+	var maxActiveWrites atomic.Int32
+	client.beforeWrite = func() {
+		active := activeWrites.Add(1)
+		for {
+			currentMax := maxActiveWrites.Load()
+			if active <= currentMax || maxActiveWrites.CompareAndSwap(currentMax, active) {
+				break
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+		activeWrites.Add(-1)
+	}
+
+	const broadcasts = 24
+	readDone := make(chan error, 1)
+	go func() {
+		for range broadcasts {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				readDone <- err
+				return
+			}
+		}
+		readDone <- nil
+	}()
+
+	start := make(chan struct{})
+	var writers sync.WaitGroup
+	writers.Add(broadcasts)
+	for i := range broadcasts {
+		go func(index int) {
+			defer writers.Done()
+			<-start
+			Broadcast("concurrent-probe", map[string]int{"index": index})
+		}(i)
+	}
+	close(start)
+	writers.Wait()
+	if err := <-readDone; err != nil {
+		t.Fatalf("read concurrent broadcasts: %v", err)
+	}
+	if got := maxActiveWrites.Load(); got != 1 {
+		t.Fatalf("maximum concurrent websocket writes = %d, want 1", got)
+	}
+}
+
+func dialAuthenticatedWebSocket(t *testing.T, wsURL, token string) *websocket.Conn {
+	t.Helper()
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+token)
+	conn, response, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err != nil {
+		status := 0
+		if response != nil {
+			status = response.StatusCode
+		}
+		t.Fatalf("dial authenticated websocket: status=%d err=%v", status, err)
+	}
+	return conn
+}
+
+func onlyWebSocketClient(t *testing.T) *wsClient {
+	t.Helper()
+	wsClientsMu.RLock()
+	defer wsClientsMu.RUnlock()
+	if len(wsClients) != 1 {
+		t.Fatalf("websocket client count = %d, want 1", len(wsClients))
+	}
+	for _, client := range wsClients {
+		return client
+	}
+	t.Fatal("websocket client missing")
+	return nil
+}
+
 func migrateStrategyTables(t *testing.T, dao *gorm.DB) {
 	t.Helper()
 	if err := dao.AutoMigrate(
@@ -307,14 +521,14 @@ func resetWebSocketClients(t *testing.T) {
 	t.Helper()
 	closeAll := func() {
 		wsClientsMu.Lock()
-		connections := make([]*websocket.Conn, 0, len(wsClients))
-		for conn := range wsClients {
-			connections = append(connections, conn)
+		clients := make([]*wsClient, 0, len(wsClients))
+		for conn, client := range wsClients {
+			clients = append(clients, client)
 			delete(wsClients, conn)
 		}
 		wsClientsMu.Unlock()
-		for _, conn := range connections {
-			_ = conn.Close()
+		for _, client := range clients {
+			client.close(websocket.CloseNormalClosure, "test cleanup")
 		}
 	}
 	closeAll()

@@ -2,6 +2,7 @@ package flutter_api
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -12,7 +13,8 @@ import (
 func newAuthTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dao, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	dao, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

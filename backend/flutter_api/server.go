@@ -77,7 +77,7 @@ func runTelegraphMigrations() {
 // ---------------------------------------------------------------------------
 
 var (
-	wsClients   = make(map[*websocket.Conn]wsClient)
+	wsClients   = make(map[*websocket.Conn]*wsClient)
 	wsClientsMu sync.RWMutex
 	upgrader    = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -88,9 +88,46 @@ type wsClient struct {
 	conn      *websocket.Conn
 	userID    string
 	sessionID string
+	writeMu   sync.Mutex
+	closeOnce sync.Once
+
+	beforeWrite func()
 }
 
-const defaultHTTPServerPort = 8080
+const (
+	defaultHTTPServerPort = 8080
+	webSocketWriteTimeout = 5 * time.Second
+)
+
+func (client *wsClient) writeMessage(messageType int, data []byte) error {
+	client.writeMu.Lock()
+	defer client.writeMu.Unlock()
+	if client.beforeWrite != nil {
+		client.beforeWrite()
+	}
+	if err := client.conn.SetWriteDeadline(time.Now().Add(webSocketWriteTimeout)); err != nil {
+		return err
+	}
+	return client.conn.WriteMessage(messageType, data)
+}
+
+func (client *wsClient) close(code int, reason string) {
+	client.closeOnce.Do(func() {
+		client.writeMu.Lock()
+		defer client.writeMu.Unlock()
+		if client.beforeWrite != nil {
+			client.beforeWrite()
+		}
+		deadline := time.Now().Add(webSocketWriteTimeout)
+		_ = client.conn.SetWriteDeadline(deadline)
+		_ = client.conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(code, reason),
+			deadline,
+		)
+		_ = client.conn.Close()
+	})
+}
 
 // Start 启动 REST API + WebSocket 服务（阻塞）
 func Start() {
@@ -107,7 +144,9 @@ func Start() {
 		return
 	}
 
-	authService := NewAuthService(db.Dao, closeWebSocketsForUser)
+	authService := NewAuthService(db.Dao, func(userID, _ string, revokedSessionIDs []string) {
+		closeWebSocketsForSessions(userID, revokedSessionIDs)
+	})
 
 	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
 	go func() {
@@ -253,7 +292,7 @@ func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverride
 	newsHandler := handleGetNews
 	followListHandler := userDataHandler.handleGetFollowList
 	uploadHandler := handleFileUpload
-	webSocketHandler := handleWebSocket
+	webSocketHandler := newWebSocketHandler(authService)
 	if len(overrides) > 0 {
 		if overrides[0].News != nil {
 			newsHandler = overrides[0].News
@@ -1052,62 +1091,83 @@ func handleDebugMoney(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	principal, ok := PrincipalFromContext(r.Context())
-	if !ok {
-		WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
-		return
-	}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		logger.SugaredLogger.Errorf("WebSocket upgrade error: %v", err)
-		return
-	}
-	wsClientsMu.Lock()
-	wsClients[conn] = wsClient{
-		conn:      conn,
-		userID:    principal.UserID,
-		sessionID: principal.SessionID,
-	}
-	wsClientsMu.Unlock()
-	logger.SugaredLogger.Infof("WebSocket client connected: %s", conn.RemoteAddr())
-	go func() {
-		defer func() {
-			wsClientsMu.Lock()
-			delete(wsClients, conn)
-			wsClientsMu.Unlock()
-			conn.Close()
-			logger.SugaredLogger.Infof("WebSocket client disconnected: %s", conn.RemoteAddr())
-		}()
-		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				break
-			}
+func newWebSocketHandler(authService *AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		principal, ok := PrincipalFromContext(r.Context())
+		if !ok {
+			WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
+			return
 		}
-	}()
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			logger.SugaredLogger.Errorf("WebSocket upgrade error: %v", err)
+			return
+		}
+		client := &wsClient{
+			conn:      conn,
+			userID:    principal.UserID,
+			sessionID: principal.SessionID,
+		}
+		wsClientsMu.Lock()
+		wsClients[conn] = client
+		wsClientsMu.Unlock()
+
+		revalidated, err := authService.Authenticate(r.Context(), bearerTokenFromRequest(r))
+		if err != nil || revalidated.UserID != principal.UserID || revalidated.SessionID != principal.SessionID {
+			removeWebSocketClient(client)
+			client.close(websocket.ClosePolicyViolation, "session invalid")
+			return
+		}
+
+		logger.SugaredLogger.Infof("WebSocket client connected: %s", conn.RemoteAddr())
+		go func() {
+			defer func() {
+				removeWebSocketClient(client)
+				client.close(websocket.CloseNormalClosure, "")
+				logger.SugaredLogger.Infof("WebSocket client disconnected: %s", conn.RemoteAddr())
+			}()
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					break
+				}
+			}
+		}()
+	}
 }
 
-func closeWebSocketsForUser(userID, exceptSessionID string) {
+func removeWebSocketClient(client *wsClient) {
 	wsClientsMu.Lock()
-	connections := make([]*websocket.Conn, 0)
+	if registered, ok := wsClients[client.conn]; ok && registered == client {
+		delete(wsClients, client.conn)
+	}
+	wsClientsMu.Unlock()
+}
+
+func closeWebSocketsForSessions(userID string, sessionIDs []string) {
+	if len(sessionIDs) == 0 {
+		return
+	}
+	sessionSet := make(map[string]struct{}, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		sessionSet[sessionID] = struct{}{}
+	}
+
+	wsClientsMu.Lock()
+	clients := make([]*wsClient, 0)
 	for conn, client := range wsClients {
-		if client.userID != userID || (exceptSessionID != "" && client.sessionID == exceptSessionID) {
+		if client.userID != userID {
+			continue
+		}
+		if _, ok := sessionSet[client.sessionID]; !ok {
 			continue
 		}
 		delete(wsClients, conn)
-		connections = append(connections, conn)
+		clients = append(clients, client)
 	}
 	wsClientsMu.Unlock()
 
-	for _, conn := range connections {
-		deadline := time.Now().Add(time.Second)
-		_ = conn.WriteControl(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session replaced"),
-			deadline,
-		)
-		_ = conn.Close()
+	for _, client := range clients {
+		client.close(websocket.ClosePolicyViolation, "session replaced")
 	}
 }
 
@@ -1123,18 +1183,16 @@ func Broadcast(event string, data interface{}) {
 		return
 	}
 	wsClientsMu.RLock()
-	clients := make([]wsClient, 0, len(wsClients))
+	clients := make([]*wsClient, 0, len(wsClients))
 	for _, client := range wsClients {
 		clients = append(clients, client)
 	}
 	wsClientsMu.RUnlock()
 	for _, client := range clients {
-		if err := client.conn.WriteMessage(websocket.TextMessage, raw); err != nil {
+		if err := client.writeMessage(websocket.TextMessage, raw); err != nil {
 			logger.SugaredLogger.Warnf("Broadcast write error: %v", err)
-			_ = client.conn.Close()
-			wsClientsMu.Lock()
-			delete(wsClients, client.conn)
-			wsClientsMu.Unlock()
+			removeWebSocketClient(client)
+			client.close(websocket.CloseGoingAway, "write failed")
 		}
 	}
 }

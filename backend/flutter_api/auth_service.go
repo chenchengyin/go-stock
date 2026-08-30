@@ -23,13 +23,13 @@ const (
 
 type AuthService struct {
 	dao                *gorm.DB
-	onSessionsReplaced func(userID, newSessionID string)
+	onSessionsReplaced func(userID, newSessionID string, revokedSessionIDs []string)
 	now                func() time.Time
 	newID              func() (string, error)
 	newToken           func() (string, error)
 }
 
-func NewAuthService(dao *gorm.DB, onSessionsReplaced func(userID, newSessionID string)) *AuthService {
+func NewAuthService(dao *gorm.DB, onSessionsReplaced func(userID, newSessionID string, revokedSessionIDs []string)) *AuthService {
 	return &AuthService{
 		dao:                dao,
 		onSessionsReplaced: onSessionsReplaced,
@@ -94,7 +94,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthS
 			return err
 		}
 
-		if err := revokeActiveSessionsTx(tx, user.ID, now, "new_login"); err != nil {
+		if _, err := revokeActiveSessionsTx(tx, user.ID, now, "new_login"); err != nil {
 			return err
 		}
 
@@ -140,8 +140,11 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthSession
 		return nil, err
 	}
 
+	var revokedSessionIDs []string
 	if err := s.dao.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := revokeActiveSessionsTx(tx, user.ID, now, "new_login"); err != nil {
+		var err error
+		revokedSessionIDs, err = revokeActiveSessionsTx(tx, user.ID, now, "new_login")
+		if err != nil {
 			return err
 		}
 		return tx.Create(&session).Error
@@ -150,7 +153,7 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthSession
 	}
 
 	if s.onSessionsReplaced != nil {
-		s.onSessionsReplaced(user.ID, session.ID)
+		s.onSessionsReplaced(user.ID, session.ID, revokedSessionIDs)
 	}
 
 	return &AuthSessionResponse{
@@ -288,13 +291,26 @@ func (s *AuthService) buildSession(userID, deviceID string, now time.Time) (Auth
 	return session, rawToken, nil
 }
 
-func revokeActiveSessionsTx(tx *gorm.DB, userID string, now time.Time, reason string) error {
-	return tx.Model(&AuthSession{}).
+func revokeActiveSessionsTx(tx *gorm.DB, userID string, now time.Time, reason string) ([]string, error) {
+	var sessionIDs []string
+	if err := tx.Model(&AuthSession{}).
+		Where("user_id = ? AND revoked_at IS NULL", userID).
+		Order("created_at ASC").
+		Pluck("id", &sessionIDs).Error; err != nil {
+		return nil, err
+	}
+	if len(sessionIDs) == 0 {
+		return sessionIDs, nil
+	}
+	if err := tx.Model(&AuthSession{}).
 		Where("user_id = ? AND revoked_at IS NULL", userID).
 		Updates(map[string]any{
 			"revoked_at":    now,
 			"revoke_reason": reason,
-		}).Error
+		}).Error; err != nil {
+		return nil, err
+	}
+	return sessionIDs, nil
 }
 
 func hashToken(rawToken string) string {

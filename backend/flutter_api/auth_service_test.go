@@ -201,8 +201,12 @@ func TestAuthServiceNewLoginReplacesOldDevice(t *testing.T) {
 	if len(service.replacedCalls) != 1 {
 		t.Fatalf("replacement callbacks = %d, want 1", len(service.replacedCalls))
 	}
-	if service.replacedCalls[0] != second.User.ID+":"+sessions[1].ID {
-		t.Fatalf("replacement callback = %q, want %q", service.replacedCalls[0], second.User.ID+":"+sessions[1].ID)
+	callback := service.replacedCalls[0]
+	if callback.userID != second.User.ID || callback.newSessionID != sessions[1].ID {
+		t.Fatalf("replacement callback = %+v, want user %q and new session %q", callback, second.User.ID, sessions[1].ID)
+	}
+	if len(callback.revokedSessionIDs) != 1 || callback.revokedSessionIDs[0] != sessions[0].ID {
+		t.Fatalf("revoked session ids = %v, want [%s]", callback.revokedSessionIDs, sessions[0].ID)
 	}
 }
 
@@ -316,7 +320,13 @@ type testAuthService struct {
 	nowValue      time.Time
 	nextID        int
 	nextToken     int
-	replacedCalls []string
+	replacedCalls []sessionsReplacedCall
+}
+
+type sessionsReplacedCall struct {
+	userID            string
+	newSessionID      string
+	revokedSessionIDs []string
 }
 
 func newTestAuthService(t *testing.T) *testAuthService {
@@ -331,8 +341,12 @@ func newTestAuthService(t *testing.T) *testAuthService {
 		nowValue: time.Date(2026, time.August, 30, 9, 0, 0, 0, time.UTC),
 	}
 
-	service := NewAuthService(dao, func(userID, newSessionID string) {
-		testService.replacedCalls = append(testService.replacedCalls, userID+":"+newSessionID)
+	service := NewAuthService(dao, func(userID, newSessionID string, revokedSessionIDs []string) {
+		testService.replacedCalls = append(testService.replacedCalls, sessionsReplacedCall{
+			userID:            userID,
+			newSessionID:      newSessionID,
+			revokedSessionIDs: append([]string(nil), revokedSessionIDs...),
+		})
 	})
 	service.now = func() time.Time {
 		return testService.nowValue
