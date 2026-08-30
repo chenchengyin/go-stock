@@ -138,6 +138,14 @@ func NewStrategyAPI() *StrategyAPI {
 	return &StrategyAPI{}
 }
 
+func (s *StrategyAPI) GetAuthenticatedNickname(userID string) (string, error) {
+	var user AuthUser
+	if err := db.Dao.Select("nickname").Where("id = ?", userID).First(&user).Error; err != nil {
+		return "", err
+	}
+	return user.Nickname, nil
+}
+
 // ensureUser 确保用户记录存在，不存在则创建（赠送 10 积分）
 func (s *StrategyAPI) ensureUser(userID, nickname string) *StrategyUser {
 	var u StrategyUser
@@ -441,20 +449,17 @@ func (s *StrategyAPI) GetComments(postID uint) ([]*StrategyComment, error) {
 // DeleteComment 删除评论
 func (s *StrategyAPI) DeleteComment(commentID uint, userID string) error {
 	var comment StrategyComment
-	err := db.Dao.First(&comment, commentID).Error
+	err := db.Dao.Where("id = ? AND user_id = ?", commentID, userID).First(&comment).Error
 	if err != nil {
-		return err
-	}
-	if comment.UserID != userID {
 		return fmt.Errorf("只能删除自己的评论")
 	}
 
 	postID := comment.PostID
-	db.Dao.Delete(&comment)
+	db.Dao.Where("id = ? AND user_id = ?", comment.ID, userID).Delete(&StrategyComment{})
 	db.Dao.Model(&StrategyPost{}).Where("id = ?", postID).Update("comment_cnt", gorm.Expr("comment_cnt - 1"))
 
 	var logs []StrategyPointsLog
-	db.Dao.Where("ref_id = ? AND reason = ?", fmt.Sprintf("%d", comment.ID), "reply").Find(&logs)
+	db.Dao.Where("user_id = ? AND ref_id = ? AND reason = ?", userID, fmt.Sprintf("%d", comment.ID), "reply").Find(&logs)
 	for _, log := range logs {
 		if log.UserID == userID {
 			var u StrategyUser
@@ -468,7 +473,7 @@ func (s *StrategyAPI) DeleteComment(commentID uint, userID string) error {
 			logger.SugaredLogger.Infof("积分回滚: user=%s, delta=%d, remain=%d", userID, log.Delta, u.Points)
 		}
 	}
-	db.Dao.Where("ref_id = ? AND reason = ?", fmt.Sprintf("%d", comment.ID), "reply").Delete(&StrategyPointsLog{})
+	db.Dao.Where("user_id = ? AND ref_id = ? AND reason = ?", userID, fmt.Sprintf("%d", comment.ID), "reply").Delete(&StrategyPointsLog{})
 
 	return nil
 }
@@ -476,15 +481,12 @@ func (s *StrategyAPI) DeleteComment(commentID uint, userID string) error {
 // DeletePost 删除帖子
 func (s *StrategyAPI) DeletePost(postID uint, userID string) error {
 	var post StrategyPost
-	err := db.Dao.First(&post, postID).Error
+	err := db.Dao.Where("id = ? AND user_id = ?", postID, userID).First(&post).Error
 	if err != nil {
-		return err
-	}
-	if post.UserID != userID {
 		return fmt.Errorf("只能删除自己的帖子")
 	}
 
-	db.Dao.Delete(&post)
+	db.Dao.Where("id = ? AND user_id = ?", post.ID, userID).Delete(&StrategyPost{})
 	db.Dao.Where("post_id = ?", postID).Delete(&StrategyComment{})
 	db.Dao.Where("post_id = ?", postID).Delete(&StrategyLike{})
 

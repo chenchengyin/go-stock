@@ -77,12 +77,18 @@ func runTelegraphMigrations() {
 // ---------------------------------------------------------------------------
 
 var (
-	wsClients   = make(map[*websocket.Conn]bool)
+	wsClients   = make(map[*websocket.Conn]wsClient)
 	wsClientsMu sync.RWMutex
 	upgrader    = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 )
+
+type wsClient struct {
+	conn      *websocket.Conn
+	userID    string
+	sessionID string
+}
 
 const defaultHTTPServerPort = 8080
 
@@ -101,7 +107,7 @@ func Start() {
 		return
 	}
 
-	authService := NewAuthService(db.Dao, nil)
+	authService := NewAuthService(db.Dao, closeWebSocketsForUser)
 
 	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
 	go func() {
@@ -234,12 +240,37 @@ func Start() {
 	}
 }
 
-func newHTTPHandler(authService *AuthService) http.Handler {
+type serverHandlerOverrides struct {
+	News       http.HandlerFunc
+	FollowList http.HandlerFunc
+	Upload     http.HandlerFunc
+	WebSocket  http.HandlerFunc
+}
+
+func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverrides) http.Handler {
 	mux := http.NewServeMux()
 	userDataHandler := userDataHTTPHandler{service: NewUserDataService(authService.dao)}
+	newsHandler := handleGetNews
+	followListHandler := userDataHandler.handleGetFollowList
+	uploadHandler := handleFileUpload
+	webSocketHandler := handleWebSocket
+	if len(overrides) > 0 {
+		if overrides[0].News != nil {
+			newsHandler = overrides[0].News
+		}
+		if overrides[0].FollowList != nil {
+			followListHandler = overrides[0].FollowList
+		}
+		if overrides[0].Upload != nil {
+			uploadHandler = overrides[0].Upload
+		}
+		if overrides[0].WebSocket != nil {
+			webSocketHandler = overrides[0].WebSocket
+		}
+	}
 
 	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService))
-	mux.HandleFunc("/api/news", handleGetNews)
+	mux.HandleFunc("/api/news", newsHandler)
 	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
 	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)
 	mux.HandleFunc("/api/kline", handleGetKLine)
@@ -251,11 +282,11 @@ func newHTTPHandler(authService *AuthService) http.Handler {
 	mux.HandleFunc("/api/short-term-emotion", handleShortTermEmotion)
 	mux.HandleFunc("/api/follow", userDataHandler.handleFollow)
 	mux.HandleFunc("/api/unfollow", userDataHandler.handleUnfollow)
-	mux.HandleFunc("/api/follow-list", userDataHandler.handleGetFollowList)
+	mux.HandleFunc("/api/follow-list", followListHandler)
 	mux.HandleFunc("/api/stock-search", handleStockSearch)
 	mux.HandleFunc("/api/stock-realtime", handleStockRealtime)
 	mux.HandleFunc("/api/strategy", handleStrategy)
-	mux.HandleFunc("/api/upload", handleFileUpload)
+	mux.HandleFunc("/api/upload", uploadHandler)
 	mux.HandleFunc("/api/health", handleHealth)
 	mux.HandleFunc("/api/debug-money", handleDebugMoney)
 	mux.HandleFunc("/api/stock-selection-test", handleStockSelectionTest)
@@ -268,7 +299,7 @@ func newHTTPHandler(authService *AuthService) http.Handler {
 		logger.SugaredLogger.Errorf("创建上传目录失败: %v", err)
 	}
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
-	mux.HandleFunc("/ws", handleWebSocket)
+	mux.HandleFunc("/ws", webSocketHandler)
 
 	// 托管 Flutter web 静态产物：根路径提供页面，未知路由回退 index.html（SPA）。
 	// 缺产物时仅告警，服务继续以 API-only 模式运行。
@@ -279,7 +310,21 @@ func newHTTPHandler(authService *AuthService) http.Handler {
 		mux.Handle("/", spaFileServer(webRoot))
 	}
 
-	return corsMiddleware(RequireAuth(authService, mux))
+	return corsMiddleware(webSocketAccessTokenFallback(RequireAuth(authService, mux)))
+}
+
+func webSocketAccessTokenFallback(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/ws" && bearerTokenFromRequest(r) == "" {
+			if token := strings.TrimSpace(r.URL.Query().Get("access_token")); token != "" {
+				requestWithToken := r.Clone(r.Context())
+				requestWithToken.Header = r.Header.Clone()
+				requestWithToken.Header.Set("Authorization", "Bearer "+token)
+				r = requestWithToken
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // resolveFlutterWebRoot 解析 Flutter web 静态产物目录：
@@ -1008,13 +1053,22 @@ func handleDebugMoney(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
+		return
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logger.SugaredLogger.Errorf("WebSocket upgrade error: %v", err)
 		return
 	}
 	wsClientsMu.Lock()
-	wsClients[conn] = true
+	wsClients[conn] = wsClient{
+		conn:      conn,
+		userID:    principal.UserID,
+		sessionID: principal.SessionID,
+	}
 	wsClientsMu.Unlock()
 	logger.SugaredLogger.Infof("WebSocket client connected: %s", conn.RemoteAddr())
 	go func() {
@@ -1034,6 +1088,29 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
+func closeWebSocketsForUser(userID, exceptSessionID string) {
+	wsClientsMu.Lock()
+	connections := make([]*websocket.Conn, 0)
+	for conn, client := range wsClients {
+		if client.userID != userID || (exceptSessionID != "" && client.sessionID == exceptSessionID) {
+			continue
+		}
+		delete(wsClients, conn)
+		connections = append(connections, conn)
+	}
+	wsClientsMu.Unlock()
+
+	for _, conn := range connections {
+		deadline := time.Now().Add(time.Second)
+		_ = conn.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session replaced"),
+			deadline,
+		)
+		_ = conn.Close()
+	}
+}
+
 func Broadcast(event string, data interface{}) {
 	msg := map[string]interface{}{
 		"event": event,
@@ -1046,12 +1123,18 @@ func Broadcast(event string, data interface{}) {
 		return
 	}
 	wsClientsMu.RLock()
-	defer wsClientsMu.RUnlock()
-	for conn := range wsClients {
-		if err := conn.WriteMessage(websocket.TextMessage, raw); err != nil {
+	clients := make([]wsClient, 0, len(wsClients))
+	for _, client := range wsClients {
+		clients = append(clients, client)
+	}
+	wsClientsMu.RUnlock()
+	for _, client := range clients {
+		if err := client.conn.WriteMessage(websocket.TextMessage, raw); err != nil {
 			logger.SugaredLogger.Warnf("Broadcast write error: %v", err)
-			conn.Close()
-			delete(wsClients, conn)
+			_ = client.conn.Close()
+			wsClientsMu.Lock()
+			delete(wsClients, client.conn)
+			wsClientsMu.Unlock()
 		}
 	}
 }
@@ -1100,6 +1183,12 @@ func handleFileUpload(w http.ResponseWriter, r *http.Request) {
 
 func handleStrategy(w http.ResponseWriter, r *http.Request) {
 	api := NewStrategyAPI()
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
+		return
+	}
+	userID := principal.UserID
 	switch r.Method {
 	case http.MethodGet:
 		action := r.URL.Query().Get("action")
@@ -1118,7 +1207,6 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			}
 			WriteJSON(w, post)
 		case "points":
-			userID := r.URL.Query().Get("userId")
 			u, err := api.GetUserPoints(userID)
 			if err != nil {
 				WriteJSON(w, map[string]interface{}{"points": 0, "totalIn": 0, "totalOut": 0})
@@ -1126,7 +1214,6 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			}
 			WriteJSON(w, u)
 		case "checkin_status":
-			userID := r.URL.Query().Get("userId")
 			checked := api.HasCheckedIn(userID)
 			WriteJSON(w, map[string]bool{"checkedIn": checked})
 		case "comments":
@@ -1139,12 +1226,10 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			WriteJSON(w, comments)
 		case "liked":
 			postID, _ := strconv.ParseUint(r.URL.Query().Get("postId"), 10, 64)
-			userID := r.URL.Query().Get("userId")
 			liked := api.HasLiked(uint(postID), userID)
 			viewed := api.HasViewed(uint(postID), userID)
 			WriteJSON(w, map[string]bool{"liked": liked, "viewed": viewed})
 		case "today_reply_points":
-			userID := r.URL.Query().Get("userId")
 			total := api.GetTodayReplyPoints(userID)
 			WriteJSON(w, map[string]int64{"todayReplyPoints": total})
 		default:
@@ -1157,8 +1242,11 @@ func handleStrategy(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		action, _ := req["action"].(string)
-		userID, _ := req["userId"].(string)
-		nickname, _ := req["nickname"].(string)
+		nickname, err := api.GetAuthenticatedNickname(userID)
+		if err != nil {
+			WriteJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
 		switch action {
 		case "create_post":
 			title, _ := req["title"].(string)
