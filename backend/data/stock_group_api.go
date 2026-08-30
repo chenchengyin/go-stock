@@ -11,8 +11,9 @@ import (
 // -----------------------------------------------------------------------------------
 type Group struct {
 	gorm.Model
-	Name string `json:"name" gorm:"index"`
-	Sort int    `json:"sort"`
+	UserID *string `json:"userId,omitempty" gorm:"index"`
+	Name   string  `json:"name" gorm:"index"`
+	Sort   int     `json:"sort"`
 }
 
 func (Group) TableName() string {
@@ -21,9 +22,10 @@ func (Group) TableName() string {
 
 type GroupStock struct {
 	gorm.Model
-	StockCode string `json:"stockCode" gorm:"index"`
-	GroupId   int    `json:"groupId" gorm:"index"`
-	GroupInfo Group  `json:"groupInfo" gorm:"foreignKey:GroupId;references:ID"`
+	UserID    *string `json:"userId,omitempty" gorm:"index"`
+	StockCode string  `json:"stockCode" gorm:"index"`
+	GroupId   int     `json:"groupId" gorm:"index"`
+	GroupInfo Group   `json:"groupInfo" gorm:"foreignKey:GroupId;references:ID"`
 }
 
 func (GroupStock) TableName() string {

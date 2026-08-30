@@ -163,6 +163,7 @@ type StockBasic struct {
 }
 
 type FollowedStock struct {
+	UserID             *string `json:"userId,omitempty" gorm:"index"`
 	StockCode          string
 	Name               string
 	Volume             int64
@@ -189,8 +190,9 @@ func (receiver FollowedStock) TableName() string {
 
 // TradingRecord 交易日志结构体
 type TradingRecord struct {
-	ID              uint   `gorm:"primaryKey"`
-	StockCode       string `gorm:"index"`
+	ID              uint    `gorm:"primaryKey"`
+	UserID          *string `json:"userId,omitempty" gorm:"index"`
+	StockCode       string  `gorm:"index"`
 	StockName       string
 	Direction       string `gorm:"index"` // 买入/卖出
 	Price           float64
