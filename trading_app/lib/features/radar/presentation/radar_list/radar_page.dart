@@ -184,6 +184,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   void _showVoicePermissionDialog(BuildContext context) {
     showDialog<void>(
       context: context,
+      useRootNavigator: false,
       barrierDismissible: false,
       builder: (dialogContext) {
         final voiceVm = dialogContext.read<VoiceAnnouncementViewModel>();
