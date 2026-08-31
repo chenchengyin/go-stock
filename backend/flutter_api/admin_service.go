@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	adminUsername    = "admin"
-	adminPassword    = "admin"
-	adminSessionTTL  = 12 * time.Hour
-	adminRoleManaged = authRoleUser
+	adminUsername     = "admin"
+	adminPassword     = "admin"
+	adminSessionTTL   = 12 * time.Hour
+	adminSessionLimit = 32
+	adminRoleManaged  = authRoleUser
 )
 
 type AdminLoginInput struct {
@@ -76,6 +77,10 @@ func (s *AdminService) Login(_ context.Context, input AdminLoginInput) (*AdminSe
 	now := s.now().UTC()
 	expiresAt := now.Add(adminSessionTTL)
 	s.mu.Lock()
+	s.pruneExpiredTokensLocked(now)
+	if len(s.tokens) >= adminSessionLimit {
+		s.removeEarliestTokenLocked()
+	}
 	s.tokens[hashToken(rawToken)] = expiresAt
 	s.mu.Unlock()
 
@@ -94,14 +99,36 @@ func (s *AdminService) Authenticate(rawToken string) error {
 	tokenHash := hashToken(rawToken)
 	now := s.now().UTC()
 	s.mu.Lock()
-	expiresAt, ok := s.tokens[tokenHash]
-	if !ok || !now.Before(expiresAt) {
-		delete(s.tokens, tokenHash)
+	s.pruneExpiredTokensLocked(now)
+	_, ok := s.tokens[tokenHash]
+	if !ok {
 		s.mu.Unlock()
 		return newAuthError(http.StatusUnauthorized, "ADMIN_UNAUTHENTICATED", "管理员未登录")
 	}
 	s.mu.Unlock()
 	return nil
+}
+
+func (s *AdminService) pruneExpiredTokensLocked(now time.Time) {
+	for tokenHash, expiresAt := range s.tokens {
+		if !now.Before(expiresAt) {
+			delete(s.tokens, tokenHash)
+		}
+	}
+}
+
+func (s *AdminService) removeEarliestTokenLocked() {
+	var oldestToken string
+	var oldestExpiry time.Time
+	for tokenHash, expiresAt := range s.tokens {
+		if oldestToken == "" || expiresAt.Before(oldestExpiry) {
+			oldestToken = tokenHash
+			oldestExpiry = expiresAt
+		}
+	}
+	if oldestToken != "" {
+		delete(s.tokens, oldestToken)
+	}
 }
 
 func (s *AdminService) ListUsers(ctx context.Context, keyword string) (*AdminUserList, error) {

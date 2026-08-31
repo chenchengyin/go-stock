@@ -243,6 +243,49 @@ func TestAuthServiceNewLoginDoesNotRevokeOtherUsers(t *testing.T) {
 	assertActiveSessionCount(t, service, second.User.ID, 1)
 }
 
+func TestAuthServiceLoginDoesNotCreateSessionAfterConcurrentDisable(t *testing.T) {
+	service := newTestAuthService(t)
+	registered, err := service.Register(context.Background(), RegisterInput{
+		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	loginPaused := make(chan struct{})
+	releaseLogin := make(chan struct{})
+	service.beforeLoginTransaction = func() {
+		close(loginPaused)
+		<-releaseLogin
+	}
+
+	loginResult := make(chan error, 1)
+	go func() {
+		_, loginErr := service.Login(context.Background(), LoginInput{
+			Phone: "13800000000", Password: "secret123", DeviceID: "device-b",
+		})
+		loginResult <- loginErr
+	}()
+	<-loginPaused
+
+	admin := newTestAdminService(service.dao)
+	disableResult := make(chan error, 1)
+	go func() {
+		_, disableErr := admin.UpdateUserStatus(context.Background(), registered.User.ID, authStatusDisabled)
+		disableResult <- disableErr
+	}()
+
+	if disableErr := <-disableResult; disableErr != nil {
+		t.Fatalf("disable user: %v", disableErr)
+	}
+	close(releaseLogin)
+
+	if loginErr := <-loginResult; !IsAuthCode(loginErr, "ACCOUNT_DISABLED") {
+		t.Fatalf("login after committed disable err = %v, want ACCOUNT_DISABLED", loginErr)
+	}
+	assertActiveSessionCount(t, service, registered.User.ID, 0)
+}
+
 func TestAuthServiceLogoutRevokesSessionIdempotently(t *testing.T) {
 	service := newTestAuthService(t)
 

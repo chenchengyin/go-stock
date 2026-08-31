@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -22,11 +23,12 @@ const (
 )
 
 type AuthService struct {
-	dao                *gorm.DB
-	onSessionsReplaced func(userID, newSessionID string, revokedSessionIDs []string)
-	now                func() time.Time
-	newID              func() (string, error)
-	newToken           func() (string, error)
+	dao                    *gorm.DB
+	onSessionsReplaced     func(userID, newSessionID string, revokedSessionIDs []string)
+	now                    func() time.Time
+	newID                  func() (string, error)
+	newToken               func() (string, error)
+	beforeLoginTransaction func()
 }
 
 func NewAuthService(dao *gorm.DB, onSessionsReplaced func(userID, newSessionID string, revokedSessionIDs []string)) *AuthService {
@@ -140,8 +142,23 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthSession
 		return nil, err
 	}
 
+	if s.beforeLoginTransaction != nil {
+		s.beforeLoginTransaction()
+	}
+
 	var revokedSessionIDs []string
 	if err := s.dao.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var currentUser AuthUser
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND status = ?", user.ID, authStatusActive).
+			First(&currentUser).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return newAuthError(http.StatusForbidden, "ACCOUNT_DISABLED", "账号已禁用")
+			}
+			return err
+		}
+		user = currentUser
+
 		var err error
 		revokedSessionIDs, err = revokeActiveSessionsTx(tx, user.ID, now, "new_login")
 		if err != nil {

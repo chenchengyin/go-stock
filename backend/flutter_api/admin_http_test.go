@@ -46,6 +46,11 @@ func TestAdminHTTPListsUsersAndFiltersKeyword(t *testing.T) {
 
 	createUserForAdminTest(t, auth, "13800000000", "Alice")
 	createUserForAdminTest(t, auth, "13900000000", "Bob")
+	if err := auth.dao.Create(&AuthUser{
+		ID: "admin-record", Phone: "13700000000", PasswordHash: "unused", Nickname: "Internal", Role: "admin", Status: authStatusActive,
+	}).Error; err != nil {
+		t.Fatalf("create non-user role: %v", err)
+	}
 	token := loginAdminForTest(t, handler)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/admin/users?keyword=Alice", nil)
@@ -69,6 +74,14 @@ func TestAdminHTTPListsUsersAndFiltersKeyword(t *testing.T) {
 	}
 	if body.Total != 1 || len(body.Items) != 1 || body.Items[0].Nickname != "Alice" {
 		t.Fatalf("list body = %+v, want one Alice", body)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/admin/users?keyword=13900000000", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "Bob") || strings.Contains(recorder.Body.String(), "Alice") || strings.Contains(recorder.Body.String(), "Internal") {
+		t.Fatalf("phone-filtered body = %d %s, want only Bob", recorder.Code, recorder.Body.String())
 	}
 }
 

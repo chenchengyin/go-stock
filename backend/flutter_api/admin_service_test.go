@@ -57,6 +57,65 @@ func TestAdminServiceAuthenticateRejectsExpiredToken(t *testing.T) {
 	assertAuthError(t, err, 401, "ADMIN_UNAUTHENTICATED", "管理员未登录")
 }
 
+func TestAdminServiceLoginPrunesExpiredTokensAndCapsActiveTokens(t *testing.T) {
+	auth := newTestAuthService(t)
+	service := NewAdminService(auth.dao, nil)
+	nowValue := auth.nowValue
+	service.now = func() time.Time {
+		return nowValue
+	}
+	nextToken := 0
+	service.newToken = func() (string, error) {
+		nextToken++
+		return "admin-token-" + string(rune('a'+nextToken)), nil
+	}
+
+	for i := 0; i < adminSessionLimit+1; i++ {
+		if _, err := service.Login(context.Background(), AdminLoginInput{Username: "admin", Password: "admin"}); err != nil {
+			t.Fatalf("login %d: %v", i, err)
+		}
+	}
+
+	nowValue = nowValue.Add(adminSessionTTL + time.Second)
+	if _, err := service.Login(context.Background(), AdminLoginInput{Username: "admin", Password: "admin"}); err != nil {
+		t.Fatalf("login after expiration: %v", err)
+	}
+
+	service.mu.RLock()
+	activeTokens := len(service.tokens)
+	service.mu.RUnlock()
+	if activeTokens != 1 {
+		t.Fatalf("stored admin tokens = %d, want only the current token after pruning", activeTokens)
+	}
+}
+
+func TestAdminServiceDisableRevokesSessionsAndNotifies(t *testing.T) {
+	auth := newTestAuthService(t)
+	registered, err := auth.Register(context.Background(), RegisterInput{
+		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	var callbackUserID string
+	var callbackSessionIDs []string
+	service := NewAdminService(auth.dao, func(userID string, sessionIDs []string) {
+		callbackUserID = userID
+		callbackSessionIDs = append([]string(nil), sessionIDs...)
+	})
+	if _, err := service.UpdateUserStatus(context.Background(), registered.User.ID, authStatusDisabled); err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+
+	if callbackUserID != registered.User.ID {
+		t.Fatalf("callback user id = %q, want %q", callbackUserID, registered.User.ID)
+	}
+	if len(callbackSessionIDs) != 1 || callbackSessionIDs[0] != "id-2" {
+		t.Fatalf("callback session ids = %v, want [id-2]", callbackSessionIDs)
+	}
+}
+
 type testAdminService struct {
 	*AdminService
 	nowValue time.Time
