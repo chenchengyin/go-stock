@@ -105,7 +105,7 @@ func (s *AdminService) Authenticate(rawToken string) error {
 }
 
 func (s *AdminService) ListUsers(ctx context.Context, keyword string) (*AdminUserList, error) {
-	query := s.dao.WithContext(ctx).Where("role = ?", adminRoleManaged)
+	query := s.dao.WithContext(ctx).Model(&AuthUser{}).Where("role = ?", adminRoleManaged)
 	keyword = strings.TrimSpace(keyword)
 	if keyword != "" {
 		like := "%" + keyword + "%"

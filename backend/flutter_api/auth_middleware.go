@@ -10,6 +10,7 @@ import (
 type authPrincipalContextKey struct{}
 
 var publicPaths = map[string]bool{
+	"/api/admin/login":   true,
 	"/api/auth/register": true,
 	"/api/auth/login":    true,
 	"/api/health":        true,
@@ -40,6 +41,9 @@ func RequireAuth(service *AuthService, next http.Handler) http.Handler {
 
 func isProtectedPath(path string) bool {
 	if publicPaths[path] {
+		return false
+	}
+	if path == "/api/admin" || strings.HasPrefix(path, "/api/admin/") {
 		return false
 	}
 	return path == "/api" || strings.HasPrefix(path, "/api/") ||
