@@ -1,12 +1,13 @@
 <script setup>
 import {
-  EventsEmit,
-  EventsOff,
-  EventsOn,
-  Quit,Hide ,
-  WindowFullscreen,
-  WindowUnfullscreen,
-  WindowSetTitle
+  EventsEmit as WailsEventsEmit,
+  EventsOff as WailsEventsOff,
+  EventsOn as WailsEventsOn,
+  Quit as WailsQuit,
+  Hide as WailsHide,
+  WindowFullscreen as WailsWindowFullscreen,
+  WindowUnfullscreen as WailsWindowUnfullscreen,
+  WindowSetTitle as WailsWindowSetTitle
 } from '../wailsjs/runtime'
 import {h, onBeforeMount, onBeforeUnmount, onMounted, ref} from "vue";
 import {RouterLink, useRouter} from 'vue-router'
@@ -38,6 +39,57 @@ import {LocalFireDepartmentRound} from "@vicons/material";
 import {AppsList20Regular, BoxSearch20Regular,SlideHide24Filled, CommentNote20Filled} from "@vicons/fluent";
 import {FireFilled, MoneyCollectOutlined, NotificationFilled, StockOutlined} from "@vicons/antd";
 
+
+const wailsAvailable = typeof window !== 'undefined'
+    && Boolean(window.runtime && window.go?.main?.App)
+
+function EventsEmit(...args) {
+  if (wailsAvailable) {
+    return WailsEventsEmit(...args)
+  }
+}
+
+function EventsOn(...args) {
+  if (wailsAvailable) {
+    return WailsEventsOn(...args)
+  }
+}
+
+function EventsOff(...args) {
+  if (wailsAvailable) {
+    return WailsEventsOff(...args)
+  }
+}
+
+function WindowSetTitle(...args) {
+  if (wailsAvailable) {
+    return WailsWindowSetTitle(...args)
+  }
+}
+
+function WindowFullscreen(...args) {
+  if (wailsAvailable) {
+    return WailsWindowFullscreen(...args)
+  }
+}
+
+function WindowUnfullscreen(...args) {
+  if (wailsAvailable) {
+    return WailsWindowUnfullscreen(...args)
+  }
+}
+
+function Quit(...args) {
+  if (wailsAvailable) {
+    return WailsQuit(...args)
+  }
+}
+
+function Hide(...args) {
+  if (wailsAvailable) {
+    return WailsHide(...args)
+  }
+}
 
 
 
@@ -89,6 +141,11 @@ function refreshMotto() {
 }
 
 function updateMarketStatus() {
+  if (!wailsAvailable) {
+    marketStatus.value = '后台管理模式'
+    return
+  }
+
   Promise.all([
     IsTradingTime().catch(() => false),
     IsHKTradingTime().catch(() => false),
@@ -1034,6 +1091,10 @@ window.onerror = function (msg, source, lineno, colno, error) {
 };
 
 onBeforeMount(() => {
+  if (!wailsAvailable) {
+    return
+  }
+
   GetVersionInfo().then(result => {
     if(result.officialStatement){
       content.value = result.officialStatement+"\n\n"+content.value
@@ -1112,12 +1173,18 @@ onBeforeMount(() => {
 })
 
 onMounted(() => {
+  contentStyle.value = "max-height: calc(92vh);overflow: hidden"
+  if (!wailsAvailable) {
+    loading.value = false
+    loadingMsg.value = "加载完成..."
+    return
+  }
+
   updateMarketStatus()
   marketStatusTimer = setInterval(() => {
     refreshMotto()
     updateMarketStatus()
   }, 60000)
-  contentStyle.value = "max-height: calc(92vh);overflow: hidden"
   GetConfig().then((res) => {
     if (res.enableNews) {
       enableNews.value = true
@@ -1184,7 +1251,7 @@ onMounted(() => {
                 :rotate="-15"
             >
 <!--              <FloatingAiAssistant />-->
-              <FloatingAgentAssistant />
+              <FloatingAgentAssistant v-if="wailsAvailable" />
               <n-flex>
                 <n-grid x-gap="12" :cols="1">
                   <n-gi>
