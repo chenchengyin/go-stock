@@ -26,7 +26,7 @@ import {
   SettingsOutline, ServerOutline, Skull, SkullOutline, SkullSharp,
   SparklesOutline, FlashOutline, Star,
   StarOutline,
-  StatsChartOutline,
+  StatsChartOutline, PeopleOutline,
   Wallet, WarningOutline, TimeOutline, SearchOutline,
 } from '@vicons/ionicons5'
 import {AnalyzeSentiment, GetConfig, GetGroupList, GetVersionInfo, IsTradingTime, IsHKTradingTime, IsUSTradingTime} from "../wailsjs/go/main/App";
@@ -875,6 +875,21 @@ const menuOptions = ref([
         ),
     key: 'settings',
     icon: renderIcon(SettingsOutline),
+  },
+  {
+    label: () =>
+        h(
+            RouterLink,
+            {
+              to: {name: 'admin'},
+              onClick: () => {
+                activeKey.value = 'admin'
+              },
+            },
+            {default: () => '后台管理'}
+        ),
+    key: 'admin',
+    icon: renderIcon(PeopleOutline),
   },
   {
     label: () =>
