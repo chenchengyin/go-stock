@@ -2,7 +2,11 @@
 import {computed, h, onMounted, ref} from 'vue'
 import {NButton, NTag, useDialog, useMessage} from 'naive-ui'
 
-const apiBaseUrl = 'http://localhost:8080'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || (() => {
+  const url = new URL(window.location.origin)
+  url.port = '8080'
+  return url.origin
+})()
 const adminTokenKey = 'adminAccessToken'
 
 const message = useMessage()
