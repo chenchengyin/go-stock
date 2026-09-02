@@ -70,4 +70,181 @@ void main() {
     expect(clipboard?.text, '600519');
     expect(find.text('股票代码已复制'), findsOneWidget);
   });
+
+  testWidgets('蓝策位于主板策略右侧并显示蓝灯数量', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_announcement_asked': true,
+    });
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
+        {'股票代码': '600002.XSHG', '股票名称': '绿股', '买入信号': 'green'},
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    final tabs = tester.widgetList<Tab>(find.byType(Tab)).toList();
+    expect(tabs.map((tab) => tab.text).toList(), [
+      '监控股票(自选)',
+      '主板策略(2)',
+      '蓝策(1)',
+      '自选异动',
+      '全市场',
+    ]);
+    disposeVms();
+  });
+
+  testWidgets('蓝策只显示蓝灯股票并保留策略卡片行为', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_announcement_asked': true,
+    });
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '蓝股',
+          '买入信号': 'blue',
+        },
+        {
+          '股票代码': '600002.XSHG',
+          '股票名称': '绿股',
+          '买入信号': 'green',
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('蓝策(1)'));
+    await tester.pumpAndSettle();
+
+    expect(strategyVm.loadAvailableDatesCalls, 1);
+    expect(strategyVm.loadResultsCalls, 1);
+    expect(find.text('蓝股'), findsOneWidget);
+    expect(find.text('绿股'), findsNothing);
+    expect(find.byTooltip('复制股票代码'), findsOneWidget);
+
+    await tester.tap(find.text('主板策略(2)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('蓝策(1)'));
+    await tester.pumpAndSettle();
+    expect(strategyVm.loadAvailableDatesCalls, 1);
+    expect(strategyVm.loadResultsCalls, 1);
+    disposeVms();
+  });
+
+  testWidgets('滑动进入蓝策也只初始化一次', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_announcement_asked': true,
+    });
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    final tabBarView = find.byType(TabBarView);
+    await tester.drag(tabBarView, const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(tabBarView, const Offset(-600, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('蓝股'), findsOneWidget);
+    expect(strategyVm.loadAvailableDatesCalls, 1);
+    expect(strategyVm.loadResultsCalls, 1);
+    disposeVms();
+  });
+}
+
+class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
+  int loadAvailableDatesCalls = 0;
+  int loadResultsCalls = 0;
+
+  @override
+  Future<void> warmUpIfNeeded() async {}
+
+  @override
+  Future<void> loadAvailableDates() async {
+    loadAvailableDatesCalls++;
+  }
+
+  @override
+  Future<void> loadResults({String? date, bool archived = false}) async {
+    loadResultsCalls++;
+  }
 }

@@ -69,7 +69,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _tabController.addListener(_onTabChanged);
     _radarViewModel = context.read<RadarViewModel>();
     _bindVoiceAnnouncement();
@@ -84,21 +84,23 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   }
 
   void _onTabChanged() {
-    if (!_tabController.indexIsChanging) return;
+    if (!_tabController.indexIsChanging && _tabController.offset != 0) {
+      return;
+    }
     _lazyLoadIfNeeded(_tabController.index);
   }
 
   void _lazyLoadIfNeeded(int index) {
     final vm = context.read<RadarViewModel>();
-    if (index == 1 && !_strategyLoaded) {
+    if ((index == 1 || index == 2) && !_strategyLoaded) {
       _strategyLoaded = true;
       final t0Vm = context.read<T0StrategyViewModel>();
       t0Vm.loadAvailableDates();
       t0Vm.loadResults();
-    } else if (index == 2 && !_watchLoaded) {
+    } else if (index == 3 && !_watchLoaded) {
       _watchLoaded = true;
       vm.loadWatchChanges();
-    } else if (index == 3 && !_allLoaded) {
+    } else if (index == 4 && !_allLoaded) {
       _allLoaded = true;
       vm.loadAllChanges();
     }
@@ -224,7 +226,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     AppColors.of(context);
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           centerTitle: true,
@@ -240,12 +242,24 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             preferredSize: const Size.fromHeight(44),
             child: Container(
               color: AppColors.appBarBg,
-              child: Selector<T0StrategyViewModel, int>(
-                selector: (_, vm) => vm.results.length,
-                builder: (_, count, __) {
-                  final strategyLabel = count > 0 ? '主板策略($count)' : '主板策略';
+              child: Selector<
+                T0StrategyViewModel,
+                ({int mainCount, int blueCount})
+              >(
+                selector: (_, vm) => (
+                  mainCount: vm.results.length,
+                  blueCount: vm.blueResults.length,
+                ),
+                builder: (_, counts, __) {
+                  final strategyLabel = counts.mainCount > 0
+                      ? '主板策略(${counts.mainCount})'
+                      : '主板策略';
+                  final blueLabel = counts.blueCount > 0
+                      ? '蓝策(${counts.blueCount})'
+                      : '蓝策';
                   return TabBar(
                     controller: _tabController,
+                    isScrollable: true,
                     labelColor: AppColors.brand,
                     unselectedLabelColor: AppColors.textTertiary,
                     indicatorColor: AppColors.brand,
@@ -257,6 +271,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                     tabs: [
                       const Tab(text: '监控股票(自选)'),
                       Tab(text: strategyLabel),
+                      Tab(text: blueLabel),
                       const Tab(text: '自选异动'),
                       const Tab(text: '全市场'),
                     ],
@@ -279,7 +294,13 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               builder: (_, vm, __) =>
                   SelectionArea(child: _buildStrategyTab(vm)),
             ),
-            // ─── Tab ③ 自选异动 ──────────────────────────────
+            // ─── Tab ③ 蓝策 ─────────────────────────────────
+            Consumer<T0StrategyViewModel>(
+              builder: (_, vm, __) => SelectionArea(
+                child: _buildStrategyTab(vm, blueOnly: true),
+              ),
+            ),
+            // ─── Tab ④ 自选异动 ──────────────────────────────
             Selector<
               RadarViewModel,
               ({List<StockChange> changes, bool loading})
@@ -295,7 +316,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 emptyText: '暂无持仓异动',
               ),
             ),
-            // ─── Tab ④ 全市场 ────────────────────────────────
+            // ─── Tab ⑤ 全市场 ────────────────────────────────
             Selector<
               RadarViewModel,
               ({List<StockChange> changes, bool loading})
@@ -727,7 +748,12 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStrategyTab(T0StrategyViewModel vm) {
+  Widget _buildStrategyTab(
+    T0StrategyViewModel vm, {
+    bool blueOnly = false,
+  }) {
+    final stocks = blueOnly ? vm.blueResults : vm.results;
+    final emptyText = blueOnly ? '暂无蓝色灯股票' : '暂无符合条件的股票';
     final wp = vm.warmProgress;
 
     // 预热进度 / 等待中
@@ -837,10 +863,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               children: [
                 _buildStrategyDateBar(vm),
                 Expanded(
-                  child: vm.results.isEmpty
+                  child: stocks.isEmpty
                       ? Center(
                           child: Text(
-                            '暂无符合条件的股票',
+                            emptyText,
                             style: TextStyle(
                               fontSize: 14,
                               color: AppColors.textTertiary,
@@ -852,9 +878,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                             horizontal: 16,
                             vertical: 8,
                           ),
-                          itemCount: vm.results.length,
+                          itemCount: stocks.length,
                           itemBuilder: (_, i) => _buildStrategyCard(
-                            vm.results[i],
+                            stocks[i],
                             preview: vm.showingCandidatePreview,
                           ),
                         ),
