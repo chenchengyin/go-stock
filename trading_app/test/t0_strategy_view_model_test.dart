@@ -140,6 +140,60 @@ void main() {
     expect(s.patternEarnPct, closeTo(44.4, 0.01));
   });
 
+  test('blueResults：只返回 blue 并保持主板策略顺序', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+
+    vm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '绿股', '买入信号': 'green'},
+        {'股票代码': '600002.XSHG', '股票名称': '蓝股一', '买入信号': 'blue'},
+        {'股票代码': '600003.XSHG', '股票名称': '蓝股二', '买入信号': 'blue'},
+        {'股票代码': '600004.XSHG', '股票名称': '无信号股'},
+      ],
+    });
+
+    expect(vm.blueResults.map((s) => s.rawCode).toList(), ['600002', '600003']);
+    expect(vm.results.map((s) => s.rawCode).toList(), [
+      '600001',
+      '600002',
+      '600003',
+      '600004',
+    ]);
+    expect(() => vm.blueResults.clear(), throwsUnsupportedError);
+  });
+
+  test('blueResults：候选预览和历史归档均只保留 blue', () {
+    final previewVm = T0StrategyViewModel(
+      now: () => DateTime.utc(2026, 9, 2, 1, 20),
+    );
+    addTearDown(previewVm.dispose);
+    previewVm.applyResponseForTest(
+      _candidateReady(
+        date: '2026-09-02',
+        candidates: [
+          {'股票代码': '600010.XSHG', '股票名称': '蓝色候选', '买入信号': 'blue'},
+          {'股票代码': '600011.XSHG', '股票名称': '绿色候选', '买入信号': 'green'},
+        ],
+      ),
+    );
+
+    final archiveVm = T0StrategyViewModel();
+    addTearDown(archiveVm.dispose);
+    archiveVm.applyResponseForTest({
+      'archived': true,
+      'date': '2026-09-01',
+      'results': [
+        {'股票代码': '600020.XSHG', '股票名称': '历史蓝股', '买入信号': 'blue'},
+        {'股票代码': '600021.XSHG', '股票名称': '历史红股', '买入信号': 'red'},
+      ],
+    });
+
+    expect(previewVm.blueResults.map((s) => s.rawCode).toList(), ['600010']);
+    expect(archiveVm.blueResults.map((s) => s.rawCode).toList(), ['600020']);
+  });
+
   test('warming 响应解析 backfill_date 与 backfill_phase', () {
     final vm = T0StrategyViewModel();
     vm.applyResponseForTest({
