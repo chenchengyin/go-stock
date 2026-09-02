@@ -1185,7 +1185,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
     return RefreshIndicator(
       onRefresh: () async {
-        if (_tabController.index == 1) {
+        if (_tabController.index == 3) {
           await vm.loadWatchChanges();
         } else {
           await vm.loadAllChanges();

@@ -8,6 +8,7 @@ import 'package:trading_app/features/radar/domain/voice_announcement_view_model.
 import 'package:trading_app/features/radar/presentation/radar_list/radar_page.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
+import 'package:trading_app/features/radar/domain/radar_models.dart';
 
 void main() {
   testWidgets('主板策略页内容支持文本选择', (tester) async {
@@ -229,6 +230,65 @@ void main() {
     expect(strategyVm.loadResultsCalls, 1);
     disposeVms();
   });
+
+  testWidgets('自选异动下拉刷新仍调用自选异动接口', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_announcement_asked': true,
+    });
+    final radarVm = _NoNetworkRadarViewModel();
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+    addTearDown(disposeVms);
+
+    radarVm.watchChanges = List.generate(
+      20,
+      (index) => StockChange(
+        id: index + 1,
+        changeTime: '09:${(30 + index).toString().padLeft(2, '0')}:00',
+        changeDate: '2026-09-02',
+        stockCode: 'sh600001',
+        stockName: '测试股',
+        changeType: 1,
+        typeName: '测试异动',
+        price: 10,
+        changeRate: 1,
+        volume: 100,
+        amount: 1000,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<RadarViewModel>.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('自选异动'));
+    await tester.pumpAndSettle();
+    final refreshIndicator = tester.widget<RefreshIndicator>(
+      find.byType(RefreshIndicator).first,
+    );
+    await refreshIndicator.onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(radarVm.watchChangesCalls, 2);
+    expect(radarVm.allChangesCalls, 0);
+    disposeVms();
+  });
 }
 
 class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
@@ -246,5 +306,22 @@ class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
   @override
   Future<void> loadResults({String? date, bool archived = false}) async {
     loadResultsCalls++;
+  }
+}
+
+class _NoNetworkRadarViewModel extends RadarViewModel {
+  _NoNetworkRadarViewModel() : super(RadarRepositoryImpl());
+
+  int watchChangesCalls = 0;
+  int allChangesCalls = 0;
+
+  @override
+  Future<void> loadWatchChanges() async {
+    watchChangesCalls++;
+  }
+
+  @override
+  Future<void> loadAllChanges() async {
+    allChangesCalls++;
   }
 }
