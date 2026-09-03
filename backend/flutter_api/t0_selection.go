@@ -128,9 +128,10 @@ func initT0CacheRoot() error {
 
 // t0DailyCachePayload 按交易日落盘的股票池 + 日线缓存
 type t0DailyCachePayload struct {
-	TradeDate string
-	Stocks    []t0Stock
-	Daily     map[string][]dailyBar
+	TradeDate         string
+	Stocks            []t0Stock
+	Daily             map[string][]dailyBar
+	StockPoolComplete bool // 股票池分页已完整结束；旧缓存没有该标记，必须重新获取
 }
 
 // t0SelectionArchive 按日选股结果归档
@@ -192,8 +193,8 @@ func ensureT0CacheDirs() error {
 }
 
 func isT0DailyCacheFilePresent(tradeDate string) bool {
-	_, err := os.Stat(t0DailyCachePath(tradeDate))
-	return err == nil
+	_, ok := loadT0DailyCache(tradeDate)
+	return ok
 }
 
 func getT0WarmProgress(tradeDate string) t0WarmProgress {
@@ -242,7 +243,7 @@ func loadT0DailyCache(tradeDate string) (*t0DailyCachePayload, bool) {
 		logger.SugaredLogger.Warnf("[T0选股] 日线缓存解码失败 %s: %v", path, err)
 		return nil, false
 	}
-	if payload.TradeDate != tradeDate || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
+	if payload.TradeDate != tradeDate || !payload.StockPoolComplete || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
 		return nil, false
 	}
 	return &payload, true
@@ -253,9 +254,10 @@ func saveT0DailyCache(tradeDate string, stocks []t0Stock, daily map[string][]dai
 		return err
 	}
 	payload := t0DailyCachePayload{
-		TradeDate: tradeDate,
-		Stocks:    stocks,
-		Daily:     daily,
+		TradeDate:         tradeDate,
+		Stocks:            stocks,
+		Daily:             daily,
+		StockPoolComplete: true,
 	}
 	path := t0DailyCachePath(tradeDate)
 	tmp := path + ".tmp"
@@ -452,11 +454,11 @@ func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]
 	}
 
 	t1 := time.Now()
-	stocks = fetchStockPoolFromSina()
-	logger.SugaredLogger.Infof("[T0选股] 股票池(主板+市值): %d只 (%.1fs)", len(stocks), time.Since(t1).Seconds())
-	if len(stocks) == 0 {
-		return nil, nil, false, fmt.Errorf("股票池为空")
+	stocks, poolErr := fetchStockPoolFromSinaStrict()
+	if poolErr != nil {
+		return nil, nil, false, fmt.Errorf("股票池获取失败: %w", poolErr)
 	}
+	logger.SugaredLogger.Infof("[T0选股] 股票池(主板+市值): %d只 (%.1fs)", len(stocks), time.Since(t1).Seconds())
 
 	t2 := time.Now()
 	daily = fetchAllDailyKLine(stocks, tradeDate, nil)
@@ -513,20 +515,19 @@ func runT0PrewarmJob(tradeDate string) {
 		}
 	}()
 
-	stocks := fetchStockPoolFromSina()
+	stocks, poolErr := fetchStockPoolFromSinaStrict()
+	if poolErr != nil {
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.Status = t0WarmStatusFailed
+			p.Err = fmt.Sprintf("股票池获取失败: %v", poolErr)
+		})
+		return
+	}
 	updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 		p.StockCount = len(stocks)
 		p.DailyTotal = len(stocks)
 		p.DailyFetched = 0
 	})
-	if len(stocks) == 0 {
-		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
-			p.Status = t0WarmStatusFailed
-			p.Err = "股票池为空"
-		})
-		return
-	}
-
 	daily := fetchAllDailyKLine(stocks, tradeDate, func() {
 		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 			p.DailyFetched++
@@ -744,22 +745,22 @@ type t0Realtime struct {
 
 // T0SelectionResult 最终选股结果
 type T0SelectionResult struct {
-	Time         string  `json:"时间"`
-	OpenGap      float64 `json:"T0开盘涨幅(%)"`
-	CloseRet     float64 `json:"T0收盘涨幅(%)"`
-	LimitUpDates string  `json:"涨停日期"`
-	MA20         float64 `json:"MA20"`
-	AmountYi     float64 `json:"成交额(亿)"`
-	StockCode    string  `json:"股票代码"` // 如 600000.XSHG
-	StockName    string  `json:"股票名称"`
-	PrevClose    float64 `json:"前一交易日收盘"`
-	PrevCloseRet float64 `json:"前一交易日收盘涨幅(%)"`
-	Tag          string  `json:"标记"`
-	Pattern          string  `json:"形态"`
-	PatternT0N       int     `json:"形态样本数"`
-	PatternWinPct    float64 `json:"形态达标率(%)"`
-	PatternFailPct   float64 `json:"形态真亏率(%)"`
-	BuySignal        string  `json:"买入信号"`
+	Time           string  `json:"时间"`
+	OpenGap        float64 `json:"T0开盘涨幅(%)"`
+	CloseRet       float64 `json:"T0收盘涨幅(%)"`
+	LimitUpDates   string  `json:"涨停日期"`
+	MA20           float64 `json:"MA20"`
+	AmountYi       float64 `json:"成交额(亿)"`
+	StockCode      string  `json:"股票代码"` // 如 600000.XSHG
+	StockName      string  `json:"股票名称"`
+	PrevClose      float64 `json:"前一交易日收盘"`
+	PrevCloseRet   float64 `json:"前一交易日收盘涨幅(%)"`
+	Tag            string  `json:"标记"`
+	Pattern        string  `json:"形态"`
+	PatternT0N     int     `json:"形态样本数"`
+	PatternWinPct  float64 `json:"形态达标率(%)"`
+	PatternFailPct float64 `json:"形态真亏率(%)"`
+	BuySignal      string  `json:"买入信号"`
 }
 
 // t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05
@@ -974,6 +975,13 @@ func pickPrevDayTag(highRet, openRet, closeRet float64) string {
 
 // ── 股票池获取（新浪 API） ──────────────────────────────────────────────────
 
+const (
+	t0StockPoolPageSize    = 100
+	t0StockPoolMaxPages    = 100
+	t0StockPoolMaxAttempts = 3
+	t0StockPoolRetryDelay  = 100 * time.Millisecond
+)
+
 // sinaFlexibleFloat 兼容新浪 JSON 中 number / string 两种市值字段
 type sinaFlexibleFloat float64
 
@@ -1019,33 +1027,65 @@ func marketCapYiFromSina(nmc, mktcap float64) (float64, bool) {
 	return raw / 10000, true
 }
 
-func fetchStockPoolFromSina() []t0Stock {
+type sinaStockPoolItem struct {
+	Code   string            `json:"code"`
+	Name   string            `json:"name"`
+	Nmc    sinaFlexibleFloat `json:"nmc"`    // 流通市值(万元)
+	Mktcap sinaFlexibleFloat `json:"mktcap"` // 总市值(万元)
+}
+
+func fetchStockPoolPageFromSina(page int) ([]sinaStockPoolItem, error) {
 	const baseURL = "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/" +
-		"Market_Center.getHQNodeData?page=%d&num=100&sort=code&asc=1" +
+		"Market_Center.getHQNodeData?page=%d&num=%d&sort=code&asc=1" +
 		"&node=hs_a&symbol=&_s_r_a=page"
 
+	url := fmt.Sprintf(baseURL, page, t0StockPoolPageSize)
+	resp, err := data.SharedHTTPClient.R().
+		SetHeader("User-Agent", "Mozilla/5.0").
+		Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("请求第%d页: %w", page, err)
+	}
+	if resp.StatusCode() != http.StatusOK {
+		return nil, fmt.Errorf("第%d页 HTTP 状态码 %d", page, resp.StatusCode())
+	}
+
+	var items []sinaStockPoolItem
+	if err := json.Unmarshal(resp.Body(), &items); err != nil {
+		return nil, fmt.Errorf("解析第%d页: %w", page, err)
+	}
+	return items, nil
+}
+
+// fetchStockPoolWithPageFetcher 获取完整股票池。分页中途失败时不返回部分结果，
+// 避免调用方把半截列表误当成完整股票池写入日线缓存。
+func fetchStockPoolWithPageFetcher(fetchPage func(page int) ([]sinaStockPoolItem, error)) ([]t0Stock, error) {
 	var allStocks []t0Stock
 	mainBoardCount := 0
 
-	for page := 1; page <= 100; page++ {
-		url := fmt.Sprintf(baseURL, page)
-		resp, err := data.SharedHTTPClient.R().
-			SetHeader("User-Agent", "Mozilla/5.0").
-			Get(url)
-		if err != nil || resp.StatusCode() != 200 {
-			break
+	for page := 1; page <= t0StockPoolMaxPages; page++ {
+		var items []sinaStockPoolItem
+		var err error
+		for attempt := 1; attempt <= t0StockPoolMaxAttempts; attempt++ {
+			items, err = fetchPage(page)
+			if err == nil {
+				break
+			}
+			if attempt < t0StockPoolMaxAttempts {
+				logger.SugaredLogger.Warnf("[T0选股] 股票池第%d页第%d次请求失败: %v；%s后重试",
+					page, attempt, err, t0StockPoolRetryDelay)
+				time.Sleep(t0StockPoolRetryDelay * time.Duration(attempt))
+			}
+		}
+		if err != nil {
+			return nil, fmt.Errorf("股票池分页中断（第%d页，已尝试%d次）: %w",
+				page, t0StockPoolMaxAttempts, err)
 		}
 
-		var items []struct {
-			Code   string            `json:"code"`
-			Name   string            `json:"name"`
-			Nmc    sinaFlexibleFloat `json:"nmc"`    // 流通市值(万元)
-			Mktcap sinaFlexibleFloat `json:"mktcap"` // 总市值(万元)
-		}
-		if err := json.Unmarshal(resp.Body(), &items); err != nil {
-			break
-		}
 		if len(items) == 0 {
+			if page == 1 {
+				return nil, fmt.Errorf("股票池为空")
+			}
 			break
 		}
 
@@ -1074,14 +1114,35 @@ func fetchStockPoolFromSina() []t0Stock {
 			})
 		}
 
-		if len(items) < 100 {
+		if len(items) < t0StockPoolPageSize {
 			break
+		}
+		if page == t0StockPoolMaxPages {
+			return nil, fmt.Errorf("股票池超过最大分页数%d，未确认已完整获取", t0StockPoolMaxPages)
 		}
 	}
 
+	if len(allStocks) == 0 {
+		return nil, fmt.Errorf("股票池过滤后为空")
+	}
 	logger.SugaredLogger.Infof("[T0选股] 过滤1(主板+市值%.0f~%.0f亿): 主板%d只 -> 通过%d只",
 		t0MinMarketCapYi, t0MaxMarketCapYi, mainBoardCount, len(allStocks))
-	return allStocks
+	return allStocks, nil
+}
+
+func fetchStockPoolFromSinaStrict() ([]t0Stock, error) {
+	return fetchStockPoolWithPageFetcher(fetchStockPoolPageFromSina)
+}
+
+// fetchStockPoolFromSina 保留给离线重建测试等旧调用方；正式链路使用 strict 版本，
+// 失败时返回 nil 而不是可能误用的部分股票池。
+func fetchStockPoolFromSina() []t0Stock {
+	stocks, err := fetchStockPoolFromSinaStrict()
+	if err != nil {
+		logger.SugaredLogger.Warnf("[T0选股] 股票池获取失败，本次不使用部分结果: %v", err)
+		return nil
+	}
+	return stocks
 }
 
 // ── 日线 K 线获取 ──────────────────────────────────────────────────────────
