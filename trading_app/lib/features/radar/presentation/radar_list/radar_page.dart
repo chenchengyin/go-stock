@@ -685,8 +685,40 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     return null;
   }
 
-  Widget _buildStrategyDateBar(T0StrategyViewModel vm) {
+  List<String> _strategyDateOptions(
+    T0StrategyViewModel vm,
+    _StrategyListKind kind,
+  ) {
+    if (kind != _StrategyListKind.purple) return vm.dropdownDates;
+
+    final dates = vm.availableDates.take(7).toList();
+    final selectedDate = vm.selectedDate;
+    if (selectedDate != null && !vm.availableDates.contains(selectedDate)) {
+      dates.insert(0, selectedDate);
+    }
+    return dates.take(7).toList();
+  }
+
+  Widget _buildStrategyDateBar(
+    T0StrategyViewModel vm, {
+    _StrategyListKind kind = _StrategyListKind.main,
+  }) {
     if (!vm.showDateSelector) return const SizedBox.shrink();
+    final dropdownDates = _strategyDateOptions(vm, kind);
+    final selectedDate = dropdownDates.contains(vm.selectedDate)
+        ? vm.selectedDate
+        : null;
+    final selectedDateIndex = selectedDate == null
+        ? -1
+        : dropdownDates.indexOf(selectedDate);
+    final canGoPrevious = kind == _StrategyListKind.purple
+        ? selectedDateIndex >= 0 &&
+              selectedDateIndex + 1 < dropdownDates.length &&
+              !vm.loading
+        : vm.canGoPreviousArchive;
+    final canGoNext = kind == _StrategyListKind.purple
+        ? selectedDateIndex > 0 && !vm.loading
+        : vm.canGoNextArchive;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -699,8 +731,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 8),
           TextButton(
-            onPressed: vm.canGoPreviousArchive
-                ? vm.selectPreviousArchive
+            onPressed: canGoPrevious
+                ? kind == _StrategyListKind.purple
+                    ? () => vm.selectDate(dropdownDates[selectedDateIndex + 1])
+                    : vm.selectPreviousArchive
                 : null,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -711,7 +745,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               '前一天',
               style: TextStyle(
                 fontSize: 12,
-                color: vm.canGoPreviousArchive
+                color: canGoPrevious
                     ? AppColors.textSecondary
                     : AppColors.textSecondary.withValues(alpha: 0.4),
               ),
@@ -719,14 +753,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 4),
           DropdownButton<String>(
-            value: vm.selectedDate,
+            value: selectedDate,
+            hint: kind == _StrategyListKind.purple && selectedDate == null
+                ? const Text('选择最近七天')
+                : null,
             underline: const SizedBox.shrink(),
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
-            items: vm.dropdownDates
+            items: dropdownDates
                 .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                 .toList(),
             onChanged: (d) {
@@ -735,7 +772,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 4),
           TextButton(
-            onPressed: vm.canGoNextArchive ? vm.selectNextArchive : null,
+            onPressed: canGoNext
+                ? kind == _StrategyListKind.purple
+                    ? () => vm.selectDate(dropdownDates[selectedDateIndex - 1])
+                    : vm.selectNextArchive
+                : null,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               minimumSize: Size.zero,
@@ -745,7 +786,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               '后一天',
               style: TextStyle(
                 fontSize: 12,
-                color: vm.canGoNextArchive
+                color: canGoNext
                     ? AppColors.textSecondary
                     : AppColors.textSecondary.withValues(alpha: 0.4),
               ),
@@ -765,14 +806,23 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     T0StrategyViewModel vm, {
     _StrategyListKind kind = _StrategyListKind.main,
   }) {
+    final dateOptions = _strategyDateOptions(vm, kind);
+    final selectedDateInRange =
+        kind != _StrategyListKind.purple ||
+        vm.selectedDate == null ||
+        dateOptions.contains(vm.selectedDate);
     final stocks = switch (kind) {
       _StrategyListKind.main => vm.results,
-      _StrategyListKind.purple => vm.purpleResults,
+      _StrategyListKind.purple => selectedDateInRange
+          ? vm.purpleResults
+          : const <T0StrategyStock>[],
       _StrategyListKind.blue => vm.blueResults,
     };
     final emptyText = switch (kind) {
       _StrategyListKind.main => '暂无符合条件的股票',
-      _StrategyListKind.purple => '暂无符合紫策条件的股票',
+      _StrategyListKind.purple => selectedDateInRange
+          ? '暂无符合紫策条件的股票'
+          : '紫策仅支持最近七天，请选择日期',
       _StrategyListKind.blue => '暂无蓝色灯股票',
     };
     final wp = vm.warmProgress;
@@ -784,7 +834,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildStrategyDateBar(vm),
+            _buildStrategyDateBar(vm, kind: kind),
             Expanded(
               child: Center(
                 child: Padding(
@@ -882,7 +932,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildStrategyDateBar(vm),
+                _buildStrategyDateBar(vm, kind: kind),
                 Expanded(
                   child: stocks.isEmpty
                       ? Center(
@@ -903,6 +953,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           itemBuilder: (_, i) => _buildStrategyCard(
                             stocks[i],
                             preview: vm.showingCandidatePreview,
+                            kind: kind,
                           ),
                         ),
                 ),
@@ -973,13 +1024,20 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildStrategyCard(T0StrategyStock stock, {bool preview = false}) {
+  Widget _buildStrategyCard(
+    T0StrategyStock stock, {
+    bool preview = false,
+    required _StrategyListKind kind,
+  }) {
     final openUp = stock.openGap >= 0;
     final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
     final closeUp = stock.closeRet >= 0;
     final closeColor = closeUp
         ? AppColors.textPriceUp
         : AppColors.textPriceDown;
+    final tagLabel = stock.tag == '涨停破板'
+        ? (kind == _StrategyListKind.purple ? '皮' : '石皮')
+        : stock.tag;
     final livePct = stock.liveChangePercent ?? 0.0;
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
@@ -1005,7 +1063,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             if (stock.tag.isNotEmpty) ...[
               const SizedBox(width: 4),
               Text(
-                '[${stock.tag}]',
+                '[$tagLabel]',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -1047,7 +1105,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                   color: liveColor,
                 ),
               ),
-            ] else
+            ] else if (kind != _StrategyListKind.purple)
               Text(
                 '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
                 style: TextStyle(

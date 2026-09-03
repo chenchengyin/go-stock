@@ -72,6 +72,264 @@ void main() {
     expect(find.text('股票代码已复制'), findsOneWidget);
   });
 
+  testWidgets('涨停破板标签在 Flutter UI 中显示为石皮', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(() {
+      disposeVms();
+    });
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '破板股', '标记': '涨停破板'},
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('主板策略(1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('[石皮]'), findsOneWidget);
+    expect(find.text('[涨停破板]'), findsNothing);
+    disposeVms();
+  });
+
+  testWidgets('紫策只展示最近七个日期且不影响主板策略', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+
+    strategyVm.applyAvailableDatesForTest([
+      '2026-09-03',
+      '2026-09-02',
+      '2026-09-01',
+      '2026-08-31',
+      '2026-08-30',
+      '2026-08-29',
+      '2026-08-28',
+      '2026-08-27',
+    ]);
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策股',
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('紫策(1)'));
+    await tester.pumpAndSettle();
+    var dateDropdown = tester.widget<DropdownButton<String>>(
+      find.byType(DropdownButton<String>),
+    );
+    expect(dateDropdown.items, hasLength(7));
+
+    strategyVm.applyResponseForTest({
+      'archived': true,
+      'date': '2026-08-27',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策股',
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    });
+    await tester.pump();
+    dateDropdown = tester.widget<DropdownButton<String>>(
+      find.byType(DropdownButton<String>),
+    );
+    expect(dateDropdown.value, isNull);
+    expect(find.text('紫策仅支持最近七天，请选择日期'), findsOneWidget);
+
+    strategyVm.applyResponseForTest({
+      'archived': true,
+      'date': '2026-08-28',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策股',
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    });
+    await tester.pump();
+    final purplePreviousButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, '前一天'),
+    );
+    expect(purplePreviousButton.onPressed, isNull);
+
+    await tester.tap(find.text('主板策略(1)'));
+    await tester.pumpAndSettle();
+    dateDropdown = tester.widget<DropdownButton<String>>(
+      find.byType(DropdownButton<String>),
+    );
+    expect(dateDropdown.items, hasLength(8));
+    final mainPreviousButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, '前一天'),
+    );
+    expect(mainPreviousButton.onPressed, isNotNull);
+    disposeVms();
+  });
+
+  testWidgets('紫策的涨停破板标签显示为皮', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策破板股',
+          '标记': '涨停破板',
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('紫策(1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('[皮]'), findsOneWidget);
+    expect(find.text('[石皮]'), findsNothing);
+    disposeVms();
+  });
+
+  testWidgets('紫策隐藏开盘涨幅且主板策略仍显示', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策涨幅股',
+          'T0开盘涨幅(%)': 1.23,
+          'T0收盘涨幅(%)': 2.34,
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('紫策(1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('开盘+1.23%'), findsNothing);
+
+    await tester.tap(find.text('主板策略(1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('开盘+1.23%'), findsOneWidget);
+    disposeVms();
+  });
+
   testWidgets('蓝策位于主板策略右侧并显示蓝灯数量', (tester) async {
     SharedPreferences.setMockInitialValues({
       'voice_announcement_asked': true,
