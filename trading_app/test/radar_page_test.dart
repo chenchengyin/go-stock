@@ -27,7 +27,7 @@ void main() {
         child: MaterialApp(home: const RadarPage()),
       ),
     );
-    await tester.tap(find.byType(Tab).at(1));
+    await tester.tap(find.byType(Tab).at(2));
     await tester.pumpAndSettle();
 
     expect(find.byType(SelectionArea), findsOneWidget);
@@ -112,6 +112,7 @@ void main() {
     final tabs = tester.widgetList<Tab>(find.byType(Tab)).toList();
     expect(tabs.map((tab) => tab.text).toList(), [
       '监控股票(自选)',
+      '紫策',
       '主板策略(2)',
       '蓝策(1)',
       '自选异动',
@@ -120,10 +121,8 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('蓝策只显示蓝灯股票并保留策略卡片行为', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'voice_announcement_asked': true,
-    });
+  testWidgets('紫策位于主板策略左侧并只显示两个百分比均达标的股票', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
     final voiceVm = VoiceAnnouncementViewModel();
@@ -135,6 +134,7 @@ void main() {
       strategyVm.dispose();
       voiceVm.dispose();
     }
+
     addTearDown(disposeVms);
 
     strategyVm.applyResponseForTest({
@@ -142,14 +142,67 @@ void main() {
       'results': [
         {
           '股票代码': '600001.XSHG',
-          '股票名称': '蓝股',
-          '买入信号': 'blue',
+          '股票名称': '紫股',
+          '形态达标率(%)': 40.1,
+          '形态真亏率(%)': 39.9,
         },
-        {
-          '股票代码': '600002.XSHG',
-          '股票名称': '绿股',
-          '买入信号': 'green',
-        },
+        {'股票代码': '600002.XSHG', '股票名称': '非紫股', '形态达标率(%)': 40, '形态真亏率(%)': 20},
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider.value(value: voiceVm),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    final tabs = tester.widgetList<Tab>(find.byType(Tab)).toList();
+    expect(tabs.map((tab) => tab.text).toList(), [
+      '监控股票(自选)',
+      '紫策(1)',
+      '主板策略(2)',
+      '蓝策',
+      '自选异动',
+      '全市场',
+    ]);
+
+    await tester.tap(find.text('紫策(1)'));
+    await tester.pumpAndSettle();
+
+    expect(strategyVm.loadAvailableDatesCalls, 1);
+    expect(strategyVm.loadResultsCalls, 1);
+    expect(find.text('紫股'), findsOneWidget);
+    expect(find.text('非紫股'), findsNothing);
+    disposeVms();
+  });
+
+  testWidgets('蓝策只显示蓝灯股票并保留策略卡片行为', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = VoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
+        {'股票代码': '600002.XSHG', '股票名称': '绿股', '买入信号': 'green'},
       ],
     });
 
@@ -183,7 +236,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('滑动进入蓝策也只初始化一次', (tester) async {
+  testWidgets('切换进入蓝策也只初始化一次', (tester) async {
     SharedPreferences.setMockInitialValues({
       'voice_announcement_asked': true,
     });
@@ -220,9 +273,7 @@ void main() {
     await tester.pump();
 
     final tabBarView = find.byType(TabBarView);
-    await tester.drag(tabBarView, const Offset(-600, 0));
-    await tester.pumpAndSettle();
-    await tester.drag(tabBarView, const Offset(-600, 0));
+    tester.widget<TabBarView>(tabBarView).controller!.animateTo(3);
     await tester.pumpAndSettle();
 
     expect(find.text('蓝股'), findsOneWidget);

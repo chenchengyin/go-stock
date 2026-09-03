@@ -149,6 +149,12 @@ class T0StrategyViewModel extends ChangeNotifier {
   T0StrategyPhase _phase = T0StrategyPhase.waiting;
 
   List<T0StrategyStock> get results => _results;
+  List<T0StrategyStock> get purpleResults => List.unmodifiable(
+        _results.where(
+          (stock) =>
+              stock.patternWinPct > 40 && stock.patternEarnPct > 60,
+        ),
+      );
   List<T0StrategyStock> get blueResults =>
       List.unmodifiable(_results.where((stock) => stock.buySignal == 'blue'));
   bool get loading => _loading;

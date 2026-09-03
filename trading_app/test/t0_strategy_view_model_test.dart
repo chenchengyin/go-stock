@@ -194,6 +194,93 @@ void main() {
     expect(archiveVm.blueResults.map((s) => s.rawCode).toList(), ['600020']);
   });
 
+  test('purpleResults：达标率和赚率均严格超过阈值并保持主板策略顺序', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+
+    vm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫股一',
+          '形态达标率(%)': 40.01,
+          '形态真亏率(%)': 39.99,
+        },
+        {
+          '股票代码': '600002.XSHG',
+          '股票名称': '边界达标率',
+          '形态达标率(%)': 40,
+          '形态真亏率(%)': 20,
+        },
+        {'股票代码': '600003.XSHG', '股票名称': '边界赚率', '形态达标率(%)': 50, '形态真亏率(%)': 40},
+        {
+          '股票代码': '600004.XSHG',
+          '股票名称': '紫股二',
+          '形态达标率(%)': 41,
+          '形态真亏率(%)': 39.9,
+        },
+      ],
+    });
+
+    expect(vm.purpleResults.map((s) => s.rawCode).toList(), [
+      '600001',
+      '600004',
+    ]);
+    expect(vm.results.map((s) => s.rawCode).toList(), [
+      '600001',
+      '600002',
+      '600003',
+      '600004',
+    ]);
+    expect(() => vm.purpleResults.clear(), throwsUnsupportedError);
+  });
+
+  test('purpleResults：候选预览和历史归档均使用相同百分比过滤', () {
+    final previewVm = T0StrategyViewModel(
+      now: () => DateTime.utc(2026, 9, 2, 1, 20),
+    );
+    addTearDown(previewVm.dispose);
+    previewVm.applyResponseForTest(
+      _candidateReady(
+        date: '2026-09-02',
+        candidates: [
+          {
+            '股票代码': '600010.XSHG',
+            '股票名称': '紫色候选',
+            '形态达标率(%)': 40.1,
+            '形态真亏率(%)': 39.9,
+          },
+          {
+            '股票代码': '600011.XSHG',
+            '股票名称': '边界候选',
+            '形态达标率(%)': 40,
+            '形态真亏率(%)': 20,
+          },
+        ],
+      ),
+    );
+
+    final archiveVm = T0StrategyViewModel();
+    addTearDown(archiveVm.dispose);
+    archiveVm.applyResponseForTest({
+      'archived': true,
+      'date': '2026-09-01',
+      'results': [
+        {'股票代码': '600020.XSHG', '股票名称': '历史紫股', '形态达标率(%)': 45, '形态真亏率(%)': 35},
+        {
+          '股票代码': '600021.XSHG',
+          '股票名称': '历史普通股',
+          '形态达标率(%)': 45,
+          '形态真亏率(%)': 40,
+        },
+      ],
+    });
+
+    expect(previewVm.purpleResults.map((s) => s.rawCode).toList(), ['600010']);
+    expect(archiveVm.purpleResults.map((s) => s.rawCode).toList(), ['600020']);
+  });
+
   test('warming 响应解析 backfill_date 与 backfill_phase', () {
     final vm = T0StrategyViewModel();
     vm.applyResponseForTest({
