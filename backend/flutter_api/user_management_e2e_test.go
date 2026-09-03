@@ -34,6 +34,7 @@ func TestUserManagementSingleDeviceHTTPFlow(t *testing.T) {
 	if err := MigrateAuthTables(dao); err != nil {
 		t.Fatalf("migrate auth and user data: %v", err)
 	}
+	createAdminForTest(t, dao)
 	for table, want := range legacyCounts {
 		if got := countRows(t, dao, table); got != want {
 			t.Fatalf("%s rows after migration = %d, want %d", table, got, want)
@@ -69,7 +70,7 @@ func TestUserManagementSingleDeviceHTTPFlow(t *testing.T) {
 	assertHTTPStatus(t, protectedB, http.StatusOK)
 	assertPrincipalResponse(t, protectedB, deviceB.User.ID, "device-b")
 
-	otherAccount := registerThroughHTTP(t, handler, "13900000000", "Bob", "device-other")
+	otherAccount := registerThroughHTTP(t, handler, "13600000000", "Bob", "device-other")
 	seedOwnedData(t, dao, deviceB.User.ID, otherAccount.User.ID)
 
 	ownerSnapshot := requestOwnedData(t, handler, deviceB.AccessToken)
@@ -203,15 +204,12 @@ func registerThroughHTTP(t *testing.T, handler http.Handler, phone, nickname, de
 		t.Fatalf("registration response contains session fields: %s", responseJSON)
 	}
 
-	adminToken := loginAdminThroughHTTP(t, handler)
-	enable := serveE2ERequest(
-		t,
-		handler,
-		http.MethodPatch,
-		"/api/admin/users/"+registration.User.ID+"/status",
-		adminToken,
-		`{"status":"active"}`,
-	)
+	adminCookie := loginAdminThroughHTTP(t, handler)
+	adminRequest := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+registration.User.ID+"/status", strings.NewReader(`{"status":"active"}`))
+	adminRequest.Header.Set("Content-Type", "application/json")
+	adminRequest.AddCookie(adminCookie)
+	enable := httptest.NewRecorder()
+	handler.ServeHTTP(enable, adminRequest)
 	assertHTTPStatus(t, enable, http.StatusOK)
 	return loginThroughHTTP(t, handler, phone, deviceID)
 }
@@ -224,7 +222,7 @@ func loginThroughHTTP(t *testing.T, handler http.Handler, phone, deviceID string
 	return decodeSessionResponse(t, recorder)
 }
 
-func loginAdminThroughHTTP(t *testing.T, handler http.Handler) string {
+func loginAdminThroughHTTP(t *testing.T, handler http.Handler) *http.Cookie {
 	t.Helper()
 	recorder := serveE2ERequest(
 		t,
@@ -232,17 +230,14 @@ func loginAdminThroughHTTP(t *testing.T, handler http.Handler) string {
 		http.MethodPost,
 		"/api/admin/login",
 		"",
-		`{"username":"admin","password":"admin"}`,
+		`{"username":"13900000000","password":"secret123"}`,
 	)
 	assertHTTPStatus(t, recorder, http.StatusOK)
-	var response AdminSessionResponse
-	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
-		t.Fatalf("decode admin login: %v; body = %s", err, recorder.Body.String())
+	cookies := recorder.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != adminSessionCookieName || cookies[0].Value == "" {
+		t.Fatalf("admin login cookies = %+v", cookies)
 	}
-	if response.AccessToken == "" {
-		t.Fatal("admin login token is empty")
-	}
-	return response.AccessToken
+	return cookies[0]
 }
 
 func serveE2ERequest(t *testing.T, handler http.Handler, method, path, token, body string) *httptest.ResponseRecorder {

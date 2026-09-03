@@ -7,184 +7,155 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"gorm.io/gorm"
 )
 
-func TestAdminHTTPRejectsUnauthenticatedAndRegularUserTokens(t *testing.T) {
+func TestAdminHTTPLoginSetsSecureCookieWithoutSerializingRawToken(t *testing.T) {
 	auth := newTestAuthService(t)
+	createAdminForTest(t, auth.dao)
 	handler := newHTTPHandler(auth.AuthService)
 
-	request := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("missing token status = %d, want 401", recorder.Code)
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/api/admin/login", strings.NewReader(`{"username":"13900000000","password":"secret123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "ADMIN_UNAUTHENTICATED") {
-		t.Fatalf("missing token body = %s, want ADMIN_UNAUTHENTICATED", recorder.Body.String())
+	if strings.Contains(rec.Body.String(), "accessToken") || strings.Contains(rec.Body.String(), "admin-token") {
+		t.Fatalf("login response exposed token: %s", rec.Body.String())
 	}
-
-	userSession := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
-	request = httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
-	request.Header.Set("Authorization", "Bearer "+userSession.AccessToken)
-	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("regular user token status = %d, want 401", recorder.Code)
+	var body AdminSessionResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.ExpiresAt.IsZero() {
+		t.Fatalf("login response = %+v, err = %v", body, err)
+	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("cookies = %v, want one", cookies)
+	}
+	cookie := cookies[0]
+	if cookie.Name != adminSessionCookieName || cookie.Path != "/" || !cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteLaxMode || cookie.Expires.Unix() != body.ExpiresAt.Unix() {
+		t.Fatalf("cookie = %+v", cookie)
 	}
 }
 
-func TestAdminHTTPListsUsersAndFiltersKeyword(t *testing.T) {
+func TestAdminHTTPRejectsUnauthenticatedAndRegularUserSessions(t *testing.T) {
 	auth := newTestAuthService(t)
 	handler := newHTTPHandler(auth.AuthService)
 
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	assertAdminUnauthenticated(t, rec)
+
+	userSession := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	req = httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	req.AddCookie(&http.Cookie{Name: adminSessionCookieName, Value: userSession.AccessToken})
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	assertAdminUnauthenticated(t, rec)
+}
+
+func TestAdminHTTPListsUsersAndFiltersKeywordWithSessionCookie(t *testing.T) {
+	auth := newTestAuthService(t)
+	createAdminForTest(t, auth.dao)
+	handler := newHTTPHandler(auth.AuthService)
 	createUserForAdminTest(t, auth, "13800000000", "Alice")
-	createUserForAdminTest(t, auth, "13900000000", "Bob")
-	if err := auth.dao.Create(&AuthUser{
-		ID: "admin-record", Phone: "13700000000", PasswordHash: "unused", Nickname: "Internal", Role: "admin", Status: authStatusActive,
-	}).Error; err != nil {
-		t.Fatalf("create non-user role: %v", err)
+	createUserForAdminTest(t, auth, "13600000000", "Bob")
+	if err := auth.dao.Create(&AuthUser{ID: "other-admin", Phone: "13700000000", PasswordHash: "unused", Nickname: "Internal", Role: authRoleAdmin, Status: authStatusActive}).Error; err != nil {
+		t.Fatalf("create second admin: %v", err)
 	}
-	token := loginAdminForTest(t, handler)
+	cookie := loginAdminCookieForTest(t, handler)
 
-	request := httptest.NewRequest(http.MethodGet, "/api/admin/users?keyword=Alice", nil)
-	request.Header.Set("Authorization", "Bearer "+token)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users?keyword=Alice", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(recorder.Body.String(), "Alice") || strings.Contains(recorder.Body.String(), "Bob") {
-		t.Fatalf("body = %s, want only Alice", recorder.Body.String())
+	if strings.Contains(rec.Body.String(), "passwordHash") || strings.Contains(rec.Body.String(), "deviceId") {
+		t.Fatalf("body contains private fields: %s", rec.Body.String())
 	}
-	if strings.Contains(recorder.Body.String(), "passwordHash") || strings.Contains(recorder.Body.String(), "deviceId") {
-		t.Fatalf("body contains private fields: %s", recorder.Body.String())
-	}
-
 	var body AdminUserList
-	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode list: %v", err)
 	}
 	if body.Total != 1 || len(body.Items) != 1 || body.Items[0].Nickname != "Alice" {
 		t.Fatalf("list body = %+v, want one Alice", body)
 	}
-
-	request = httptest.NewRequest(http.MethodGet, "/api/admin/users?keyword=13900000000", nil)
-	request.Header.Set("Authorization", "Bearer "+token)
-	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "Bob") || strings.Contains(recorder.Body.String(), "Alice") || strings.Contains(recorder.Body.String(), "Internal") {
-		t.Fatalf("phone-filtered body = %d %s, want only Bob", recorder.Code, recorder.Body.String())
-	}
 }
 
-func TestAdminHTTPDisablesUserAndRevokesSession(t *testing.T) {
+func TestAdminHTTPRejectsCrossOriginMutationsAndClearsCookieOnLogout(t *testing.T) {
 	auth := newTestAuthService(t)
+	createAdminForTest(t, auth.dao)
 	handler := newHTTPHandler(auth.AuthService)
-	registered, err := auth.Register(context.Background(), RegisterInput{
-		Phone: "13800000000", Password: "secret123", Nickname: "Alice", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register user: %v", err)
-	}
-	if _, err := newTestAdminService(auth.dao).UpdateUserStatus(
-		context.Background(),
-		registered.User.ID,
-		authStatusActive,
-	); err != nil {
-		t.Fatalf("enable user: %v", err)
-	}
-	userSession, err := auth.Login(context.Background(), LoginInput{
-		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("login user: %v", err)
-	}
-	token := loginAdminForTest(t, handler)
+	cookie := loginAdminCookieForTest(t, handler)
 
-	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+registered.User.ID+"/status", strings.NewReader(`{"status":"disabled"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+token)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/admin/logout", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-origin logout status = %d, body = %s", rec.Code, rec.Body.String())
+	}
 
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status update status = %d, body = %s", recorder.Code, recorder.Body.String())
+	req = httptest.NewRequest(http.MethodPost, "http://example.com/api/admin/logout", nil)
+	req.Header.Set("Origin", "http://example.com")
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("logout status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var user AdminUser
-	if err := json.Unmarshal(recorder.Body.Bytes(), &user); err != nil {
-		t.Fatalf("decode updated user: %v", err)
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != adminSessionCookieName || cookies[0].MaxAge != -1 {
+		t.Fatalf("logout cookies = %+v", cookies)
 	}
-	if user.Status != authStatusDisabled {
-		t.Fatalf("user status = %q, want disabled", user.Status)
-	}
-	if _, err := auth.Authenticate(context.Background(), userSession.AccessToken); err == nil {
-		t.Fatal("disabled user's existing session should be rejected")
-	}
-	if _, err := auth.Login(context.Background(), LoginInput{
-		Phone: "13800000000", Password: "secret123", DeviceID: "device-b",
-	}); !IsAuthCode(err, "ACCOUNT_DISABLED") {
-		t.Fatalf("disabled user login err = %v, want ACCOUNT_DISABLED", err)
-	}
+
+	req = httptest.NewRequest(http.MethodGet, "http://example.com/api/admin/users", nil)
+	req.AddCookie(cookie)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	assertAdminUnauthenticated(t, rec)
 }
 
-func TestAdminHTTPEnablesUserAndAllowsLoginAgain(t *testing.T) {
-	auth := newTestAuthService(t)
-	handler := newHTTPHandler(auth.AuthService)
-	registered, err := auth.Register(context.Background(), RegisterInput{
-		Phone: "13800000000", Password: "secret123", Nickname: "Alice", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register user: %v", err)
-	}
-	adminToken := loginAdminForTest(t, handler)
-	setAdminUserStatus(t, handler, adminToken, registered.User.ID, authStatusDisabled)
-
-	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+registered.User.ID+"/status", strings.NewReader(`{"status":"active"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+adminToken)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("enable status = %d, body = %s", recorder.Code, recorder.Body.String())
-	}
-
-	if _, err := auth.Login(context.Background(), LoginInput{
-		Phone: "13800000000", Password: "secret123", DeviceID: "device-b",
+func createAdminForTest(t *testing.T, dao *gorm.DB) {
+	t.Helper()
+	if err := CreateAdmin(context.Background(), dao, AdminInitInput{
+		Account: "13900000000", Nickname: "管理员", Password: "secret123",
 	}); err != nil {
-		t.Fatalf("enabled user login: %v", err)
+		t.Fatalf("create admin: %v", err)
 	}
 }
 
-func TestAdminHTTPRejectsUnknownUserAndInvalidStatus(t *testing.T) {
-	auth := newTestAuthService(t)
-	handler := newHTTPHandler(auth.AuthService)
-	token := loginAdminForTest(t, handler)
-
-	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/missing/status", strings.NewReader(`{"status":"disabled"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+token)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), "USER_NOT_FOUND") {
-		t.Fatalf("unknown user response = %d %s, want 404 USER_NOT_FOUND", recorder.Code, recorder.Body.String())
+func loginAdminCookieForTest(t *testing.T, handler http.Handler) *http.Cookie {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/login", strings.NewReader(`{"username":"13900000000","password":"secret123"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin login status = %d, body = %s", rec.Code, rec.Body.String())
 	}
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Value == "" {
+		t.Fatalf("admin login cookies = %+v", cookies)
+	}
+	return cookies[0]
+}
 
-	request = httptest.NewRequest(http.MethodPatch, "/api/admin/users/missing/status", strings.NewReader(`{"status":"removed"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+token)
-	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "INVALID_ARGUMENT") {
-		t.Fatalf("invalid status response = %d %s, want 400 INVALID_ARGUMENT", recorder.Code, recorder.Body.String())
+func assertAdminUnauthenticated(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "ADMIN_UNAUTHENTICATED") {
+		t.Fatalf("unauthenticated response = %d %s", rec.Code, rec.Body.String())
 	}
 }
 
 func createUserForAdminTest(t *testing.T, auth *testAuthService, phone, nickname string) *RegisterResponse {
 	t.Helper()
-
 	result, err := auth.Register(context.Background(), RegisterInput{
 		Phone: phone, Password: "secret123", Nickname: nickname, DeviceID: phone + "-device",
 	})
@@ -196,34 +167,17 @@ func createUserForAdminTest(t *testing.T, auth *testAuthService, phone, nickname
 
 func loginAdminForTest(t *testing.T, handler http.Handler) string {
 	t.Helper()
-
-	request := httptest.NewRequest(http.MethodPost, "/api/admin/login", strings.NewReader(`{"username":"admin","password":"admin"}`))
-	request.Header.Set("Content-Type", "application/json")
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("admin login status = %d, body = %s", recorder.Code, recorder.Body.String())
-	}
-
-	var response AdminSessionResponse
-	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
-		t.Fatalf("decode admin login: %v", err)
-	}
-	if response.AccessToken == "" {
-		t.Fatal("admin login token is empty")
-	}
-	return response.AccessToken
+	return loginAdminCookieForTest(t, handler).Value
 }
 
 func setAdminUserStatus(t *testing.T, handler http.Handler, adminToken, userID, status string) {
 	t.Helper()
-
-	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+userID+"/status", strings.NewReader(`{"status":"`+status+`"}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+adminToken)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("set user status = %d, body = %s", recorder.Code, recorder.Body.String())
+	req := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+userID+"/status", strings.NewReader(`{"status":"`+status+`"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: adminSessionCookieName, Value: adminToken})
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("set user status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }

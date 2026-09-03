@@ -5,18 +5,16 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
-	adminUsername     = "admin"
-	adminPassword     = "admin"
-	adminSessionTTL   = 12 * time.Hour
-	adminSessionLimit = 32
-	adminRoleManaged  = authRoleUser
+	adminSessionTTL  = 12 * time.Hour
+	adminRoleManaged = authRoleUser
 )
 
 type AdminLoginInput struct {
@@ -25,8 +23,12 @@ type AdminLoginInput struct {
 }
 
 type AdminSessionResponse struct {
-	AccessToken string    `json:"accessToken"`
-	ExpiresAt   time.Time `json:"expiresAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+type AdminPrincipal struct {
+	UserID    string
+	SessionID string
 }
 
 type AdminUser struct {
@@ -47,88 +49,105 @@ type AdminUserList struct {
 type AdminService struct {
 	dao               *gorm.DB
 	onSessionsRevoked func(userID string, sessionIDs []string)
-
-	mu       sync.RWMutex
-	tokens   map[string]time.Time
-	now      func() time.Time
-	newToken func() (string, error)
+	now               func() time.Time
+	newID             func() (string, error)
+	newToken          func() (string, error)
 }
 
 func NewAdminService(dao *gorm.DB, onSessionsRevoked func(userID string, sessionIDs []string)) *AdminService {
-	return &AdminService{
-		dao:               dao,
-		onSessionsRevoked: onSessionsRevoked,
-		tokens:            make(map[string]time.Time),
-		now:               time.Now,
-		newToken:          newSecureHexToken,
-	}
+	return &AdminService{dao: dao, onSessionsRevoked: onSessionsRevoked, now: time.Now, newID: newSecureHexID, newToken: newSecureHexToken}
 }
 
-func (s *AdminService) Login(_ context.Context, input AdminLoginInput) (*AdminSessionResponse, error) {
-	if strings.TrimSpace(input.Username) != adminUsername || input.Password != adminPassword {
-		return nil, newAuthError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "管理员账号或密码错误")
+func (s *AdminService) Login(ctx context.Context, input AdminLoginInput) (string, *AdminSessionResponse, error) {
+	invalid := func() (string, *AdminSessionResponse, error) {
+		return "", nil, newAuthError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "管理员账号或密码错误")
 	}
-
+	username := strings.TrimSpace(input.Username)
+	if username == "" || input.Password == "" {
+		return invalid()
+	}
+	var user AuthUser
+	if err := s.dao.WithContext(ctx).First(&user, "phone = ?", username).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return invalid()
+		}
+		return "", nil, err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)) != nil || user.Role != authRoleAdmin || user.Status != authStatusActive {
+		return invalid()
+	}
 	rawToken, err := s.newToken()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-
+	sessionID, err := s.newID()
+	if err != nil {
+		return "", nil, err
+	}
 	now := s.now().UTC()
-	expiresAt := now.Add(adminSessionTTL)
-	s.mu.Lock()
-	s.pruneExpiredTokensLocked(now)
-	if len(s.tokens) >= adminSessionLimit {
-		s.removeEarliestTokenLocked()
+	session := AdminSession{ID: sessionID, UserID: user.ID, TokenHash: hashToken(rawToken), CreatedAt: now, LastSeenAt: now, ExpiresAt: now.Add(adminSessionTTL)}
+	if err := s.dao.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current AuthUser
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND role = ? AND status = ?", user.ID, authRoleAdmin, authStatusActive).First(&current).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return newAuthError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "管理员账号或密码错误")
+			}
+			return err
+		}
+		return tx.Create(&session).Error
+	}); err != nil {
+		return "", nil, err
 	}
-	s.tokens[hashToken(rawToken)] = expiresAt
-	s.mu.Unlock()
-
-	return &AdminSessionResponse{
-		AccessToken: rawToken,
-		ExpiresAt:   expiresAt,
-	}, nil
+	return rawToken, &AdminSessionResponse{ExpiresAt: session.ExpiresAt}, nil
 }
 
-func (s *AdminService) Authenticate(rawToken string) error {
-	rawToken = strings.TrimSpace(rawToken)
-	if rawToken == "" {
-		return newAuthError(http.StatusUnauthorized, "ADMIN_UNAUTHENTICATED", "管理员未登录")
+func (s *AdminService) Authenticate(ctx context.Context, rawToken string) (AdminPrincipal, error) {
+	invalid := func() (AdminPrincipal, error) {
+		return AdminPrincipal{}, newAuthError(http.StatusUnauthorized, "ADMIN_UNAUTHENTICATED", "管理员未登录")
 	}
-
-	tokenHash := hashToken(rawToken)
+	token := strings.TrimSpace(rawToken)
+	if token == "" {
+		return invalid()
+	}
+	var session AdminSession
+	if err := s.dao.WithContext(ctx).First(&session, "token_hash = ?", hashToken(token)).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return invalid()
+		}
+		return AdminPrincipal{}, err
+	}
+	if session.RevokedAt != nil {
+		return invalid()
+	}
 	now := s.now().UTC()
-	s.mu.Lock()
-	s.pruneExpiredTokensLocked(now)
-	_, ok := s.tokens[tokenHash]
-	if !ok {
-		s.mu.Unlock()
-		return newAuthError(http.StatusUnauthorized, "ADMIN_UNAUTHENTICATED", "管理员未登录")
+	if !session.ExpiresAt.After(now) {
+		if err := s.dao.WithContext(ctx).Model(&AdminSession{}).Where("id = ? AND revoked_at IS NULL", session.ID).Update("revoked_at", now).Error; err != nil {
+			return AdminPrincipal{}, err
+		}
+		return invalid()
 	}
-	s.mu.Unlock()
-	return nil
+	var user AuthUser
+	if err := s.dao.WithContext(ctx).First(&user, "id = ?", session.UserID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return invalid()
+		}
+		return AdminPrincipal{}, err
+	}
+	if user.Role != authRoleAdmin || user.Status != authStatusActive {
+		return invalid()
+	}
+	if err := s.dao.WithContext(ctx).Model(&AdminSession{}).Where("id = ? AND revoked_at IS NULL", session.ID).Update("last_seen_at", now).Error; err != nil {
+		return AdminPrincipal{}, err
+	}
+	return AdminPrincipal{UserID: session.UserID, SessionID: session.ID}, nil
 }
 
-func (s *AdminService) pruneExpiredTokensLocked(now time.Time) {
-	for tokenHash, expiresAt := range s.tokens {
-		if !now.Before(expiresAt) {
-			delete(s.tokens, tokenHash)
-		}
+func (s *AdminService) Logout(ctx context.Context, rawToken string) error {
+	token := strings.TrimSpace(rawToken)
+	if token == "" {
+		return nil
 	}
-}
-
-func (s *AdminService) removeEarliestTokenLocked() {
-	var oldestToken string
-	var oldestExpiry time.Time
-	for tokenHash, expiresAt := range s.tokens {
-		if oldestToken == "" || expiresAt.Before(oldestExpiry) {
-			oldestToken = tokenHash
-			oldestExpiry = expiresAt
-		}
-	}
-	if oldestToken != "" {
-		delete(s.tokens, oldestToken)
-	}
+	return s.dao.WithContext(ctx).Model(&AdminSession{}).Where("token_hash = ? AND revoked_at IS NULL", hashToken(token)).Update("revoked_at", s.now().UTC()).Error
 }
 
 func (s *AdminService) ListUsers(ctx context.Context, keyword string) (*AdminUserList, error) {
@@ -138,17 +157,14 @@ func (s *AdminService) ListUsers(ctx context.Context, keyword string) (*AdminUse
 		like := "%" + keyword + "%"
 		query = query.Where("phone LIKE ? OR nickname LIKE ?", like, like)
 	}
-
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
 	}
-
 	var users []AuthUser
 	if err := query.Order("created_at DESC").Find(&users).Error; err != nil {
 		return nil, err
 	}
-
 	items := make([]AdminUser, 0, len(users))
 	for _, user := range users {
 		items = append(items, toAdminUser(user))
@@ -161,7 +177,6 @@ func (s *AdminService) UpdateUserStatus(ctx context.Context, userID, status stri
 	if status != authStatusActive && status != authStatusDisabled {
 		return nil, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "用户状态不正确")
 	}
-
 	var user AuthUser
 	var revokedSessionIDs []string
 	now := s.now().UTC()
@@ -172,14 +187,9 @@ func (s *AdminService) UpdateUserStatus(ctx context.Context, userID, status stri
 			}
 			return err
 		}
-
-		if err := tx.Model(&AuthUser{}).Where("id = ?", userID).Updates(map[string]any{
-			"status":     status,
-			"updated_at": now,
-		}).Error; err != nil {
+		if err := tx.Model(&AuthUser{}).Where("id = ?", userID).Updates(map[string]any{"status": status, "updated_at": now}).Error; err != nil {
 			return err
 		}
-
 		if status == authStatusDisabled {
 			var err error
 			revokedSessionIDs, err = revokeActiveSessionsTx(tx, userID, now, "admin_disabled")
@@ -187,7 +197,6 @@ func (s *AdminService) UpdateUserStatus(ctx context.Context, userID, status stri
 				return err
 			}
 		}
-
 		user.Status = status
 		user.UpdatedAt = now
 		return nil
@@ -195,23 +204,13 @@ func (s *AdminService) UpdateUserStatus(ctx context.Context, userID, status stri
 	if err != nil {
 		return nil, err
 	}
-
 	if len(revokedSessionIDs) > 0 && s.onSessionsRevoked != nil {
 		s.onSessionsRevoked(user.ID, revokedSessionIDs)
 	}
-
 	result := toAdminUser(user)
 	return &result, nil
 }
 
 func toAdminUser(user AuthUser) AdminUser {
-	return AdminUser{
-		ID:        user.ID,
-		Phone:     user.Phone,
-		Nickname:  user.Nickname,
-		Role:      user.Role,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
+	return AdminUser{ID: user.ID, Phone: user.Phone, Nickname: user.Nickname, Role: user.Role, Status: user.Status, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
 }

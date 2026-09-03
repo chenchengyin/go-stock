@@ -138,6 +138,7 @@ func TestAuthHTTPRegisterLoginMeAndProfile(t *testing.T) {
 		t.Fatalf("register nickname = %q, want %q", registerBody.User.Nickname, "Alice")
 	}
 
+	createAdminForTest(t, service.dao)
 	adminToken := loginAdminForTest(t, handler)
 	setAdminUserStatus(t, handler, adminToken, registerBody.User.ID, authStatusActive)
 
@@ -219,6 +220,7 @@ func TestAuthHTTPOldTokenReturnsSessionReplaced(t *testing.T) {
 	if err := json.Unmarshal(registerRec.Body.Bytes(), &registration); err != nil {
 		t.Fatalf("decode registration: %v", err)
 	}
+	createAdminForTest(t, service.dao)
 	adminToken := loginAdminForTest(t, handler)
 	setAdminUserStatus(t, handler, adminToken, registration.User.ID, authStatusActive)
 

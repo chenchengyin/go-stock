@@ -8,88 +8,75 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestAdminServiceLoginAcceptsFixedCredentials(t *testing.T) {
+func TestAdminServiceLoginRejectsMissingWrongAndOrdinaryCredentialsIdentically(t *testing.T) {
 	auth := newTestAuthService(t)
-	service := newTestAdminService(auth.dao)
-
-	got, err := service.Login(context.Background(), AdminLoginInput{
-		Username: "admin",
-		Password: "admin",
-	})
-	if err != nil {
-		t.Fatalf("login: %v", err)
+	if _, err := auth.Register(context.Background(), RegisterInput{
+		Phone: "13800000000", Password: "secret123", Nickname: "User",
+	}); err != nil {
+		t.Fatalf("register ordinary user: %v", err)
 	}
-	if got.AccessToken != "admin-token" {
-		t.Fatalf("token = %q, want admin-token", got.AccessToken)
+	if err := CreateAdmin(context.Background(), auth.dao, AdminInitInput{
+		Account: "13900000000", Password: "secret123",
+	}); err != nil {
+		t.Fatalf("create admin: %v", err)
 	}
-	if got.ExpiresAt != service.now().Add(adminSessionTTL) {
-		t.Fatalf("expires at = %v, want %v", got.ExpiresAt, service.now().Add(adminSessionTTL))
-	}
-	if err := service.Authenticate(got.AccessToken); err != nil {
-		t.Fatalf("authenticate: %v", err)
-	}
-}
-
-func TestAdminServiceLoginRejectsWrongCredentials(t *testing.T) {
-	auth := newTestAuthService(t)
 	service := newTestAdminService(auth.dao)
 
 	for _, input := range []AdminLoginInput{
-		{Username: "root", Password: "admin"},
-		{Username: "admin", Password: "wrong"},
+		{Username: "missing", Password: "secret123"},
+		{Username: "13900000000", Password: "wrong"},
+		{Username: "13800000000", Password: "secret123"},
 	} {
-		if _, err := service.Login(context.Background(), input); !IsAuthCode(err, "INVALID_CREDENTIALS") {
+		if _, _, err := service.Login(context.Background(), input); !IsAuthCode(err, "INVALID_CREDENTIALS") {
 			t.Fatalf("login with %+v err = %v, want INVALID_CREDENTIALS", input, err)
 		}
 	}
 }
 
-func TestAdminServiceAuthenticateRejectsExpiredToken(t *testing.T) {
+func TestAdminServiceStoresOnlyTokenHashAndRejectsExpiredOrDisabledSessions(t *testing.T) {
 	auth := newTestAuthService(t)
+	if err := CreateAdmin(context.Background(), auth.dao, AdminInitInput{
+		Account: "13900000000", Password: "secret123",
+	}); err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
 	service := newTestAdminService(auth.dao)
-
-	if _, err := service.Login(context.Background(), AdminLoginInput{Username: "admin", Password: "admin"}); err != nil {
+	token, response, err := service.Login(context.Background(), AdminLoginInput{
+		Username: "13900000000", Password: "secret123",
+	})
+	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
+	if token != "admin-token" || response.ExpiresAt != service.now().Add(adminSessionTTL) {
+		t.Fatalf("login response = %q %+v", token, response)
+	}
+	var session AdminSession
+	if err := auth.dao.First(&session, "token_hash = ?", hashToken(token)).Error; err != nil {
+		t.Fatalf("load hashed session: %v", err)
+	}
+	if session.TokenHash == token {
+		t.Fatal("raw token was persisted")
+	}
+
 	service.nowValue = service.nowValue.Add(adminSessionTTL + time.Second)
-
-	err := service.Authenticate("admin-token")
-	assertAuthError(t, err, 401, "ADMIN_UNAUTHENTICATED", "管理员未登录")
-}
-
-func TestAdminServiceLoginPrunesExpiredTokensAndCapsActiveTokens(t *testing.T) {
-	auth := newTestAuthService(t)
-	service := NewAdminService(auth.dao, nil)
-	nowValue := auth.nowValue
-	service.now = func() time.Time {
-		return nowValue
-	}
-	nextToken := 0
-	service.newToken = func() (string, error) {
-		nextToken++
-		return "admin-token-" + string(rune('a'+nextToken)), nil
+	if _, err := service.Authenticate(context.Background(), token); !IsAuthCode(err, "ADMIN_UNAUTHENTICATED") {
+		t.Fatalf("expired session error = %v", err)
 	}
 
-	for i := 0; i < adminSessionLimit+1; i++ {
-		if _, err := service.Login(context.Background(), AdminLoginInput{Username: "admin", Password: "admin"}); err != nil {
-			t.Fatalf("login %d: %v", i, err)
-		}
+	service.nowValue = service.nowValue.Add(-adminSessionTTL - time.Second)
+	token, _, err = service.Login(context.Background(), AdminLoginInput{Username: "13900000000", Password: "secret123"})
+	if err != nil {
+		t.Fatalf("second login: %v", err)
 	}
-
-	nowValue = nowValue.Add(adminSessionTTL + time.Second)
-	if _, err := service.Login(context.Background(), AdminLoginInput{Username: "admin", Password: "admin"}); err != nil {
-		t.Fatalf("login after expiration: %v", err)
+	if err := auth.dao.Model(&AuthUser{}).Where("phone = ?", "13900000000").Update("status", authStatusDisabled).Error; err != nil {
+		t.Fatalf("disable admin: %v", err)
 	}
-
-	service.mu.RLock()
-	activeTokens := len(service.tokens)
-	service.mu.RUnlock()
-	if activeTokens != 1 {
-		t.Fatalf("stored admin tokens = %d, want only the current token after pruning", activeTokens)
+	if _, err := service.Authenticate(context.Background(), token); !IsAuthCode(err, "ADMIN_UNAUTHENTICATED") {
+		t.Fatalf("disabled session error = %v", err)
 	}
 }
 
-func TestAdminServiceDisableRevokesSessionsAndNotifies(t *testing.T) {
+func TestAdminServiceDisableRevokesOrdinaryUserSessionsAndNotifies(t *testing.T) {
 	auth := newTestAuthService(t)
 	registered, err := auth.Register(context.Background(), RegisterInput{
 		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
@@ -97,16 +84,10 @@ func TestAdminServiceDisableRevokesSessionsAndNotifies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if _, err := newTestAdminService(auth.dao).UpdateUserStatus(
-		context.Background(),
-		registered.User.ID,
-		authStatusActive,
-	); err != nil {
+	if _, err := newTestAdminService(auth.dao).UpdateUserStatus(context.Background(), registered.User.ID, authStatusActive); err != nil {
 		t.Fatalf("enable: %v", err)
 	}
-	if _, err := auth.Login(context.Background(), LoginInput{
-		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
-	}); err != nil {
+	if _, err := auth.Login(context.Background(), LoginInput{Phone: "13800000000", Password: "secret123", DeviceID: "device-a"}); err != nil {
 		t.Fatalf("login: %v", err)
 	}
 
@@ -119,12 +100,8 @@ func TestAdminServiceDisableRevokesSessionsAndNotifies(t *testing.T) {
 	if _, err := service.UpdateUserStatus(context.Background(), registered.User.ID, authStatusDisabled); err != nil {
 		t.Fatalf("disable: %v", err)
 	}
-
-	if callbackUserID != registered.User.ID {
-		t.Fatalf("callback user id = %q, want %q", callbackUserID, registered.User.ID)
-	}
-	if len(callbackSessionIDs) != 1 || callbackSessionIDs[0] != "id-2" {
-		t.Fatalf("callback session ids = %v, want [id-2]", callbackSessionIDs)
+	if callbackUserID != registered.User.ID || len(callbackSessionIDs) != 1 || callbackSessionIDs[0] != "id-2" {
+		t.Fatalf("callback = %q %v, want %q [id-2]", callbackUserID, callbackSessionIDs, registered.User.ID)
 	}
 }
 
@@ -134,18 +111,23 @@ type testAdminService struct {
 }
 
 func newTestAdminService(dao *gorm.DB) *testAdminService {
-	testService := &testAdminService{
-		nowValue: time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC),
-	}
-
+	testService := &testAdminService{nowValue: time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)}
 	service := NewAdminService(dao, nil)
-	service.now = func() time.Time {
-		return testService.nowValue
+	service.now = func() time.Time { return testService.nowValue }
+	nextSession := 0
+	service.newID = func() (string, error) {
+		nextSession++
+		if nextSession == 1 {
+			return "admin-session-id", nil
+		}
+		return "admin-session-id-" + string(rune('0'+nextSession)), nil
 	}
 	service.newToken = func() (string, error) {
-		return "admin-token", nil
+		if nextSession == 0 {
+			return "admin-token", nil
+		}
+		return "admin-token-" + string(rune('0'+nextSession+1)), nil
 	}
-
 	testService.AdminService = service
 	return testService
 }

@@ -94,6 +94,7 @@ func TestProtectedRouterKeepsRegisterLoginAndHealthPublic(t *testing.T) {
 	if err := json.Unmarshal(registerRec.Body.Bytes(), &registration); err != nil {
 		t.Fatalf("decode registration: %v", err)
 	}
+	createAdminForTest(t, service.dao)
 	adminToken := loginAdminForTest(t, handler)
 	setAdminUserStatus(t, handler, adminToken, registration.User.ID, authStatusActive)
 
