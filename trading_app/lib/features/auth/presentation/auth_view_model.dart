@@ -47,18 +47,30 @@ class AuthViewModel extends ChangeNotifier {
     );
   }
 
-  Future<void> register({
+  Future<RegistrationResult?> register({
     required String phone,
     required String password,
     required String nickname,
   }) async {
-    await _authenticate(
-      () => _repository.register(
+    state = const ViewState(status: ViewStatus.loading);
+    notifyListeners();
+    try {
+      final result = await _repository.register(
         phone: phone,
         password: password,
         nickname: nickname,
-      ),
-    );
+      );
+      state = const ViewState(status: ViewStatus.ready);
+      notifyListeners();
+      return result;
+    } catch (error) {
+      state = ViewState(
+        status: ViewStatus.error,
+        message: _messageForError(error),
+      );
+      notifyListeners();
+      return null;
+    }
   }
 
   Future<bool> updateNickname(String nickname) async {

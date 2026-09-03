@@ -108,14 +108,16 @@ class _RegisterPageState extends State<RegisterPage> {
                           _showToast('密码至少 6 位');
                           return;
                         }
-                        await auth.register(
+                        final result = await auth.register(
                           phone: _phoneController.text,
                           password: _passwordController.text,
                           nickname: _nicknameController.text,
                         );
-                        if (context.mounted &&
-                            auth.isLoggedIn &&
-                            Navigator.canPop(context)) {
+                        if (!context.mounted || result == null) {
+                          return;
+                        }
+                        await _showToast(result.message);
+                        if (context.mounted && Navigator.canPop(context)) {
                           Navigator.of(context).pop();
                         }
                       },
@@ -135,8 +137,8 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  void _showToast(String msg) {
-    showCupertinoDialog(
+  Future<void> _showToast(String msg) {
+    return showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: Text(msg),

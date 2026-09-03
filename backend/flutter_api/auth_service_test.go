@@ -8,24 +8,23 @@ import (
 	"time"
 )
 
-func TestAuthServiceRegisterCreatesUserAndSession(t *testing.T) {
+func TestAuthServiceRegisterCreatesDisabledUserWithoutSession(t *testing.T) {
 	service := newTestAuthService(t)
 
 	got, err := service.Register(context.Background(), RegisterInput{
 		Phone:    " 13800000000 ",
 		Password: "secret123",
 		Nickname: " ",
-		DeviceID: "device-a",
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
-	if got.AccessToken != "token-register" {
-		t.Fatalf("access token = %q, want %q", got.AccessToken, "token-register")
+	if got.Status != authStatusDisabled {
+		t.Fatalf("status = %q, want %q", got.Status, authStatusDisabled)
 	}
-	if got.ExpiresAt != service.now().Add(authSessionTTL) {
-		t.Fatalf("expires at = %v, want %v", got.ExpiresAt, service.now().Add(authSessionTTL))
+	if got.Message != "注册成功，请等待管理员启用后再登录" {
+		t.Fatalf("message = %q, want pending activation message", got.Message)
 	}
 	if got.User.Phone != "13800000000" {
 		t.Fatalf("phone = %q, want trimmed phone", got.User.Phone)
@@ -37,17 +36,6 @@ func TestAuthServiceRegisterCreatesUserAndSession(t *testing.T) {
 		t.Fatalf("role = %q, want %q", got.User.Role, authRoleUser)
 	}
 
-	principal, err := service.Authenticate(context.Background(), got.AccessToken)
-	if err != nil {
-		t.Fatalf("authenticate registered token: %v", err)
-	}
-	if principal.UserID != got.User.ID {
-		t.Fatalf("principal user = %q, want %q", principal.UserID, got.User.ID)
-	}
-	if principal.DeviceID != "device-a" {
-		t.Fatalf("principal device = %q, want %q", principal.DeviceID, "device-a")
-	}
-
 	var user AuthUser
 	if err := service.dao.WithContext(context.Background()).First(&user, "id = ?", got.User.ID).Error; err != nil {
 		t.Fatalf("load user: %v", err)
@@ -56,7 +44,10 @@ func TestAuthServiceRegisterCreatesUserAndSession(t *testing.T) {
 		t.Fatalf("password hash = %q, want bcrypt hash", user.PasswordHash)
 	}
 
-	assertActiveSessionCount(t, service, got.User.ID, 1)
+	if user.Status != authStatusDisabled {
+		t.Fatalf("stored status = %q, want %q", user.Status, authStatusDisabled)
+	}
+	assertActiveSessionCount(t, service, got.User.ID, 0)
 }
 
 func TestAuthServiceRegisterRejectsDuplicateAccount(t *testing.T) {
@@ -93,6 +84,46 @@ func TestAuthServiceRegisterReturnsStructuredValidationError(t *testing.T) {
 	})
 
 	assertAuthError(t, err, 400, "INVALID_ARGUMENT", "账号或密码格式不正确")
+}
+
+func TestAuthServiceDisabledUserCannotLogin(t *testing.T) {
+	service := newTestAuthService(t)
+
+	registered, err := service.Register(context.Background(), RegisterInput{
+		Phone:    "13800000000",
+		Password: "secret123",
+		Nickname: "A",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	_, err = service.Login(context.Background(), LoginInput{
+		Phone:    "13800000000",
+		Password: "secret123",
+		DeviceID: "device-a",
+	})
+	assertAuthError(t, err, 403, "ACCOUNT_DISABLED", "账号已禁用")
+	assertActiveSessionCount(t, service, registered.User.ID, 0)
+}
+
+func TestAuthServiceDisabledUserWrongPasswordIsInvalidCredentials(t *testing.T) {
+	service := newTestAuthService(t)
+
+	if _, err := service.Register(context.Background(), RegisterInput{
+		Phone:    "13800000000",
+		Password: "secret123",
+		Nickname: "A",
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	_, err := service.Login(context.Background(), LoginInput{
+		Phone:    "13800000000",
+		Password: "wrong-pass",
+		DeviceID: "device-a",
+	})
+	assertAuthError(t, err, 401, "INVALID_CREDENTIALS", "账号或密码错误")
 }
 
 func TestAuthServiceLoginRejectsInvalidCredentials(t *testing.T) {
@@ -134,6 +165,13 @@ func TestAuthServiceLoginPreservesPasswordWhitespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
+	if _, err := newTestAdminService(service.dao).UpdateUserStatus(
+		context.Background(),
+		registerResult.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable user: %v", err)
+	}
 
 	loggedIn, err := service.Login(context.Background(), LoginInput{
 		Phone:    "13800000000",
@@ -158,11 +196,26 @@ func TestAuthServiceLoginPreservesPasswordWhitespace(t *testing.T) {
 func TestAuthServiceNewLoginReplacesOldDevice(t *testing.T) {
 	service := newTestAuthService(t)
 
-	first, err := service.Register(context.Background(), RegisterInput{
+	firstRegistration, err := service.Register(context.Background(), RegisterInput{
 		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
+	}
+
+	if _, err := newTestAdminService(service.dao).UpdateUserStatus(
+		context.Background(),
+		firstRegistration.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable user: %v", err)
+	}
+
+	first, err := service.Login(context.Background(), LoginInput{
+		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("login from device a: %v", err)
 	}
 
 	second, err := service.Login(context.Background(), LoginInput{
@@ -213,23 +266,42 @@ func TestAuthServiceNewLoginReplacesOldDevice(t *testing.T) {
 func TestAuthServiceNewLoginDoesNotRevokeOtherUsers(t *testing.T) {
 	service := newTestAuthService(t)
 
-	first, err := service.Register(context.Background(), RegisterInput{
+	firstRegistration, err := service.Register(context.Background(), RegisterInput{
 		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
 	})
 	if err != nil {
 		t.Fatalf("register first: %v", err)
 	}
-	second, err := service.Register(context.Background(), RegisterInput{
+	secondRegistration, err := service.Register(context.Background(), RegisterInput{
 		Phone: "13900000000", Password: "secret123", Nickname: "B", DeviceID: "device-b",
 	})
 	if err != nil {
 		t.Fatalf("register second: %v", err)
 	}
 
+	admin := newTestAdminService(service.dao)
+	for _, userID := range []string{firstRegistration.User.ID, secondRegistration.User.ID} {
+		if _, err := admin.UpdateUserStatus(context.Background(), userID, authStatusActive); err != nil {
+			t.Fatalf("enable user %s: %v", userID, err)
+		}
+	}
+
+	first, err := service.Login(context.Background(), LoginInput{
+		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("login first: %v", err)
+	}
+	second, err := service.Login(context.Background(), LoginInput{
+		Phone: "13900000000", Password: "secret123", DeviceID: "device-b",
+	})
+	if err != nil {
+		t.Fatalf("login second: %v", err)
+	}
 	if _, err := service.Login(context.Background(), LoginInput{
 		Phone: "13800000000", Password: "secret123", DeviceID: "device-c",
 	}); err != nil {
-		t.Fatalf("login: %v", err)
+		t.Fatalf("replace first user session: %v", err)
 	}
 
 	if _, err := service.Authenticate(context.Background(), second.AccessToken); err != nil {
@@ -250,6 +322,13 @@ func TestAuthServiceLoginDoesNotCreateSessionAfterConcurrentDisable(t *testing.T
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
+	}
+	if _, err := newTestAdminService(service.dao).UpdateUserStatus(
+		context.Background(),
+		registered.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable user: %v", err)
 	}
 
 	loginPaused := make(chan struct{})
@@ -289,12 +368,8 @@ func TestAuthServiceLoginDoesNotCreateSessionAfterConcurrentDisable(t *testing.T
 func TestAuthServiceLogoutRevokesSessionIdempotently(t *testing.T) {
 	service := newTestAuthService(t)
 
-	session, err := service.Register(context.Background(), RegisterInput{
-		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register: %v", err)
-	}
+	session := registerAndLoginAuthTest(t, service, "13800000000", "A", "device-a")
+	var err error
 	principal, err := service.Authenticate(context.Background(), session.AccessToken)
 	if err != nil {
 		t.Fatalf("authenticate before logout: %v", err)
@@ -334,16 +409,11 @@ func TestAuthServiceLogoutRevokesSessionIdempotently(t *testing.T) {
 func TestAuthServiceAuthenticateRejectsExpiredSession(t *testing.T) {
 	service := newTestAuthService(t)
 
-	session, err := service.Register(context.Background(), RegisterInput{
-		Phone: "13800000000", Password: "secret123", Nickname: "A", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register: %v", err)
-	}
+	session := registerAndLoginAuthTest(t, service, "13800000000", "A", "device-a")
 
 	service.nowValue = service.nowValue.Add(authSessionTTL + time.Minute)
 
-	err = service.mustAuthenticateErr(context.Background(), session.AccessToken)
+	err := service.mustAuthenticateErr(context.Background(), session.AccessToken)
 	if !IsAuthCode(err, "SESSION_EXPIRED") {
 		t.Fatalf("authenticate expired err = %v, want SESSION_EXPIRED", err)
 	}
@@ -355,12 +425,7 @@ func TestAuthServiceAuthenticateRejectsExpiredSession(t *testing.T) {
 func TestAuthServiceUpdateProfileChangesNickname(t *testing.T) {
 	service := newTestAuthService(t)
 
-	session, err := service.Register(context.Background(), RegisterInput{
-		Phone: "13800000000", Password: "secret123", Nickname: "Old", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register: %v", err)
-	}
+	session := registerAndLoginAuthTest(t, service, "13800000000", "Old", "device-a")
 
 	principal, err := service.Authenticate(context.Background(), session.AccessToken)
 	if err != nil {
@@ -423,8 +488,6 @@ func newTestAuthService(t *testing.T) *testAuthService {
 		testService.nextToken++
 		switch testService.nextToken {
 		case 1:
-			return "token-register", nil
-		case 2:
 			return "token-login", nil
 		default:
 			return fmt.Sprintf("token-extra-%d", testService.nextToken), nil
@@ -447,6 +510,36 @@ func assertActiveSessionCount(t *testing.T, service *testAuthService, userID str
 	if got != want {
 		t.Fatalf("active sessions = %d, want %d", got, want)
 	}
+}
+
+func registerAndLoginAuthTest(t *testing.T, service *testAuthService, phone, nickname, deviceID string) *AuthSessionResponse {
+	t.Helper()
+
+	registered, err := service.Register(context.Background(), RegisterInput{
+		Phone:    phone,
+		Password: "secret123",
+		Nickname: nickname,
+		DeviceID: deviceID,
+	})
+	if err != nil {
+		t.Fatalf("register %s: %v", phone, err)
+	}
+	if _, err := newTestAdminService(service.dao).UpdateUserStatus(
+		context.Background(),
+		registered.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable %s: %v", phone, err)
+	}
+	session, err := service.Login(context.Background(), LoginInput{
+		Phone:    phone,
+		Password: "secret123",
+		DeviceID: deviceID,
+	})
+	if err != nil {
+		t.Fatalf("login %s: %v", phone, err)
+	}
+	return session
 }
 
 func (s *testAuthService) mustAuthenticateErr(ctx context.Context, token string) error {

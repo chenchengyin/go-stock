@@ -7,13 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:trading_app/app/app_shell.dart';
 import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
-import 'package:trading_app/features/auth/data/session_controller.dart';
 import 'package:trading_app/features/auth/domain/auth_models.dart';
 import 'package:trading_app/features/auth/presentation/auth_gate.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
+import 'package:trading_app/features/auth/presentation/login_page.dart';
 import 'package:trading_app/features/auth/presentation/register_page.dart';
 
 void main() {
@@ -22,7 +21,7 @@ void main() {
   tearDown(resetApiClientForTesting);
 
   testWidgets(
-    'successful registration mounts authenticated content without provider errors',
+    'successful registration stays unauthenticated until an admin enables it',
     (tester) async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final auth = AuthViewModel(_RegisteringAuthRepository());
@@ -58,11 +57,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(RegisterPage), findsNothing);
-      expect(find.byType(AppShell), findsOneWidget);
-      expect(find.text('开启语音播报？'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, '暂不开启'));
+      expect(find.byType(RegisterPage), findsOneWidget);
+      expect(find.text('注册成功，请等待管理员启用后再登录'), findsOneWidget);
+      expect(find.byType(LoginPage), findsNothing);
+      expect(auth.isLoggedIn, isFalse);
+      await tester.tap(find.widgetWithText(CupertinoDialogAction, '确定'));
       await tester.pumpAndSettle();
+      expect(find.byType(RegisterPage), findsNothing);
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(find.byType(Scaffold), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
       auth.dispose();
@@ -71,14 +74,19 @@ void main() {
 }
 
 class _RegisteringAuthRepository implements AuthRepository {
-  static final _session = AuthSession(
-    accessToken: 'registration-token',
+  static final _registration = RegistrationResult(
     user: AppUser(
       id: 'registration-user',
       phone: '13900000000',
       nickname: 'Smoke User',
       role: 'user',
     ),
+    status: 'disabled',
+    message: '注册成功，请等待管理员启用后再登录',
+  );
+  static final _session = AuthSession(
+    accessToken: 'registration-token',
+    user: _registration.user,
     expiresAt: DateTime.utc(2026, 9, 30),
   );
 
@@ -92,11 +100,11 @@ class _RegisteringAuthRepository implements AuthRepository {
   }) async => _session;
 
   @override
-  Future<AuthSession> register({
+  Future<RegistrationResult> register({
     required String phone,
     required String password,
     required String nickname,
-  }) async => _session;
+  }) async => _registration;
 
   @override
   Future<AppUser> updateNickname(String nickname) async => _session.user;

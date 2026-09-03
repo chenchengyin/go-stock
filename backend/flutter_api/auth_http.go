@@ -36,13 +36,13 @@ func handleAuthRegister(service *AuthService) http.HandlerFunc {
 			return
 		}
 
-		session, err := service.Register(r.Context(), input)
+		result, err := service.Register(r.Context(), input)
 		if err != nil {
 			WriteAuthError(w, err)
 			return
 		}
 
-		WriteJSONStatus(w, http.StatusCreated, session)
+		WriteJSONStatus(w, http.StatusCreated, result)
 	}
 }
 

@@ -48,14 +48,10 @@ func IsAuthCode(err error, code string) bool {
 	return errors.As(err, &authErr) && authErr.Code == code
 }
 
-func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthSessionResponse, error) {
+func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*RegisterResponse, error) {
 	phone := strings.TrimSpace(input.Phone)
 	if len(phone) < 5 || len(input.Password) < 6 {
 		return nil, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "账号或密码格式不正确")
-	}
-	deviceID := strings.TrimSpace(input.DeviceID)
-	if deviceID == "" {
-		return nil, newAuthError(http.StatusBadRequest, "DEVICE_REQUIRED", "缺少设备标识")
 	}
 	nickname := strings.TrimSpace(input.Nickname)
 	if nickname == "" {
@@ -72,10 +68,6 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthS
 	if err != nil {
 		return nil, err
 	}
-	session, rawToken, err := s.buildSession(userID, deviceID, now)
-	if err != nil {
-		return nil, err
-	}
 
 	user := AuthUser{
 		ID:           userID,
@@ -83,7 +75,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthS
 		PasswordHash: string(passwordHash),
 		Nickname:     nickname,
 		Role:         authRoleUser,
-		Status:       authStatusActive,
+		Status:       authStatusDisabled,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -95,20 +87,15 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*AuthS
 			}
 			return err
 		}
-
-		if _, err := revokeActiveSessionsTx(tx, user.ID, now, "new_login"); err != nil {
-			return err
-		}
-
-		return tx.Create(&session).Error
+		return nil
 	}); err != nil {
 		return nil, err
 	}
 
-	return &AuthSessionResponse{
-		User:        toPublicUser(user),
-		AccessToken: rawToken,
-		ExpiresAt:   session.ExpiresAt,
+	return &RegisterResponse{
+		User:    toPublicUser(user),
+		Status:  authStatusDisabled,
+		Message: "注册成功，请等待管理员启用后再登录",
 	}, nil
 }
 
@@ -129,11 +116,11 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthSession
 		}
 		return nil, err
 	}
-	if user.Status != authStatusActive {
-		return nil, newAuthError(http.StatusForbidden, "ACCOUNT_DISABLED", "账号已禁用")
-	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return nil, newAuthError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "账号或密码错误")
+	}
+	if user.Status != authStatusActive {
+		return nil, newAuthError(http.StatusForbidden, "ACCOUNT_DISABLED", "账号已禁用")
 	}
 
 	now := s.now().UTC()
@@ -169,7 +156,7 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthSession
 		return nil, err
 	}
 
-	if s.onSessionsReplaced != nil {
+	if s.onSessionsReplaced != nil && len(revokedSessionIDs) > 0 {
 		s.onSessionsReplaced(user.ID, session.ID, revokedSessionIDs)
 	}
 

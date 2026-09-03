@@ -38,15 +38,7 @@ func TestRequireAuthRejectsMissingToken(t *testing.T) {
 
 func TestRequireAuthReadsCaseInsensitiveBearerAndStoresPrincipal(t *testing.T) {
 	service := newTestAuthService(t)
-	session, err := service.Register(context.Background(), RegisterInput{
-		Phone:    "13800000000",
-		Password: "secret123",
-		Nickname: "A",
-		DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register: %v", err)
-	}
+	session := authHTTPRegisterUser(t, service, "13800000000", "A", "device-a")
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		principal, ok := PrincipalFromContext(r.Context())
@@ -120,16 +112,34 @@ func TestAuthHTTPRegisterLoginMeAndProfile(t *testing.T) {
 		t.Fatalf("register content type = %q, want JSON", got)
 	}
 
-	var registerBody AuthSessionResponse
+	var registerBody RegisterResponse
 	if err := json.Unmarshal(registerRec.Body.Bytes(), &registerBody); err != nil {
 		t.Fatalf("decode register body: %v", err)
 	}
-	if registerBody.AccessToken != "token-register" {
-		t.Fatalf("register access token = %q, want %q", registerBody.AccessToken, "token-register")
+	if registerBody.Status != authStatusDisabled {
+		t.Fatalf("register status = %q, want %q", registerBody.Status, authStatusDisabled)
+	}
+	if registerBody.Message != "注册成功，请等待管理员启用后再登录" {
+		t.Fatalf("register message = %q, want pending activation message", registerBody.Message)
+	}
+	registerJSON := string(registerRec.Body.Bytes())
+	if strings.Contains(registerJSON, "accessToken") || strings.Contains(registerJSON, "expiresAt") {
+		t.Fatalf("register response contains session fields: %s", registerJSON)
+	}
+
+	disabledLoginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-b"}`))
+	disabledLoginReq.Header.Set("Content-Type", "application/json")
+	disabledLoginRec := httptest.NewRecorder()
+	handler.ServeHTTP(disabledLoginRec, disabledLoginReq)
+	if disabledLoginRec.Code != http.StatusForbidden || !strings.Contains(disabledLoginRec.Body.String(), "ACCOUNT_DISABLED") {
+		t.Fatalf("disabled login = %d %s, want 403 ACCOUNT_DISABLED", disabledLoginRec.Code, disabledLoginRec.Body.String())
 	}
 	if registerBody.User.Nickname != "Alice" {
 		t.Fatalf("register nickname = %q, want %q", registerBody.User.Nickname, "Alice")
 	}
+
+	adminToken := loginAdminForTest(t, handler)
+	setAdminUserStatus(t, handler, adminToken, registerBody.User.ID, authStatusActive)
 
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-b"}`))
 	loginReq.Header.Set("Content-Type", "application/json")
@@ -205,6 +215,25 @@ func TestAuthHTTPOldTokenReturnsSessionReplaced(t *testing.T) {
 		t.Fatalf("register status = %d, want 201", registerRec.Code)
 	}
 
+	var registration RegisterResponse
+	if err := json.Unmarshal(registerRec.Body.Bytes(), &registration); err != nil {
+		t.Fatalf("decode registration: %v", err)
+	}
+	adminToken := loginAdminForTest(t, handler)
+	setAdminUserStatus(t, handler, adminToken, registration.User.ID, authStatusActive)
+
+	firstLoginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-a"}`))
+	firstLoginReq.Header.Set("Content-Type", "application/json")
+	firstLoginRec := httptest.NewRecorder()
+	handler.ServeHTTP(firstLoginRec, firstLoginReq)
+	if firstLoginRec.Code != http.StatusOK {
+		t.Fatalf("first login status = %d, want 200", firstLoginRec.Code)
+	}
+	var firstLogin AuthSessionResponse
+	if err := json.Unmarshal(firstLoginRec.Body.Bytes(), &firstLogin); err != nil {
+		t.Fatalf("decode first login: %v", err)
+	}
+
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-b"}`))
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginRec := httptest.NewRecorder()
@@ -212,9 +241,13 @@ func TestAuthHTTPOldTokenReturnsSessionReplaced(t *testing.T) {
 	if loginRec.Code != http.StatusOK {
 		t.Fatalf("login status = %d, want 200", loginRec.Code)
 	}
+	var secondLogin AuthSessionResponse
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &secondLogin); err != nil {
+		t.Fatalf("decode second login: %v", err)
+	}
 
 	meReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	meReq.Header.Set("Authorization", "Bearer token-register")
+	meReq.Header.Set("Authorization", "Bearer "+firstLogin.AccessToken)
 	meRec := httptest.NewRecorder()
 	handler.ServeHTTP(meRec, meReq)
 
@@ -319,7 +352,7 @@ func useGlobalTestDB(t *testing.T, service *testAuthService) {
 func authHTTPRegisterUser(t *testing.T, service *testAuthService, phone, nickname, deviceID string) *AuthSessionResponse {
 	t.Helper()
 
-	session, err := service.Register(context.Background(), RegisterInput{
+	registered, err := service.Register(context.Background(), RegisterInput{
 		Phone:    phone,
 		Password: "secret123",
 		Nickname: nickname,
@@ -327,6 +360,21 @@ func authHTTPRegisterUser(t *testing.T, service *testAuthService, phone, nicknam
 	})
 	if err != nil {
 		t.Fatalf("register user %s: %v", phone, err)
+	}
+	if _, err := newTestAdminService(service.dao).UpdateUserStatus(
+		context.Background(),
+		registered.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable user %s: %v", phone, err)
+	}
+	session, err := service.Login(context.Background(), LoginInput{
+		Phone:    phone,
+		Password: "secret123",
+		DeviceID: deviceID,
+	})
+	if err != nil {
+		t.Fatalf("login user %s: %v", phone, err)
 	}
 	return session
 }

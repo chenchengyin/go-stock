@@ -65,6 +65,12 @@ type AuthSessionResponse struct {
 	ExpiresAt   time.Time  `json:"expiresAt"`
 }
 
+type RegisterResponse struct {
+	User    PublicUser `json:"user"`
+	Status  string     `json:"status"`
+	Message string     `json:"message"`
+}
+
 type AuthError struct {
 	Status  int    `json:"-"`
 	Code    string `json:"code"`

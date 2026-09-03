@@ -9,7 +9,7 @@ import '../domain/auth_models.dart';
 abstract class AuthRepository {
   Future<AuthSession?> restoreSession();
   Future<AuthSession> login({required String phone, required String password});
-  Future<AuthSession> register({
+  Future<RegistrationResult> register({
     required String phone,
     required String password,
     required String nickname,
@@ -118,27 +118,23 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthSession> register({
+  Future<RegistrationResult> register({
     required String phone,
     required String password,
     required String nickname,
   }) async {
-    final deviceId = await _storage.getOrCreateDeviceId();
-    final session = await _execute(() async {
+    return _execute(() async {
       final response = await _dio.post<dynamic>(
         '/api/auth/register',
         data: <String, dynamic>{
           'phone': phone,
           'password': password,
           'nickname': nickname,
-          'deviceId': deviceId,
         },
         options: Options(extra: <String, dynamic>{'skipAuth': true}),
       );
-      return AuthSession.fromJson(_jsonObject(response.data));
+      return RegistrationResult.fromJson(_jsonObject(response.data));
     });
-    await _persistSession(session);
-    return session;
   }
 
   @override

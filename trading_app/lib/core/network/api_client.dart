@@ -87,8 +87,13 @@ Dio _buildApiClient(String baseUrl, SessionController? sessionController) {
         },
         onError: (error, handler) async {
           final isAuthRequest = error.requestOptions.extra['skipAuth'] == true;
-          if (!isAuthRequest && error.response?.statusCode == 401) {
-            final reason = _invalidationReason(error.response?.data);
+          final statusCode = error.response?.statusCode;
+          final data = error.response?.data;
+          final code = data is Map ? data['code'] : null;
+          final isDisabledAccount =
+              statusCode == 403 && code == 'ACCOUNT_DISABLED';
+          if (!isAuthRequest && (statusCode == 401 || isDisabledAccount)) {
+            final reason = _invalidationReason(data);
             final snapshot =
                 error.requestOptions.extra[_requestSessionSnapshotKey];
             try {

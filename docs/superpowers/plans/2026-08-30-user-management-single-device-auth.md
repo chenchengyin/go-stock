@@ -1,5 +1,7 @@
 # 用户管理与单设备登录实施计划
 
+> **已被后续方案替代：** 本计划对应“注册即登录”的旧版本，不应直接执行。当前“注册后必须管理员启用”的唯一实施依据是 `docs/superpowers/plans/2026-09-03-user-registration-activation.md`，认证契约需以同步后的设计规格为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将现有 Flutter Mock 登录/注册升级为服务端真实账号体系，并在所有 `:8080` 业务 REST/WebSocket 请求中实现单设备会话和用户数据隔离。
@@ -13,7 +15,7 @@
 ## Global Constraints
 
 - `phone` 是唯一登录名；输入去首尾空格；密码至少 6 位；昵称为空时使用账号作为默认昵称。
-- 注册成功立即创建会话；登录成功返回用户、Token 和过期时间；Token 默认有效期 30 天。
+- 注册成功默认创建 `disabled` 用户，不创建会话、不返回 Token；管理员启用后，登录成功才返回用户、Token 和过期时间；Token 默认有效期 30 天。
 - 客户端首次启动生成并持久化随机 `deviceId`；卸载、清除应用数据或清除 Web 站点数据视为新设备。
 - 公开接口只有注册、登录和健康检查；其他 `/api` 数据接口、上传接口和 `/ws` 必须认证。
 - 业务 handler 不信任请求中的 `userId`、`nickname` 或其他身份字段，身份只来自认证上下文。

@@ -45,7 +45,7 @@ func TestUserManagementSingleDeviceHTTPFlow(t *testing.T) {
 
 	deviceA := registerThroughHTTP(t, handler, "13800000000", "Alice", "device-a")
 	if deviceA.AccessToken != "e2e-token-1" {
-		t.Fatalf("device A token = %q, want deterministic registration token", deviceA.AccessToken)
+		t.Fatalf("device A token = %q, want deterministic first-login token", deviceA.AccessToken)
 	}
 	assertStoredDeviceSession(t, dao, deviceA.User.ID, "device-a", 1)
 
@@ -111,9 +111,8 @@ func newDeterministicE2EAuthService(dao *gorm.DB) *AuthService {
 }
 
 func newUserManagementE2EHandler(authService *AuthService, dao *gorm.DB) http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService))
-	mux.HandleFunc("/api/news", func(w http.ResponseWriter, r *http.Request) {
+	protectedMux := http.NewServeMux()
+	protectedMux.HandleFunc("/api/news", func(w http.ResponseWriter, r *http.Request) {
 		principal, ok := PrincipalFromContext(r.Context())
 		if !ok {
 			WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
@@ -124,8 +123,13 @@ func newUserManagementE2EHandler(authService *AuthService, dao *gorm.DB) http.Ha
 			"deviceId": principal.DeviceID,
 		})
 	})
-	mux.HandleFunc("/api/e2e/owned-data", ownedDataSnapshotHandler(NewUserDataService(dao)))
-	return RequireAuth(authService, mux)
+	protectedMux.HandleFunc("/api/e2e/owned-data", ownedDataSnapshotHandler(NewUserDataService(dao)))
+
+	root := http.NewServeMux()
+	root.Handle("/api/auth/", NewAuthHTTPHandler(authService))
+	root.Handle("/api/admin/", NewAdminHTTPHandler(NewAdminService(dao, nil)))
+	root.Handle("/", RequireAuth(authService, protectedMux))
+	return root
 }
 
 func ownedDataSnapshotHandler(userData *UserDataService) http.HandlerFunc {
@@ -184,7 +188,32 @@ func registerThroughHTTP(t *testing.T, handler http.Handler, phone, nickname, de
 	body := fmt.Sprintf(`{"phone":%q,"password":"secret123","nickname":%q,"deviceId":%q}`, phone, nickname, deviceID)
 	recorder := serveE2ERequest(t, handler, http.MethodPost, "/api/auth/register", "", body)
 	assertHTTPStatus(t, recorder, http.StatusCreated)
-	return decodeSessionResponse(t, recorder)
+	var registration RegisterResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &registration); err != nil {
+		t.Fatalf("decode registration response: %v; body = %s", err, recorder.Body.String())
+	}
+	if registration.Status != authStatusDisabled {
+		t.Fatalf("registration status = %q, want %q", registration.Status, authStatusDisabled)
+	}
+	if registration.Message != "注册成功，请等待管理员启用后再登录" {
+		t.Fatalf("registration message = %q, want pending activation message", registration.Message)
+	}
+	responseJSON := recorder.Body.String()
+	if strings.Contains(responseJSON, "accessToken") || strings.Contains(responseJSON, "expiresAt") {
+		t.Fatalf("registration response contains session fields: %s", responseJSON)
+	}
+
+	adminToken := loginAdminThroughHTTP(t, handler)
+	enable := serveE2ERequest(
+		t,
+		handler,
+		http.MethodPatch,
+		"/api/admin/users/"+registration.User.ID+"/status",
+		adminToken,
+		`{"status":"active"}`,
+	)
+	assertHTTPStatus(t, enable, http.StatusOK)
+	return loginThroughHTTP(t, handler, phone, deviceID)
 }
 
 func loginThroughHTTP(t *testing.T, handler http.Handler, phone, deviceID string) AuthSessionResponse {
@@ -193,6 +222,27 @@ func loginThroughHTTP(t *testing.T, handler http.Handler, phone, deviceID string
 	recorder := serveE2ERequest(t, handler, http.MethodPost, "/api/auth/login", "", body)
 	assertHTTPStatus(t, recorder, http.StatusOK)
 	return decodeSessionResponse(t, recorder)
+}
+
+func loginAdminThroughHTTP(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	recorder := serveE2ERequest(
+		t,
+		handler,
+		http.MethodPost,
+		"/api/admin/login",
+		"",
+		`{"username":"admin","password":"admin"}`,
+	)
+	assertHTTPStatus(t, recorder, http.StatusOK)
+	var response AdminSessionResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode admin login: %v; body = %s", err, recorder.Body.String())
+	}
+	if response.AccessToken == "" {
+		t.Fatal("admin login token is empty")
+	}
+	return response.AccessToken
 }
 
 func serveE2ERequest(t *testing.T, handler http.Handler, method, path, token, body string) *httptest.ResponseRecorder {

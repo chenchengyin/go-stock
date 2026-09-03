@@ -24,12 +24,7 @@ func TestAdminHTTPRejectsUnauthenticatedAndRegularUserTokens(t *testing.T) {
 		t.Fatalf("missing token body = %s, want ADMIN_UNAUTHENTICATED", recorder.Body.String())
 	}
 
-	userSession, err := auth.Register(context.Background(), RegisterInput{
-		Phone: "13800000000", Password: "secret123", Nickname: "Alice", DeviceID: "device-a",
-	})
-	if err != nil {
-		t.Fatalf("register user: %v", err)
-	}
+	userSession := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
 	request = httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	request.Header.Set("Authorization", "Bearer "+userSession.AccessToken)
 	recorder = httptest.NewRecorder()
@@ -88,15 +83,28 @@ func TestAdminHTTPListsUsersAndFiltersKeyword(t *testing.T) {
 func TestAdminHTTPDisablesUserAndRevokesSession(t *testing.T) {
 	auth := newTestAuthService(t)
 	handler := newHTTPHandler(auth.AuthService)
-	userSession, err := auth.Register(context.Background(), RegisterInput{
+	registered, err := auth.Register(context.Background(), RegisterInput{
 		Phone: "13800000000", Password: "secret123", Nickname: "Alice", DeviceID: "device-a",
 	})
 	if err != nil {
 		t.Fatalf("register user: %v", err)
 	}
+	if _, err := newTestAdminService(auth.dao).UpdateUserStatus(
+		context.Background(),
+		registered.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable user: %v", err)
+	}
+	userSession, err := auth.Login(context.Background(), LoginInput{
+		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("login user: %v", err)
+	}
 	token := loginAdminForTest(t, handler)
 
-	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+userSession.User.ID+"/status", strings.NewReader(`{"status":"disabled"}`))
+	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+registered.User.ID+"/status", strings.NewReader(`{"status":"disabled"}`))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+token)
 	recorder := httptest.NewRecorder()
@@ -125,16 +133,16 @@ func TestAdminHTTPDisablesUserAndRevokesSession(t *testing.T) {
 func TestAdminHTTPEnablesUserAndAllowsLoginAgain(t *testing.T) {
 	auth := newTestAuthService(t)
 	handler := newHTTPHandler(auth.AuthService)
-	userSession, err := auth.Register(context.Background(), RegisterInput{
+	registered, err := auth.Register(context.Background(), RegisterInput{
 		Phone: "13800000000", Password: "secret123", Nickname: "Alice", DeviceID: "device-a",
 	})
 	if err != nil {
 		t.Fatalf("register user: %v", err)
 	}
 	adminToken := loginAdminForTest(t, handler)
-	setAdminUserStatus(t, handler, adminToken, userSession.User.ID, authStatusDisabled)
+	setAdminUserStatus(t, handler, adminToken, registered.User.ID, authStatusDisabled)
 
-	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+userSession.User.ID+"/status", strings.NewReader(`{"status":"active"}`))
+	request := httptest.NewRequest(http.MethodPatch, "/api/admin/users/"+registered.User.ID+"/status", strings.NewReader(`{"status":"active"}`))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer "+adminToken)
 	recorder := httptest.NewRecorder()
@@ -174,7 +182,7 @@ func TestAdminHTTPRejectsUnknownUserAndInvalidStatus(t *testing.T) {
 	}
 }
 
-func createUserForAdminTest(t *testing.T, auth *testAuthService, phone, nickname string) *AuthSessionResponse {
+func createUserForAdminTest(t *testing.T, auth *testAuthService, phone, nickname string) *RegisterResponse {
 	t.Helper()
 
 	result, err := auth.Register(context.Background(), RegisterInput{

@@ -39,11 +39,17 @@ void main() {
       );
       addTearDown(authA.dispose);
 
-      await authA.register(
+      final registration = await authA.register(
         phone: '13800000000',
         password: 'secret123',
         nickname: 'Alice',
       );
+      expect(registration, isNotNull);
+      expect(registration!.status, 'disabled');
+      expect(authA.isLoggedIn, isFalse);
+      expect(await storageA.read('auth:token'), isNull);
+      server.enableUser();
+      await authA.login(phone: '13800000000', password: 'secret123');
       expect(authA.isLoggedIn, isTrue);
       expect(await storageA.read('auth:token'), 'token-device-a');
       expect(await dioA.get<dynamic>('/api/news'), isA<Response<dynamic>>());
@@ -218,6 +224,7 @@ class MemorySingleDeviceServer {
   };
 
   String? _registeredPhone;
+  bool _enabled = false;
   String? _activeToken;
   final Map<String, MemoryTokenState> _tokenStates =
       <String, MemoryTokenState>{};
@@ -227,7 +234,14 @@ class MemorySingleDeviceServer {
       case ('POST', '/api/auth/register'):
         final body = request.data as Map<String, dynamic>;
         _registeredPhone = body['phone'] as String;
-        return _createSession(body['deviceId'] as String, 201);
+        _enabled = false;
+        _activeToken = null;
+        _tokenStates.clear();
+        return const TestResponse.json(201, <String, dynamic>{
+          'user': _user,
+          'status': 'disabled',
+          'message': '注册成功，请等待管理员启用后再登录',
+        });
       case ('POST', '/api/auth/login'):
         final body = request.data as Map<String, dynamic>;
         if (body['phone'] != _registeredPhone ||
@@ -235,6 +249,12 @@ class MemorySingleDeviceServer {
           return const TestResponse.json(401, <String, dynamic>{
             'code': 'INVALID_CREDENTIALS',
             'message': '账号或密码错误',
+          });
+        }
+        if (!_enabled) {
+          return const TestResponse.json(403, <String, dynamic>{
+            'code': 'ACCOUNT_DISABLED',
+            'message': '账号已禁用',
           });
         }
         return _createSession(body['deviceId'] as String, 200);
@@ -247,6 +267,10 @@ class MemorySingleDeviceServer {
           'code': 'NOT_FOUND',
         });
     }
+  }
+
+  void enableUser() {
+    _enabled = true;
   }
 
   TestResponse _createSession(String deviceId, int statusCode) {

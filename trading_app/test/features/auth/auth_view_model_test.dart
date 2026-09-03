@@ -28,6 +28,12 @@ final _session = AuthSession(
   expiresAt: DateTime.utc(2026, 9, 29),
 );
 
+const _registration = RegistrationResult(
+  user: _user,
+  status: 'disabled',
+  message: '注册成功，请等待管理员启用后再登录',
+);
+
 void main() {
   group('AuthViewModel', () {
     test('login stores the authenticated user and access token', () async {
@@ -45,25 +51,33 @@ void main() {
       expect(auth.state.status, ViewStatus.ready);
     });
 
-    test('registration keeps the returned session logged in', () async {
-      final auth = AuthViewModel(
-        _FakeAuthRepository(
-          registerAction:
-              ({required phone, required password, required nickname}) async =>
-                  _session,
-        ),
-      );
+    test(
+      'registration returns pending result without changing auth state',
+      () async {
+        final auth = AuthViewModel(
+          _FakeAuthRepository(
+            registerAction:
+                ({
+                  required phone,
+                  required password,
+                  required nickname,
+                }) async => _registration,
+          ),
+        );
 
-      await auth.register(
-        phone: _user.phone,
-        password: 'secret123',
-        nickname: _user.nickname,
-      );
+        final result = await auth.register(
+          phone: _user.phone,
+          password: 'secret123',
+          nickname: _user.nickname,
+        );
 
-      expect(auth.user, _user);
-      expect(auth.accessToken, 'access-token');
-      expect(auth.isLoggedIn, isTrue);
-    });
+        expect(result, _registration);
+        expect(auth.user, isNull);
+        expect(auth.accessToken, isNull);
+        expect(auth.isLoggedIn, isFalse);
+        expect(auth.state.status, ViewStatus.ready);
+      },
+    );
 
     test('registration displays the backend ACCOUNT_EXISTS message', () async {
       final auth = AuthViewModel(
@@ -359,7 +373,7 @@ typedef _LoginAction =
       required String password,
     });
 typedef _RegisterAction =
-    Future<AuthSession> Function({
+    Future<RegistrationResult> Function({
       required String phone,
       required String password,
       required String nickname,
@@ -388,7 +402,7 @@ class _FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthSession> register({
+  Future<RegistrationResult> register({
     required String phone,
     required String password,
     required String nickname,
@@ -398,7 +412,7 @@ class _FakeAuthRepository implements AuthRepository {
           password: password,
           nickname: nickname,
         ) ??
-        Future<AuthSession>.error(UnimplementedError());
+        Future<RegistrationResult>.error(UnimplementedError());
   }
 
   @override

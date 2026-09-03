@@ -211,6 +211,33 @@ void main() {
       },
     );
 
+    test('403 ACCOUNT_DISABLED clears the current session', () async {
+      final storage = MemoryAuthStorage(<String, String>{
+        'auth:token': _token,
+        'device:id': _deviceId,
+      });
+      final controller = AuthSessionController(storage);
+      final adapter = DioTestAdapter(
+        (_) => const TestResponse.json(403, <String, dynamic>{
+          'code': 'ACCOUNT_DISABLED',
+          'message': '账号已禁用',
+        }),
+      );
+      final dio = createApiClient(
+        baseUrl: 'https://auth.test',
+        sessionController: controller,
+      )..httpClientAdapter = adapter;
+
+      await _expectDioFailure(dio.get<dynamic>('/api/news'));
+
+      expect(storage.clearAuthCalls, 1);
+      expect(await storage.read('auth:token'), isNull);
+      expect(
+        controller.lastInvalidationReason,
+        SessionInvalidationReason.revoked,
+      );
+    });
+
     test(
       'restore 401 does not clear again after interceptor invalidation',
       () async {
@@ -478,7 +505,7 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> logout() async {}
 
   @override
-  Future<AuthSession> register({
+  Future<RegistrationResult> register({
     required String phone,
     required String password,
     required String nickname,

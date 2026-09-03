@@ -97,6 +97,18 @@ func TestAdminServiceDisableRevokesSessionsAndNotifies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
+	if _, err := newTestAdminService(auth.dao).UpdateUserStatus(
+		context.Background(),
+		registered.User.ID,
+		authStatusActive,
+	); err != nil {
+		t.Fatalf("enable: %v", err)
+	}
+	if _, err := auth.Login(context.Background(), LoginInput{
+		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
+	}); err != nil {
+		t.Fatalf("login: %v", err)
+	}
 
 	var callbackUserID string
 	var callbackSessionIDs []string

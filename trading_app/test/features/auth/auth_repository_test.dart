@@ -26,6 +26,12 @@ Map<String, dynamic> _sessionJson() => <String, dynamic>{
   'expiresAt': _expiresAt,
 };
 
+const _registrationJson = <String, dynamic>{
+  'user': _userJson,
+  'status': 'disabled',
+  'message': '注册成功，请等待管理员启用后再登录',
+};
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -48,6 +54,14 @@ void main() {
         'user': _userJson,
         'expiresAt': '2026-09-29T12:30:00.000Z',
       });
+    });
+
+    test('parse registration result without session fields', () {
+      final result = RegistrationResult.fromJson(_registrationJson);
+
+      expect(result.user.id, 'user-1');
+      expect(result.status, 'disabled');
+      expect(result.message, '注册成功，请等待管理员启用后再登录');
     });
   });
 
@@ -123,11 +137,9 @@ void main() {
     );
 
     test(
-      'register sends nickname and reuses the persistent device id',
+      'register returns pending result without persisting a session',
       () async {
-        final storage = MemoryAuthStorage(<String, String>{
-          'device:id': _deviceId,
-        });
+        final storage = MemoryAuthStorage();
         final adapter = DioTestAdapter((request) {
           expect(request.method, 'POST');
           expect(request.uri.path, '/api/auth/register');
@@ -135,23 +147,27 @@ void main() {
             'phone': '13800000000',
             'password': 'secret123',
             'nickname': 'Alice',
-            'deviceId': _deviceId,
           });
-          return TestResponse.json(201, _sessionJson());
+          return TestResponse.json(201, _registrationJson);
         });
         final repository = ApiAuthRepository(
           dio: _dioWith(adapter),
           storage: storage,
         );
 
-        final session = await repository.register(
+        final result = await repository.register(
           phone: '13800000000',
           password: 'secret123',
           nickname: 'Alice',
         );
 
-        expect(session.user.nickname, 'Alice');
-        expect(await storage.read('device:id'), _deviceId);
+        expect(result.user.nickname, 'Alice');
+        expect(result.status, 'disabled');
+        expect(result.message, '注册成功，请等待管理员启用后再登录');
+        expect(await storage.read('auth:token'), isNull);
+        expect(await storage.read('auth:user'), isNull);
+        expect(await storage.read('auth:expiresAt'), isNull);
+        expect(await storage.read('device:id'), isNull);
         expect(adapter.requests, hasLength(1));
       },
     );

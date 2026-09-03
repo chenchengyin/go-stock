@@ -90,6 +90,12 @@ func TestProtectedRouterKeepsRegisterLoginAndHealthPublic(t *testing.T) {
 	if registerRec.Code != http.StatusCreated {
 		t.Fatalf("register status = %d, want 201, body = %s", registerRec.Code, registerRec.Body.String())
 	}
+	var registration RegisterResponse
+	if err := json.Unmarshal(registerRec.Body.Bytes(), &registration); err != nil {
+		t.Fatalf("decode registration: %v", err)
+	}
+	adminToken := loginAdminForTest(t, handler)
+	setAdminUserStatus(t, handler, adminToken, registration.User.ID, authStatusActive)
 
 	loginRec := httptest.NewRecorder()
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-b"}`))

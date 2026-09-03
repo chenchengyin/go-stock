@@ -39,6 +39,26 @@ class AppUser {
   }
 }
 
+class RegistrationResult {
+  const RegistrationResult({
+    required this.user,
+    required this.status,
+    required this.message,
+  });
+
+  final AppUser user;
+  final String status;
+  final String message;
+
+  factory RegistrationResult.fromJson(Map<String, dynamic> json) {
+    return RegistrationResult(
+      user: AppUser.fromJson(json['user'] as Map<String, dynamic>),
+      status: json['status'] as String,
+      message: json['message'] as String,
+    );
+  }
+}
+
 class AuthSession {
   const AuthSession({
     required this.accessToken,
