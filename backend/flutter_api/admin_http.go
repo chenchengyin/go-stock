@@ -19,13 +19,25 @@ func AdminPrincipalFromContext(ctx context.Context) (AdminPrincipal, bool) {
 	return principal, ok
 }
 
-func NewAdminHTTPHandler(service *AdminService) http.Handler {
+func NewAdminHTTPHandler(service *AdminService, moduleServices ...*ModuleService) http.Handler {
+	moduleService := NewModuleService(service.dao)
+	if len(moduleServices) > 0 && moduleServices[0] != nil {
+		moduleService = moduleServices[0]
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/admin/login", handleAdminLogin(service))
 	mux.HandleFunc("/api/admin/logout", handleAdminLogout(service))
 	usersHandler := RequireAdmin(service, http.HandlerFunc(handleAdminUsers(service)))
 	mux.Handle("/api/admin/users", usersHandler)
 	mux.Handle("/api/admin/users/", usersHandler)
+	meHandler := RequireAdmin(service, handleAdminMe(service))
+	mux.Handle("/api/admin/me", meHandler)
+	modulesHandler := RequireAdmin(service, handleAdminModules(moduleService))
+	mux.Handle("/api/admin/modules", modulesHandler)
+	moduleUsersHandler := RequireAdmin(service, handleAdminModuleUsers(moduleService))
+	mux.Handle("/api/admin/modules/", moduleUsersHandler)
+	accessHandler := RequireAdmin(service, handleAdminAccess(moduleService))
+	mux.Handle("/api/admin/access", accessHandler)
 	return mux
 }
 
@@ -99,6 +111,34 @@ func handleAdminLogout(service *AdminService) http.HandlerFunc {
 		}
 		http.SetCookie(w, clearAdminSessionCookie(r))
 		WriteJSON(w, map[string]string{"status": "ok"})
+	}
+}
+
+func handleAdminMe(service *AdminService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		principal, ok := AdminPrincipalFromContext(r.Context())
+		if !ok {
+			WriteAuthError(w, newAuthError(http.StatusUnauthorized, "ADMIN_UNAUTHENTICATED", "管理员未登录"))
+			return
+		}
+		var user AuthUser
+		if err := service.dao.WithContext(r.Context()).First(&user, "id = ?", principal.UserID).Error; err != nil {
+			WriteAuthError(w, authHTTPError(err))
+			return
+		}
+		var session AdminSession
+		if err := service.dao.WithContext(r.Context()).First(&session, "id = ? AND user_id = ?", principal.SessionID, principal.UserID).Error; err != nil {
+			WriteAuthError(w, authHTTPError(err))
+			return
+		}
+		WriteJSON(w, struct {
+			User      AdminUser `json:"user"`
+			ExpiresAt time.Time `json:"expiresAt"`
+		}{User: toAdminUser(user), ExpiresAt: session.ExpiresAt})
 	}
 }
 

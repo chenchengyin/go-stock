@@ -2,12 +2,8 @@ package flutter_api
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"testing"
-	"time"
-
-	"gorm.io/gorm"
 )
 
 func TestModuleServiceVisibleModulesUsesPublicAndDirectGrants(t *testing.T) {
@@ -163,60 +159,6 @@ func TestModuleServiceReplaceAndReverseLookupValidateTargets(t *testing.T) {
 	if _, err := service.ListModuleUsers(context.Background(), "radar.not_registered"); !IsAuthCode(err, "INVALID_ARGUMENT") {
 		t.Fatalf("unknown reverse lookup err = %v, want INVALID_ARGUMENT", err)
 	}
-}
-
-func newTestModuleService(t *testing.T) *ModuleService {
-	t.Helper()
-
-	dao := newAuthTestDB(t)
-	if err := MigrateAuthTables(dao); err != nil {
-		t.Fatalf("migrate auth tables: %v", err)
-	}
-	return NewModuleService(dao)
-}
-
-func createActiveModuleUser(t *testing.T, dao *gorm.DB, account string) *AuthUser {
-	t.Helper()
-
-	now := time.Date(2026, time.September, 3, 9, 0, 0, 0, time.UTC)
-	phoneSuffix := 0
-	for _, ch := range account {
-		phoneSuffix += int(ch)
-	}
-	user := &AuthUser{
-		ID:           account,
-		Phone:        fmt.Sprintf("138%08d", phoneSuffix),
-		PasswordHash: "unused",
-		Nickname:     account,
-		Role:         authRoleUser,
-		Status:       authStatusActive,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-	if err := dao.Create(user).Error; err != nil {
-		t.Fatalf("create user %s: %v", account, err)
-	}
-	return user
-}
-
-func seedModuleAdminUser(t *testing.T, dao *gorm.DB, id string) *AuthUser {
-	t.Helper()
-
-	now := time.Date(2026, time.September, 3, 9, 0, 0, 0, time.UTC)
-	user := &AuthUser{
-		ID:           id,
-		Phone:        "13700000000",
-		PasswordHash: "unused",
-		Nickname:     "Admin",
-		Role:         "admin",
-		Status:       authStatusActive,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-	if err := dao.Create(user).Error; err != nil {
-		t.Fatalf("create admin user: %v", err)
-	}
-	return user
 }
 
 func assertModuleCodes(t *testing.T, got []ModuleDefinition, want ...string) {

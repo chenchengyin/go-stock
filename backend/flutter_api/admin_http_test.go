@@ -87,6 +87,31 @@ func TestAdminHTTPListsUsersAndFiltersKeywordWithSessionCookie(t *testing.T) {
 	}
 }
 
+func TestAdminHTTPMeReturnsProfileAndSessionExpiry(t *testing.T) {
+	auth := newTestAuthService(t)
+	createAdminForTest(t, auth.dao)
+	handler := newHTTPHandler(auth.AuthService)
+	cookie := loginAdminCookieForTest(t, handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/me", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("me status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		User      AdminUser `json:"user"`
+		ExpiresAt string    `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode me: %v", err)
+	}
+	if body.User.Phone != "13900000000" || body.User.Role != authRoleAdmin || body.ExpiresAt == "" {
+		t.Fatalf("me body = %#v", body)
+	}
+}
+
 func TestAdminHTTPRejectsCrossOriginMutationsAndClearsCookieOnLogout(t *testing.T) {
 	auth := newTestAuthService(t)
 	createAdminForTest(t, auth.dao)

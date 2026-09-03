@@ -3,18 +3,24 @@ package flutter_api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"gorm.io/gorm"
 )
 
-func NewAuthHTTPHandler(service *AuthService) http.Handler {
+func NewAuthHTTPHandler(service *AuthService, moduleServices ...*ModuleService) http.Handler {
+	moduleService := NewModuleService(service.dao)
+	if len(moduleServices) > 0 && moduleServices[0] != nil {
+		moduleService = moduleServices[0]
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/register", handleAuthRegister(service))
 	mux.HandleFunc("/api/auth/login", handleAuthLogin(service))
 	mux.HandleFunc("/api/auth/me", handleAuthMe(service))
 	mux.HandleFunc("/api/auth/logout", handleAuthLogout(service))
 	mux.HandleFunc("/api/auth/profile", handleAuthProfile(service))
+	mux.HandleFunc("/api/auth/modules", handleAuthModules(moduleService))
 	mux.HandleFunc("/register", handleAuthRegister(service))
 	mux.HandleFunc("/login", handleAuthLogin(service))
 	mux.HandleFunc("/me", handleAuthMe(service))
@@ -150,6 +156,9 @@ func decodeJSONBody(r *http.Request, dst any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
+		return newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "请求参数格式不正确")
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "请求参数格式不正确")
 	}
 	return nil
