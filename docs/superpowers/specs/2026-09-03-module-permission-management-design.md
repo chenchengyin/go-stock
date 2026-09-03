@@ -74,7 +74,7 @@ code          稳定唯一编码
 name          展示名称
 client        flutter_web、flutter_mobile 等客户端标识
 placement     radar_tab、bottom_nav、page 等入口位置
-parent_code   父模块编码，可为空
+parent_code   已注册的容器编码，可为空；首期 Tab 可为空
 sort          同级入口排序
 access_mode   public 或 user_allowlist
 ```
@@ -104,9 +104,11 @@ access_mode   public 或 user_allowlist
 
 现有管理员服务中的硬编码账号和进程内 Token 表替换为数据库管理员账号和独立 `admin_sessions` 表。管理员会话与普通用户的 `user_sessions` 分离，避免管理员在浏览器登录时撤销同一账号的普通客户端会话。
 
-`admin_sessions` 至少包含：`id`、`user_id`、`token_hash`、`created_at`、`last_seen_at`、`expires_at`、`revoked_at`。浏览器使用 `HttpOnly` Cookie 保存会话，后台网页脚本不能直接读取 Token；启用 HTTPS 后设置 `Secure` 属性。
+`admin_sessions` 至少包含：`id`、`user_id`、`token_hash`、`created_at`、`last_seen_at`、`expires_at`、`revoked_at`。
 
-管理员账号仍使用 `users` 表中的 bcrypt 密码哈希，只有 `role=admin` 且状态有效的账号可以进入后台。首次部署通过 `admin-init` 命令创建管理员：命令接收账号和昵称参数，并从交互式隐藏输入读取密码；如果该账号已存在，命令必须明确失败，不得覆盖现有密码。命令每次只创建一个新管理员，可以重复运行以创建多个管理员。密码只写入 bcrypt 哈希，初始化过程不得把密码写入日志，也不得保留 `admin/admin` 回退逻辑。
+管理员 Cookie 使用 `HttpOnly`、`SameSite=Lax`、`Path=/` 属性，后台网页脚本不能直接读取 Token；所有写操作再校验同源 `Origin`（或等价 CSRF Token）。启用 HTTPS 后设置 `Secure` 属性。
+
+管理员账号仍使用 `users` 表中的 bcrypt 密码哈希，只有 `role=admin` 且状态有效的账号可以进入后台。首次部署通过 `admin-init` 命令创建管理员：命令接收账号和昵称参数，其中账号沿用现有 `users.phone` 字段作为唯一登录标识，并从交互式隐藏输入读取密码；如果该账号已存在，命令必须明确失败，不得覆盖现有密码。命令每次只创建一个新管理员，可以重复运行以创建多个管理员。密码只写入 bcrypt 哈希，初始化过程不得把密码写入日志，也不得保留 `admin/admin` 回退逻辑。
 
 ## 6. 服务端接口
 
@@ -127,7 +129,7 @@ GET /api/auth/modules
       "name": "主板策略",
       "client": "flutter_web",
       "placement": "radar_tab",
-      "parentCode": "radar",
+      "parentCode": null,
       "sort": 30
     }
   ]
@@ -145,6 +147,7 @@ POST /api/admin/login
 POST /api/admin/logout
 GET  /api/admin/me
 GET  /api/admin/users?keyword=...
+PATCH /api/admin/users/{user_id}/status
 GET  /api/admin/modules
 GET  /api/admin/access?user_ids=user-a,user-b
 GET  /api/admin/modules/{module_code}/users
@@ -159,6 +162,23 @@ PUT  /api/admin/access
   "moduleCodes": [
     "radar.main_strategy",
     "radar.purple_strategy"
+  ]
+}
+```
+
+权限查询返回每个选中用户当前的受控模块集合：
+
+```json
+{
+  "users": [
+    {
+      "userId": "user-a",
+      "moduleCodes": ["radar.main_strategy"]
+    },
+    {
+      "userId": "user-b",
+      "moduleCodes": ["radar.purple_strategy", "radar.blue_strategy"]
+    }
   ]
 }
 ```
@@ -180,13 +200,15 @@ PUT  /api/admin/access
 
 HTTP 状态为 `403`。权限清单只决定入口展示；服务端业务接口是最终安全边界。当前紫策、主板策略、蓝策可以共享 T0 计算、行情合并和缓存，但接口权限判断必须按三个模块分别处理，授权一个模块不得自动放行其他模块。
 
+由于当前三个策略 Tab 复用 `/api/t0-selection`，首期采用同一路由的显式模块范围：凡是返回策略结果或历史归档的请求都必须携带 `module_code`，取值为 `radar.purple_strategy`、`radar.main_strategy` 或 `radar.blue_strategy`。服务端先校验该编码的权限，再只返回该模块对应的结果；底层计算和缓存可以共享，但不能把三个模块的结果合集返回给只拥有其中一个模块的用户。预热、日期列表等不返回策略结果的公共元数据操作可以复用底层能力，但不得借此绕过受控结果接口的模块校验。
+
 ## 7. 独立后台网页
 
 ### 7.1 项目与运行方式
 
 新增独立 `admin-web/` Vue 项目，不引用 Wails 运行时、不依赖 `frontend/dist`，开发时单独运行 Vite，生产构建后由 Go 管理服务提供静态文件和 SPA 回退。
 
-管理服务读取 `GO_STOCK_ADMIN_ADDR`，建议默认监听 `:18080`。同一端口提供管理网页和 `/api/admin/*`，网页与 API 同源，首期不需要开放跨域。8080 保留给 Flutter 用户端 API/Web，不再注册 `/api/admin/*`。
+管理服务读取 `GO_STOCK_ADMIN_ADDR`，建议默认监听 `:18080`。同一端口提供管理网页和 `/api/admin/*`，生产环境网页与 API 同源，首期不需要开放跨域；开发时由 Vite 代理 `/api/admin` 到管理服务，并允许配置的开发源通过写操作校验。8080 保留给 Flutter 用户端 API/Web，不再注册 `/api/admin/*`。
 
 后台网页入口为：
 
