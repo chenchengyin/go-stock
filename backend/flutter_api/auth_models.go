@@ -29,6 +29,18 @@ type AuthSession struct {
 
 func (AuthSession) TableName() string { return "user_sessions" }
 
+type AdminSession struct {
+	ID         string     `gorm:"primaryKey;size:64" json:"id"`
+	UserID     string     `gorm:"size:64;index:idx_admin_sessions_user_id;not null" json:"userId"`
+	TokenHash  string     `gorm:"size:64;uniqueIndex:idx_admin_sessions_token_hash;not null" json:"-"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	LastSeenAt time.Time  `json:"lastSeenAt"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	RevokedAt  *time.Time `json:"revokedAt,omitempty"`
+}
+
+func (AdminSession) TableName() string { return "admin_sessions" }
+
 type PublicUser struct {
 	ID       string `json:"id"`
 	Phone    string `json:"phone"`

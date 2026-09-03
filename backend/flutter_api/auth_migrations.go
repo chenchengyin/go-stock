@@ -7,7 +7,7 @@ import (
 )
 
 func MigrateAuthTables(dao *gorm.DB) error {
-	if err := dao.AutoMigrate(&AuthUser{}, &AuthSession{}); err != nil {
+	if err := dao.AutoMigrate(&AuthUser{}, &AuthSession{}, &ModuleUserGrant{}, &AdminSession{}); err != nil {
 		return err
 	}
 
