@@ -152,7 +152,9 @@ class T0StrategyViewModel extends ChangeNotifier {
   List<T0StrategyStock> get purpleResults => List.unmodifiable(
         _results.where(
           (stock) =>
-              stock.patternWinPct > 40 && stock.patternEarnPct > 60,
+              stock.patternT0N >= 2 &&
+              stock.patternWinPct > 40 &&
+              stock.patternEarnPct > 60,
         ),
       );
   List<T0StrategyStock> get blueResults =>
