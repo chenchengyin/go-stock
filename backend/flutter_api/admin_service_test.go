@@ -2,11 +2,36 @@ package flutter_api
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"gorm.io/gorm"
 )
+
+func TestAdminServiceMissingAccountsStillRunDummyPasswordComparison(t *testing.T) {
+	auth := newTestAuthService(t)
+	service := newTestAdminService(auth.dao)
+	var comparedHashes []string
+	service.comparePassword = func(hash, _ []byte) error {
+		comparedHashes = append(comparedHashes, string(hash))
+		return errors.New("invalid password")
+	}
+
+	for _, username := range []string{"", "missing-account"} {
+		if _, _, err := service.Login(context.Background(), AdminLoginInput{
+			Username: username, Password: "secret123",
+		}); !IsAuthCode(err, "INVALID_CREDENTIALS") {
+			t.Fatalf("login username %q err = %v, want INVALID_CREDENTIALS", username, err)
+		}
+	}
+	if len(comparedHashes) != 2 {
+		t.Fatalf("password comparisons = %d, want 2", len(comparedHashes))
+	}
+	if comparedHashes[0] != adminDummyPasswordHash || comparedHashes[1] != adminDummyPasswordHash {
+		t.Fatalf("compared hashes = %q, want fixed dummy hash", comparedHashes)
+	}
+}
 
 func TestAdminServiceLoginRejectsMissingWrongAndOrdinaryCredentialsIdentically(t *testing.T) {
 	auth := newTestAuthService(t)

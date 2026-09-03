@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -121,15 +122,81 @@ func adminRequestOriginAllowed(r *http.Request) bool {
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return false
 	}
-	if strings.EqualFold(parsed.Host, r.Host) {
+	parsedOrigin, ok := parseAdminOrigin(origin)
+	if !ok {
+		return false
+	}
+	requestOrigin, ok := requestAdminOrigin(r)
+	if !ok {
+		return false
+	}
+	if parsedOrigin == requestOrigin {
 		return true
 	}
-	for _, configured := range strings.Split(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGIN"), ",") {
-		if strings.TrimSpace(configured) == origin {
+	for _, configured := range strings.Split(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS"), ",") {
+		configuredOrigin, configuredOK := parseAdminOrigin(strings.TrimSpace(configured))
+		if configuredOK && configuredOrigin == parsedOrigin {
 			return true
 		}
 	}
 	return false
+}
+
+type adminOrigin struct {
+	scheme string
+	host   string
+	port   int
+}
+
+func parseAdminOrigin(raw string) (adminOrigin, bool) {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return adminOrigin{}, false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return adminOrigin{}, false
+	}
+	port, ok := effectiveAdminPort(scheme, parsed.Port())
+	if !ok || parsed.Hostname() == "" {
+		return adminOrigin{}, false
+	}
+	return adminOrigin{scheme: scheme, host: strings.ToLower(parsed.Hostname()), port: port}, true
+}
+
+func requestAdminOrigin(r *http.Request) (adminOrigin, bool) {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	} else if r.URL != nil && r.URL.Scheme != "" {
+		scheme = strings.ToLower(r.URL.Scheme)
+	}
+	if r.Host == "" {
+		return adminOrigin{}, false
+	}
+	parsed, err := url.Parse("//" + r.Host)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Hostname() == "" {
+		return adminOrigin{}, false
+	}
+	port, ok := effectiveAdminPort(scheme, parsed.Port())
+	if !ok {
+		return adminOrigin{}, false
+	}
+	return adminOrigin{scheme: scheme, host: strings.ToLower(parsed.Hostname()), port: port}, true
+}
+
+func effectiveAdminPort(scheme, portValue string) (int, bool) {
+	if portValue == "" {
+		if scheme == "https" {
+			return 443, true
+		}
+		if scheme == "http" {
+			return 80, true
+		}
+		return 0, false
+	}
+	port, err := strconv.Atoi(portValue)
+	return port, err == nil && port > 0 && port <= 65535
 }
 
 func handleAdminUsers(adminService *AdminService) http.HandlerFunc {

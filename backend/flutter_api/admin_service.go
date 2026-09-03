@@ -52,10 +52,11 @@ type AdminService struct {
 	now               func() time.Time
 	newID             func() (string, error)
 	newToken          func() (string, error)
+	comparePassword   func(hash, password []byte) error
 }
 
 func NewAdminService(dao *gorm.DB, onSessionsRevoked func(userID string, sessionIDs []string)) *AdminService {
-	return &AdminService{dao: dao, onSessionsRevoked: onSessionsRevoked, now: time.Now, newID: newSecureHexID, newToken: newSecureHexToken}
+	return &AdminService{dao: dao, onSessionsRevoked: onSessionsRevoked, now: time.Now, newID: newSecureHexID, newToken: newSecureHexToken, comparePassword: bcrypt.CompareHashAndPassword}
 }
 
 func (s *AdminService) Login(ctx context.Context, input AdminLoginInput) (string, *AdminSessionResponse, error) {
@@ -63,17 +64,21 @@ func (s *AdminService) Login(ctx context.Context, input AdminLoginInput) (string
 		return "", nil, newAuthError(http.StatusUnauthorized, "INVALID_CREDENTIALS", "管理员账号或密码错误")
 	}
 	username := strings.TrimSpace(input.Username)
-	if username == "" || input.Password == "" {
-		return invalid()
-	}
 	var user AuthUser
-	if err := s.dao.WithContext(ctx).First(&user, "phone = ?", username).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return invalid()
+	passwordHash := adminDummyPasswordHash
+	userFound := false
+	if username != "" {
+		if err := s.dao.WithContext(ctx).First(&user, "phone = ?", username).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return "", nil, err
+			}
+		} else {
+			passwordHash = user.PasswordHash
+			userFound = true
 		}
-		return "", nil, err
 	}
-	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)) != nil || user.Role != authRoleAdmin || user.Status != authStatusActive {
+	passwordErr := s.comparePassword([]byte(passwordHash), []byte(input.Password))
+	if !userFound || passwordErr != nil || user.Role != authRoleAdmin || user.Status != authStatusActive {
 		return invalid()
 	}
 	rawToken, err := s.newToken()

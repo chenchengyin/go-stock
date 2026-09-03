@@ -122,6 +122,35 @@ func TestAdminHTTPRejectsCrossOriginMutationsAndClearsCookieOnLogout(t *testing.
 	assertAdminUnauthenticated(t, rec)
 }
 
+func TestAdminHTTPOriginRequiresSchemeAndUsesConfiguredPluralOrigins(t *testing.T) {
+	t.Setenv("GO_STOCK_ADMIN_DEV_ORIGIN", "http://example.com")
+	t.Setenv("GO_STOCK_ADMIN_DEV_ORIGINS", "http://localhost:5173, http://127.0.0.1:5173")
+
+	request := httptest.NewRequest(http.MethodPatch, "https://example.com/api/admin/users/id/status", nil)
+	request.Header.Set("Origin", "http://example.com")
+	if adminRequestOriginAllowed(request) {
+		t.Fatal("http origin must not match an https request")
+	}
+
+	request.Header.Set("Origin", "https://example.com")
+	if !adminRequestOriginAllowed(request) {
+		t.Fatal("same https origin should be allowed")
+	}
+	request.Header.Set("Origin", "https://example.com:443")
+	if !adminRequestOriginAllowed(request) {
+		t.Fatal("same https origin with effective port should be allowed")
+	}
+	request.Header.Set("Origin", "https://example.com:8443")
+	if adminRequestOriginAllowed(request) {
+		t.Fatal("different https port must not match")
+	}
+
+	request.Header.Set("Origin", "http://localhost:5173")
+	if !adminRequestOriginAllowed(request) {
+		t.Fatal("configured plural development origin should be allowed")
+	}
+}
+
 func createAdminForTest(t *testing.T, dao *gorm.DB) {
 	t.Helper()
 	if err := CreateAdmin(context.Background(), dao, AdminInitInput{

@@ -12,6 +12,8 @@ import (
 
 const authRoleAdmin = "admin"
 
+const adminDummyPasswordHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+
 type AdminInitInput struct {
 	Account  string
 	Nickname string
