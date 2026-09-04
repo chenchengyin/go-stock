@@ -31,3 +31,22 @@ test('api client converts an expired session into a structured error', async () 
     status: 401,
   })
 })
+
+test('api client encodes JSON bodies and maps batch access requests', async () => {
+  global.fetch = vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({ status: 'ok' }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  ))
+
+  await adminApi.replaceAccess(['user-a'], ['radar.main_strategy'])
+
+  const [path, request] = fetch.mock.calls[0]
+  expect(path).toBe('/api/admin/access')
+  expect(request.method).toBe('PUT')
+  expect(request.credentials).toBe('include')
+  expect(request.headers.get('Content-Type')).toBe('application/json')
+  expect(request.body).toBe(JSON.stringify({
+    userIds: ['user-a'],
+    moduleCodes: ['radar.main_strategy'],
+  }))
+})

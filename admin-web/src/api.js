@@ -29,7 +29,7 @@ export async function apiRequest(path, options = {}) {
 
   if (body !== undefined && body !== null) {
     requestHeaders.set('Content-Type', 'application/json')
-    request.body = typeof body === 'string' ? body : JSON.stringify(body)
+    request.body = JSON.stringify(body)
   }
 
   const response = await fetch(path, request)
