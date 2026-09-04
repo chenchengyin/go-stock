@@ -14,7 +14,7 @@ import (
 func TestAdminHTTPLoginSetsSecureCookieWithoutSerializingRawToken(t *testing.T) {
 	auth := newTestAuthService(t)
 	createAdminForTest(t, auth.dao)
-	handler := newHTTPHandler(auth.AuthService)
+	handler := NewAdminHTTPHandler(NewAdminService(auth.dao, nil), NewModuleService(auth.dao))
 
 	req := httptest.NewRequest(http.MethodPost, "https://example.com/api/admin/login", strings.NewReader(`{"username":"13900000000","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -42,7 +42,7 @@ func TestAdminHTTPLoginSetsSecureCookieWithoutSerializingRawToken(t *testing.T) 
 
 func TestAdminHTTPRejectsUnauthenticatedAndRegularUserSessions(t *testing.T) {
 	auth := newTestAuthService(t)
-	handler := newHTTPHandler(auth.AuthService)
+	handler := NewAdminHTTPHandler(NewAdminService(auth.dao, nil), NewModuleService(auth.dao))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	rec := httptest.NewRecorder()
@@ -60,7 +60,7 @@ func TestAdminHTTPRejectsUnauthenticatedAndRegularUserSessions(t *testing.T) {
 func TestAdminHTTPListsUsersAndFiltersKeywordWithSessionCookie(t *testing.T) {
 	auth := newTestAuthService(t)
 	createAdminForTest(t, auth.dao)
-	handler := newHTTPHandler(auth.AuthService)
+	handler := NewAdminHTTPHandler(NewAdminService(auth.dao, nil), NewModuleService(auth.dao))
 	createUserForAdminTest(t, auth, "13800000000", "Alice")
 	createUserForAdminTest(t, auth, "13600000000", "Bob")
 	if err := auth.dao.Create(&AuthUser{ID: "other-admin", Phone: "13700000000", PasswordHash: "unused", Nickname: "Internal", Role: authRoleAdmin, Status: authStatusActive}).Error; err != nil {
@@ -90,7 +90,7 @@ func TestAdminHTTPListsUsersAndFiltersKeywordWithSessionCookie(t *testing.T) {
 func TestAdminHTTPMeReturnsProfileAndSessionExpiry(t *testing.T) {
 	auth := newTestAuthService(t)
 	createAdminForTest(t, auth.dao)
-	handler := newHTTPHandler(auth.AuthService)
+	handler := NewAdminHTTPHandler(NewAdminService(auth.dao, nil), NewModuleService(auth.dao))
 	cookie := loginAdminCookieForTest(t, handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/me", nil)
@@ -115,7 +115,7 @@ func TestAdminHTTPMeReturnsProfileAndSessionExpiry(t *testing.T) {
 func TestAdminHTTPRejectsCrossOriginMutationsAndClearsCookieOnLogout(t *testing.T) {
 	auth := newTestAuthService(t)
 	createAdminForTest(t, auth.dao)
-	handler := newHTTPHandler(auth.AuthService)
+	handler := NewAdminHTTPHandler(NewAdminService(auth.dao, nil), NewModuleService(auth.dao))
 	cookie := loginAdminCookieForTest(t, handler)
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api/admin/logout", nil)

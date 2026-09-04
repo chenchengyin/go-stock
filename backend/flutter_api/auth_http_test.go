@@ -139,8 +139,9 @@ func TestAuthHTTPRegisterLoginMeAndProfile(t *testing.T) {
 	}
 
 	createAdminForTest(t, service.dao)
-	adminToken := loginAdminForTest(t, handler)
-	setAdminUserStatus(t, handler, adminToken, registerBody.User.ID, authStatusActive)
+	adminHandler := NewAdminHTTPHandler(NewAdminService(service.dao, nil), NewModuleService(service.dao))
+	adminToken := loginAdminForTest(t, adminHandler)
+	setAdminUserStatus(t, adminHandler, adminToken, registerBody.User.ID, authStatusActive)
 
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-b"}`))
 	loginReq.Header.Set("Content-Type", "application/json")
@@ -221,8 +222,9 @@ func TestAuthHTTPOldTokenReturnsSessionReplaced(t *testing.T) {
 		t.Fatalf("decode registration: %v", err)
 	}
 	createAdminForTest(t, service.dao)
-	adminToken := loginAdminForTest(t, handler)
-	setAdminUserStatus(t, handler, adminToken, registration.User.ID, authStatusActive)
+	adminHandler := NewAdminHTTPHandler(NewAdminService(service.dao, nil), NewModuleService(service.dao))
+	adminToken := loginAdminForTest(t, adminHandler)
+	setAdminUserStatus(t, adminHandler, adminToken, registration.User.ID, authStatusActive)
 
 	firstLoginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-a"}`))
 	firstLoginReq.Header.Set("Content-Type", "application/json")
