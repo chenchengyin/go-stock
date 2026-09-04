@@ -311,8 +311,9 @@ func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverride
 	adminService := NewAdminService(authService.dao, func(userID string, sessionIDs []string) {
 		closeWebSocketsForSessions(userID, sessionIDs)
 	})
-	mux.Handle("/api/admin/", NewAdminHTTPHandler(adminService))
-	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService))
+	moduleService := NewModuleService(authService.dao)
+	mux.Handle("/api/admin/", NewAdminHTTPHandler(adminService, moduleService))
+	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService, moduleService))
 	mux.HandleFunc("/api/news", newsHandler)
 	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
 	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)

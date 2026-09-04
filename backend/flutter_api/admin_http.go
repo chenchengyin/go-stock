@@ -19,11 +19,7 @@ func AdminPrincipalFromContext(ctx context.Context) (AdminPrincipal, bool) {
 	return principal, ok
 }
 
-func NewAdminHTTPHandler(service *AdminService, moduleServices ...*ModuleService) http.Handler {
-	moduleService := NewModuleService(service.dao)
-	if len(moduleServices) > 0 && moduleServices[0] != nil {
-		moduleService = moduleServices[0]
-	}
+func NewAdminHTTPHandler(service *AdminService, moduleService *ModuleService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/admin/login", handleAdminLogin(service))
 	mux.HandleFunc("/api/admin/logout", handleAdminLogout(service))

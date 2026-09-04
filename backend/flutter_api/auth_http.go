@@ -9,11 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewAuthHTTPHandler(service *AuthService, moduleServices ...*ModuleService) http.Handler {
-	moduleService := NewModuleService(service.dao)
-	if len(moduleServices) > 0 && moduleServices[0] != nil {
-		moduleService = moduleServices[0]
-	}
+func NewAuthHTTPHandler(service *AuthService, moduleService *ModuleService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/auth/register", handleAuthRegister(service))
 	mux.HandleFunc("/api/auth/login", handleAuthLogin(service))

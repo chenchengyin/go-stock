@@ -9,6 +9,12 @@ import (
 	"testing"
 )
 
+func TestHTTPHandlerConstructorsRequireModuleService(t *testing.T) {
+	t.Helper()
+	var _ func(*AuthService, *ModuleService) http.Handler = NewAuthHTTPHandler
+	var _ func(*AdminService, *ModuleService) http.Handler = NewAdminHTTPHandler
+}
+
 func TestAuthModulesReturnsOnlyPublicModulesWithoutGrants(t *testing.T) {
 	auth := newTestAuthService(t)
 	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")

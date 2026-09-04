@@ -127,8 +127,9 @@ func newUserManagementE2EHandler(authService *AuthService, dao *gorm.DB) http.Ha
 	protectedMux.HandleFunc("/api/e2e/owned-data", ownedDataSnapshotHandler(NewUserDataService(dao)))
 
 	root := http.NewServeMux()
-	root.Handle("/api/auth/", NewAuthHTTPHandler(authService))
-	root.Handle("/api/admin/", NewAdminHTTPHandler(NewAdminService(dao, nil)))
+	moduleService := NewModuleService(dao)
+	root.Handle("/api/auth/", NewAuthHTTPHandler(authService, moduleService))
+	root.Handle("/api/admin/", NewAdminHTTPHandler(NewAdminService(dao, nil), moduleService))
 	root.Handle("/", RequireAuth(authService, protectedMux))
 	return root
 }
