@@ -16,7 +16,7 @@ function placeholderView(title, description) {
 }
 
 export const routes = [
-  { path: '/', redirect: '/users' },
+  { path: '/', name: 'root', component: LoginView },
   { path: '/login', name: 'login', component: LoginView },
   {
     path: '/users',

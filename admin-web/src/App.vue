@@ -8,6 +8,7 @@ const router = useRouter()
 
 const currentAdmin = ref(null)
 const sessionChecked = ref(false)
+const sessionCheckError = ref('')
 const loginLoading = ref(false)
 const loginError = ref('')
 
@@ -16,14 +17,14 @@ const adminAccount = computed(() => currentAdmin.value?.phone || '')
 const pageTitle = computed(() => route.path === '/functions' ? '功能管理' : '用户管理')
 
 async function syncRoute() {
-  if (!sessionChecked.value) return
+  if (!sessionChecked.value || sessionCheckError.value) return
 
   if (currentAdmin.value && (route.path === '/' || route.path === '/login')) {
     await router.replace('/users')
     return
   }
 
-  if (!currentAdmin.value && route.meta.requiresAuth) {
+  if (!currentAdmin.value && (route.path === '/' || route.meta.requiresAuth)) {
     await router.replace('/login')
   }
 }
@@ -34,16 +35,23 @@ watch(
   { immediate: true },
 )
 
-onMounted(async () => {
+async function checkSession() {
+  sessionChecked.value = false
+  sessionCheckError.value = ''
   try {
     const response = await adminApi.me()
     currentAdmin.value = response?.user || null
-  } catch {
+  } catch (error) {
     currentAdmin.value = null
+    if (error?.status !== 401 && error?.code !== 'ADMIN_UNAUTHENTICATED') {
+      sessionCheckError.value = error?.message || '暂时无法检查管理员会话，请重试'
+    }
   } finally {
     sessionChecked.value = true
   }
-})
+}
+
+onMounted(() => { void checkSession() })
 
 async function handleLogin(credentials) {
   if (loginLoading.value) return
@@ -57,6 +65,7 @@ async function handleLogin(credentials) {
 
   loginLoading.value = true
   loginError.value = ''
+  sessionCheckError.value = ''
   try {
     await adminApi.login(username, password)
     const response = await adminApi.me()
@@ -91,6 +100,12 @@ async function handleLogout() {
   <div v-if="!sessionChecked" class="session-loading" role="status">
     正在检查管理员会话…
   </div>
+
+  <main v-else-if="sessionCheckError" class="session-error" role="alert">
+    <h1>暂时无法连接管理后台</h1>
+    <p>{{ sessionCheckError }}</p>
+    <button type="button" @click="checkSession">重新检查</button>
+  </main>
 
   <RouterView
     v-else-if="!currentAdmin"

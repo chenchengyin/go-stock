@@ -114,3 +114,19 @@ test('logout clears the in-memory admin and navigates even when the request fail
   expect(wrapper.text()).toContain('登录')
   expect(wrapper.text()).not.toContain('值班管理员')
 })
+
+test('transient session errors stay visible instead of being treated as logout', async () => {
+  vi.spyOn(adminApi, 'me').mockRejectedValue({
+    status: 503,
+    code: 'UPSTREAM_UNAVAILABLE',
+    message: '服务暂不可用',
+  })
+
+  const { router, wrapper } = mountApp()
+  await router.isReady()
+  await flushPromises()
+
+  expect(router.currentRoute.value.path).toBe('/')
+  expect(wrapper.get('[role="alert"]').text()).toContain('服务暂不可用')
+  expect(wrapper.text()).not.toContain('admin/admin')
+})
