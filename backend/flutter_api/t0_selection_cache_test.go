@@ -4,10 +4,13 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"go-stock/backend/models"
 )
 
 func TestT0DailyCachePathUsesGoStockCacheDir(t *testing.T) {
@@ -119,6 +122,69 @@ func TestHandleT0SelectionArchived(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "600000.XSHG") {
 		t.Fatalf("missing stock: %s", rr.Body.String())
+	}
+}
+
+func TestT0PrewarmHistoricalLegacyArchiveIsEnrichedBeforeModuleScope(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	auth := newTestAuthService(t)
+	useGlobalTestDB(t, auth)
+	AutoMigrate()
+	if err := auth.dao.Create(&models.T0PatternStat{
+		Pattern:  "SY|YX|YX",
+		Window:   3,
+		T0N:      20,
+		WinRate:  41,
+		FailRate: 39,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	cfg := models.DefaultT0PatternConfig("test")
+	if err := auth.dao.Save(&cfg).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	archiveDate := "2026-01-08"
+	tradeDate := "2026-01-09"
+	hist := []dailyBar{
+		{Date: "2026-01-02", Open: 10, Close: 10.1, High: 10.2, Low: 9.9},
+		{Date: "2026-01-03", Open: 10.1, Close: 10.2, High: 10.3, Low: 10.0},
+		{Date: "2026-01-06", Open: 10.2, Close: 10.25, High: 10.3, Low: 10.15},
+		{Date: "2026-01-07", Open: 10.25, Close: 10.3, High: 10.35, Low: 10.2},
+	}
+	stocks := []t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "浦发银行"}}
+	daily := map[string][]dailyBar{"600000": hist}
+	for _, date := range []string{archiveDate, tradeDate} {
+		if err := saveT0DailyCache(date, stocks, daily); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := os.WriteFile(t0SelectionCachePath(archiveDate), []byte(`{
+  "date": "2026-01-08",
+  "saved_at": "2026-01-08T09:30:00Z",
+  "count": 1,
+  "results": [{"股票代码": "600000.XSHG", "股票名称": "浦发银行"}]
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	response := buildPrewarmReadyResponseAt(tradeDate,
+		time.Date(2026, 1, 9, 8, 0, 0, 0, chinaLocation()))
+	if err := scopeT0ResponseResults(
+		"radar.purple_strategy", response, "results"); err != nil {
+		t.Fatal(err)
+	}
+	results, ok := response["results"].([]T0SelectionResult)
+	if !ok || len(results) != 1 {
+		t.Fatalf("scoped legacy historical results = %#v, want one enriched result", response["results"])
+	}
+	if results[0].Pattern != "SY|YX|YX" || results[0].PatternT0N != 20 ||
+		results[0].PatternWinPct != 41 || results[0].PatternFailPct != 39 {
+		t.Fatalf("historical result was not enriched: %#v", results[0])
 	}
 }
 
