@@ -10,23 +10,26 @@ go-stock 是一个以本地桌面端为主、同时提供 Web/Flutter 行情服�
 
 ## 2. 运行形态与入口
 
-仓库当前有三条主要运行形态，它们共享 `backend/data`、`backend/models`、`backend/db` 和 `data/stock.db`，但面向的客户端不同。
+仓库当前有三条主要运行形态；其中 Flutter/Web 服务进程包含用户和管理两个独立监听器。它们共享 `backend/data`、`backend/models`、`backend/db` 和 `data/stock.db`，但面向的客户端不同。
 
 | 形态 | 入口 | 默认地址/产物 | 主要职责 |
 | --- | --- | --- | --- |
 | Wails 桌面端 | `main.go` | 内嵌 `frontend/dist` | Vue3 桌面 UI、Wails 绑定、行情监控、AI 分析、配置和研究中心 |
-| Flutter/Web 行情服务 | `cmd/server/main.go` → `backend/flutter_api.Start` | `:8080`；可托管 `trading_app/build/web` | REST、WebSocket、T0 选股、短线情绪、新闻/异动/策略接口 |
+| Flutter/Web 行情服务 | `cmd/server/main.go` → `backend/flutter_api.Start` | 用户监听 `:8080`；可托管 `trading_app/build/web` | Flutter 用户 REST、WebSocket、T0 选股、短线情绪、新闻/异动/策略接口 |
+| 模块权限管理后台 | 与 Flutter/Web 服务同一 `backend/flutter_api.Start` | 管理监听默认 `:18080`，由 `GO_STOCK_ADMIN_ADDR` 覆盖；可托管 `admin-web/dist` | 数据库管理员登录、用户状态和模块权限管理、管理 SPA |
 | AI Assistant Web | `ai-assistant-web/cmd/ai-assistant-web/main.go` | `:18888`，可用 `AI_ASSISTANT_WEB_ADDR` 覆盖 | 独立 AI 助手页面、SSE 流式对话、会话、分享；VIP2 校验 |
 
-Wails 主进程默认同时启动后两个服务：`main.go` 启动 AI Assistant Web 和 `StartHTTPServer()`。如果只开发 Flutter API，可以直接运行 `go run ./cmd/server`，不需要启动 Wails。
+Wails 主进程默认同时启动 AI Assistant Web 和 `StartHTTPServer()`；后者在同一个 Go 进程中启动 8080 用户监听器和独立的 18080 管理监听器。如果只开发 Flutter API 或管理后台，可以直接运行 `go run ./cmd/server`，不需要启动 Wails。
 
 ```mermaid
 flowchart LR
     V[Vue3 / Wails UI] -->|Wails generated bindings| A[main.App]
     F[Flutter / Web trading_app] -->|HTTP :8080 + WebSocket| H[backend/flutter_api]
+    MW[Admin Web / Browser] -->|HTTP :18080| AH[backend/flutter_api admin listener]
     W[AI Assistant Web] -->|HTTP :18888 + SSE| AW[ai-assistant-web]
     A --> D[backend/data API services]
     H --> D
+    AH --> D
     AW --> D
     D --> M[SQLite data/stock.db]
     D --> X[外部行情 / 资讯 / AI / MCP 服务]
@@ -54,14 +57,14 @@ flowchart LR
 │   ├── models/              GORM 模型、分页响应、跨模块数据结构
 │   ├── db/                  SQLite/GORM 初始化和会话存储
 │   ├── agent/               React/PlanExecute Agent、记忆、定时任务、工具分组
-│   ├── flutter_api/         :8080 REST/WebSocket、T0、短线情绪、社区策略
+│   ├── flutter_api/         :8080 用户 REST/WebSocket、:18080 管理 API/SPA、T0、短线情绪、社区策略
 │   ├── logger/              日志封装
 │   └── util/                HTML/结构体 Markdown 等通用转换
 ├── frontend/src/            Vue 页面和组件
 ├── frontend/wailsjs/        Wails 自动生成的 Go 调用绑定；不要手工修改
 ├── trading_app/             Flutter 客户端及其 Web 构建产物
 ├── ai-assistant-web/        独立 AI 助手的 Go 服务和 Vue 静态页面
-├── cmd/server/              只启动 :8080 API 服务
+├── cmd/server/              启动 :8080 用户服务和独立 :18080 管理服务
 ├── cmd/backfill_ai/         为已有重要新闻补充 AI 意见的一次性工具
 ├── scripts/                 构建、启动、Flutter API 保活、短线研究脚本
 ├── docs/                    用户手册、功能说明、设计稿和计划
@@ -78,7 +81,7 @@ flowchart LR
 1. 创建 `data/`，初始化机器标识、赞助解密密钥和 SQLite。
 2. 初始化情感分析数据，异步执行全局 `AutoMigrate()`。
 3. 构造 `App`：创建 512 KiB `freecache`、秒级 cron、AI 工具集合和预警状态。
-4. 启动 AI Assistant Web 与 `:8080` HTTP 服务。
+4. 启动 AI Assistant Web 与 `StartHTTPServer()`；后者在同一进程启动 `:8080` Flutter 用户服务和独立的管理服务（默认 `:18080`）。
 5. 通过 `wails.Run` 加载内嵌前端，把 `App` 绑定给 Vue。
 
 平台启动回调会设置 `a.ctx`、加载设置、注册前端错误事件、启动已启用的定时任务和交易日预缓存。`domReady` 后启动行情/资讯/基金/AI 推荐/自选股监控；关闭时保存窗口大小，并在 macOS、Windows、Linux 上执行各自的关闭确认和托盘/通知逻辑。
@@ -87,13 +90,36 @@ flowchart LR
 
 `cmd/server` 初始化 SQLite、情感分析和 Flutter API 所需表后进入 `backend/flutter_api.Start()`。该服务：
 
-- 在 `:8080` 注册 REST 路由和 `/ws` WebSocket。
+- 在 `:8080` 注册 Flutter 用户 REST 路由和 `/ws` WebSocket；该监听器不注册 `/api/admin/`。
 - 可通过 `GO_STOCK_WEB_DIR` 指定 Flutter Web 静态目录，否则寻找项目根下的 `trading_app/build/web`。
 - 每 60 秒抓取财联社/新浪新闻。
 - 交易时间内保存异动数据和市场统计快照。
 - 交易日早盘前主动预热 T0 日线；收盘后刷新归档里的真实收盘涨幅。
 
-### 5.3 AI Assistant Web
+### 5.3 模块权限管理后台
+
+`backend/flutter_api.Start()` 会在同一 Go 进程中额外启动独立的管理监听器。两个监听器的职责边界如下：
+
+- 用户监听固定为 `:8080`，提供 Flutter 用户 API、用户 Web 静态文件和 WebSocket；管理 API 不会暴露在 8080。
+- 管理监听由 `GO_STOCK_ADMIN_ADDR` 控制，未设置时默认为 `:18080`。它提供 `/api/admin/` 管理 API；存在管理网页构建产物时，根路径 `/` 同时提供管理 SPA 和前端路由回退。
+- 管理网页目录优先取 `GO_STOCK_ADMIN_WEB_DIR`；未设置时从项目根下的 `admin-web/dist` 查找包含 `index.html` 的目录。找不到构建产物时，管理 API 仍可用，可由单独运行的 Vite 开发服务器提供网页。
+- `GO_STOCK_ADMIN_DEV_ORIGINS` 是开发期来源白名单，值为逗号分隔的完整 Origin，例如 `http://localhost:5174`。它用于 Vite 与管理 API 的开发期跨源请求/写操作校验；生产环境应使用管理网页与 API 同源访问，不应配置通配来源。
+
+管理员不是硬编码账号。首次部署在项目根目录执行 `admin-init`，命令会隐藏读取并确认密码两次，在同一个 `users` 表中创建 `role=admin`、有效状态的数据库管理员，密码只保存为 bcrypt 哈希；不会写入明文密码或哈希，也不会回退到 `admin/admin`。账号沿用 `users.phone` 作为登录标识，重复账号会失败且不会覆盖已有密码。
+
+管理网页的最小启动与 smoke flow（需先准备 `admin-web/dist/index.html`，或通过 `GO_STOCK_ADMIN_WEB_DIR` 指向等价目录）如下：
+
+```text
+go run ./cmd/admin-init -account 13900000000 -nickname 管理员
+GO_STOCK_ADMIN_ADDR=:18080 go run ./cmd/server
+浏览器打开 http://服务器地址:18080/
+```
+
+在管理网页使用刚创建的账号和密码登录；同时验证普通用户通过 `http://服务器地址:8080/` 或 8080 用户 API 登录。普通用户在尚未授权任何受控模块时，`GET /api/auth/modules` 应只有以下三个公开模块：`radar.monitored`（监控股票/自选）、`radar.watch_changes`（自选异动）和 `radar.all_changes`（全市场）。之后在 18080 管理后台授权受控模块，再重新加载用户端确认授权生效。
+
+当前两个监听器由标准 HTTP 提供服务，非标准端口不是安全措施。正式公网部署前必须使用 HTTPS 反向代理或等价的传输保护：不要直接把 8080/18080 暴露到公网，代理应分别转发用户服务与管理服务、保留正确的 Host/Origin，并为用户 WebSocket 配置升级转发。管理会话 Cookie 的 `Secure` 属性按 Go 请求是否为 TLS 设置；若代理在外部终止 TLS，必须确保上游连接/应用的 HTTPS 感知方式已按受信任的代理边界配置，不能仅凭未验证的转发头宣称安全。
+
+### 5.4 AI Assistant Web
 
 服务内嵌 `ai-assistant-web/static`，提供 `/api/health`、`/api/vip-status`、`/api/ai-configs`、`/api/prompts`、`/api/session`、`/api/chat/summary-stream` 和 `/api/share`。AI 对话使用 Server-Sent Events，`EnableTools` 打开时复用 `data.Tools`。
 
@@ -224,6 +250,15 @@ Skill 是可配置的领域提示词：它有名称、分类、触发关键词�
 
 配置模型在 `backend/data/settings_api.go`，包含：刷新间隔、是否更新基础资料、浏览器路径、Tushare/问财/东财配置、代理、新闻推送、暗色主题、基金和 Agent 开关、提示词广场地址、窗口大小，以及多条 `AIConfig`。
 
+Flutter 用户服务和模块权限管理服务的监听/静态资源配置不走上述设置表，而使用环境变量：
+
+| 变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `GO_STOCK_WEB_DIR` | 自动查找 `trading_app/build/web` | 覆盖 8080 Flutter Web 静态目录；目录必须包含 `index.html` |
+| `GO_STOCK_ADMIN_ADDR` | `:18080` | 覆盖同一进程中的独立管理 API/SPA 监听地址；不影响 8080 用户监听 |
+| `GO_STOCK_ADMIN_WEB_DIR` | 自动查找项目根 `admin-web/dist` | 指定管理 SPA 静态目录；优先级高于默认查找，目录必须包含 `index.html` |
+| `GO_STOCK_ADMIN_DEV_ORIGINS` | 空 | 开发期管理网页来源白名单，使用逗号分隔的完整 Origin；Vite 默认示例为 `http://localhost:5174` |
+
 使用外部数据或 AI 功能时要区分：
 
 - 不需要密钥的公开行情/资讯接口可能受限流、字段变化、网络环境影响。
@@ -249,7 +284,16 @@ wails build --clean
 ### Flutter/Web API
 
 ```bash
-# 独立启动 :8080
+# 创建数据库管理员；命令会在终端隐藏读取并确认密码两次
+go run ./cmd/admin-init -account 13900000000 -nickname 管理员
+
+# 同时启动 Flutter 用户服务 :8080 和模块权限管理服务 :18080
+go run ./cmd/server
+
+# 管理端口、管理静态目录和 Vite 开发来源均可按部署环境覆盖
+GO_STOCK_ADMIN_ADDR=:18080 \
+GO_STOCK_ADMIN_WEB_DIR=/absolute/path/admin-web/dist \
+GO_STOCK_ADMIN_DEV_ORIGINS=http://localhost:5174 \
 go run ./cmd/server
 
 # Flutter 依赖与 Web 构建
@@ -277,7 +321,8 @@ flutter build web --release
 4. `app_linux.go` 与通用 `app.go` 的职责/类型需要在 Linux 发布前单独验证；不要仅依据 `BUILD_LINUX.md` 推断 Linux 构建已被持续验证。
 5. 数据适配器直接面向多个外部站点，接口字段、Cookie、限流和网络可用性都会影响功能；返回数据应保留降级和空数据路径。
 6. 数据库和缓存都与运行目录/项目根有关。发布二进制时要明确 `data/`、`GO_STOCK_CACHE_DIR`、日志和上传目录的持久化位置。
-7. 赞助码、AI Key、Tushare Token、Cookie 等属于敏感配置；日志、导出配置、Issue 和测试输出不得提交真实值。
+7. 模块权限管理后台当前只提供 HTTP 监听；正式公网部署前必须由 HTTPS 反向代理、防火墙和访问控制保护，且不能把非标准端口当作身份或权限安全边界。
+8. 赞助码、AI Key、Tushare Token、Cookie、管理员密码和会话 Token 等属于敏感配置；日志、导出配置、Issue 和测试输出不得提交真实值。
 
 ## 14. 推荐阅读顺序
 
