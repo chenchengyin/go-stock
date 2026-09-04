@@ -804,7 +804,7 @@ class T0StrategyViewModel extends ChangeNotifier {
         .where(
           (stock) =>
               stock.patternT0N >= 2 &&
-              stock.patternWinPct > 40 &&
+              stock.patternWinPct >= 30 &&
               stock.patternEarnPct > 60,
         )
         .toList();

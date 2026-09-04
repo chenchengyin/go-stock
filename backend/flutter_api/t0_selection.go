@@ -377,7 +377,7 @@ func t0DisplaySortRank(result T0SelectionResult) int {
 func filterPurpleT0Results(results []T0SelectionResult) []T0SelectionResult {
 	filtered := make([]T0SelectionResult, 0, len(results))
 	for _, result := range results {
-		if result.PatternT0N >= 2 && result.PatternWinPct > 40 &&
+		if result.PatternT0N >= 2 && result.PatternWinPct >= 30 &&
 			100-result.PatternFailPct > 60 {
 			filtered = append(filtered, result)
 		}
@@ -541,6 +541,9 @@ func tryStartT0Prewarm(tradeDate string) (started bool, progress t0WarmProgress)
 	go runT0PrewarmJob(tradeDate)
 	return true, out
 }
+
+// t0PrewarmStarter 允许 HTTP 流程在测试中替换后台任务启动器；生产环境保持使用真实预热实现。
+var t0PrewarmStarter = tryStartT0Prewarm
 
 func runT0PrewarmJob(tradeDate string) {
 	logger.SugaredLogger.Infof("========== T0 日线预热(后台) | 基准日: %s ==========", tradeDate)
@@ -1915,7 +1918,7 @@ func writeT0PrewarmHTTP(w http.ResponseWriter, tradeDate, moduleCode string) {
 			"results", "candidates")
 		return
 	}
-	tryStartT0Prewarm(tradeDate)
+	t0PrewarmStarter(tradeDate)
 	if isT0DailyCacheFilePresent(tradeDate) {
 		writeScopedT0Response(w, moduleCode, buildPrewarmReadyResponse(tradeDate),
 			"results", "candidates")
@@ -2033,6 +2036,14 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			"count":   0,
 			"results": []T0SelectionResult{},
 		}, "results")
+		return
+	}
+
+	// 冷启动时不要在 HTTP 请求中同步执行完整选股。首次拉取股票池和日线
+	// 可能耗时几十秒，超出 Flutter 客户端的连接等待时间；统一转入后台预热，
+	// 由客户端根据 warming/ready 状态轮询，避免页面落入连接超时错误。
+	if !isT0DailyCacheFilePresent(tradeDate) {
+		writeT0PrewarmHTTP(w, tradeDate, moduleCode)
 		return
 	}
 

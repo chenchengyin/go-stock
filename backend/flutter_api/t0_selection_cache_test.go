@@ -92,6 +92,52 @@ func TestSelectionBlockedWhenWarmingWithoutDailyFile(t *testing.T) {
 	}
 }
 
+func TestSelectionColdStartUsesAsyncPrewarm(t *testing.T) {
+	origCacheRoot := t0CacheRootPath
+	origPrewarmStarter := t0PrewarmStarter
+	t0CacheRootPath = t.TempDir()
+	defer func() {
+		t0CacheRootPath = origCacheRoot
+		t0PrewarmStarter = origPrewarmStarter
+	}()
+
+	date := "2099-01-05"
+	t0PrewarmStarter = func(tradeDate string) (bool, t0WarmProgress) {
+		progress := t0WarmProgress{
+			Status:    t0WarmStatusWarming,
+			StartedAt: time.Now(),
+		}
+		setT0WarmProgressForTest(tradeDate, progress)
+		return true, progress
+	}
+
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000001", "Alice", "device-a")
+	modules := NewModuleService(auth.dao)
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-a",
+		[]string{user.User.ID}, []string{"radar.main_strategy"}); err != nil {
+		t.Fatalf("grant main: %v", err)
+	}
+
+	startedAt := time.Now()
+	rr := httptest.NewRecorder()
+	handler := newHTTPHandler(auth.AuthService)
+	handler.ServeHTTP(rr, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&date="+date,
+		user.AccessToken, ""))
+
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("cold selection blocked for %s", elapsed)
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"prewarm":true`) ||
+		!strings.Contains(rr.Body.String(), `"status":"warming"`) {
+		t.Fatalf("expected warming response, body: %s", rr.Body.String())
+	}
+}
+
 func TestHandleT0SelectionArchived(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()

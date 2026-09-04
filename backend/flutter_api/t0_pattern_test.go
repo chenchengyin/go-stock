@@ -88,11 +88,11 @@ func TestEnrichResultWithPattern(t *testing.T) {
 
 func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	results := []T0SelectionResult{
-		{StockCode: "purple", PatternT0N: 2, PatternWinPct: 40.1, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
-		{StockCode: "purple-win-boundary", PatternT0N: 2, PatternWinPct: 40, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
-		{StockCode: "purple-earn-boundary", PatternT0N: 2, PatternWinPct: 40.1, PatternFailPct: 40, BuySignal: BuySignalGreen},
+		{StockCode: "purple", PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
+		{StockCode: "purple-win-boundary", PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
+		{StockCode: "purple-earn-boundary", PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 40, BuySignal: BuySignalGreen},
 		{StockCode: "blue", PatternT0N: 1, BuySignal: BuySignalBlue},
-		{StockCode: "other", PatternT0N: 2, PatternWinPct: 40.1, PatternFailPct: 40.1, BuySignal: BuySignalGreen},
+		{StockCode: "other", PatternT0N: 2, PatternWinPct: 29.9, PatternFailPct: 39, BuySignal: BuySignalGreen},
 	}
 	original := append([]T0SelectionResult(nil), results...)
 
@@ -100,7 +100,7 @@ func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	if err != nil {
 		t.Fatalf("select purple: %v", err)
 	}
-	if got := []string{purple[0].StockCode}; !reflect.DeepEqual(got, []string{"purple"}) {
+	if got := []string{purple[0].StockCode, purple[1].StockCode}; !reflect.DeepEqual(got, []string{"purple", "purple-win-boundary"}) {
 		t.Fatalf("purple results = %v", got)
 	}
 	if &purple[0] == &results[0] {

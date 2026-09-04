@@ -239,7 +239,7 @@ void main() {
     expect(archiveVm.blueResults.map((s) => s.rawCode).toList(), ['600020']);
   });
 
-  test('purpleResults：达标率和赚率均严格超过阈值并保持主板策略顺序', () {
+  test('purpleResults：达标率不低于30且赚率严格超过60并保持主板策略顺序', () {
     final vm = T0StrategyViewModel();
     addTearDown(vm.dispose);
 
@@ -250,14 +250,14 @@ void main() {
           '股票代码': '600001.XSHG',
           '股票名称': '紫股一',
           '形态样本数': 2,
-          '形态达标率(%)': 40.01,
+          '形态达标率(%)': 30.01,
           '形态真亏率(%)': 39.99,
         },
         {
           '股票代码': '600002.XSHG',
           '股票名称': '边界达标率',
           '形态样本数': 2,
-          '形态达标率(%)': 40,
+          '形态达标率(%)': 30,
           '形态真亏率(%)': 20,
         },
         {
@@ -271,7 +271,7 @@ void main() {
           '股票代码': '600004.XSHG',
           '股票名称': '紫股二',
           '形态样本数': 2,
-          '形态达标率(%)': 41,
+          '形态达标率(%)': 31,
           '形态真亏率(%)': 39.9,
         },
       ],
@@ -279,6 +279,7 @@ void main() {
 
     expect(vm.purpleResults.map((s) => s.rawCode).toList(), [
       '600001',
+      '600002',
       '600004',
     ]);
     expect(vm.results.map((s) => s.rawCode).toList(), [
@@ -337,14 +338,14 @@ void main() {
             '股票代码': '600010.XSHG',
             '股票名称': '紫色候选',
             '形态样本数': 2,
-            '形态达标率(%)': 40.1,
+            '形态达标率(%)': 30.1,
             '形态真亏率(%)': 39.9,
           },
           {
             '股票代码': '600011.XSHG',
             '股票名称': '边界候选',
             '形态样本数': 2,
-            '形态达标率(%)': 40,
+            '形态达标率(%)': 30,
             '形态真亏率(%)': 20,
           },
         ],
@@ -374,7 +375,10 @@ void main() {
       ],
     });
 
-    expect(previewVm.purpleResults.map((s) => s.rawCode).toList(), ['600010']);
+    expect(previewVm.purpleResults.map((s) => s.rawCode).toList(), [
+      '600010',
+      '600011',
+    ]);
     expect(archiveVm.purpleResults.map((s) => s.rawCode).toList(), ['600020']);
   });
 
