@@ -44,8 +44,10 @@ test('a partial selection click explicitly checks the independent module', async
   const wrapper = mountDialog()
   await flushPromises()
 
-  await wrapper.get('[data-module-code="radar.main_strategy"] input').trigger('click')
+  const mainInput = wrapper.get('[data-module-code="radar.main_strategy"] input')
+  await mainInput.setValue(true)
   expect(wrapper.get('[data-module-code="radar.main_strategy"] input').attributes('data-state')).toBe('checked')
+  expect(mainInput.element.checked).toBe(true)
   expect(wrapper.get('[data-module-code="radar.purple_strategy"] input').attributes('data-state')).toBe('unchecked')
 })
 
@@ -57,7 +59,7 @@ test('saves selected users and controlled modules, then closes', async () => {
   ])
   await flushPromises()
 
-  await wrapper.get('[data-module-code="radar.blue_strategy"] input').trigger('click')
+  await wrapper.get('[data-module-code="radar.blue_strategy"] input').setValue(true)
   await wrapper.get('[data-action="save-permissions"]').trigger('click')
   await flushPromises()
 
@@ -77,8 +79,8 @@ test('saving an empty controlled set revokes every controlled grant', async () =
   ])
   await flushPromises()
 
-  await wrapper.get('[data-module-code="radar.purple_strategy"] input').trigger('click')
-  await wrapper.get('[data-module-code="radar.main_strategy"] input').trigger('click')
+  await wrapper.get('[data-module-code="radar.purple_strategy"] input').setValue(false)
+  await wrapper.get('[data-module-code="radar.main_strategy"] input').setValue(false)
   await wrapper.get('[data-action="save-permissions"]').trigger('click')
   await flushPromises()
 
@@ -93,7 +95,7 @@ test('save errors keep the dialog open and the current selection', async () => {
   ])
   await flushPromises()
 
-  await wrapper.get('[data-module-code="radar.purple_strategy"] input').trigger('click')
+  await wrapper.get('[data-module-code="radar.purple_strategy"] input').setValue(true)
   await wrapper.get('[data-action="save-permissions"]').trigger('click')
   await flushPromises()
 

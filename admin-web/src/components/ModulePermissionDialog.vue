@@ -79,11 +79,10 @@ watch(
 )
 
 function toggleModule(event, module) {
-  event.preventDefault()
   if (isPublic(module) || loading.value || saving.value) return
 
   const next = new Set(selectedCodes.value)
-  const nextChecked = moduleState(module.code) !== 'checked'
+  const nextChecked = event.target.checked
   const overrides = new Map(selectionOverrides.value)
   overrides.set(module.code, nextChecked)
   selectionOverrides.value = overrides
@@ -154,7 +153,7 @@ function close() {
             :data-state="moduleState(module.code)"
             :data-role="isPublic(module) ? 'public-lock' : 'module-checkbox'"
             :ref="(element) => syncCheckboxState(element, module.code)"
-            @click="toggleModule($event, module)"
+            @change="toggleModule($event, module)"
           >
         </div>
       </div>
