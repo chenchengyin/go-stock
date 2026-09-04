@@ -96,6 +96,7 @@ type wsClient struct {
 
 const (
 	defaultHTTPServerPort = 8080
+	defaultAdminHTTPAddr  = ":18080"
 	webSocketWriteTimeout = 5 * time.Second
 )
 
@@ -147,6 +148,19 @@ func Start() {
 	authService := NewAuthService(db.Dao, func(userID, _ string, revokedSessionIDs []string) {
 		closeWebSocketsForSessions(userID, revokedSessionIDs)
 	})
+	moduleService := NewModuleService(db.Dao)
+	adminService := NewAdminService(db.Dao, func(userID string, sessionIDs []string) {
+		closeWebSocketsForSessions(userID, sessionIDs)
+	})
+
+	adminHandler := newAdminListenerHandler(adminService, moduleService)
+	adminAddr := adminHTTPAddr()
+	go func() {
+		logger.SugaredLogger.Infof("Admin HTTP Server starting on %s", adminAddr)
+		if err := http.ListenAndServe(adminAddr, adminHandler); err != nil {
+			logger.SugaredLogger.Errorf("Admin HTTP Server error: %v", err)
+		}
+	}()
 
 	// 启动定时新闻抓取（每60秒抓一次财联社和新浪新闻）
 	go func() {
@@ -272,7 +286,7 @@ func Start() {
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 
-	handler := newHTTPHandler(authService)
+	handler := newUserHTTPHandler(authService, moduleService)
 
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		logger.SugaredLogger.Errorf("HTTP Server error: %v", err)
@@ -287,6 +301,10 @@ type serverHandlerOverrides struct {
 }
 
 func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverrides) http.Handler {
+	return newUserHTTPHandler(authService, NewModuleService(authService.dao), overrides...)
+}
+
+func newUserHTTPHandler(authService *AuthService, moduleService *ModuleService, overrides ...serverHandlerOverrides) http.Handler {
 	mux := http.NewServeMux()
 	userDataHandler := userDataHTTPHandler{service: NewUserDataService(authService.dao)}
 	newsHandler := handleGetNews
@@ -308,11 +326,6 @@ func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverride
 		}
 	}
 
-	adminService := NewAdminService(authService.dao, func(userID string, sessionIDs []string) {
-		closeWebSocketsForSessions(userID, sessionIDs)
-	})
-	moduleService := NewModuleService(authService.dao)
-	mux.Handle("/api/admin/", NewAdminHTTPHandler(adminService, moduleService))
 	mux.Handle("/api/auth/", NewAuthHTTPHandler(authService, moduleService))
 	mux.HandleFunc("/api/news", newsHandler)
 	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
@@ -357,6 +370,27 @@ func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverride
 	return corsMiddleware(webSocketAccessTokenFallback(RequireAuth(authService, mux)))
 }
 
+func adminHTTPAddr() string {
+	if value := strings.TrimSpace(os.Getenv("GO_STOCK_ADMIN_ADDR")); value != "" {
+		return value
+	}
+	return defaultAdminHTTPAddr
+}
+
+func newAdminListenerHandler(adminService *AdminService, moduleService *ModuleService) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/api/admin/", NewAdminHTTPHandler(adminService, moduleService))
+
+	if webRoot, err := resolveAdminWebRoot(); err != nil {
+		logger.SugaredLogger.Warnf("[Admin Web] 未托管管理页面：%v", err)
+	} else {
+		logger.SugaredLogger.Infof("[Admin Web] 托管管理页面目录: %s", webRoot)
+		mux.Handle("/", newAdminWebHandler(webRoot))
+	}
+
+	return mux
+}
+
 func webSocketAccessTokenFallback(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/ws" && bearerTokenFromRequest(r) == "" {
@@ -399,6 +433,41 @@ func resolveFlutterWebRoot() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("未找到 Flutter web 产物（需含 index.html），可设置 GO_STOCK_WEB_DIR 指定")
+}
+
+func resolveAdminWebRoot() (string, error) {
+	candidates := []string{}
+	if env := strings.TrimSpace(os.Getenv("GO_STOCK_ADMIN_WEB_DIR")); env != "" {
+		candidates = append(candidates, env)
+	}
+	cwd, _ := os.Getwd()
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
+	}
+	for _, start := range []string{cwd, exeDir} {
+		if root := findProjectRootUpward(start); root != "" {
+			candidates = append(candidates, filepath.Join(root, "admin-web", "dist"))
+		}
+	}
+	for _, dir := range candidates {
+		if fi, err := os.Stat(filepath.Join(dir, "index.html")); err == nil && !fi.IsDir() {
+			abs, err := filepath.Abs(dir)
+			if err != nil {
+				return "", err
+			}
+			return abs, nil
+		}
+	}
+	return "", fmt.Errorf("未找到 admin web 产物（需含 index.html），可设置 GO_STOCK_ADMIN_WEB_DIR 指定")
+}
+
+func newAdminWebHandler(webRoot string) http.Handler {
+	return spaFileServer(webRoot)
+}
+
+func newAdminWebHandlerForTest(root string) http.Handler {
+	return newAdminWebHandler(root)
 }
 
 // spaFileServer 返回一个静态文件处理器：命中文件直接返回，

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +18,32 @@ import (
 	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
 )
+
+func TestUserHTTPHandlerDoesNotExposeAdminRoutes(t *testing.T) {
+	auth := newTestAuthService(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	rec := httptest.NewRecorder()
+	newHTTPHandler(auth.AuthService).ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK {
+		t.Fatalf("admin response leaked from user server: %s", rec.Body.String())
+	}
+}
+
+func TestAdminWebRootServesSpaFallback(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "index.html"),
+		[]byte("<html>admin</html>"), 0600); err != nil {
+		t.Fatalf("write index: %v", err)
+	}
+	handler := newAdminWebHandlerForTest(root)
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK ||
+		!strings.Contains(rec.Body.String(), "admin") {
+		t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+	}
+}
 
 func principalProbe(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
@@ -135,8 +163,9 @@ func TestProtectedRouterKeepsRegisterLoginAndHealthPublic(t *testing.T) {
 		t.Fatalf("decode registration: %v", err)
 	}
 	createAdminForTest(t, service.dao)
-	adminToken := loginAdminForTest(t, handler)
-	setAdminUserStatus(t, handler, adminToken, registration.User.ID, authStatusActive)
+	adminHandler := NewAdminHTTPHandler(NewAdminService(service.dao, nil), NewModuleService(service.dao))
+	adminToken := loginAdminForTest(t, adminHandler)
+	setAdminUserStatus(t, adminHandler, adminToken, registration.User.ID, authStatusActive)
 
 	loginRec := httptest.NewRecorder()
 	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"phone":"13800000000","password":"secret123","deviceId":"device-b"}`))

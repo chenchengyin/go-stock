@@ -20,31 +20,36 @@ func AdminPrincipalFromContext(ctx context.Context) (AdminPrincipal, bool) {
 }
 
 func NewAdminHTTPHandler(service *AdminService, moduleService *ModuleService) http.Handler {
+	policy := newAdminOriginPolicy(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS"))
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/admin/login", handleAdminLogin(service))
-	mux.HandleFunc("/api/admin/logout", handleAdminLogout(service))
-	usersHandler := RequireAdmin(service, http.HandlerFunc(handleAdminUsers(service)))
+	mux.HandleFunc("/api/admin/login", handleAdminLoginWithPolicy(service, policy))
+	mux.HandleFunc("/api/admin/logout", handleAdminLogoutWithPolicy(service, policy))
+	usersHandler := requireAdminWithPolicy(service, http.HandlerFunc(handleAdminUsers(service)), policy)
 	mux.Handle("/api/admin/users", usersHandler)
 	mux.Handle("/api/admin/users/", usersHandler)
-	meHandler := RequireAdmin(service, handleAdminMe(service))
+	meHandler := requireAdminWithPolicy(service, handleAdminMe(service), policy)
 	mux.Handle("/api/admin/me", meHandler)
-	modulesHandler := RequireAdmin(service, handleAdminModules(moduleService))
+	modulesHandler := requireAdminWithPolicy(service, handleAdminModules(moduleService), policy)
 	mux.Handle("/api/admin/modules", modulesHandler)
-	moduleUsersHandler := RequireAdmin(service, handleAdminModuleUsers(moduleService))
+	moduleUsersHandler := requireAdminWithPolicy(service, handleAdminModuleUsers(moduleService), policy)
 	mux.Handle("/api/admin/modules/", moduleUsersHandler)
-	accessHandler := RequireAdmin(service, handleAdminAccess(moduleService))
+	accessHandler := requireAdminWithPolicy(service, handleAdminAccess(moduleService), policy)
 	mux.Handle("/api/admin/access", accessHandler)
-	return mux
+	return adminCORSMiddleware(policy, mux)
 }
 
 func RequireAdmin(service *AdminService, next http.Handler) http.Handler {
+	return requireAdminWithPolicy(service, next, newAdminOriginPolicy(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS")))
+}
+
+func requireAdminWithPolicy(service *AdminService, next http.Handler, policy adminOriginPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !adminRequestOriginAllowed(r) {
-			WriteAuthError(w, newAuthError(http.StatusForbidden, "ORIGIN_FORBIDDEN", "请求来源不被允许"))
+		if !policy.requestAllowed(r) {
+			writeAdminCSRFError(w)
 			return
 		}
 		cookie, err := r.Cookie(adminSessionCookieName)
@@ -62,13 +67,17 @@ func RequireAdmin(service *AdminService, next http.Handler) http.Handler {
 }
 
 func handleAdminLogin(service *AdminService) http.HandlerFunc {
+	return handleAdminLoginWithPolicy(service, newAdminOriginPolicy(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS")))
+}
+
+func handleAdminLoginWithPolicy(service *AdminService, policy adminOriginPolicy) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if !adminRequestOriginAllowed(r) {
-			WriteAuthError(w, newAuthError(http.StatusForbidden, "ORIGIN_FORBIDDEN", "请求来源不被允许"))
+		if !policy.requestAllowed(r) {
+			writeAdminCSRFError(w)
 			return
 		}
 		var input AdminLoginInput
@@ -90,13 +99,17 @@ func handleAdminLogin(service *AdminService) http.HandlerFunc {
 }
 
 func handleAdminLogout(service *AdminService) http.HandlerFunc {
+	return handleAdminLogoutWithPolicy(service, newAdminOriginPolicy(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS")))
+}
+
+func handleAdminLogoutWithPolicy(service *AdminService, policy adminOriginPolicy) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if !adminRequestOriginAllowed(r) {
-			WriteAuthError(w, newAuthError(http.StatusForbidden, "ORIGIN_FORBIDDEN", "请求来源不被允许"))
+		if !policy.requestAllowed(r) {
+			writeAdminCSRFError(w)
 			return
 		}
 		if cookie, err := r.Cookie(adminSessionCookieName); err == nil {
@@ -147,6 +160,24 @@ func clearAdminSessionCookie(r *http.Request) *http.Cookie {
 }
 
 func adminRequestOriginAllowed(r *http.Request) bool {
+	return newAdminOriginPolicy(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS")).requestAllowed(r)
+}
+
+type adminOriginPolicy struct {
+	development []adminOrigin
+}
+
+func newAdminOriginPolicy(raw string) adminOriginPolicy {
+	policy := adminOriginPolicy{}
+	for _, configured := range strings.Split(raw, ",") {
+		if origin, ok := parseAdminOrigin(strings.TrimSpace(configured)); ok {
+			policy.development = append(policy.development, origin)
+		}
+	}
+	return policy
+}
+
+func (p adminOriginPolicy) requestAllowed(r *http.Request) bool {
 	if r.Method != http.MethodPost && r.Method != http.MethodPut && r.Method != http.MethodPatch {
 		return true
 	}
@@ -154,28 +185,56 @@ func adminRequestOriginAllowed(r *http.Request) bool {
 	if origin == "" {
 		return true
 	}
-	parsed, err := url.Parse(origin)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return false
-	}
 	parsedOrigin, ok := parseAdminOrigin(origin)
 	if !ok {
 		return false
 	}
-	requestOrigin, ok := requestAdminOrigin(r)
-	if !ok {
-		return false
-	}
-	if parsedOrigin == requestOrigin {
+	return p.originAllowed(r, parsedOrigin)
+}
+
+func (p adminOriginPolicy) originAllowed(r *http.Request, origin adminOrigin) bool {
+	if requestOrigin, ok := requestAdminOrigin(r); ok && origin == requestOrigin {
 		return true
 	}
-	for _, configured := range strings.Split(os.Getenv("GO_STOCK_ADMIN_DEV_ORIGINS"), ",") {
-		configuredOrigin, configuredOK := parseAdminOrigin(strings.TrimSpace(configured))
-		if configuredOK && configuredOrigin == parsedOrigin {
+	for _, configuredOrigin := range p.development {
+		if configuredOrigin == origin {
 			return true
 		}
 	}
 	return false
+}
+
+func writeAdminCSRFError(w http.ResponseWriter) {
+	WriteAuthError(w, newAuthError(http.StatusForbidden, "CSRF_INVALID", "请求来源不被允许"))
+}
+
+func adminCORSMiddleware(policy adminOriginPolicy, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		originAllowed := false
+		if origin != "" {
+			if parsedOrigin, ok := parseAdminOrigin(origin); ok {
+				originAllowed = policy.originAllowed(r, parsedOrigin)
+				if originAllowed {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
+					w.Header().Set("Access-Control-Max-Age", "86400")
+					w.Header().Add("Vary", "Origin")
+				}
+			}
+		}
+		if r.Method == http.MethodOptions {
+			if origin != "" && !originAllowed {
+				writeAdminCSRFError(w)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 type adminOrigin struct {
