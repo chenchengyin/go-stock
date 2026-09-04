@@ -1,0 +1,23 @@
+{
+  "name": "go-stock-admin-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "naive-ui": "^2.44.1",
+    "vue": "^3.5.33",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^26.1.0",
+    "vite": "^7.3.3",
+    "vitest": "^3.2.4"
+  }
+}
