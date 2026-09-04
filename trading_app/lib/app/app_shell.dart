@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../core/theme/app_colors.dart';
+import '../features/permissions/presentation/module_permission_controller.dart';
 import '../features/news/presentation/market_news/news_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/radar/presentation/radar_list/radar_page.dart';
@@ -31,7 +33,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
   final Set<int> _visitedIndexes = {0};
   int _newsKey = 0;
@@ -80,7 +82,20 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkPendingDeepLink();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    unawaited(context.read<ModulePermissionController>().refresh());
   }
 
   Future<void> _checkPendingDeepLink() async {

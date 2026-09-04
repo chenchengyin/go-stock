@@ -19,6 +19,8 @@ import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
+import 'package:trading_app/features/permissions/data/module_permission_repository.dart';
+import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
 import 'package:trading_app/features/short_term_emotion/data/short_term_emotion_repository.dart';
 import 'package:trading_app/features/short_term_emotion/presentation/short_term_emotion_view_model.dart';
 
@@ -74,6 +76,14 @@ class AuthenticatedDependencies extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        Provider<ModulePermissionSource>(
+          create: (_) => ModulePermissionRepository(dio),
+        ),
+        ChangeNotifierProvider<ModulePermissionController>(
+          create: (context) =>
+              ModulePermissionController(context.read<ModulePermissionSource>())
+                ..load(),
+        ),
         Provider<RadarRepository>(create: (_) => RadarRepositoryImpl(dio: dio)),
         ChangeNotifierProvider(
           create: (context) =>
@@ -86,6 +96,9 @@ class AuthenticatedDependencies extends StatelessWidget {
             fetchRealtimeQuotes: context
                 .read<RadarRepository>()
                 .fetchRealtimeQuotes,
+            onModuleForbidden: context
+                .read<ModulePermissionController>()
+                .revoke,
           ),
         ),
         ChangeNotifierProvider(

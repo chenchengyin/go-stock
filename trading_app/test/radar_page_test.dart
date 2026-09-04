@@ -9,20 +9,62 @@ import 'package:trading_app/features/radar/presentation/radar_list/radar_page.da
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
+import 'package:trading_app/features/permissions/domain/module_definition.dart';
+import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
+
+final _allRadarModules = <ModuleDefinition>[
+  ...publicModuleDefinitions,
+  const ModuleDefinition(
+    code: 'radar.purple_strategy',
+    name: '紫策',
+    client: 'flutter_web',
+    placement: 'radar_tab',
+    parentCode: null,
+    sort: 20,
+    accessMode: ModuleAccessMode.userAllowlist,
+  ),
+  const ModuleDefinition(
+    code: 'radar.main_strategy',
+    name: '主板策略',
+    client: 'flutter_web',
+    placement: 'radar_tab',
+    parentCode: null,
+    sort: 30,
+    accessMode: ModuleAccessMode.userAllowlist,
+  ),
+  const ModuleDefinition(
+    code: 'radar.blue_strategy',
+    name: '蓝策',
+    client: 'flutter_web',
+    placement: 'radar_tab',
+    parentCode: null,
+    sort: 40,
+    accessMode: ModuleAccessMode.userAllowlist,
+  ),
+];
+
+ChangeNotifierProvider<ModulePermissionController> _permissionProvider() {
+  return ChangeNotifierProvider(
+    create: (_) => ModulePermissionController.forTesting(_allRadarModules),
+  );
+}
 
 void main() {
   testWidgets('主板策略页内容支持文本选择', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = T0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -76,7 +118,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -102,7 +144,10 @@ void main() {
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -121,7 +166,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -143,6 +188,16 @@ void main() {
       '2026-08-28',
       '2026-08-27',
     ]);
+    strategyVm.applyAvailableDatesForTest([
+      '2026-09-03',
+      '2026-09-02',
+      '2026-09-01',
+      '2026-08-31',
+      '2026-08-30',
+      '2026-08-29',
+      '2026-08-28',
+      '2026-08-27',
+    ], moduleCode: t0PurpleStrategyModuleCode);
     strategyVm.applyResponseForTest({
       'date': '2026-09-03',
       'results': [
@@ -155,13 +210,28 @@ void main() {
         },
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策股',
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    }, moduleCode: t0PurpleStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -187,7 +257,7 @@ void main() {
           '形态真亏率(%)': 30,
         },
       ],
-    });
+    }, moduleCode: t0PurpleStrategyModuleCode);
     await tester.pump();
     dateDropdown = tester.widget<DropdownButton<String>>(
       find.byType(DropdownButton<String>),
@@ -207,7 +277,7 @@ void main() {
           '形态真亏率(%)': 30,
         },
       ],
-    });
+    }, moduleCode: t0PurpleStrategyModuleCode);
     await tester.pump();
     final purplePreviousButton = tester.widget<TextButton>(
       find.widgetWithText(TextButton, '前一天'),
@@ -231,7 +301,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -256,13 +326,29 @@ void main() {
         },
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策破板股',
+          '标记': '涨停破板',
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    }, moduleCode: t0PurpleStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -281,7 +367,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -307,13 +393,30 @@ void main() {
         },
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫策涨幅股',
+          'T0开盘涨幅(%)': 1.23,
+          'T0收盘涨幅(%)': 2.34,
+          '形态样本数': 2,
+          '形态达标率(%)': 50,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    }, moduleCode: t0PurpleStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -331,12 +434,10 @@ void main() {
   });
 
   testWidgets('蓝策位于主板策略右侧并显示蓝灯数量', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'voice_announcement_asked': true,
-    });
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -345,6 +446,7 @@ void main() {
       strategyVm.dispose();
       voiceVm.dispose();
     }
+
     addTearDown(disposeVms);
 
     strategyVm.applyResponseForTest({
@@ -354,13 +456,23 @@ void main() {
         {'股票代码': '600002.XSHG', '股票名称': '绿股', '买入信号': 'green'},
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
+        {'股票代码': '600002.XSHG', '股票名称': '绿股', '买入信号': 'green'},
+      ],
+    }, moduleCode: t0BlueStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -383,7 +495,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -408,13 +520,29 @@ void main() {
         {'股票代码': '600002.XSHG', '股票名称': '非紫股', '形态达标率(%)': 40, '形态真亏率(%)': 20},
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '紫股',
+          '形态样本数': 2,
+          '形态达标率(%)': 40.1,
+          '形态真亏率(%)': 39.9,
+        },
+        {'股票代码': '600002.XSHG', '股票名称': '非紫股', '形态达标率(%)': 40, '形态真亏率(%)': 20},
+      ],
+    }, moduleCode: t0PurpleStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -445,7 +573,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -464,13 +592,23 @@ void main() {
         {'股票代码': '600002.XSHG', '股票名称': '绿股', '买入信号': 'green'},
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
+        {'股票代码': '600002.XSHG', '股票名称': '绿股', '买入信号': 'green'},
+      ],
+    }, moduleCode: t0BlueStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -490,18 +628,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('蓝策(1)'));
     await tester.pumpAndSettle();
-    expect(strategyVm.loadAvailableDatesCalls, 1);
-    expect(strategyVm.loadResultsCalls, 1);
+    expect(strategyVm.loadAvailableDatesCalls, 2);
+    expect(strategyVm.loadResultsCalls, 2);
     disposeVms();
   });
 
   testWidgets('切换进入蓝策也只初始化一次', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'voice_announcement_asked': true,
-    });
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -510,6 +646,7 @@ void main() {
       strategyVm.dispose();
       voiceVm.dispose();
     }
+
     addTearDown(disposeVms);
 
     strategyVm.applyResponseForTest({
@@ -518,13 +655,22 @@ void main() {
         {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
       ],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {'股票代码': '600001.XSHG', '股票名称': '蓝股', '买入信号': 'blue'},
+      ],
+    }, moduleCode: t0BlueStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -542,12 +688,10 @@ void main() {
   });
 
   testWidgets('自选异动下拉刷新仍调用自选异动接口', (tester) async {
-    SharedPreferences.setMockInitialValues({
-      'voice_announcement_asked': true,
-    });
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = _NoNetworkRadarViewModel();
     final strategyVm = _NoNetworkT0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     var disposed = false;
     void disposeVms() {
       if (disposed) return;
@@ -556,6 +700,7 @@ void main() {
       strategyVm.dispose();
       voiceVm.dispose();
     }
+
     addTearDown(disposeVms);
 
     radarVm.watchChanges = List.generate(
@@ -580,7 +725,10 @@ void main() {
         providers: [
           ChangeNotifierProvider<RadarViewModel>.value(value: radarVm),
           ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
-          ChangeNotifierProvider.value(value: voiceVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
         ],
         child: MaterialApp(home: const RadarPage()),
       ),
@@ -601,20 +749,38 @@ void main() {
   });
 }
 
+class _TestVoiceAnnouncementViewModel extends VoiceAnnouncementViewModel {
+  @override
+  bool get askedBefore => true;
+
+  // The test does not install the flutter_tts platform channel.
+  @override
+  // ignore: must_call_super
+  void dispose() {}
+}
+
 class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
   int loadAvailableDatesCalls = 0;
   int loadResultsCalls = 0;
 
   @override
-  Future<void> warmUpIfNeeded() async {}
+  Future<void> warmUpIfNeeded({
+    String moduleCode = t0MainStrategyModuleCode,
+  }) async {}
 
   @override
-  Future<void> loadAvailableDates() async {
+  Future<void> loadAvailableDates({
+    String moduleCode = t0MainStrategyModuleCode,
+  }) async {
     loadAvailableDatesCalls++;
   }
 
   @override
-  Future<void> loadResults({String? date, bool archived = false}) async {
+  Future<void> loadResults({
+    String moduleCode = t0MainStrategyModuleCode,
+    String? date,
+    bool archived = false,
+  }) async {
     loadResultsCalls++;
   }
 }

@@ -19,6 +19,8 @@ import 'package:trading_app/features/auth/domain/auth_models.dart';
 import 'package:trading_app/features/auth/presentation/auth_gate.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/features/auth/presentation/login_page.dart';
+import 'package:trading_app/features/permissions/domain/module_definition.dart';
+import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
@@ -337,7 +339,7 @@ void main() {
         await auth.restore();
         final radar = RadarViewModel(RadarRepositoryImpl(dio: dio));
         final t0Strategy = T0StrategyViewModel();
-        final voice = VoiceAnnouncementViewModel();
+        final voice = _TestVoiceAnnouncementViewModel();
         final navigatorObserver = RecordingNavigatorObserver();
         final theme = ThemeManager();
 
@@ -355,6 +357,11 @@ void main() {
                   ),
                   ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
                     value: voice,
+                  ),
+                  ChangeNotifierProvider(
+                    create: (_) => ModulePermissionController.forTesting(
+                      publicModuleDefinitions,
+                    ),
                   ),
                 ],
                 child: MaterialApp(
@@ -468,6 +475,16 @@ void main() {
 }
 
 Widget _buildTestAppShell(BuildContext context) => const AppShell();
+
+class _TestVoiceAnnouncementViewModel extends VoiceAnnouncementViewModel {
+  @override
+  bool get askedBefore => true;
+
+  // The test does not install the flutter_tts platform channel.
+  @override
+  // ignore: must_call_super
+  void dispose() {}
+}
 
 Future<void> _expectDioFailure(Future<dynamic> request) async {
   try {

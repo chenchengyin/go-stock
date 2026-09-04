@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/theme/theme_manager.dart';
+import 'package:trading_app/features/permissions/domain/module_definition.dart';
+import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_page.dart';
@@ -18,7 +20,7 @@ void main() {
     final themeManager = ThemeManager(variant: AppThemeVariant.dark);
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = T0StrategyViewModel();
-    final voiceVm = VoiceAnnouncementViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
     await tester.pumpWidget(
       AppColorsWidget(
         colors: themeManager.colors,
@@ -27,7 +29,14 @@ void main() {
           providers: [
             ChangeNotifierProvider.value(value: radarVm),
             ChangeNotifierProvider.value(value: strategyVm),
-            ChangeNotifierProvider.value(value: voiceVm),
+            ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+              value: voiceVm,
+            ),
+            ChangeNotifierProvider(
+              create: (_) => ModulePermissionController.forTesting(
+                publicModuleDefinitions,
+              ),
+            ),
           ],
           child: MaterialApp(
             theme: themeManager.themeData,
@@ -51,4 +60,14 @@ void main() {
     voiceVm.dispose();
     AppColors.applyLight();
   });
+}
+
+class _TestVoiceAnnouncementViewModel extends VoiceAnnouncementViewModel {
+  @override
+  bool get askedBefore => true;
+
+  // The test does not install the flutter_tts platform channel.
+  @override
+  // ignore: must_call_super
+  void dispose() {}
 }

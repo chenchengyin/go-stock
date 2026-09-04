@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,10 +7,13 @@ import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/domain/pankou_analyzer.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
+import 'package:trading_app/features/permissions/domain/module_definition.dart';
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
+import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
 import 'monitor_settings_page.dart';
 import 'radar_view_model.dart';
 import 't0_strategy_view_model.dart';
+import 'radar_module_definitions.dart';
 import 'search_results_panel.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
@@ -58,52 +62,110 @@ class RadarPage extends StatefulWidget {
 }
 
 class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
-  late final TabController _tabController;
+  late TabController _tabController;
   late final RadarViewModel _radarViewModel;
+  late final ModulePermissionController _permissionController;
+  List<RadarModuleDefinition> _visibleModules = [];
+  final Set<String> _loadedModuleCodes = {};
+  final Map<String, bool> _ascendingByModule = {};
 
-  // 各 tab 的排序状态
-  bool _watchLoaded = false;
-  bool _allLoaded = false;
-  bool _strategyLoaded = false;
-  bool _watchAscending = false;
-  bool _allAscending = false;
+  bool get _permissionLoadFailed =>
+      _permissionController.state == ModulePermissionState.failure;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _permissionController = context.read<ModulePermissionController>();
+    _visibleModules = _resolveVisibleModules();
+    _tabController = TabController(length: _visibleModules.length, vsync: this);
     _tabController.addListener(_onTabChanged);
+    _permissionController.addListener(_onPermissionsChanged);
     _radarViewModel = context.read<RadarViewModel>();
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
     // _playTestVoiceAnnouncementOnce();
-    // App 启动后触发 T0 主板策略预热（当天已预热则后端跳过）
+    // App 启动后触发一个已授权策略模块的 T0 预热（当天已预热则后端跳过）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<T0StrategyViewModel>().warmUpIfNeeded();
+      final strategy = _visibleModules
+          .cast<RadarModuleDefinition?>()
+          .firstWhere(
+            (module) => module!.accessMode == ModuleAccessMode.userAllowlist,
+            orElse: () => null,
+          );
+      if (strategy != null) {
+        context.read<T0StrategyViewModel>().warmUpIfNeeded(
+          moduleCode: strategy.code,
+        );
+      }
     });
   }
 
-  void _onTabChanged() {
-    if (!_tabController.indexIsChanging && _tabController.offset != 0) {
+  List<RadarModuleDefinition> _resolveVisibleModules() {
+    final allowedCodes = _permissionController.visibleModules
+        .map((module) => module.code)
+        .toSet();
+    if (allowedCodes.isEmpty) {
+      allowedCodes.addAll(publicModuleDefinitions.map((module) => module.code));
+    }
+    return radarModuleDefinitions
+        .where((module) => allowedCodes.contains(module.code))
+        .toList();
+  }
+
+  void _onPermissionsChanged() {
+    if (!mounted) return;
+    final nextModules = _resolveVisibleModules();
+    final oldCodes = _visibleModules.map((module) => module.code).toList();
+    final nextCodes = nextModules.map((module) => module.code).toList();
+    if (listEquals(oldCodes, nextCodes)) {
+      setState(() {});
       return;
     }
+
+    final currentCode = _tabController.index < _visibleModules.length
+        ? _visibleModules[_tabController.index].code
+        : null;
+    final nextIndex = currentCode == null
+        ? 0
+        : nextCodes.indexOf(currentCode).clamp(0, nextModules.length - 1);
+    final oldController = _tabController;
+    oldController.removeListener(_onTabChanged);
+    _visibleModules = nextModules;
+    _loadedModuleCodes.removeWhere((code) => !nextCodes.contains(code));
+    _tabController = TabController(
+      length: _visibleModules.length,
+      initialIndex: nextIndex,
+      vsync: this,
+    )..addListener(_onTabChanged);
+    oldController.dispose();
+    setState(() {});
+    _lazyLoadIfNeeded(_tabController.index);
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging || _tabController.offset != 0) return;
     _lazyLoadIfNeeded(_tabController.index);
   }
 
   void _lazyLoadIfNeeded(int index) {
+    if (index < 0 || index >= _visibleModules.length) return;
+    final module = _visibleModules[index];
     final vm = context.read<RadarViewModel>();
-    if ((index == 1 || index == 2 || index == 3) && !_strategyLoaded) {
-      _strategyLoaded = true;
+    if (module.accessMode == ModuleAccessMode.userAllowlist &&
+        !_loadedModuleCodes.contains(module.code)) {
+      _loadedModuleCodes.add(module.code);
       final t0Vm = context.read<T0StrategyViewModel>();
-      t0Vm.loadAvailableDates();
-      t0Vm.loadResults();
-    } else if (index == 4 && !_watchLoaded) {
-      _watchLoaded = true;
+      t0Vm.loadAvailableDates(moduleCode: module.code);
+      t0Vm.loadResults(moduleCode: module.code);
+    } else if (module.contentKind == RadarContentKind.watchChanges &&
+        !_loadedModuleCodes.contains(module.code)) {
+      _loadedModuleCodes.add(module.code);
       vm.loadWatchChanges();
-    } else if (index == 5 && !_allLoaded) {
-      _allLoaded = true;
+    } else if (module.contentKind == RadarContentKind.allChanges &&
+        !_loadedModuleCodes.contains(module.code)) {
+      _loadedModuleCodes.add(module.code);
       vm.loadAllChanges();
     }
   }
@@ -111,6 +173,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _unbindVoiceAnnouncement();
+    _permissionController.removeListener(_onPermissionsChanged);
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
@@ -227,43 +290,32 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     AppColors.of(context);
-    return DefaultTabController(
-      length: 6,
-      child: Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: const Text(
-            '盘达',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+    return Scaffold(
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text(
+          '盘达',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: AppColors.appBarBg,
+        foregroundColor: AppColors.appBarFg,
+        elevation: 0.5,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '刷新模块权限',
+            onPressed: _permissionController.refresh,
           ),
-          backgroundColor: AppColors.appBarBg,
-          foregroundColor: AppColors.appBarFg,
-          elevation: 0.5,
-          actions: [_buildVoiceButton()],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(44),
-            child: Container(
-              color: AppColors.appBarBg,
-              child: Selector<
-                T0StrategyViewModel,
-                ({int mainCount, int purpleCount, int blueCount})
-              >(
-                selector: (_, vm) => (
-                  mainCount: vm.results.length,
-                  purpleCount: vm.purpleResults.length,
-                  blueCount: vm.blueResults.length,
-                ),
-                builder: (_, counts, __) {
-                  final purpleLabel = counts.purpleCount > 0
-                      ? '紫策(${counts.purpleCount})'
-                      : '紫策';
-                  final strategyLabel = counts.mainCount > 0
-                      ? '主板策略(${counts.mainCount})'
-                      : '主板策略';
-                  final blueLabel = counts.blueCount > 0
-                      ? '蓝策(${counts.blueCount})'
-                      : '蓝策';
-                  return TabBar(
+          _buildVoiceButton(),
+        ],
+        bottom: PreferredSize(
+          preferredSize: Size.fromHeight(_permissionLoadFailed ? 76 : 44),
+          child: Container(
+            color: AppColors.appBarBg,
+            child: Column(
+              children: [
+                Consumer<T0StrategyViewModel>(
+                  builder: (_, vm, __) => TabBar(
                     controller: _tabController,
                     isScrollable: true,
                     labelColor: AppColors.brand,
@@ -274,81 +326,117 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       fontSize: 15,
                     ),
                     onTap: _lazyLoadIfNeeded,
-                    tabs: [
-                      const Tab(text: '监控股票(自选)'),
-                      Tab(text: purpleLabel),
-                      Tab(text: strategyLabel),
-                      Tab(text: blueLabel),
-                      const Tab(text: '自选异动'),
-                      const Tab(text: '全市场'),
-                    ],
-                  );
-                },
-              ),
+                    tabs: _visibleModules
+                        .map((module) => Tab(text: _tabLabel(module, vm)))
+                        .toList(),
+                  ),
+                ),
+                if (_permissionLoadFailed)
+                  SizedBox(
+                    height: 32,
+                    child: TextButton.icon(
+                      onPressed: _permissionController.refresh,
+                      icon: const Icon(Icons.sync, size: 14),
+                      label: const Text('模块权限加载失败，点击重试'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.warning,
+                        padding: EdgeInsets.zero,
+                        textStyle: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
-        backgroundColor: AppColors.scaffoldBg,
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            // ─── Tab ① 监控股票 ──────────────────────────────
-            Consumer<RadarViewModel>(
-              builder: (_, vm, __) => _buildStockTab(vm),
-            ),
-            // ─── Tab ② 紫策 ─────────────────────────────────
-            Consumer<T0StrategyViewModel>(
-              builder: (_, vm, __) => SelectionArea(
-                child: _buildStrategyTab(vm, kind: _StrategyListKind.purple),
-              ),
-            ),
-            // ─── Tab ③ 主板策略 ──────────────────────────────
-            Consumer<T0StrategyViewModel>(
-              builder: (_, vm, __) =>
-                  SelectionArea(child: _buildStrategyTab(vm)),
-            ),
-            // ─── Tab ④ 蓝策 ─────────────────────────────────
-            Consumer<T0StrategyViewModel>(
-              builder: (_, vm, __) => SelectionArea(
-                child: _buildStrategyTab(vm, kind: _StrategyListKind.blue),
-              ),
-            ),
-            // ─── Tab ⑤ 自选异动 ──────────────────────────────
-            Selector<
-              RadarViewModel,
-              ({List<StockChange> changes, bool loading})
-            >(
-              selector: (_, vm) =>
-                  (changes: vm.watchChanges, loading: vm.watchLoading),
-              builder: (_, data, __) => _buildChangeTab(
-                changes: data.changes,
-                loading: data.loading,
-                ascending: _watchAscending,
-                onToggleSort: () =>
-                    setState(() => _watchAscending = !_watchAscending),
-                emptyText: '暂无持仓异动',
-              ),
-            ),
-            // ─── Tab ⑥ 全市场 ────────────────────────────────
-            Selector<
-              RadarViewModel,
-              ({List<StockChange> changes, bool loading})
-            >(
-              selector: (_, vm) =>
-                  (changes: vm.allChanges, loading: vm.allLoading),
-              builder: (_, data, __) => _buildChangeTab(
-                changes: data.changes,
-                loading: data.loading,
-                ascending: _allAscending,
-                onToggleSort: () =>
-                    setState(() => _allAscending = !_allAscending),
-                emptyText: '暂无全市场异动',
-              ),
-            ),
-          ],
-        ),
+      ),
+      backgroundColor: AppColors.scaffoldBg,
+      body: TabBarView(
+        controller: _tabController,
+        children: _visibleModules.map(_buildModuleTab).toList(),
       ),
     );
+  }
+
+  String _tabLabel(RadarModuleDefinition module, T0StrategyViewModel t0Vm) {
+    final count = switch (module.contentKind) {
+      RadarContentKind.purpleStrategy =>
+        t0Vm.purpleResultsFor(module.code).length,
+      RadarContentKind.mainStrategy => t0Vm.resultsFor(module.code).length,
+      RadarContentKind.blueStrategy => t0Vm.blueResultsFor(module.code).length,
+      _ => 0,
+    };
+    return count > 0 ? '${module.name}($count)' : module.name;
+  }
+
+  Widget _buildModuleTab(RadarModuleDefinition module) {
+    switch (module.contentKind) {
+      case RadarContentKind.monitored:
+        return Consumer<RadarViewModel>(
+          builder: (_, vm, __) => _buildStockTab(vm),
+        );
+      case RadarContentKind.purpleStrategy:
+        return Consumer<T0StrategyViewModel>(
+          builder: (_, vm, __) => SelectionArea(
+            child: _buildStrategyTab(
+              vm,
+              moduleCode: module.code,
+              kind: _StrategyListKind.purple,
+            ),
+          ),
+        );
+      case RadarContentKind.mainStrategy:
+        return Consumer<T0StrategyViewModel>(
+          builder: (_, vm, __) => SelectionArea(
+            child: _buildStrategyTab(vm, moduleCode: module.code),
+          ),
+        );
+      case RadarContentKind.blueStrategy:
+        return Consumer<T0StrategyViewModel>(
+          builder: (_, vm, __) => SelectionArea(
+            child: _buildStrategyTab(
+              vm,
+              moduleCode: module.code,
+              kind: _StrategyListKind.blue,
+            ),
+          ),
+        );
+      case RadarContentKind.watchChanges:
+        return Selector<
+          RadarViewModel,
+          ({List<StockChange> changes, bool loading})
+        >(
+          selector: (_, vm) =>
+              (changes: vm.watchChanges, loading: vm.watchLoading),
+          builder: (_, data, __) => _buildChangeTab(
+            changes: data.changes,
+            loading: data.loading,
+            ascending: _ascendingByModule[module.code] ?? false,
+            onToggleSort: () => setState(() {
+              _ascendingByModule[module.code] =
+                  !(_ascendingByModule[module.code] ?? false);
+            }),
+            emptyText: '暂无持仓异动',
+          ),
+        );
+      case RadarContentKind.allChanges:
+        return Selector<
+          RadarViewModel,
+          ({List<StockChange> changes, bool loading})
+        >(
+          selector: (_, vm) => (changes: vm.allChanges, loading: vm.allLoading),
+          builder: (_, data, __) => _buildChangeTab(
+            changes: data.changes,
+            loading: data.loading,
+            ascending: _ascendingByModule[module.code] ?? false,
+            onToggleSort: () => setState(() {
+              _ascendingByModule[module.code] =
+                  !(_ascendingByModule[module.code] ?? false);
+            }),
+            emptyText: '暂无全市场异动',
+          ),
+        );
+    }
   }
 
   // ─── Tab ① 监控股票 ─────────────────────────────────────
@@ -467,11 +555,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       builder: (_) => const MonitorSettingsPage(),
                     ),
                   );
-                  if (changed == true && context.mounted) {
+                  if (changed == true && mounted) {
                     // 设置已变更，刷新所有数据
-                    final vm = context.read<RadarViewModel>();
-                    _watchLoaded = false;
-                    _allLoaded = false;
+                    final vm = _radarViewModel;
+                    _loadedModuleCodes.remove('radar.watch_changes');
+                    _loadedModuleCodes.remove('radar.all_changes');
                     vm.loadMonitoredStocks();
                     _lazyLoadIfNeeded(_tabController.index);
                   }
@@ -687,13 +775,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   List<String> _strategyDateOptions(
     T0StrategyViewModel vm,
+    String moduleCode,
     _StrategyListKind kind,
   ) {
-    if (kind != _StrategyListKind.purple) return vm.dropdownDates;
+    final state = vm.stateFor(moduleCode);
+    if (kind != _StrategyListKind.purple) {
+      return vm.dropdownDatesFor(moduleCode);
+    }
 
-    final dates = vm.availableDates.take(7).toList();
-    final selectedDate = vm.selectedDate;
-    if (selectedDate != null && !vm.availableDates.contains(selectedDate)) {
+    final dates = state.availableDates.take(7).toList();
+    final selectedDate = state.selectedDate;
+    if (selectedDate != null && !state.availableDates.contains(selectedDate)) {
       dates.insert(0, selectedDate);
     }
     return dates.take(7).toList();
@@ -701,12 +793,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   Widget _buildStrategyDateBar(
     T0StrategyViewModel vm, {
+    required String moduleCode,
     _StrategyListKind kind = _StrategyListKind.main,
   }) {
-    if (!vm.showDateSelector) return const SizedBox.shrink();
-    final dropdownDates = _strategyDateOptions(vm, kind);
-    final selectedDate = dropdownDates.contains(vm.selectedDate)
-        ? vm.selectedDate
+    final state = vm.stateFor(moduleCode);
+    if (!vm.showDateSelectorFor(moduleCode)) return const SizedBox.shrink();
+    final dropdownDates = _strategyDateOptions(vm, moduleCode, kind);
+    final selectedDate = dropdownDates.contains(state.selectedDate)
+        ? state.selectedDate
         : null;
     final selectedDateIndex = selectedDate == null
         ? -1
@@ -714,11 +808,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final canGoPrevious = kind == _StrategyListKind.purple
         ? selectedDateIndex >= 0 &&
               selectedDateIndex + 1 < dropdownDates.length &&
-              !vm.loading
-        : vm.canGoPreviousArchive;
+              !state.loading
+        : vm.canGoPreviousArchiveFor(moduleCode);
     final canGoNext = kind == _StrategyListKind.purple
-        ? selectedDateIndex > 0 && !vm.loading
-        : vm.canGoNextArchive;
+        ? selectedDateIndex > 0 && !state.loading
+        : vm.canGoNextArchiveFor(moduleCode);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -733,8 +827,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           TextButton(
             onPressed: canGoPrevious
                 ? kind == _StrategyListKind.purple
-                    ? () => vm.selectDate(dropdownDates[selectedDateIndex + 1])
-                    : vm.selectPreviousArchive
+                      ? () => vm.selectDate(
+                          moduleCode,
+                          dropdownDates[selectedDateIndex + 1],
+                        )
+                      : () => vm.selectPreviousArchive(moduleCode)
                 : null,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -767,15 +864,18 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                 .toList(),
             onChanged: (d) {
-              if (d != null) vm.selectDate(d);
+              if (d != null) vm.selectDate(moduleCode, d);
             },
           ),
           const SizedBox(width: 4),
           TextButton(
             onPressed: canGoNext
                 ? kind == _StrategyListKind.purple
-                    ? () => vm.selectDate(dropdownDates[selectedDateIndex - 1])
-                    : vm.selectNextArchive
+                      ? () => vm.selectDate(
+                          moduleCode,
+                          dropdownDates[selectedDateIndex - 1],
+                        )
+                      : () => vm.selectNextArchive(moduleCode)
                 : null,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -804,28 +904,30 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   Widget _buildStrategyTab(
     T0StrategyViewModel vm, {
+    required String moduleCode,
     _StrategyListKind kind = _StrategyListKind.main,
   }) {
-    final dateOptions = _strategyDateOptions(vm, kind);
+    final state = vm.stateFor(moduleCode);
+    final dateOptions = _strategyDateOptions(vm, moduleCode, kind);
     final selectedDateInRange =
         kind != _StrategyListKind.purple ||
-        vm.selectedDate == null ||
-        dateOptions.contains(vm.selectedDate);
+        state.selectedDate == null ||
+        dateOptions.contains(state.selectedDate);
     final stocks = switch (kind) {
-      _StrategyListKind.main => vm.results,
-      _StrategyListKind.purple => selectedDateInRange
-          ? vm.purpleResults
-          : const <T0StrategyStock>[],
-      _StrategyListKind.blue => vm.blueResults,
+      _StrategyListKind.main => vm.resultsFor(moduleCode),
+      _StrategyListKind.purple =>
+        selectedDateInRange
+            ? vm.purpleResultsFor(moduleCode)
+            : const <T0StrategyStock>[],
+      _StrategyListKind.blue => vm.blueResultsFor(moduleCode),
     };
     final emptyText = switch (kind) {
       _StrategyListKind.main => '暂无符合条件的股票',
-      _StrategyListKind.purple => selectedDateInRange
-          ? '暂无符合紫策条件的股票'
-          : '紫策仅支持最近七天，请选择日期',
+      _StrategyListKind.purple =>
+        selectedDateInRange ? '暂无符合紫策条件的股票' : '紫策仅支持最近七天，请选择日期',
       _StrategyListKind.blue => '暂无蓝色灯股票',
     };
-    final wp = vm.warmProgress;
+    final wp = state.warmProgress;
 
     // 预热进度 / 等待中
     if (wp != null) {
@@ -834,7 +936,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildStrategyDateBar(vm, kind: kind),
+            _buildStrategyDateBar(vm, moduleCode: moduleCode, kind: kind),
             Expanded(
               child: Center(
                 child: Padding(
@@ -913,14 +1015,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
     return SafeArea(
       top: false,
-      child: vm.loading
+      child: state.loading
           ? const Center(child: CircularProgressIndicator())
-          : vm.error != null
+          : state.error != null
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  '加载失败: ${vm.error}',
+                  '加载失败: ${state.error}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -932,7 +1034,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildStrategyDateBar(vm, kind: kind),
+                _buildStrategyDateBar(vm, moduleCode: moduleCode, kind: kind),
                 Expanded(
                   child: stocks.isEmpty
                       ? Center(
@@ -952,7 +1054,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           itemCount: stocks.length,
                           itemBuilder: (_, i) => _buildStrategyCard(
                             stocks[i],
-                            preview: vm.showingCandidatePreview,
+                            preview: state.showingCandidatePreview,
                             kind: kind,
                           ),
                         ),
