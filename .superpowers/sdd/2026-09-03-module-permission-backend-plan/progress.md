@@ -31,7 +31,7 @@
 
 ## Task status
 
-- Backend Tasks 1–7 are complete and reviewed. The remaining P2 documentation findings from the Task 7 review are being corrected in the current worktree before the admin-web plan continues.
+- Backend Tasks 1–7 are complete and reviewed. The P2 documentation findings from the Task 7 review were corrected before the admin-web plan continued.
 
 ## Preflight baseline
 
