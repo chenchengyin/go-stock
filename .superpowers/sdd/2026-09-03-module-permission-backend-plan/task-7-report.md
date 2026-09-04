@@ -58,3 +58,7 @@ Per the user's instruction, the potentially long full package check was not reru
 ## Staging boundary
 
 Only `PROJECT.md`, this Task 7 report, and the SDD `progress.md` ledger entry are intended for the Task 7 commit. Existing dirty data/cache and frontend lock files must remain unstaged.
+
+## Review follow-up
+
+The documentation review identified three P2 issues. The ledger's live checklist and stale active-agent text were synchronized, the bcrypt wording now states that only the hash is written to `users.password_hash` while plaintext/hash output is not exposed, and the smoke flow now states how to register and enable an ordinary user on a clean database.

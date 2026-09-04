@@ -105,7 +105,7 @@ flowchart LR
 - 管理网页目录优先取 `GO_STOCK_ADMIN_WEB_DIR`；未设置时从项目根下的 `admin-web/dist` 查找包含 `index.html` 的目录。找不到构建产物时，管理 API 仍可用，可由单独运行的 Vite 开发服务器提供网页。
 - `GO_STOCK_ADMIN_DEV_ORIGINS` 是开发期来源白名单，值为逗号分隔的完整 Origin，例如 `http://localhost:5174`。它用于 Vite 与管理 API 的开发期跨源请求/写操作校验；生产环境应使用管理网页与 API 同源访问，不应配置通配来源。
 
-管理员不是硬编码账号。首次部署在项目根目录执行 `admin-init`，命令会隐藏读取并确认密码两次，在同一个 `users` 表中创建 `role=admin`、有效状态的数据库管理员，密码只保存为 bcrypt 哈希；不会写入明文密码或哈希，也不会回退到 `admin/admin`。账号沿用 `users.phone` 作为登录标识，重复账号会失败且不会覆盖已有密码。
+管理员不是硬编码账号。首次部署在项目根目录执行 `admin-init`，命令会隐藏读取并确认密码两次，在同一个 `users` 表中创建 `role=admin`、有效状态的数据库管理员；密码只以 bcrypt 哈希写入 `users.password_hash`，不会保存或记录明文，CLI 也不会输出哈希，更不会回退到 `admin/admin`。账号沿用 `users.phone` 作为登录标识，重复账号会失败且不会覆盖已有密码。
 
 管理网页的最小启动与 smoke flow（需先准备 `admin-web/dist/index.html`，或通过 `GO_STOCK_ADMIN_WEB_DIR` 指向等价目录）如下：
 
@@ -115,7 +115,7 @@ GO_STOCK_ADMIN_ADDR=:18080 go run ./cmd/server
 浏览器打开 http://服务器地址:18080/
 ```
 
-在管理网页使用刚创建的账号和密码登录；同时验证普通用户通过 `http://服务器地址:8080/` 或 8080 用户 API 登录。普通用户在尚未授权任何受控模块时，`GET /api/auth/modules` 应只有以下三个公开模块：`radar.monitored`（监控股票/自选）、`radar.watch_changes`（自选异动）和 `radar.all_changes`（全市场）。之后在 18080 管理后台授权受控模块，再重新加载用户端确认授权生效。
+在管理网页使用刚创建的账号和密码登录。若是干净数据库，先通过 `http://服务器地址:8080/` 或 8080 用户 API 注册一个普通用户，再在管理后台的用户管理中将其从禁用改为启用；已有有效普通用户可跳过这一步。随后验证普通用户登录，确认其在尚未授权任何受控模块时，`GET /api/auth/modules` 只有以下三个公开模块：`radar.monitored`（监控股票/自选）、`radar.watch_changes`（自选异动）和 `radar.all_changes`（全市场）。之后在 18080 管理后台授权受控模块，再重新加载用户端确认授权生效。
 
 当前两个监听器由标准 HTTP 提供服务，非标准端口不是安全措施。正式公网部署前必须使用 HTTPS 反向代理或等价的传输保护：不要直接把 8080/18080 暴露到公网，代理应分别转发用户服务与管理服务、保留正确的 Host/Origin，并为用户 WebSocket 配置升级转发。管理会话 Cookie 的 `Secure` 属性按 Go 请求是否为 TLS 设置；若代理在外部终止 TLS，必须确保上游连接/应用的 HTTPS 感知方式已按受信任的代理边界配置，不能仅凭未验证的转发头宣称安全。
 

@@ -31,20 +31,18 @@
 
 ## Task status
 
-- Active implementer: Backend Task 1 → agent `01a06692-66ec-7070-842b-17d92d0f19ef` (`Boyle`), model `gpt-5.4`.
-
-- Task 1 reviewer: agent `01a06698-561c-7a63-84df-f925b5e45913` (`Zeno`), verdict spec compliant, task quality approved, no findings.
+- Backend Tasks 1–7 are complete and reviewed. The remaining P2 documentation findings from the Task 7 review are being corrected in the current worktree before the admin-web plan continues.
 
 ## Preflight baseline
 
 - `PATH=/Users/vb/.cache/codex-runtimes/go1.26.0/bin:$PATH go test ./...` did not complete cleanly: existing unrelated failures include missing `frontend/dist` before setup, network-dependent data tests, and empty test database assumptions. The command was interrupted after those failures; feature work will use focused backend packages/tests.
 
-- [ ] Task 1: Add the module registry and database models
-- [ ] Task 2: Implement the per-user ModuleService
-- [ ] Task 3: Replace hardcoded admin authentication and add admin-init
-- [ ] Task 4: Expose the user and admin module HTTP APIs
-- [ ] Task 5: Enforce independent T0 strategy access and result scope
-- [ ] Task 6: Split the user server from the standalone admin server
+- [x] Task 1: Add the module registry and database models
+- [x] Task 2: Implement the per-user ModuleService
+- [x] Task 3: Replace hardcoded admin authentication and add admin-init
+- [x] Task 4: Expose the user and admin module HTTP APIs
+- [x] Task 5: Enforce independent T0 strategy access and result scope
+- [x] Task 6: Split the user server from the standalone admin server
 - [x] Task 7: Update documentation and perform backend verification
 
 Task 1: complete (commits fec4372..f3fceb3, review clean)
