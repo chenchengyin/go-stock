@@ -14,7 +14,8 @@ const loginError = ref('')
 
 const adminName = computed(() => currentAdmin.value?.nickname || currentAdmin.value?.phone || '管理员')
 const adminAccount = computed(() => currentAdmin.value?.phone || '')
-const pageTitle = computed(() => route.path === '/functions' ? '功能管理' : '用户管理')
+const pageTitles = { users: '用户管理', functions: '功能管理' }
+const pageTitle = computed(() => pageTitles[route.name] || '用户管理')
 
 async function syncRoute() {
   if (!sessionChecked.value || sessionCheckError.value) return
