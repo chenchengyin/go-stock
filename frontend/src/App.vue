@@ -938,21 +938,6 @@ const menuOptions = ref([
         h(
             RouterLink,
             {
-              to: {name: 'admin'},
-              onClick: () => {
-                activeKey.value = 'admin'
-              },
-            },
-            {default: () => '后台管理'}
-        ),
-    key: 'admin',
-    icon: renderIcon(PeopleOutline),
-  },
-  {
-    label: () =>
-        h(
-            RouterLink,
-            {
               to: {
                 name: 'about',
                 query: {

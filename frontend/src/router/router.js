@@ -10,7 +10,6 @@ import research from "../components/researchIndex.vue";
 import cronTaskManager from "../components/cron-task-manager.vue"
 import mcpServerManager from "../components/mcp-server-manager.vue"
 import klineAnalysis from "../components/kline-analysis.vue"
-import adminView from "../components/admin.vue"
 
 const routes = [
     { path: '/', component: stockView,name: 'stock'},
@@ -23,8 +22,6 @@ const routes = [
     { path: '/cron-tasks', component: cronTaskManager,name: 'cronTasks' },
     { path: '/mcp-servers', component: mcpServerManager,name: 'mcpServers' },
     { path: '/kline-analysis', component: klineAnalysis,name: 'klineAnalysis' },
-    { path: '/admin', component: adminView, name: 'admin' },
-
 ]
 
 const router = createRouter({
