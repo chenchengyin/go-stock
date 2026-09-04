@@ -119,7 +119,7 @@ function close() {
 
 <template>
   <div v-if="open" class="permission-dialog-backdrop" role="presentation" @click.self="close">
-    <section class="permission-dialog" role="dialog" aria-modal="true" aria-labelledby="permission-dialog-title">
+    <section class="permission-dialog" data-role="permission-sheet" role="dialog" aria-modal="true" aria-labelledby="permission-dialog-title">
       <header class="permission-dialog-header">
         <div>
           <p class="view-eyebrow">批量权限配置</p>
@@ -137,6 +137,7 @@ function close() {
           v-for="module in modules"
           :key="module.code"
           class="module-permission-row"
+          :class="{ 'is-checked': moduleState(module.code) === 'checked' }"
           :data-module-code="module.code"
         >
           <div class="module-permission-copy">
@@ -149,6 +150,7 @@ function close() {
             type="checkbox"
             :checked="moduleState(module.code) === 'checked'"
             :disabled="isPublic(module) || saving"
+            :aria-label="'授权 ' + module.name"
             :data-state="moduleState(module.code)"
             :data-role="isPublic(module) ? 'public-lock' : 'module-checkbox'"
             :ref="(element) => syncCheckboxState(element, module.code)"
@@ -159,7 +161,7 @@ function close() {
 
       <div v-if="saveError" class="dialog-error" role="alert">{{ saveError }}</div>
 
-      <footer class="permission-dialog-footer">
+      <footer class="permission-dialog-footer" data-role="permission-actions">
         <span class="permission-hint">公开模块始终对已登录用户可见</span>
         <div class="dialog-actions">
           <button type="button" class="button-secondary" :disabled="saving" @click="close">取消</button>

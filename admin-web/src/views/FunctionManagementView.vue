@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { adminApi } from '../api.js'
 
 const modules = ref([])
@@ -10,6 +10,10 @@ const usersByModule = ref(new Map())
 const lookupLoadingCode = ref('')
 const lookupError = ref('')
 let lookupRequestId = 0
+
+const publicModuleCount = computed(() => modules.value.filter((module) => isPublic(module)).length)
+const controlledModuleCount = computed(() => modules.value.filter((module) => !isPublic(module)).length)
+const authorizedUserCount = computed(() => modules.value.reduce((count, module) => count + moduleCount(module), 0))
 
 function isPublic(module) {
   return module.accessMode === 'public'
@@ -88,15 +92,39 @@ onMounted(() => { void loadModules() })
         <h2>功能管理</h2>
         <p>查看客户端已注册模块和受控模块的授权用户；权限编辑仍在用户管理中完成。</p>
       </div>
-      <div class="view-summary">
-        <strong>{{ modules.length }}</strong>
-        <span>个模块</span>
+      <div class="view-heading-note">
+        <span class="status-dot" aria-hidden="true"></span>
+        目录来自客户端注册
       </div>
     </div>
 
-    <p v-if="errorMessage" class="page-error" role="alert">{{ errorMessage }}</p>
+    <div class="metrics-grid" data-role="module-stats">
+      <article class="metric-card">
+        <span>已注册模块</span>
+        <strong>{{ modules.length }}</strong>
+        <small>客户端功能目录</small>
+      </article>
+      <article class="metric-card">
+        <span>公开模块</span>
+        <strong>{{ publicModuleCount }}</strong>
+        <small>登录用户默认可见</small>
+      </article>
+      <article class="metric-card metric-card-accent">
+        <span>受控模块</span>
+        <strong>{{ controlledModuleCount }}</strong>
+        <small>按用户单独授权</small>
+      </article>
+    </div>
 
-    <div class="table-card">
+    <div class="table-card table-card-primary" data-role="module-list">
+      <div class="table-toolbar table-toolbar-static">
+        <div>
+          <span class="toolbar-title">功能目录</span>
+          <span class="toolbar-caption">授权关系总计 {{ authorizedUserCount }}</span>
+        </div>
+        <span class="toolbar-caption">点击受控模块查看用户</span>
+      </div>
+      <p v-if="errorMessage" class="page-error" role="alert">{{ errorMessage }}</p>
       <table class="data-table">
         <thead>
           <tr>

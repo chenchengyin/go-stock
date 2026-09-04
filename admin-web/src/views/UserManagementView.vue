@@ -14,6 +14,7 @@ const errorMessage = ref('')
 
 const selectedCount = computed(() => selectedIds.value.size)
 const allSelected = computed(() => users.value.length > 0 && selectedCount.value === users.value.length)
+const activeUserCount = computed(() => users.value.filter((user) => user.status === 'active').length)
 
 async function loadUsers() {
   loading.value = true
@@ -80,32 +81,57 @@ async function handlePermissionsSaved() {
         <h2>用户管理</h2>
         <p>选择一个或多个普通用户，再一次性覆盖其受控模块权限。</p>
       </div>
-      <div class="view-summary">
-        <strong>{{ total }}</strong>
-        <span>位用户</span>
+      <div class="view-heading-note">
+        <span class="status-dot" aria-hidden="true"></span>
+        权限变更即时同步
       </div>
     </div>
 
-    <form class="user-search" @submit.prevent="submitSearch">
-      <label>
-        <span class="sr-only">搜索用户</span>
-        <input v-model="keyword" type="search" placeholder="搜索账号或昵称" aria-label="搜索账号或昵称">
-      </label>
-      <button type="submit" class="button-secondary" :disabled="loading">搜索</button>
-      <button
-        type="button"
-        class="button-primary"
-        data-action="configure-permissions"
-        :disabled="selectedCount === 0"
-        @click="openPermissionDialog"
-      >
-        配置模块权限<span v-if="selectedCount">（{{ selectedCount }}）</span>
-      </button>
-    </form>
+    <div class="metrics-grid" data-role="user-stats">
+      <article class="metric-card">
+        <span>用户总数</span>
+        <strong>{{ total }}</strong>
+        <small>当前查询范围</small>
+      </article>
+      <article class="metric-card metric-card-accent">
+        <span>已选择</span>
+        <strong>{{ selectedCount }}</strong>
+        <small>用于批量配置权限</small>
+      </article>
+      <article class="metric-card">
+        <span>当前启用</span>
+        <strong>{{ activeUserCount }}</strong>
+        <small>本页已加载用户</small>
+      </article>
+    </div>
 
     <p v-if="errorMessage" class="page-error" role="alert">{{ errorMessage }}</p>
 
-    <div class="table-card">
+    <div class="table-card table-card-primary">
+      <div class="table-toolbar" data-role="user-toolbar">
+        <form class="user-search" @submit.prevent="submitSearch">
+          <label class="search-field">
+            <span class="search-icon" aria-hidden="true"></span>
+            <span class="sr-only">搜索用户</span>
+            <input v-model="keyword" type="search" placeholder="搜索账号或昵称" aria-label="搜索账号或昵称">
+          </label>
+          <button type="submit" class="button-secondary" :disabled="loading">搜索</button>
+        </form>
+        <div class="toolbar-selection">
+          <span v-if="selectedCount" class="selection-count">已选择 {{ selectedCount }} 位用户</span>
+          <span v-else class="selection-count is-muted">选择用户后配置模块权限</span>
+          <button
+            type="button"
+            class="button-primary"
+            data-action="configure-permissions"
+            :disabled="selectedCount === 0"
+            @click="openPermissionDialog"
+          >
+            配置模块权限<span v-if="selectedCount">（{{ selectedCount }}）</span>
+          </button>
+        </div>
+      </div>
+
       <table class="data-table">
         <thead>
           <tr>

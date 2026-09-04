@@ -120,7 +120,7 @@ async function handleLogout() {
     />
   </RouterView>
 
-  <div v-else class="admin-shell">
+  <div v-else class="admin-shell" data-role="admin-shell">
     <aside class="admin-sidebar">
       <div class="admin-brand">
         <span class="admin-brand-mark">盘</span>
@@ -132,11 +132,11 @@ async function handleLogout() {
 
       <nav class="admin-nav" aria-label="后台导航">
         <RouterLink to="/users" class="admin-nav-link" active-class="is-active">
-          <span class="admin-nav-icon">U</span>
+          <span class="admin-nav-icon admin-nav-icon-users" aria-hidden="true"></span>
           用户管理
         </RouterLink>
         <RouterLink to="/functions" class="admin-nav-link" active-class="is-active">
-          <span class="admin-nav-icon">F</span>
+          <span class="admin-nav-icon admin-nav-icon-modules" aria-hidden="true"></span>
           功能管理
         </RouterLink>
       </nav>
@@ -151,6 +151,7 @@ async function handleLogout() {
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="admin-identity">
+          <span class="admin-session-status"><i aria-hidden="true"></i>已连接</span>
           <div class="admin-identity-copy">
             <strong>{{ adminName }}</strong>
             <span v-if="adminAccount">{{ adminAccount }}</span>
