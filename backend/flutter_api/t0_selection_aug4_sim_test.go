@@ -1,6 +1,7 @@
 package flutter_api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -40,6 +41,15 @@ func TestSimulateAug4Path(t *testing.T) {
 	t0CacheRootPath = t.TempDir()
 	defer func() { t0CacheRootPath = orig }()
 
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	modules := NewModuleService(auth.dao)
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-a",
+		[]string{user.User.ID}, []string{"radar.main_strategy"}); err != nil {
+		t.Fatalf("grant main: %v", err)
+	}
+	handler := newHTTPHandler(auth.AuthService)
+
 	now := time.Now().In(chinaLocation())
 	t.Logf("现在(上海)=%s 目标日=%s today=%s", now.Format("2006-01-02 15:04:05"), date, now.Format("2006-01-02"))
 
@@ -49,9 +59,10 @@ func TestSimulateAug4Path(t *testing.T) {
 	}
 
 	// 2) 显式 prewarm=1：应立刻返回 warming 或 ready，并后台拉日线
-	req1 := httptest.NewRequest(http.MethodGet, "/api/t0-selection?prewarm=1&date="+date, nil)
 	rr1 := httptest.NewRecorder()
-	handleT0Selection(rr1, req1)
+	handler.ServeHTTP(rr1, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&prewarm=1&date="+date,
+		user.AccessToken, ""))
 	if rr1.Code != 200 {
 		t.Fatalf("prewarm status=%d body=%s", rr1.Code, rr1.Body.String())
 	}
@@ -70,9 +81,10 @@ func TestSimulateAug4Path(t *testing.T) {
 
 	// 3) 预热进行中再调一次：应立刻返回，不阻塞
 	started := time.Now()
-	req2 := httptest.NewRequest(http.MethodGet, "/api/t0-selection?prewarm=1&date="+date, nil)
 	rr2 := httptest.NewRecorder()
-	handleT0Selection(rr2, req2)
+	handler.ServeHTTP(rr2, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&prewarm=1&date="+date,
+		user.AccessToken, ""))
 	elapsed := time.Since(started)
 	t.Logf("二次 prewarm 耗时=%.3fs 响应=%s", elapsed.Seconds(), rr2.Body.String())
 	if elapsed > 2*time.Second {
@@ -97,9 +109,10 @@ func TestSimulateAug4Path(t *testing.T) {
 	t.Logf("日线缓存已就绪: %s", t0DailyCachePath(date))
 
 	// 5) prewarm 完成应返回 ready
-	req3 := httptest.NewRequest(http.MethodGet, "/api/t0-selection?prewarm=1&date="+date, nil)
 	rr3 := httptest.NewRecorder()
-	handleT0Selection(rr3, req3)
+	handler.ServeHTTP(rr3, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&prewarm=1&date="+date,
+		user.AccessToken, ""))
 	t.Logf("完成后 prewarm 响应: %s", rr3.Body.String())
 	var ready map[string]interface{}
 	_ = json.Unmarshal(rr3.Body.Bytes(), &ready)
@@ -108,10 +121,11 @@ func TestSimulateAug4Path(t *testing.T) {
 	}
 
 	// 6) 正式选股：应命中日线缓存
-	req4 := httptest.NewRequest(http.MethodGet, "/api/t0-selection?date="+date+"&save=1", nil)
 	rr4 := httptest.NewRecorder()
 	started = time.Now()
-	handleT0Selection(rr4, req4)
+	handler.ServeHTTP(rr4, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&date="+date+"&save=1",
+		user.AccessToken, ""))
 	selElapsed := time.Since(started)
 	t.Logf("正式选股耗时=%.1fs body前500字=%s", selElapsed.Seconds(), truncateRunes(rr4.Body.String(), 500))
 	if rr4.Code != 200 {
@@ -135,9 +149,10 @@ func TestSimulateAug4Path(t *testing.T) {
 	}
 
 	// 7) archived
-	req5 := httptest.NewRequest(http.MethodGet, "/api/t0-selection?archived=1&date="+date, nil)
 	rr5 := httptest.NewRecorder()
-	handleT0Selection(rr5, req5)
+	handler.ServeHTTP(rr5, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&archived=1&date="+date,
+		user.AccessToken, ""))
 	t.Logf("archived 响应: %s", truncateRunes(rr5.Body.String(), 400))
 }
 

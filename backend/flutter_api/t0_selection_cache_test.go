@@ -1,6 +1,7 @@
 package flutter_api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -92,13 +93,24 @@ func TestHandleT0SelectionArchived(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
 	defer func() { t0CacheRootPath = orig }()
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	modules := NewModuleService(auth.dao)
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-a",
+		[]string{user.User.ID}, []string{"radar.main_strategy"}); err != nil {
+		t.Fatalf("grant main: %v", err)
+	}
 
 	date := "2026-08-05"
-	_ = saveT0SelectionArchive(date, []T0SelectionResult{{StockCode: "600000.XSHG"}}, true)
+	_ = saveT0SelectionArchive(date, []T0SelectionResult{{
+		StockCode: "600000.XSHG", BuySignal: BuySignalGreen,
+	}}, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/t0-selection?archived=1&date="+date, nil)
 	rr := httptest.NewRecorder()
-	handleT0Selection(rr, req)
+	handler := newHTTPHandler(auth.AuthService)
+	handler.ServeHTTP(rr, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&archived=1&date="+date,
+		user.AccessToken, ""))
 	if rr.Code != 200 {
 		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
 	}

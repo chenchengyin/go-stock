@@ -2,6 +2,7 @@ package flutter_api
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
@@ -370,6 +371,43 @@ func t0DisplaySortRank(result T0SelectionResult) int {
 		return 5
 	default:
 		return 6
+	}
+}
+
+func filterPurpleT0Results(results []T0SelectionResult) []T0SelectionResult {
+	filtered := make([]T0SelectionResult, 0, len(results))
+	for _, result := range results {
+		if result.PatternT0N >= 2 && result.PatternWinPct > 40 &&
+			100-result.PatternFailPct > 60 {
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered
+}
+
+func filterBlueT0Results(results []T0SelectionResult) []T0SelectionResult {
+	filtered := make([]T0SelectionResult, 0, len(results))
+	for _, result := range results {
+		if result.BuySignal == BuySignalBlue {
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered
+}
+
+func selectT0ResultsForModule(
+	moduleCode string, results []T0SelectionResult,
+) ([]T0SelectionResult, error) {
+	switch moduleCode {
+	case "radar.main_strategy":
+		return results, nil
+	case "radar.purple_strategy":
+		return filterPurpleT0Results(results), nil
+	case "radar.blue_strategy":
+		return filterBlueT0Results(results), nil
+	default:
+		return nil, newAuthError(http.StatusBadRequest,
+			"INVALID_ARGUMENT", "模块不存在")
 	}
 }
 
@@ -1729,6 +1767,91 @@ func isTruthyQuery(v string) bool {
 	}
 }
 
+type t0SelectionModuleCodeContextKey struct{}
+
+func newT0SelectionHandler(moduleService *ModuleService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if isTruthyQuery(q.Get("list_dates")) {
+			handleT0Selection(w, r)
+			return
+		}
+
+		moduleCode := strings.TrimSpace(q.Get("module_code"))
+		if _, err := selectT0ResultsForModule(moduleCode, nil); err != nil {
+			WriteAuthError(w, err)
+			return
+		}
+
+		principal, ok := PrincipalFromContext(r.Context())
+		if !ok {
+			WriteAuthError(w, newAuthError(http.StatusUnauthorized,
+				"UNAUTHENTICATED", "未认证"))
+			return
+		}
+		allowed, err := moduleService.HasModuleAccess(
+			r.Context(), principal.UserID, moduleCode)
+		if err != nil {
+			WriteAuthError(w, err)
+			return
+		}
+		if !allowed {
+			WriteAuthError(w, newAuthError(http.StatusForbidden,
+				"MODULE_FORBIDDEN", "暂无该功能访问权限"))
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), t0SelectionModuleCodeContextKey{}, moduleCode)
+		handleT0Selection(w, r.WithContext(ctx))
+	}
+}
+
+func t0SelectionModuleCode(r *http.Request) string {
+	if moduleCode, ok := r.Context().Value(t0SelectionModuleCodeContextKey{}).(string); ok {
+		return moduleCode
+	}
+	return strings.TrimSpace(r.URL.Query().Get("module_code"))
+}
+
+func scopeT0ResponseResults(
+	moduleCode string, response map[string]interface{}, field string,
+) error {
+	raw, ok := response[field]
+	if !ok {
+		return nil
+	}
+	results, ok := raw.([]T0SelectionResult)
+	if !ok {
+		return nil
+	}
+	selected, err := selectT0ResultsForModule(moduleCode, results)
+	if err != nil {
+		return err
+	}
+	response[field] = selected
+	switch field {
+	case "results":
+		if _, ok := response["count"]; ok {
+			response["count"] = len(selected)
+		}
+	case "candidates":
+		response["candidate_count"] = len(selected)
+	}
+	return nil
+}
+
+func writeScopedT0Response(
+	w http.ResponseWriter, moduleCode string, response map[string]interface{}, fields ...string,
+) {
+	for _, field := range fields {
+		if err := scopeT0ResponseResults(moduleCode, response, field); err != nil {
+			WriteAuthError(w, err)
+			return
+		}
+	}
+	WriteJSON(w, response)
+}
+
 // t0AuctionCutoffHM 竞价确认可用的最早时分（含）：09:25
 const t0AuctionCutoffHM = 9*60 + 25
 
@@ -1777,30 +1900,49 @@ func isBeforeT0AuctionCutoff(now time.Time, tradeDate string) bool {
 	return minutes < t0AuctionCutoffHM
 }
 
-func writeT0PrewarmHTTP(w http.ResponseWriter, tradeDate string) {
+func writeT0PrewarmHTTP(w http.ResponseWriter, tradeDate, moduleCode string) {
 	now := time.Now()
 	ensurePrevTradingDayBackfillStarted(tradeDate, now)
 	if isPrevDayBackfillInProgress(tradeDate) {
 		syncBackfillDailyProgress(tradeDate, getT0WarmProgress(tradeDate).BackfillDate)
-		WriteJSON(w, buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
+		writeScopedT0Response(w, moduleCode,
+			buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
 		return
 	}
 	if isT0DailyCacheFilePresent(tradeDate) {
-		WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
+		writeScopedT0Response(w, moduleCode, buildPrewarmReadyResponse(tradeDate),
+			"results", "candidates")
 		return
 	}
 	tryStartT0Prewarm(tradeDate)
 	if isT0DailyCacheFilePresent(tradeDate) {
-		WriteJSON(w, buildPrewarmReadyResponse(tradeDate))
+		writeScopedT0Response(w, moduleCode, buildPrewarmReadyResponse(tradeDate),
+			"results", "candidates")
 		return
 	}
-	WriteJSON(w, buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
+	writeScopedT0Response(w, moduleCode,
+		buildPrewarmProgressResponse(tradeDate, getT0WarmProgress(tradeDate)))
 }
 
 // handleT0Selection 处理 /api/t0-selection 请求
 func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	q := r.URL.Query()
+	// list_dates：返回所有有效选股归档日期（降序）
+	if isTruthyQuery(q.Get("list_dates")) {
+		WriteJSON(w, map[string]interface{}{
+			"dates": listSelectionArchiveDates(),
+		})
+		return
+	}
+
+	moduleCode := t0SelectionModuleCode(r)
+	if _, err := selectT0ResultsForModule(moduleCode, nil); err != nil {
+		WriteAuthError(w, err)
 		return
 	}
 
@@ -1812,16 +1954,6 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, map[string]interface{}{
 			"error": fmt.Sprintf("日期格式错误: %s (需为 2006-01-02)", tradeDate),
 			"date":  tradeDate,
-		})
-		return
-	}
-
-	q := r.URL.Query()
-
-	// list_dates：返回所有有效选股归档日期（降序）
-	if isTruthyQuery(q.Get("list_dates")) {
-		WriteJSON(w, map[string]interface{}{
-			"dates": listSelectionArchiveDates(),
 		})
 		return
 	}
@@ -1838,13 +1970,19 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		results, err := selectT0ResultsForModule(
+			moduleCode, enrichArchivedResults(tradeDate, a.Results))
+		if err != nil {
+			WriteAuthError(w, err)
+			return
+		}
 		WriteJSON(w, map[string]interface{}{
 			"date":             a.Date,
 			"archived":         true,
 			"saved_at":         a.SavedAt,
 			"close_updated_at": a.CloseUpdatedAt,
-			"count":            a.Count,
-			"results":          sortT0ResultsForClient(enrichArchivedResults(tradeDate, a.Results)),
+			"count":            len(results),
+			"results":          sortT0ResultsForClient(results),
 		})
 		return
 	}
@@ -1859,7 +1997,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		WriteJSON(w, out)
+		writeScopedT0Response(w, moduleCode, out, "results")
 		return
 	}
 
@@ -1873,7 +2011,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		WriteJSON(w, out)
+		writeScopedT0Response(w, moduleCode, out, "results")
 		return
 	}
 
@@ -1883,17 +2021,17 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	autoPrewarm := !explicitPrewarm && isBeforeT0AuctionCutoff(time.Now(), tradeDate)
 
 	if explicitPrewarm || autoPrewarm {
-		writeT0PrewarmHTTP(w, tradeDate)
+		writeT0PrewarmHTTP(w, tradeDate, moduleCode)
 		return
 	}
 
 	if shouldReturnWarmingForSelection(tradeDate) {
-		WriteJSON(w, map[string]interface{}{
+		writeScopedT0Response(w, moduleCode, map[string]interface{}{
 			"date":    tradeDate,
 			"status":  string(t0WarmStatusWarming),
 			"count":   0,
 			"results": []T0SelectionResult{},
-		})
+		}, "results")
 		return
 	}
 
@@ -1912,10 +2050,15 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	if saveErr := saveT0SelectionArchive(tradeDate, results, forceSave); saveErr != nil {
 		logger.SugaredLogger.Warnf("[T0选股] 结果归档写入失败: %v", saveErr)
 	}
+	selected, err := selectT0ResultsForModule(moduleCode, results)
+	if err != nil {
+		WriteAuthError(w, err)
+		return
+	}
 
 	WriteJSON(w, map[string]interface{}{
 		"date":    tradeDate,
-		"count":   len(results),
-		"results": sortT0ResultsForClient(results),
+		"count":   len(selected),
+		"results": sortT0ResultsForClient(selected),
 	})
 }

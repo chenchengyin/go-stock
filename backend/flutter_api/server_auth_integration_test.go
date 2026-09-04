@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -70,6 +71,45 @@ func TestProtectedRoutePassesAuthenticatedPrincipalToBusinessHandler(t *testing.
 	}
 	if got["userId"] != session.User.ID {
 		t.Fatalf("principal user = %q, want %q", got["userId"], session.User.ID)
+	}
+}
+
+func TestT0SelectionRequiresModuleCodeForResults(t *testing.T) {
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?archived=1&date=2026-08-11", nil)
+	req.Header.Set("Authorization", "Bearer "+user.AccessToken)
+	rec := httptest.NewRecorder()
+	newHTTPHandler(auth.AuthService).ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest ||
+		!strings.Contains(rec.Body.String(), "INVALID_ARGUMENT") {
+		t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestT0SelectionDoesNotCoupleMainPurpleAndBlue(t *testing.T) {
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	modules := NewModuleService(auth.dao)
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-a",
+		[]string{user.User.ID}, []string{"radar.main_strategy"}); err != nil {
+		t.Fatalf("grant main: %v", err)
+	}
+
+	for _, code := range []string{
+		"radar.purple_strategy", "radar.blue_strategy",
+	} {
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/t0-selection?module_code="+url.QueryEscape(code)+
+				"&archived=1&date=2026-08-11", nil)
+		req.Header.Set("Authorization", "Bearer "+user.AccessToken)
+		rec := httptest.NewRecorder()
+		newHTTPHandler(auth.AuthService).ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden ||
+			!strings.Contains(rec.Body.String(), "MODULE_FORBIDDEN") {
+			t.Fatalf("%s response = %d %s", code, rec.Code, rec.Body.String())
+		}
 	}
 }
 

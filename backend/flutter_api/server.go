@@ -336,7 +336,7 @@ func newHTTPHandler(authService *AuthService, overrides ...serverHandlerOverride
 	mux.HandleFunc("/api/stock-selection-test", handleStockSelectionTest)
 	mux.HandleFunc("/api/ths-selection-test", handleTHSSelectionTest)
 	mux.HandleFunc("/api/get-qgqp-bid", handleGetQgqpBid)
-	mux.HandleFunc("/api/t0-selection", handleT0Selection)
+	mux.Handle("/api/t0-selection", newT0SelectionHandler(moduleService))
 
 	uploadDir := filepath.Join("data", "uploads")
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {

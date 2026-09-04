@@ -1,11 +1,13 @@
 package flutter_api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -84,6 +86,58 @@ func TestEnrichResultWithPattern(t *testing.T) {
 	}
 }
 
+func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
+	results := []T0SelectionResult{
+		{StockCode: "purple", PatternT0N: 2, PatternWinPct: 40.1, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
+		{StockCode: "purple-win-boundary", PatternT0N: 2, PatternWinPct: 40, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
+		{StockCode: "purple-earn-boundary", PatternT0N: 2, PatternWinPct: 40.1, PatternFailPct: 40, BuySignal: BuySignalGreen},
+		{StockCode: "blue", PatternT0N: 1, BuySignal: BuySignalBlue},
+		{StockCode: "other", PatternT0N: 2, PatternWinPct: 40.1, PatternFailPct: 40.1, BuySignal: BuySignalGreen},
+	}
+	original := append([]T0SelectionResult(nil), results...)
+
+	purple, err := selectT0ResultsForModule("radar.purple_strategy", results)
+	if err != nil {
+		t.Fatalf("select purple: %v", err)
+	}
+	if got := []string{purple[0].StockCode}; !reflect.DeepEqual(got, []string{"purple"}) {
+		t.Fatalf("purple results = %v", got)
+	}
+	if &purple[0] == &results[0] {
+		t.Fatal("purple results share the input backing array")
+	}
+	purple[0].StockCode = "mutated"
+
+	blue, err := selectT0ResultsForModule("radar.blue_strategy", results)
+	if err != nil {
+		t.Fatalf("select blue: %v", err)
+	}
+	if len(blue) != 1 || blue[0].StockCode != "blue" {
+		t.Fatalf("blue results = %#v", blue)
+	}
+	if &blue[0] == &results[3] {
+		t.Fatal("blue results share the input backing array")
+	}
+	blue[0].StockCode = "mutated"
+
+	main, err := selectT0ResultsForModule("radar.main_strategy", results)
+	if err != nil {
+		t.Fatalf("select main: %v", err)
+	}
+	if !reflect.DeepEqual(main, results) {
+		t.Fatalf("main results = %#v, want %#v", main, results)
+	}
+	if !reflect.DeepEqual(results, original) {
+		t.Fatalf("input results mutated: got %#v want %#v", results, original)
+	}
+}
+
+func TestSelectT0ResultsForModuleRejectsUnknownModule(t *testing.T) {
+	if _, err := selectT0ResultsForModule("radar.monitored", nil); !IsAuthCode(err, "INVALID_ARGUMENT") {
+		t.Fatalf("error = %v, want INVALID_ARGUMENT", err)
+	}
+}
+
 func TestPatternBuySignalArchivedSmoke(t *testing.T) {
 	dbPath := stockDBPath(t)
 	if _, err := os.Stat(dbPath); err != nil {
@@ -99,10 +153,19 @@ func TestPatternBuySignalArchivedSmoke(t *testing.T) {
 
 	db.Init(dbPath)
 	AutoMigrate()
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	modules := NewModuleService(auth.dao)
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-a",
+		[]string{user.User.ID}, []string{"radar.main_strategy"}); err != nil {
+		t.Fatalf("grant main: %v", err)
+	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/t0-selection?archived=1&date=2026-08-11", nil)
 	rr := httptest.NewRecorder()
-	handleT0Selection(rr, req)
+	handler := newHTTPHandler(auth.AuthService)
+	handler.ServeHTTP(rr, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&archived=1&date=2026-08-11",
+		user.AccessToken, ""))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
 	}
