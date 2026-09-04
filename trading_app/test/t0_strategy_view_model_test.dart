@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
 
@@ -39,6 +40,50 @@ T0StrategyStock _stock({
 }
 
 void main() {
+  test('result request carries its explicit module code', () async {
+    Map<String, dynamic>? seenQuery;
+    final vm = T0StrategyViewModel(
+      request: (moduleCode, query) async {
+        expect(moduleCode, 'radar.main_strategy');
+        seenQuery = Map<String, dynamic>.from(query);
+        return {'results': <dynamic>[]};
+      },
+    );
+    addTearDown(vm.dispose);
+
+    await vm.loadResults(
+      moduleCode: 'radar.main_strategy',
+      date: '2026-08-11',
+      archived: true,
+    );
+
+    expect(seenQuery?['module_code'], 'radar.main_strategy');
+    expect(vm.resultsFor('radar.purple_strategy'), isEmpty);
+  });
+
+  test('module forbidden callback names only the rejected module', () async {
+    String? rejected;
+    final vm = T0StrategyViewModel(
+      request: (moduleCode, query) async {
+        final request = RequestOptions(path: '/api/t0-selection');
+        throw DioException(
+          requestOptions: request,
+          response: Response(
+            requestOptions: request,
+            statusCode: 403,
+            data: {'code': 'MODULE_FORBIDDEN'},
+          ),
+        );
+      },
+      onModuleForbidden: (code) => rejected = code,
+    );
+    addTearDown(vm.dispose);
+
+    await vm.loadResults(moduleCode: 'radar.blue_strategy');
+
+    expect(rejected, 'radar.blue_strategy');
+  });
+
   test('sortStrategyStocksForDisplay：blue 排在实时涨幅更高的非 blue 之前', () {
     final green = T0StrategyStock(
       stockCode: '600000.XSHG',

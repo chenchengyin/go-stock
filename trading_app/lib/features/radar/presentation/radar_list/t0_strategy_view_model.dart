@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
@@ -6,9 +7,8 @@ import 'package:trading_app/features/radar/data/radar_repository.dart';
 /// 主板策略 UI 态
 enum T0StrategyPhase { historical, waiting, candidatePreview, confirmed }
 
-typedef T0QuoteFetcher = Future<Map<String, Map<String, dynamic>>> Function(
-  List<String> codes,
-);
+typedef T0QuoteFetcher =
+    Future<Map<String, Map<String, dynamic>>> Function(List<String> codes);
 
 /// T0 选股结果单条数据
 class T0StrategyStock {
@@ -124,192 +124,333 @@ class T0WarmProgress {
 }
 
 /// 主板策略（T0 开盘日线选股）ViewModel
+const t0PurpleStrategyModuleCode = 'radar.purple_strategy';
+const t0MainStrategyModuleCode = 'radar.main_strategy';
+const t0BlueStrategyModuleCode = 'radar.blue_strategy';
+
+typedef T0Request =
+    Future<Map<String, dynamic>> Function(
+      String moduleCode,
+      Map<String, dynamic> query,
+    );
+
+@immutable
+class T0ModuleState {
+  const T0ModuleState({
+    required this.results,
+    required this.candidates,
+    required this.loading,
+    required this.error,
+    required this.warmProgress,
+    required this.displayDate,
+    required this.showingHistorical,
+    required this.availableDates,
+    required this.selectedDate,
+    required this.phase,
+    required this.loaded,
+  });
+
+  final List<T0StrategyStock> results;
+  final List<T0StrategyStock> candidates;
+  final bool loading;
+  final String? error;
+  final T0WarmProgress? warmProgress;
+  final String? displayDate;
+  final bool showingHistorical;
+  final List<String> availableDates;
+  final String? selectedDate;
+  final T0StrategyPhase phase;
+  final bool loaded;
+
+  bool get showingCandidatePreview => phase == T0StrategyPhase.candidatePreview;
+
+  bool get needsPolling =>
+      warmProgress != null &&
+      (warmProgress!.isWarming || warmProgress!.prewarm);
+}
+
+class _MutableT0ModuleState {
+  List<T0StrategyStock> results = [];
+  List<T0StrategyStock> candidates = [];
+  bool loading = false;
+  String? error;
+  T0WarmProgress? warmProgress;
+  Timer? pollTimer;
+  Timer? quoteTimer;
+  bool warmUpTriggered = false;
+  String? displayDate;
+  bool showingHistorical = false;
+  List<String> availableDates = [];
+  String? selectedDate;
+  T0StrategyPhase phase = T0StrategyPhase.waiting;
+  bool loaded = false;
+}
+
 class T0StrategyViewModel extends ChangeNotifier {
   T0StrategyViewModel({
     DateTime Function()? now,
     T0QuoteFetcher? fetchRealtimeQuotes,
-  })  : _now = now,
-        _fetchRealtimeQuotes = fetchRealtimeQuotes;
+    T0Request? request,
+    void Function(String moduleCode)? onModuleForbidden,
+  }) : _now = now,
+       _fetchRealtimeQuotes = fetchRealtimeQuotes,
+       _request = request,
+       _onModuleForbidden = onModuleForbidden;
 
   final DateTime Function()? _now;
   final T0QuoteFetcher? _fetchRealtimeQuotes;
+  final T0Request? _request;
+  final void Function(String moduleCode)? _onModuleForbidden;
+  final Map<String, _MutableT0ModuleState> _states = {
+    t0PurpleStrategyModuleCode: _MutableT0ModuleState(),
+    t0MainStrategyModuleCode: _MutableT0ModuleState(),
+    t0BlueStrategyModuleCode: _MutableT0ModuleState(),
+  };
 
-  List<T0StrategyStock> _results = [];
-  List<T0StrategyStock> _candidates = [];
-  bool _loading = false;
-  String? _error;
-  T0WarmProgress? _warmProgress;
-  Timer? _pollTimer;
-  Timer? _quoteTimer;
-  bool _warmUpTriggered = false;
-  String? _displayDate;
-  bool _showingHistorical = false;
-  List<String> _availableDates = [];
-  String? _selectedDate;
-  T0StrategyPhase _phase = T0StrategyPhase.waiting;
+  _MutableT0ModuleState _mutableState(String moduleCode) {
+    return _states.putIfAbsent(moduleCode, _MutableT0ModuleState.new);
+  }
 
-  List<T0StrategyStock> get results => _results;
-  List<T0StrategyStock> get purpleResults => List.unmodifiable(
-        _results.where(
-          (stock) =>
-              stock.patternT0N >= 2 &&
-              stock.patternWinPct > 40 &&
-              stock.patternEarnPct > 60,
-        ),
-      );
-  List<T0StrategyStock> get blueResults =>
-      List.unmodifiable(_results.where((stock) => stock.buySignal == 'blue'));
-  bool get loading => _loading;
-  String? get error => _error;
-  T0WarmProgress? get warmProgress => _warmProgress;
-  T0StrategyPhase get phase => _phase;
+  T0ModuleState stateFor(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    return T0ModuleState(
+      results: List.unmodifiable(state.results),
+      candidates: List.unmodifiable(state.candidates),
+      loading: state.loading,
+      error: state.error,
+      warmProgress: state.warmProgress,
+      displayDate: state.displayDate,
+      showingHistorical: state.showingHistorical,
+      availableDates: List.unmodifiable(state.availableDates),
+      selectedDate: state.selectedDate,
+      phase: state.phase,
+      loaded: state.loaded,
+    );
+  }
+
+  List<T0StrategyStock> resultsFor(String moduleCode) =>
+      List.unmodifiable(_mutableState(moduleCode).results);
+
+  List<T0StrategyStock> purpleResultsFor(String moduleCode) =>
+      List.unmodifiable(_purpleFilter(resultsFor(moduleCode)));
+
+  List<T0StrategyStock> blueResultsFor(String moduleCode) => List.unmodifiable(
+    resultsFor(moduleCode).where((stock) => stock.buySignal == 'blue'),
+  );
+
+  // 兼容仍使用主板策略默认 getter 的旧页面和测试；新代码应按模块编码读取。
+  List<T0StrategyStock> get results => resultsFor(t0MainStrategyModuleCode);
+
+  List<T0StrategyStock> get purpleResults {
+    final purple = _mutableState(t0PurpleStrategyModuleCode);
+    final source = purple.loaded
+        ? purple.results
+        : _mutableState(t0MainStrategyModuleCode).results;
+    return List.unmodifiable(_purpleFilter(source));
+  }
+
+  List<T0StrategyStock> get blueResults {
+    final blue = _mutableState(t0BlueStrategyModuleCode);
+    final source = blue.loaded
+        ? blue.results
+        : _mutableState(t0MainStrategyModuleCode).results;
+    return List.unmodifiable(
+      source.where((stock) => stock.buySignal == 'blue'),
+    );
+  }
+
+  bool get loading => _mutableState(t0MainStrategyModuleCode).loading;
+  String? get error => _mutableState(t0MainStrategyModuleCode).error;
+  T0WarmProgress? get warmProgress =>
+      _mutableState(t0MainStrategyModuleCode).warmProgress;
+  T0StrategyPhase get phase => _mutableState(t0MainStrategyModuleCode).phase;
   bool get showingCandidatePreview =>
-      _phase == T0StrategyPhase.candidatePreview;
-  bool get isQuotePolling => _quoteTimer != null;
+      stateFor(t0MainStrategyModuleCode).showingCandidatePreview;
+  bool get isQuotePolling =>
+      _mutableState(t0MainStrategyModuleCode).quoteTimer != null;
 
   /// 当前展示的归档日期（历史结果时为归档实际日期，否则为 null）
-  String? get displayDate => _displayDate;
+  String? get displayDate =>
+      _mutableState(t0MainStrategyModuleCode).displayDate;
 
   /// 是否正在展示历史归档（凌晨窗口或手动切到归档日）
-  bool get showingHistorical => _showingHistorical;
+  bool get showingHistorical =>
+      _mutableState(t0MainStrategyModuleCode).showingHistorical;
 
   /// 服务端已有选股归档日期（降序）
-  List<String> get availableDates => List.unmodifiable(_availableDates);
+  List<String> get availableDates =>
+      List.unmodifiable(_mutableState(t0MainStrategyModuleCode).availableDates);
 
   /// 当前选中的展示日期
-  String? get selectedDate => _selectedDate;
+  String? get selectedDate =>
+      _mutableState(t0MainStrategyModuleCode).selectedDate;
 
   /// 下拉选项：归档日 +（今日正式结果且不在列表时）把今日放首位
-  List<String> get dropdownDates {
-    final out = List<String>.from(_availableDates);
-    if (_selectedDate != null && !out.contains(_selectedDate)) {
-      out.insert(0, _selectedDate!);
+  List<String> dropdownDatesFor(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    final out = List<String>.from(state.availableDates);
+    if (state.selectedDate != null && !out.contains(state.selectedDate)) {
+      out.insert(0, state.selectedDate!);
     }
     return out;
   }
 
+  List<String> get dropdownDates => dropdownDatesFor(t0MainStrategyModuleCode);
+
   /// 有可选归档日期时显示顶部日期条（候选预览不显示；预热/等待时也可切换历史日）
-  bool get showDateSelector =>
-      !showingCandidatePreview &&
-      dropdownDates.isNotEmpty &&
-      _selectedDate != null;
+  bool showDateSelectorFor(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    return state.phase != T0StrategyPhase.candidatePreview &&
+        dropdownDatesFor(moduleCode).isNotEmpty &&
+        state.selectedDate != null;
+  }
+
+  bool get showDateSelector => showDateSelectorFor(t0MainStrategyModuleCode);
 
   /// 测试用同步入口：直接套用一次响应体
   @visibleForTesting
-  void applyResponseForTest(Map<String, dynamic> data) {
-    _applyResponse(data, null);
+  void applyResponseForTest(
+    Map<String, dynamic> data, {
+    String moduleCode = t0MainStrategyModuleCode,
+  }) {
+    _applyResponse(moduleCode, data, null);
     notifyListeners();
   }
 
   @visibleForTesting
-  void applyAvailableDatesForTest(List<String> dates) {
-    _availableDates = List<String>.from(dates);
+  void applyAvailableDatesForTest(
+    List<String> dates, {
+    String moduleCode = t0MainStrategyModuleCode,
+  }) {
+    _mutableState(moduleCode).availableDates = List<String>.from(dates);
     notifyListeners();
   }
 
   @visibleForTesting
-  void applyQuotesForTest(Map<String, Map<String, dynamic>> quotes) {
-    _mergeQuotes(quotes);
+  void applyQuotesForTest(
+    Map<String, Map<String, dynamic>> quotes, {
+    String moduleCode = t0MainStrategyModuleCode,
+  }) {
+    _mergeQuotes(moduleCode, quotes);
     notifyListeners();
   }
 
   /// 是否正在预热或需要轮询
-  bool get needsPolling =>
-      _warmProgress != null && (_warmProgress!.isWarming || _warmProgress!.prewarm);
+  bool get needsPolling => stateFor(t0MainStrategyModuleCode).needsPolling;
 
   /// App 启动时触发预热（当天已预热则后端跳过，静默调用不更新 UI）
-  Future<void> warmUpIfNeeded() async {
-    if (_warmUpTriggered) return;
-    _warmUpTriggered = true;
+  Future<void> warmUpIfNeeded({
+    String moduleCode = t0MainStrategyModuleCode,
+  }) async {
+    final state = _mutableState(moduleCode);
+    if (state.warmUpTriggered) return;
+    state.warmUpTriggered = true;
     try {
-      final dio = createApiClient();
-      await dio.get('/api/t0-selection', queryParameters: {'prewarm': '1'});
-    } catch (_) {
-      // 静默失败，用户切换到主板策略 Tab 时会触发 loadResults
+      await _sendRequest(moduleCode, {'prewarm': '1'});
+    } catch (error) {
+      if (_isModuleForbidden(error)) _forbidModule(moduleCode);
     }
   }
 
   /// 拉取可用归档日期列表
-  Future<void> loadAvailableDates() async {
+  Future<void> loadAvailableDates({
+    String moduleCode = t0MainStrategyModuleCode,
+  }) async {
     try {
-      final dio = createApiClient();
-      final resp = await dio.get(
-        '/api/t0-selection',
-        queryParameters: {'list_dates': '1'},
-      );
-      final data = resp.data as Map<String, dynamic>;
+      final data = await _sendRequest(moduleCode, {'list_dates': '1'});
       final raw = data['dates'] as List<dynamic>? ?? [];
-      _availableDates = raw.map((e) => e.toString()).toList();
-      if (_selectedDate == null && _availableDates.isNotEmpty) {
+      final state = _mutableState(moduleCode);
+      state.availableDates = raw.map((e) => e.toString()).toList();
+      if (state.selectedDate == null && state.availableDates.isNotEmpty) {
         final today = _shanghaiToday();
-        _selectedDate =
-            _availableDates.contains(today) ? today : _availableDates.first;
+        state.selectedDate = state.availableDates.contains(today)
+            ? today
+            : state.availableDates.first;
       }
       notifyListeners();
-    } catch (_) {
+    } catch (error) {
+      if (_isModuleForbidden(error)) _forbidModule(moduleCode);
       // 列表失败不影响主列表展示
     }
   }
 
   /// 归档列表中比当前选中更旧的一项；已在最早归档时为 null
-  String? get previousArchiveDate {
-    final selected = _selectedDate;
+  String? previousArchiveDateFor(String moduleCode) {
+    final selected = _mutableState(moduleCode).selectedDate;
     if (selected == null) return null;
-    final dates = dropdownDates;
+    final dates = dropdownDatesFor(moduleCode);
     final index = dates.indexOf(selected);
     if (index < 0 || index + 1 >= dates.length) return null;
     return dates[index + 1];
   }
 
+  String? get previousArchiveDate =>
+      previousArchiveDateFor(t0MainStrategyModuleCode);
+
   /// 归档列表中比当前选中更新的一项；已在最新项时为 null
-  String? get nextArchiveDate {
-    final selected = _selectedDate;
+  String? nextArchiveDateFor(String moduleCode) {
+    final selected = _mutableState(moduleCode).selectedDate;
     if (selected == null) return null;
-    final dates = dropdownDates;
+    final dates = dropdownDatesFor(moduleCode);
     final index = dates.indexOf(selected);
     if (index <= 0) return null;
     return dates[index - 1];
   }
 
+  String? get nextArchiveDate => nextArchiveDateFor(t0MainStrategyModuleCode);
+
+  bool canGoPreviousArchiveFor(String moduleCode) =>
+      previousArchiveDateFor(moduleCode) != null &&
+      !_mutableState(moduleCode).loading;
+
   bool get canGoPreviousArchive =>
-      previousArchiveDate != null && !_loading;
+      canGoPreviousArchiveFor(t0MainStrategyModuleCode);
 
-  bool get canGoNextArchive => nextArchiveDate != null && !_loading;
+  bool canGoNextArchiveFor(String moduleCode) =>
+      nextArchiveDateFor(moduleCode) != null &&
+      !_mutableState(moduleCode).loading;
 
-  Future<void> selectPreviousArchive() async {
-    final date = previousArchiveDate;
+  bool get canGoNextArchive => canGoNextArchiveFor(t0MainStrategyModuleCode);
+
+  Future<void> selectPreviousArchive(String moduleCode) async {
+    final date = previousArchiveDateFor(moduleCode);
     if (date == null) return;
-    await selectDate(date);
+    await selectDate(moduleCode, date);
   }
 
-  Future<void> selectNextArchive() async {
-    final date = nextArchiveDate;
+  Future<void> selectNextArchive(String moduleCode) async {
+    final date = nextArchiveDateFor(moduleCode);
     if (date == null) return;
-    await selectDate(date);
+    await selectDate(moduleCode, date);
   }
 
   /// 切换展示日期：今日走正式选股；其他日走 archived
-  Future<void> selectDate(String date) async {
-    if (date.isEmpty || date == _selectedDate) return;
+  Future<void> selectDate(String moduleCode, String date) async {
+    final state = _mutableState(moduleCode);
+    if (date.isEmpty || date == state.selectedDate) return;
     final today = _shanghaiToday();
     if (date == today) {
-      await loadResults();
+      await loadResults(moduleCode: moduleCode);
     } else {
-      await loadResults(date: date, archived: true);
+      await loadResults(moduleCode: moduleCode, date: date, archived: true);
     }
   }
 
   /// 加载 T0 选股结果
-  Future<void> loadResults({String? date, bool archived = false}) async {
-    if (_loading) return;
+  Future<void> loadResults({
+    String moduleCode = t0MainStrategyModuleCode,
+    String? date,
+    bool archived = false,
+  }) async {
+    final state = _mutableState(moduleCode);
+    if (state.loading) return;
 
-    _loading = true;
-    _error = null;
+    state.loading = true;
+    state.error = null;
     notifyListeners();
 
     try {
-      final dio = createApiClient();
-      final queryParams = <String, dynamic>{};
+      final queryParams = <String, dynamic>{'module_code': moduleCode};
       if (date != null && date.isNotEmpty) {
         queryParams['date'] = date;
       }
@@ -317,19 +458,22 @@ class T0StrategyViewModel extends ChangeNotifier {
         queryParams['archived'] = '1';
       }
 
-      final resp =
-          await dio.get('/api/t0-selection', queryParameters: queryParams);
-      final data = resp.data as Map<String, dynamic>;
-      _applyResponse(data, date);
-      if (!showingCandidatePreview) {
-        await loadAvailableDates();
+      final data = await _sendRequest(moduleCode, queryParams);
+      _applyResponse(moduleCode, data, date);
+      if (_mutableState(moduleCode).phase != T0StrategyPhase.candidatePreview) {
+        await loadAvailableDates(moduleCode: moduleCode);
       }
-    } catch (e) {
-      _error = e.toString();
-      _results = [];
-      _warmProgress = null;
+    } catch (error) {
+      if (_isModuleForbidden(error)) {
+        _forbidModule(moduleCode);
+      } else {
+        state.error = error.toString();
+        state.results = [];
+        state.candidates = [];
+        state.warmProgress = null;
+      }
     } finally {
-      _loading = false;
+      state.loading = false;
       notifyListeners();
     }
   }
@@ -355,8 +499,14 @@ class T0StrategyViewModel extends ChangeNotifier {
   static const _confirmedStartHM = 9 * 60 + 25;
   static const _quoteBatchSize = 80;
 
-  /// 解析一次 /api/t0-selection 响应，更新结果与预热/历史状态
-  void _applyResponse(Map<String, dynamic> data, String? date) {
+  /// 解析一次 /api/t0-selection 响应，更新指定模块的结果与预热/历史状态。
+  void _applyResponse(
+    String moduleCode,
+    Map<String, dynamic> data,
+    String? date,
+  ) {
+    final state = _mutableState(moduleCode);
+    state.loaded = true;
     final status = data['status'] as String?;
     final prewarm = data['prewarm'] as bool? ?? false;
     final archived = data['archived'] as bool? ?? false;
@@ -364,116 +514,122 @@ class T0StrategyViewModel extends ChangeNotifier {
     final rawCands = data['candidates'] as List<dynamic>?;
 
     if (prewarm || (status != null && status != 'ready')) {
-      _warmProgress = T0WarmProgress(
+      state.warmProgress = T0WarmProgress(
         status: status ?? 'warming',
         stockCount: (data['stock_count'] as num?)?.toInt() ?? 0,
         dailyFetched: (data['daily_fetched'] as num?)?.toInt() ?? 0,
         dailyTotal: (data['daily_total'] as num?)?.toInt() ?? 0,
-        candidateCount: (data['candidate_count'] as num?)?.toInt() ??
+        candidateCount:
+            (data['candidate_count'] as num?)?.toInt() ??
             (rawCands?.length ?? 0),
         prewarm: prewarm,
         backfillDate: data['backfill_date'] as String?,
         backfillPhase: data['backfill_phase'] as String?,
       );
 
-      if (_warmProgress!.isReady &&
+      if (state.warmProgress!.isReady &&
           rawList != null &&
           (data['historical'] as bool? ?? false || rawList.isNotEmpty)) {
         // ready 且带 results：凌晨窗口的历史归档，直接展示
-        _results = rawList
+        state.results = rawList
             .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))
             .toList();
-        _candidates = [];
-        _displayDate = data['display_date'] as String?;
-        _showingHistorical = data['historical'] as bool? ?? false;
-        _selectedDate = _displayDate ?? data['date'] as String?;
-        _phase = T0StrategyPhase.historical;
-        _warmProgress = null;
-        _stopQuotePolling();
-        _stopPolling();
+        state.candidates = [];
+        state.displayDate = data['display_date'] as String?;
+        state.showingHistorical = data['historical'] as bool? ?? false;
+        state.selectedDate = state.displayDate ?? data['date'] as String?;
+        state.phase = T0StrategyPhase.historical;
+        state.warmProgress = null;
+        _stopQuotePolling(moduleCode);
+        _stopPolling(moduleCode);
         return;
       }
 
-      if (_warmProgress!.isReady && rawCands != null) {
-        _candidates = rawCands
+      if (state.warmProgress!.isReady && rawCands != null) {
+        state.candidates = rawCands
             .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))
             .toList();
         final hm = _shanghaiMinutes();
         if (hm >= _previewStartHM && hm < _confirmedStartHM) {
-          _phase = T0StrategyPhase.candidatePreview;
-          _results = List<T0StrategyStock>.from(_candidates);
-          _displayDate = null;
-          _showingHistorical = false;
-          _selectedDate = data['date'] as String? ?? date;
-          _warmProgress = null;
-          _startPollingIfNeeded(date);
-          _startQuotePolling();
+          state.phase = T0StrategyPhase.candidatePreview;
+          state.results = List<T0StrategyStock>.from(state.candidates);
+          state.displayDate = null;
+          state.showingHistorical = false;
+          state.selectedDate = data['date'] as String? ?? date;
+          state.warmProgress = null;
+          _startPollingIfNeeded(moduleCode, date);
+          _startQuotePolling(moduleCode);
           return;
         }
         // <09:15 或 ≥09:25：有名单但不展示预览
-        _results = [];
-        _phase = T0StrategyPhase.waiting;
-        _stopQuotePolling();
-        _startPollingIfNeeded(date);
+        state.results = [];
+        state.phase = T0StrategyPhase.waiting;
+        _stopQuotePolling(moduleCode);
+        _startPollingIfNeeded(moduleCode, date);
         return;
       }
 
-      if (_warmProgress!.isReady && rawList == null) {
-        _phase = T0StrategyPhase.waiting;
-        _startPollingIfNeeded(date);
-      } else if (_warmProgress!.isWarming) {
-        _phase = T0StrategyPhase.waiting;
-        _startPollingIfNeeded(date);
-      } else if (_warmProgress!.isFailed) {
-        _error = data['error'] as String? ?? '预热失败';
-        _phase = T0StrategyPhase.waiting;
-        _stopQuotePolling();
-        _stopPolling();
+      if (state.warmProgress!.isReady && rawList == null) {
+        state.phase = T0StrategyPhase.waiting;
+        _startPollingIfNeeded(moduleCode, date);
+      } else if (state.warmProgress!.isWarming) {
+        state.phase = T0StrategyPhase.waiting;
+        _startPollingIfNeeded(moduleCode, date);
+      } else if (state.warmProgress!.isFailed) {
+        state.error = data['error'] as String? ?? '预热失败';
+        state.phase = T0StrategyPhase.waiting;
+        _stopQuotePolling(moduleCode);
+        _stopPolling(moduleCode);
       } else {
-        _stopQuotePolling();
-        _stopPolling();
+        _stopQuotePolling(moduleCode);
+        _stopPolling(moduleCode);
       }
       return;
     }
 
     if (rawList != null) {
-      _results = rawList
+      state.results = rawList
           .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))
           .toList();
-      _candidates = [];
+      state.candidates = [];
       if (archived || (data['historical'] as bool? ?? false)) {
-        _displayDate = (data['display_date'] as String?) ??
+        state.displayDate =
+            (data['display_date'] as String?) ??
             (data['date'] as String?) ??
             date;
-        _showingHistorical = true;
-        _selectedDate = _displayDate;
-        _phase = T0StrategyPhase.historical;
+        state.showingHistorical = true;
+        state.selectedDate = state.displayDate;
+        state.phase = T0StrategyPhase.historical;
       } else {
-        _displayDate = null;
-        _showingHistorical = false;
-        _selectedDate = data['date'] as String? ?? date;
-        _phase = T0StrategyPhase.confirmed;
+        state.displayDate = null;
+        state.showingHistorical = false;
+        state.selectedDate = data['date'] as String? ?? date;
+        state.phase = T0StrategyPhase.confirmed;
       }
-      _warmProgress = null;
-      _stopQuotePolling();
-      _stopPolling();
+      state.warmProgress = null;
+      _stopQuotePolling(moduleCode);
+      _stopPolling(moduleCode);
       return;
     }
 
-    _results = [];
-    _candidates = [];
-    _displayDate = null;
-    _showingHistorical = false;
-    _selectedDate = null;
-    _phase = T0StrategyPhase.waiting;
-    _warmProgress = null;
-    _stopQuotePolling();
-    _stopPolling();
+    state.results = [];
+    state.candidates = [];
+    state.displayDate = null;
+    state.showingHistorical = false;
+    state.selectedDate = null;
+    state.phase = T0StrategyPhase.waiting;
+    state.warmProgress = null;
+    _stopQuotePolling(moduleCode);
+    _stopPolling(moduleCode);
   }
 
-  void _mergeQuotes(Map<String, Map<String, dynamic>> quotes) {
-    if (_candidates.isEmpty) return;
-    final merged = _candidates.map((s) {
+  void _mergeQuotes(
+    String moduleCode,
+    Map<String, Map<String, dynamic>> quotes,
+  ) {
+    final state = _mutableState(moduleCode);
+    if (state.candidates.isEmpty) return;
+    final merged = state.candidates.map((s) {
       final q = quotes[s.rawCode] ?? quotes[s.stockCode];
       final pct = (q?['changePercent'] as num?)?.toDouble();
       return s.copyWith(liveChangePercent: pct);
@@ -490,14 +646,13 @@ class T0StrategyViewModel extends ChangeNotifier {
       if (!am) return 0;
       return b.liveChangePercent!.compareTo(a.liveChangePercent!);
     });
-    _results = merged;
+    state.results = merged;
   }
 
   @visibleForTesting
-  static int buySignalSortRank(String buySignal) =>
-      buySignal == 'blue'
-          ? 0
-          : (buySignal == 'orange' ? 1 : (buySignal == 'green' ? 2 : 3));
+  static int buySignalSortRank(String buySignal) => buySignal == 'blue'
+      ? 0
+      : (buySignal == 'orange' ? 1 : (buySignal == 'green' ? 2 : 3));
 
   @visibleForTesting
   static int strategySortRank(T0StrategyStock stock) {
@@ -542,39 +697,51 @@ class T0StrategyViewModel extends ChangeNotifier {
     return out;
   }
 
-  void _startPollingIfNeeded(String? date) {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      loadResults(date: date);
+  void _startPollingIfNeeded(String moduleCode, String? date) {
+    final state = _mutableState(moduleCode);
+    state.pollTimer?.cancel();
+    state.pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      loadResults(moduleCode: moduleCode, date: date);
     });
   }
 
-  void _stopPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = null;
+  void _stopPolling(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    state.pollTimer?.cancel();
+    state.pollTimer = null;
   }
 
-  void _startQuotePolling() {
-    _quoteTimer?.cancel();
-    _quoteTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _refreshQuotes();
+  void _startQuotePolling(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    state.quoteTimer?.cancel();
+    state.quoteTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _refreshQuotes(moduleCode);
     });
     if (_fetchRealtimeQuotes != null) {
-      _refreshQuotes();
+      _refreshQuotes(moduleCode);
     }
   }
 
-  void _stopQuotePolling() {
-    _quoteTimer?.cancel();
-    _quoteTimer = null;
+  void _stopQuotePolling(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    state.quoteTimer?.cancel();
+    state.quoteTimer = null;
   }
 
-  Future<void> _refreshQuotes() async {
-    if (!showingCandidatePreview || _candidates.isEmpty) return;
-    final codes = _candidates.map((e) => e.rawCode).where((c) => c.isNotEmpty).toList();
+  Future<void> _refreshQuotes(String moduleCode) async {
+    final state = _mutableState(moduleCode);
+    if (state.phase != T0StrategyPhase.candidatePreview ||
+        state.candidates.isEmpty) {
+      return;
+    }
+    final codes = state.candidates
+        .map((e) => e.rawCode)
+        .where((c) => c.isNotEmpty)
+        .toList();
     if (codes.isEmpty) return;
     try {
-      final fetcher = _fetchRealtimeQuotes ??
+      final fetcher =
+          _fetchRealtimeQuotes ??
           (cs) => RadarRepositoryImpl().fetchRealtimeQuotes(cs);
       final merged = <String, Map<String, dynamic>>{};
       for (var i = 0; i < codes.length; i += _quoteBatchSize) {
@@ -584,17 +751,71 @@ class T0StrategyViewModel extends ChangeNotifier {
         final part = await fetcher(codes.sublist(i, end));
         merged.addAll(part);
       }
-      _mergeQuotes(merged);
+      _mergeQuotes(moduleCode, merged);
       notifyListeners();
     } catch (_) {
       // 行情失败时保留当前列表顺序
     }
   }
 
+  Future<Map<String, dynamic>> _sendRequest(
+    String moduleCode,
+    Map<String, dynamic> query,
+  ) async {
+    final normalizedQuery = <String, dynamic>{
+      ...query,
+      'module_code': moduleCode,
+    };
+    if (_request != null) return _request(moduleCode, normalizedQuery);
+
+    final response = await createApiClient().get<dynamic>(
+      '/api/t0-selection',
+      queryParameters: normalizedQuery,
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('T0 response must be an object');
+    }
+    return Map<String, dynamic>.from(data);
+  }
+
+  bool _isModuleForbidden(Object error) {
+    if (error is! DioException || error.response?.statusCode != 403) {
+      return false;
+    }
+    final data = error.response?.data;
+    return data is Map && data['code'] == 'MODULE_FORBIDDEN';
+  }
+
+  void _forbidModule(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    state.results = [];
+    state.candidates = [];
+    state.error = null;
+    state.warmProgress = null;
+    state.phase = T0StrategyPhase.waiting;
+    _stopQuotePolling(moduleCode);
+    _stopPolling(moduleCode);
+    _onModuleForbidden?.call(moduleCode);
+  }
+
+  static List<T0StrategyStock> _purpleFilter(Iterable<T0StrategyStock> stocks) {
+    return stocks
+        .where(
+          (stock) =>
+              stock.patternT0N >= 2 &&
+              stock.patternWinPct > 40 &&
+              stock.patternEarnPct > 60,
+        )
+        .toList();
+  }
+
   @override
   void dispose() {
-    _stopQuotePolling();
-    _stopPolling();
+    for (final moduleCode in _states.keys) {
+      _stopQuotePolling(moduleCode);
+      _stopPolling(moduleCode);
+    }
     super.dispose();
   }
 }
