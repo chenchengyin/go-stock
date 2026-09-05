@@ -8,6 +8,7 @@ import 'news_view_model.dart';
 import '../../domain/news_models.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/shared/widgets/news_card.dart';
+import '../../../../shared/view_state.dart';
 import '../hot_topic/hot_topic_card.dart';
 import '../hot_topic/hot_topic_detail_page.dart';
 
@@ -31,7 +32,10 @@ class _NewsPageState extends State<NewsPage>
       duration: const Duration(milliseconds: 600),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NewsViewModel>().load();
+      final vm = context.read<NewsViewModel>();
+      if (vm.state.status == ViewStatus.idle) {
+        vm.load();
+      }
     });
   }
 

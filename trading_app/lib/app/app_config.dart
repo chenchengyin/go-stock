@@ -113,7 +113,7 @@ class AuthenticatedDependencies extends StatelessWidget {
               cache: MemoryLocalCache(),
               remoteDataSource: remote,
             );
-            return NewsViewModel(repo)..load();
+            return NewsViewModel(repo);
           },
         ),
         ChangeNotifierProvider(create: (_) => StrategyViewModel(dio: dio)),

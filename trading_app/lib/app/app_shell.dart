@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../features/permissions/presentation/module_permission_controller.dart';
 import '../features/news/presentation/market_news/news_page.dart';
+import '../features/news/presentation/market_news/news_view_model.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/radar/presentation/radar_list/radar_page.dart';
 import '../features/radar/presentation/stock_change_detail/stock_change_detail_page.dart';
@@ -36,13 +37,12 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
   final Set<int> _visitedIndexes = {0};
-  int _newsKey = 0;
 
-  static Widget _buildPage(int index, {Key? newsKey}) {
+  static Widget _buildPage(int index) {
     return switch (index) {
       0 => const RadarPage(),
       1 => const ShortTermEmotionPage(),
-      2 => NewsPage(key: newsKey),
+      2 => const NewsPage(),
       3 => const ProfilePage(),
       // 策略吧暂时隐藏入口，原映射保留参考：
       // 3 => const StrategyPage(),
@@ -133,22 +133,22 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   if (!_visitedIndexes.contains(index)) {
                     return const SizedBox.shrink();
                   }
-                  return _buildPage(
-                    index,
-                    newsKey: index == 2 ? ValueKey(_newsKey) : null,
-                  );
+                  return _buildPage(index);
                 }),
               ),
               bottomNavigationBar: BottomNavigationBar(
                 currentIndex: _currentIndex,
                 onTap: (index) {
+                  final newsPageAlreadyVisited = _visitedIndexes.contains(2);
                   setState(() {
-                    if (index == 2 && index == _currentIndex) {
-                      _newsKey++;
-                    }
                     _currentIndex = index;
                     _visitedIndexes.add(index);
                   });
+                  // 首次进入由 NewsPage 自己初始化；已经访问过后，每次
+                  // 切回或重复点击都只重新读取服务端缓存，不触发外部抓取。
+                  if (index == 2 && newsPageAlreadyVisited) {
+                    unawaited(context.read<NewsViewModel>().refresh());
+                  }
                 },
                 type: BottomNavigationBarType.fixed,
                 backgroundColor: AppColors.cardBg,
