@@ -162,7 +162,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('紫策只展示最近七个日期且不影响主板策略', (tester) async {
+  testWidgets('紫策可浏览全部归档日期且不影响主板策略', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -243,7 +243,7 @@ void main() {
     var dateDropdown = tester.widget<DropdownButton<String>>(
       find.byType(DropdownButton<String>),
     );
-    expect(dateDropdown.items, hasLength(7));
+    expect(dateDropdown.items, hasLength(8));
 
     strategyVm.applyResponseForTest({
       'archived': true,
@@ -262,8 +262,9 @@ void main() {
     dateDropdown = tester.widget<DropdownButton<String>>(
       find.byType(DropdownButton<String>),
     );
-    expect(dateDropdown.value, isNull);
-    expect(find.text('紫策仅支持最近七天，请选择日期'), findsOneWidget);
+    expect(dateDropdown.value, '2026-08-27');
+    expect(find.text('紫策仅支持最近七天，请选择日期'), findsNothing);
+    expect(find.text('紫策股'), findsOneWidget);
 
     strategyVm.applyResponseForTest({
       'archived': true,
@@ -282,7 +283,7 @@ void main() {
     final purplePreviousButton = tester.widget<TextButton>(
       find.widgetWithText(TextButton, '前一天'),
     );
-    expect(purplePreviousButton.onPressed, isNull);
+    expect(purplePreviousButton.onPressed, isNotNull);
 
     await tester.tap(find.text('主板策略(1)'));
     await tester.pumpAndSettle();

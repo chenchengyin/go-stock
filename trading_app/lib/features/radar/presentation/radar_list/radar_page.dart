@@ -778,17 +778,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     String moduleCode,
     _StrategyListKind kind,
   ) {
-    final state = vm.stateFor(moduleCode);
-    if (kind != _StrategyListKind.purple) {
-      return vm.dropdownDatesFor(moduleCode);
-    }
-
-    final dates = state.availableDates.take(7).toList();
-    final selectedDate = state.selectedDate;
-    if (selectedDate != null && !state.availableDates.contains(selectedDate)) {
-      dates.insert(0, selectedDate);
-    }
-    return dates.take(7).toList();
+    return vm.dropdownDatesFor(moduleCode);
   }
 
   Widget _buildStrategyDateBar(
@@ -852,7 +842,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           DropdownButton<String>(
             value: selectedDate,
             hint: kind == _StrategyListKind.purple && selectedDate == null
-                ? const Text('选择最近七天')
+                ? const Text('选择日期')
                 : null,
             underline: const SizedBox.shrink(),
             style: TextStyle(
@@ -908,23 +898,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     _StrategyListKind kind = _StrategyListKind.main,
   }) {
     final state = vm.stateFor(moduleCode);
-    final dateOptions = _strategyDateOptions(vm, moduleCode, kind);
-    final selectedDateInRange =
-        kind != _StrategyListKind.purple ||
-        state.selectedDate == null ||
-        dateOptions.contains(state.selectedDate);
     final stocks = switch (kind) {
       _StrategyListKind.main => vm.resultsFor(moduleCode),
-      _StrategyListKind.purple =>
-        selectedDateInRange
-            ? vm.purpleResultsFor(moduleCode)
-            : const <T0StrategyStock>[],
+      _StrategyListKind.purple => vm.purpleResultsFor(moduleCode),
       _StrategyListKind.blue => vm.blueResultsFor(moduleCode),
     };
     final emptyText = switch (kind) {
       _StrategyListKind.main => '暂无符合条件的股票',
-      _StrategyListKind.purple =>
-        selectedDateInRange ? '暂无符合紫策条件的股票' : '紫策仅支持最近七天，请选择日期',
+      _StrategyListKind.purple => '暂无符合紫策条件的股票',
       _StrategyListKind.blue => '暂无蓝色灯股票',
     };
     final wp = state.warmProgress;
