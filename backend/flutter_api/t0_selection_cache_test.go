@@ -171,6 +171,42 @@ func TestHandleT0SelectionArchived(t *testing.T) {
 	}
 }
 
+func TestHandleT0SelectionArchivedRejectsIncompleteWithoutFetching(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000002", "Alice", "device-a")
+	modules := NewModuleService(auth.dao)
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-a",
+		[]string{user.User.ID}, []string{"radar.main_strategy"}); err != nil {
+		t.Fatalf("grant main: %v", err)
+	}
+
+	date := "2026-08-06"
+	if err := saveT0SelectionArchive(date, []T0SelectionResult{
+		{StockCode: "600006.XSHG"},
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	startedAt := time.Now()
+	rr := httptest.NewRecorder()
+	handler := newHTTPHandler(auth.AuthService)
+	handler.ServeHTTP(rr, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.main_strategy&archived=1&date="+date,
+		user.AccessToken, ""))
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("incomplete archive should not trigger a fetch, took %s", elapsed)
+	}
+	if rr.Code != http.StatusConflict {
+		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "ARCHIVE_INCOMPLETE") {
+		t.Fatalf("body: %s", rr.Body.String())
+	}
+}
+
 func TestT0PrewarmHistoricalLegacyArchiveIsEnrichedBeforeModuleScope(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()

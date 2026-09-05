@@ -171,6 +171,11 @@ type t0WarmProgress struct {
 var (
 	t0WarmMu     sync.Mutex
 	t0WarmByDate = map[string]*t0WarmProgress{}
+
+	t0ArchiveDatesMu    sync.Mutex
+	t0ArchiveDatesDir   string
+	t0ArchiveDates      []string
+	t0ArchiveDatesValid bool
 )
 
 func t0DailyCachePath(tradeDate string) string {
@@ -314,7 +319,11 @@ func saveT0SelectionArchiveFull(a *t0SelectionArchive, force bool) error {
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		return err
+	}
+	invalidateT0ArchiveDatesCache()
+	return nil
 }
 
 func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
@@ -411,9 +420,24 @@ func selectT0ResultsForModule(
 	}
 }
 
+func invalidateT0ArchiveDatesCache() {
+	t0ArchiveDatesMu.Lock()
+	defer t0ArchiveDatesMu.Unlock()
+	t0ArchiveDatesDir = ""
+	t0ArchiveDates = nil
+	t0ArchiveDatesValid = false
+}
+
 // listSelectionArchiveDates 扫描 selection 目录，返回所有有效归档日期（降序）。
+// 日期列表在进程内缓存；新归档原子写入后由 saveT0SelectionArchiveFull 失效缓存。
 func listSelectionArchiveDates() []string {
 	dir := filepath.Dir(t0SelectionCachePath("1970-01-01"))
+	t0ArchiveDatesMu.Lock()
+	defer t0ArchiveDatesMu.Unlock()
+	if t0ArchiveDatesValid && t0ArchiveDatesDir == dir {
+		return append([]string(nil), t0ArchiveDates...)
+	}
+
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -439,7 +463,10 @@ func listSelectionArchiveDates() []string {
 		dates = append(dates, d)
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
-	return dates
+	t0ArchiveDatesDir = dir
+	t0ArchiveDates = append([]string(nil), dates...)
+	t0ArchiveDatesValid = true
+	return append([]string(nil), dates...)
 }
 
 // findLatestSelectionArchiveBefore 在 selection 目录里找日期严格早于 tradeDate 的最新有效归档。
@@ -1974,8 +2001,18 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		results, err := selectT0ResultsForModule(
-			moduleCode, enrichArchivedResults(tradeDate, a.Results))
+		// 历史归档是已经落盘的结果快照，只读 JSON，不能因为字段缺失
+		// 在用户请求期间重新拉取日线。历史补全应通过独立的批处理完成。
+		if t0ArchiveNeedsBackfill(a) {
+			WriteJSONStatus(w, http.StatusConflict, map[string]interface{}{
+				"code":     "ARCHIVE_INCOMPLETE",
+				"message":  "历史归档数据不完整，请先执行补全",
+				"date":     tradeDate,
+				"archived": true,
+			})
+			return
+		}
+		results, err := selectT0ResultsForModule(moduleCode, a.Results)
 		if err != nil {
 			WriteAuthError(w, err)
 			return

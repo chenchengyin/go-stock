@@ -154,6 +154,12 @@ func TestListSelectionArchiveDates(t *testing.T) {
 			t.Fatalf("got %v want %v", got, want)
 		}
 	}
+
+	mustSaveArchive(t, "2026-08-12", "600012.XSHG")
+	got = listSelectionArchiveDates()
+	if len(got) != 4 || got[0] != "2026-08-12" {
+		t.Fatalf("date cache was not invalidated after archive write: %v", got)
+	}
 }
 
 func TestHandleT0SelectionListDates(t *testing.T) {
