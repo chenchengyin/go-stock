@@ -108,7 +108,7 @@ class StockLauncher {
       return await launchUrl(
         uri,
         mode: LaunchMode.externalApplication,
-        webOnlyWindowName: kIsWeb ? '_self' : null,
+        webOnlyWindowName: kIsWeb ? '_blank' : null,
       );
     } catch (error) {
       debugPrint('Launch stock url failed: $uri, $error');
@@ -124,7 +124,7 @@ class StockLauncher {
       return launchUrl(
         uri,
         mode: LaunchMode.externalApplication,
-        webOnlyWindowName: kIsWeb ? '_self' : null,
+        webOnlyWindowName: kIsWeb ? '_blank' : null,
       );
     } catch (error) {
       debugPrint('Launch stock url failed: $uri, $error');
