@@ -15,8 +15,8 @@ class StockLauncher {
       return false;
     }
 
-    // marketId 保留参数与 inferTongHuaShunMarketId，供未来使用；当前唤起串不强制附带
-    final _ = marketId ?? inferTongHuaShunMarketId(normalizedCode);
+    final resolvedMarketId =
+        marketId ?? inferTongHuaShunMarketId(normalizedCode);
 
     final isWeb = isWebOverride ?? kIsWeb;
     final platform = platformOverride ?? defaultTargetPlatform;
@@ -30,11 +30,21 @@ class StockLauncher {
       return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
     }
 
+    if (shouldTryTongHuaShunMacAppUri(isWeb: isWeb, platform: platform)) {
+      if (await _tryLaunchPreferLaunch(
+        buildTongHuaShunAppUri(normalizedCode, marketId: resolvedMarketId),
+      )) {
+        return true;
+      }
+    }
+
     if (isWeb) {
       return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
     }
 
-    if (await _tryLaunch(buildTongHuaShunAppUri(normalizedCode))) {
+    if (await _tryLaunch(
+      buildTongHuaShunAppUri(normalizedCode, marketId: resolvedMarketId),
+    )) {
       return true;
     }
     return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
@@ -71,16 +81,29 @@ class StockLauncher {
     return isWeb && platform == TargetPlatform.android;
   }
 
+  static bool shouldTryTongHuaShunMacAppUri({
+    required bool isWeb,
+    required TargetPlatform platform,
+  }) {
+    return isWeb && platform == TargetPlatform.macOS;
+  }
+
   static bool isAndroidMobileUserAgent(String userAgent) {
     return userAgent.toLowerCase().contains('android');
   }
 
-  static Uri buildTongHuaShunAppUri(String normalizedCode) {
+  /// Opens a stock in the macOS Tonghuashun app.
+  ///
+  /// Tonghuashun keeps the last-used chart period, so this intentionally only
+  /// navigates to the stock and does not send an undocumented page parameter.
+  static Uri buildTongHuaShunAppUri(String normalizedCode, {String? marketId}) {
+    final resolvedMarketId =
+        marketId ?? inferTongHuaShunMarketId(normalizedCode);
     return Uri.parse(
-      'amihexin://command//=XXXX//'
-      '&action//=GGFS//'
-      '&stockcode//=$normalizedCode//'
-      '&applicationScheme//=XXXX//',
+      'hexinstock://action=jump'
+      '&target=recently'
+      '&stockcode=$normalizedCode'
+      '&market=$resolvedMarketId',
     );
   }
 
@@ -121,7 +144,7 @@ class StockLauncher {
       if (!await canLaunchUrl(uri)) {
         return false;
       }
-      return launchUrl(
+      return await launchUrl(
         uri,
         mode: LaunchMode.externalApplication,
         webOnlyWindowName: kIsWeb ? '_blank' : null,

@@ -44,6 +44,32 @@ void main() {
     });
   });
 
+  group('shouldTryTongHuaShunMacAppUri', () {
+    test('true for macOS web and false for other web platforms', () {
+      expect(
+        StockLauncher.shouldTryTongHuaShunMacAppUri(
+          isWeb: true,
+          platform: TargetPlatform.macOS,
+        ),
+        isTrue,
+      );
+      expect(
+        StockLauncher.shouldTryTongHuaShunMacAppUri(
+          isWeb: true,
+          platform: TargetPlatform.windows,
+        ),
+        isFalse,
+      );
+      expect(
+        StockLauncher.shouldTryTongHuaShunMacAppUri(
+          isWeb: false,
+          platform: TargetPlatform.macOS,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('isAndroidMobileUserAgent', () {
     test('detects android browsers', () {
       expect(
@@ -71,10 +97,31 @@ void main() {
   });
 
   group('URI builders', () {
-    test('app uri keeps amihexin scheme and stockcode', () {
+    test('mac app uri opens the stock and keeps the market context', () {
       final uri = StockLauncher.buildTongHuaShunAppUri('601318');
-      expect(uri.scheme, 'amihexin');
-      expect(uri.toString(), contains('stockcode//=601318//'));
+      expect(
+        uri.toString(),
+        'hexinstock://action=jump&target=recently&stockcode=601318&market=17',
+      );
+    });
+
+    test('app uri infers Shenzhen market for non-SSE stocks', () {
+      final uri = StockLauncher.buildTongHuaShunAppUri('002558');
+      expect(
+        uri.toString(),
+        'hexinstock://action=jump&target=recently&stockcode=002558&market=33',
+      );
+    });
+
+    test('app uri accepts an explicit market override', () {
+      final uri = StockLauncher.buildTongHuaShunAppUri(
+        '601318',
+        marketId: 'custom-market',
+      );
+      expect(
+        uri.toString(),
+        'hexinstock://action=jump&target=recently&stockcode=601318&market=custom-market',
+      );
     });
 
     test('intent uri embeds scheme package stockcode and browser fallback', () {
