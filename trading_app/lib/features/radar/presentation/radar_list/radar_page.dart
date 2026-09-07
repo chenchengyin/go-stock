@@ -1124,6 +1124,16 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final livePct = stock.liveChangePercent ?? 0.0;
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
+    final stockName = Text(
+      stock.stockName,
+      style: TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 14,
+        color: stock.hasDisplayRuleHit
+            ? AppColors.error
+            : AppColors.textPrimary,
+      ),
+    );
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1139,10 +1149,12 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         child: Row(
           children: [
             // 名称
-            Text(
-              stock.stockName,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
+            stock.hasDisplayRuleHit
+                ? Tooltip(
+                    message: '命中：${stock.displayRuleHits.join('、')}',
+                    child: stockName,
+                  )
+                : stockName,
             if (stock.tag.isNotEmpty) ...[
               const SizedBox(width: 4),
               Text(

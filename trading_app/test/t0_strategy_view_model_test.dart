@@ -168,6 +168,17 @@ void main() {
     expect(s.pattern, 'XY|ZT|ZT');
   });
 
+  test('parses display rule hits and exposes the red display state', () {
+    final s = T0StrategyStock.fromJson({
+      '股票代码': '600001.XSHG',
+      '股票名称': '命中股',
+      '命中条件': ['任意K线＋涨停＋跌停'],
+    });
+
+    expect(s.displayRuleHits, ['任意K线＋涨停＋跌停']);
+    expect(s.hasDisplayRuleHit, isTrue);
+  });
+
   test('insufficient 仍解析并保留形态统计数字', () {
     final s = T0StrategyStock.fromJson({
       '股票代码': '002721.XSHE',

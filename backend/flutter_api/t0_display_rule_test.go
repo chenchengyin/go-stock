@@ -1,0 +1,108 @@
+package flutter_api
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestDisplayRuleHitsMatchesAnyLimitUpLimitDown(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+		{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+	}
+
+	got := displayRuleHitsForHist(hist)
+	want := []string{"任意K线＋涨停＋跌停"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("displayRuleHitsForHist()=%v want %v", got, want)
+	}
+}
+
+func TestDisplayRuleHitsMatchesLimitUpAndLatestBearishTagLogic(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 11.5, Close: 11, High: 11.8, Low: 10.9},
+	}
+
+	got := displayRuleHitsForHist(hist)
+	want := []string{"涨停＋阴线标记"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("displayRuleHitsForHist()=%v want %v", got, want)
+	}
+}
+
+func TestDisplayRuleHitsUsesLatestBearishTagBoundaries(t *testing.T) {
+	base := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+	}
+	cases := []struct {
+		name      string
+		open      float64
+		close     float64
+		high      float64
+		wantMatch bool
+	}{
+		{name: "实体跌幅低于2不命中", open: 11.21, close: 11, high: 11.21, wantMatch: false},
+		{name: "实体跌幅超过2命中", open: 11.23, close: 11, high: 11.23, wantMatch: true},
+		{name: "实体跌幅低于8命中", open: 11.87, close: 11, high: 11.87, wantMatch: true},
+		{name: "实体跌幅超过8不命中", open: 11.9, close: 11, high: 11.9, wantMatch: false},
+		{name: "收盘跌超2不命中", open: 10.7, close: 10.76, high: 10.7, wantMatch: false},
+		{name: "涨停破板优先不命中阴线标记", open: 11.55, close: 11, high: 12.1, wantMatch: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hist := append(append([]dailyBar(nil), base...), dailyBar{
+				Date:  "2026-09-03",
+				Open:  tc.open,
+				Close: tc.close,
+				High:  tc.high,
+				Low:   tc.close,
+			})
+			got := len(displayRuleHitsForHist(hist)) > 0
+			if got != tc.wantMatch {
+				t.Fatalf("match=%v want %v", got, tc.wantMatch)
+			}
+		})
+	}
+}
+
+func TestEnrichT0ResultsForDisplayReadsExistingGobAndDoesNotFilter(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+
+	daily := map[string][]dailyBar{
+		"600000": {
+			{Date: "2026-09-01", Close: 10},
+			{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+			{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+			{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+		},
+	}
+	if err := saveT0DailyCache("2026-09-05", []t0Stock{{ShortCode: "600000"}}, daily); err != nil {
+		t.Fatalf("save cache: %v", err)
+	}
+
+	original := []T0SelectionResult{{
+		Time:      "2026-09-05",
+		StockCode: "600000.XSHG",
+		StockName: "测试股",
+		OpenGap:   1.2,
+		BuySignal: BuySignalBlue,
+	}}
+	got := enrichT0ResultsForDisplay("2026-09-05", original)
+
+	if len(got) != 1 {
+		t.Fatalf("result count=%d want 1", len(got))
+	}
+	if !reflect.DeepEqual(got[0].DisplayRuleHits, []string{"任意K线＋涨停＋跌停"}) {
+		t.Fatalf("hits=%v", got[0].DisplayRuleHits)
+	}
+	if original[0].DisplayRuleHits != nil {
+		t.Fatalf("original result mutated: %v", original[0].DisplayRuleHits)
+	}
+}

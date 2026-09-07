@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_page.dart';
@@ -159,6 +160,56 @@ void main() {
 
     expect(find.text('[石皮]'), findsOneWidget);
     expect(find.text('[涨停破板]'), findsNothing);
+    disposeVms();
+  });
+
+  testWidgets('命中显示条件的股票名称显示为红色', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '命中股',
+          '命中条件': ['任意K线＋涨停＋跌停'],
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('主板策略(1)'));
+    await tester.pumpAndSettle();
+
+    final name = tester.widget<Text>(find.text('命中股'));
+    expect(name.style?.color, AppColors.error);
     disposeVms();
   });
 

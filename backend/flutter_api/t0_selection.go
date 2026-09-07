@@ -814,22 +814,23 @@ type t0Realtime struct {
 
 // T0SelectionResult 最终选股结果
 type T0SelectionResult struct {
-	Time           string  `json:"时间"`
-	OpenGap        float64 `json:"T0开盘涨幅(%)"`
-	CloseRet       float64 `json:"T0收盘涨幅(%)"`
-	LimitUpDates   string  `json:"涨停日期"`
-	MA20           float64 `json:"MA20"`
-	AmountYi       float64 `json:"成交额(亿)"`
-	StockCode      string  `json:"股票代码"` // 如 600000.XSHG
-	StockName      string  `json:"股票名称"`
-	PrevClose      float64 `json:"前一交易日收盘"`
-	PrevCloseRet   float64 `json:"前一交易日收盘涨幅(%)"`
-	Tag            string  `json:"标记"`
-	Pattern        string  `json:"形态"`
-	PatternT0N     int     `json:"形态样本数"`
-	PatternWinPct  float64 `json:"形态达标率(%)"`
-	PatternFailPct float64 `json:"形态真亏率(%)"`
-	BuySignal      string  `json:"买入信号"`
+	Time            string   `json:"时间"`
+	OpenGap         float64  `json:"T0开盘涨幅(%)"`
+	CloseRet        float64  `json:"T0收盘涨幅(%)"`
+	LimitUpDates    string   `json:"涨停日期"`
+	MA20            float64  `json:"MA20"`
+	AmountYi        float64  `json:"成交额(亿)"`
+	StockCode       string   `json:"股票代码"` // 如 600000.XSHG
+	StockName       string   `json:"股票名称"`
+	PrevClose       float64  `json:"前一交易日收盘"`
+	PrevCloseRet    float64  `json:"前一交易日收盘涨幅(%)"`
+	Tag             string   `json:"标记"`
+	Pattern         string   `json:"形态"`
+	PatternT0N      int      `json:"形态样本数"`
+	PatternWinPct   float64  `json:"形态达标率(%)"`
+	PatternFailPct  float64  `json:"形态真亏率(%)"`
+	BuySignal       string   `json:"买入信号"`
+	DisplayRuleHits []string `json:"命中条件,omitempty"`
 }
 
 // t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05
@@ -1025,8 +1026,7 @@ func prevDayRetsFromHist(hist []dailyBar) (highRet, openRet, closeRet float64, o
 func pickPrevDayTag(highRet, openRet, closeRet float64) string {
 	brokenLimitUp := highRet >= t0LimitUpCloseRet && closeRet < t0BrokenLimitRet
 	limitDown := closeRet <= -9.9
-	bodyDrop := openRet - closeRet
-	bigYin := bodyDrop > 2.0 && bodyDrop <= 8.0 && closeRet >= -2.0
+	bigYin := isPrevDayBearishTag(highRet, openRet, closeRet)
 
 	if brokenLimitUp && limitDown {
 		return ""
@@ -1041,6 +1041,18 @@ func pickPrevDayTag(highRet, openRet, closeRet float64) string {
 		return "前一天大阴线"
 	}
 	return ""
+}
+
+// isPrevDayBearishTag 与前一天标记中的「前一天大阴线」使用完全相同的逻辑，
+// 包括涨停破板/跌停优先级。这里单独抽出供列表展示条件复用，避免两处阈值后续分叉。
+func isPrevDayBearishTag(highRet, openRet, closeRet float64) bool {
+	brokenLimitUp := highRet >= t0LimitUpCloseRet && closeRet < t0BrokenLimitRet
+	limitDown := closeRet <= -9.9
+	if brokenLimitUp || limitDown {
+		return false
+	}
+	bodyDrop := openRet - closeRet
+	return bodyDrop > 2.0 && bodyDrop <= 8.0 && closeRet >= -2.0
 }
 
 // ── 股票池获取（新浪 API） ──────────────────────────────────────────────────
@@ -1880,8 +1892,25 @@ func writeScopedT0Response(
 			WriteAuthError(w, err)
 			return
 		}
+		enrichT0ResponseFieldForDisplay(response, field)
 	}
 	WriteJSON(w, response)
+}
+
+func enrichT0ResponseFieldForDisplay(response map[string]interface{}, field string) {
+	raw, ok := response[field]
+	if !ok {
+		return
+	}
+	results, ok := raw.([]T0SelectionResult)
+	if !ok {
+		return
+	}
+	tradeDate, _ := response["display_date"].(string)
+	if tradeDate == "" {
+		tradeDate, _ = response["date"].(string)
+	}
+	response[field] = enrichT0ResultsForDisplay(tradeDate, results)
 }
 
 // t0AuctionCutoffHM 竞价确认可用的最早时分（含）：09:25
@@ -2018,14 +2047,14 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			WriteAuthError(w, err)
 			return
 		}
-		WriteJSON(w, map[string]interface{}{
+		writeScopedT0Response(w, moduleCode, map[string]interface{}{
 			"date":             a.Date,
 			"archived":         true,
 			"saved_at":         a.SavedAt,
 			"close_updated_at": a.CloseUpdatedAt,
 			"count":            len(results),
 			"results":          sortT0ResultsForClient(results),
-		})
+		}, "results")
 		return
 	}
 
@@ -2106,9 +2135,9 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, map[string]interface{}{
+	writeScopedT0Response(w, moduleCode, map[string]interface{}{
 		"date":    tradeDate,
 		"count":   len(selected),
 		"results": sortT0ResultsForClient(selected),
-	})
+	}, "results")
 }

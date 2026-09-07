@@ -28,6 +28,7 @@ class T0StrategyStock {
   final double patternWinPct; // 形态达标率(%) T0≥2.5%
   final double patternFailPct; // 形态真亏率(%) T0<0，库内口径；展示用赚率
   final String buySignal; // blue | orange | green | yellow | red | insufficient
+  final List<String> displayRuleHits; // 列表显示命中的可扩展条件
 
   /// 赚率：T0≥0 的比例 = 100% − 真亏率（含未达标的小赚和打平，不等于达标率）。
   double get patternEarnPct => 100 - patternFailPct;
@@ -49,9 +50,16 @@ class T0StrategyStock {
     this.patternWinPct = 0,
     this.patternFailPct = 0,
     this.buySignal = '',
+    this.displayRuleHits = const [],
   });
 
   factory T0StrategyStock.fromJson(Map<String, dynamic> json) {
+    final rawDisplayRuleHits = json['命中条件'];
+    final displayRuleHits = rawDisplayRuleHits is List
+        ? List<String>.unmodifiable(
+            rawDisplayRuleHits.whereType<String>(),
+          )
+        : const <String>[];
     return T0StrategyStock(
       stockCode: json['股票代码'] as String? ?? '',
       stockName: json['股票名称'] as String? ?? '',
@@ -68,8 +76,11 @@ class T0StrategyStock {
       patternWinPct: (json['形态达标率(%)'] as num?)?.toDouble() ?? 0.0,
       patternFailPct: (json['形态真亏率(%)'] as num?)?.toDouble() ?? 0.0,
       buySignal: json['买入信号'] as String? ?? '',
+      displayRuleHits: displayRuleHits,
     );
   }
+
+  bool get hasDisplayRuleHit => displayRuleHits.isNotEmpty;
 
   T0StrategyStock copyWith({double? liveChangePercent}) {
     return T0StrategyStock(
@@ -89,6 +100,7 @@ class T0StrategyStock {
       patternWinPct: patternWinPct,
       patternFailPct: patternFailPct,
       buySignal: buySignal,
+      displayRuleHits: displayRuleHits,
     );
   }
 
