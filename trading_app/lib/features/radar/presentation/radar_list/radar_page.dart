@@ -1122,8 +1122,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         ? AppColors.textPriceUp
         : AppColors.textPriceDown;
     final tagLabel = stock.tag == '涨停破板'
-        ? (kind == _StrategyListKind.purple ? '皮' : '石皮')
-        : (stock.tag == '前一天跌停' ? '足' : stock.tag);
+        ? (kind == _StrategyListKind.purple ? '皮' : 'P')
+        : (stock.tag == '前一天跌停'
+            ? '足'
+            : (stock.tag == '前一天大阴线' ? '月' : stock.tag));
     final livePct = stock.liveChangePercent ?? 0.0;
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
