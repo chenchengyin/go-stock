@@ -226,8 +226,8 @@ class T0StrategyViewModel extends ChangeNotifier {
   T0ModuleState stateFor(String moduleCode) {
     final state = _mutableState(moduleCode);
     return T0ModuleState(
-      results: List.unmodifiable(state.results),
-      candidates: List.unmodifiable(state.candidates),
+      results: List.unmodifiable(_sortForDisplay(state, state.results)),
+      candidates: List.unmodifiable(_sortForDisplay(state, state.candidates)),
       loading: state.loading,
       error: state.error,
       warmProgress: state.warmProgress,
@@ -240,8 +240,10 @@ class T0StrategyViewModel extends ChangeNotifier {
     );
   }
 
-  List<T0StrategyStock> resultsFor(String moduleCode) =>
-      List.unmodifiable(_mutableState(moduleCode).results);
+  List<T0StrategyStock> resultsFor(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    return List.unmodifiable(_sortForDisplay(state, state.results));
+  }
 
   List<T0StrategyStock> purpleResultsFor(String moduleCode) =>
       List.unmodifiable(_purpleFilter(resultsFor(moduleCode)));
@@ -255,20 +257,18 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   List<T0StrategyStock> get purpleResults {
     final purple = _mutableState(t0PurpleStrategyModuleCode);
-    final source = purple.loaded
-        ? purple.results
-        : _mutableState(t0MainStrategyModuleCode).results;
-    return List.unmodifiable(_purpleFilter(source));
+    final sourceModuleCode = purple.loaded
+        ? t0PurpleStrategyModuleCode
+        : t0MainStrategyModuleCode;
+    return List.unmodifiable(_purpleFilter(resultsFor(sourceModuleCode)));
   }
 
   List<T0StrategyStock> get blueResults {
     final blue = _mutableState(t0BlueStrategyModuleCode);
-    final source = blue.loaded
-        ? blue.results
-        : _mutableState(t0MainStrategyModuleCode).results;
-    return List.unmodifiable(
-      source.where((stock) => stock.buySignal == 'blue'),
-    );
+    final sourceModuleCode = blue.loaded
+        ? t0BlueStrategyModuleCode
+        : t0MainStrategyModuleCode;
+    return List.unmodifiable(blueResultsFor(sourceModuleCode));
   }
 
   bool get loading => _mutableState(t0MainStrategyModuleCode).loading;
@@ -646,19 +646,11 @@ class T0StrategyViewModel extends ChangeNotifier {
       final pct = (q?['changePercent'] as num?)?.toDouble();
       return s.copyWith(liveChangePercent: pct);
     }).toList();
-    merged.sort((a, b) {
-      final br = strategySortRank(a).compareTo(strategySortRank(b));
-      if (br != 0) return br;
-      final at = a.tag.isNotEmpty ? 0 : 1;
-      final bt = b.tag.isNotEmpty ? 0 : 1;
-      if (at != bt) return at - bt;
-      final am = a.liveChangePercent != null;
-      final bm = b.liveChangePercent != null;
-      if (am != bm) return am ? -1 : 1;
-      if (!am) return 0;
-      return b.liveChangePercent!.compareTo(a.liveChangePercent!);
-    });
-    state.results = merged;
+    state.results = sortStrategyStocksForDisplay(
+      merged,
+      liveChangePercent: (stock) => stock.liveChangePercent,
+      preview: true,
+    );
   }
 
   @visibleForTesting
@@ -666,7 +658,6 @@ class T0StrategyViewModel extends ChangeNotifier {
       ? 0
       : (buySignal == 'orange' ? 1 : (buySignal == 'green' ? 2 : 3));
 
-  @visibleForTesting
   static int strategySortRank(T0StrategyStock stock) {
     final signalRank = buySignalSortRank(stock.buySignal);
     if (signalRank < 3) return signalRank;
@@ -683,7 +674,7 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
   }
 
-  @visibleForTesting
+  /// 所有策略列表共用的默认展示排序：真赚率优先，其次沿用原业务优先级。
   static List<T0StrategyStock> sortStrategyStocksForDisplay(
     List<T0StrategyStock> list, {
     required double? Function(T0StrategyStock s) liveChangePercent,
@@ -691,6 +682,8 @@ class T0StrategyViewModel extends ChangeNotifier {
   }) {
     final out = List<T0StrategyStock>.from(list);
     out.sort((a, b) {
+      final earnRate = b.patternEarnPct.compareTo(a.patternEarnPct);
+      if (earnRate != 0) return earnRate;
       final br = strategySortRank(a).compareTo(strategySortRank(b));
       if (br != 0) return br;
       final at = a.tag.isNotEmpty ? 0 : 1;
@@ -707,6 +700,17 @@ class T0StrategyViewModel extends ChangeNotifier {
       return b.openGap.compareTo(a.openGap);
     });
     return out;
+  }
+
+  static List<T0StrategyStock> _sortForDisplay(
+    _MutableT0ModuleState state,
+    List<T0StrategyStock> stocks,
+  ) {
+    return sortStrategyStocksForDisplay(
+      stocks,
+      liveChangePercent: (stock) => stock.liveChangePercent,
+      preview: state.phase == T0StrategyPhase.candidatePreview,
+    );
   }
 
   void _startPollingIfNeeded(String moduleCode, String? date) {

@@ -34,6 +34,21 @@ func TestDisplayRuleHitsMatchesLimitUpAndLatestBearishTagLogic(t *testing.T) {
 	}
 }
 
+func TestDisplayRuleHitsMatchesBullishZtZtPb(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+		{Date: "2026-09-04", Open: 12.2, Close: 13.2, High: 13.6, Low: 12.1},
+	}
+
+	got := displayRuleHitsForHist(hist)
+	want := []string{"涨停＋涨停＋阳线破板"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("displayRuleHitsForHist()=%v want %v", got, want)
+	}
+}
+
 func TestDisplayRuleHitsUsesLatestBearishTagBoundaries(t *testing.T) {
 	base := []dailyBar{
 		{Date: "2026-09-01", Close: 10},

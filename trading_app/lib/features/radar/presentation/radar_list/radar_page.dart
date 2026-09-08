@@ -786,6 +786,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     required String moduleCode,
     _StrategyListKind kind = _StrategyListKind.main,
   }) {
+    const dateBarFontSize = 16.0;
+    const dateBarDateFontSize = 17.0;
     final state = vm.stateFor(moduleCode);
     if (!vm.showDateSelectorFor(moduleCode)) return const SizedBox.shrink();
     final dropdownDates = _strategyDateOptions(vm, moduleCode, kind);
@@ -811,7 +813,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         children: [
           Text(
             '当前显示',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: dateBarFontSize,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(width: 8),
           TextButton(
@@ -824,14 +829,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       : () => vm.selectPreviousArchive(moduleCode)
                 : null,
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
               '前一天',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: dateBarFontSize,
                 color: canGoPrevious
                     ? AppColors.textSecondary
                     : AppColors.textSecondary.withValues(alpha: 0.4),
@@ -842,11 +847,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           DropdownButton<String>(
             value: selectedDate,
             hint: kind == _StrategyListKind.purple && selectedDate == null
-                ? const Text('选择日期')
+                ? const Text('选择日期', style: TextStyle(fontSize: 15))
                 : null,
             underline: const SizedBox.shrink(),
             style: TextStyle(
-              fontSize: 13,
+              fontSize: dateBarDateFontSize,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
@@ -868,14 +873,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                       : () => vm.selectNextArchive(moduleCode)
                 : null,
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
               '后一天',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: dateBarFontSize,
                 color: canGoNext
                     ? AppColors.textSecondary
                     : AppColors.textSecondary.withValues(alpha: 0.4),
@@ -885,7 +890,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           const SizedBox(width: 8),
           Text(
             '选股结果',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: dateBarFontSize,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
@@ -1078,32 +1086,27 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             stock.patternWinPct == 0 &&
             stock.patternFailPct == 0);
     final rateText = noStats
-        ? '—/—'
-        : '${stock.patternWinPct.round()}/${stock.patternEarnPct.round()}';
+        ? '—/—/${stock.patternT0N}'
+        : '${stock.patternWinPct.round()}/${stock.patternEarnPct.round()}/${stock.patternT0N}';
 
-    return Tooltip(
-      message: noStats
-          ? '形态样本不足'
-          : '达标 ${stock.patternWinPct.round()}%  ·  赚率 ${stock.patternEarnPct.round()}%（T0≥0，含小赚，不是达标率）',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 2),
+        Text(
+          rateText,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
           ),
-          const SizedBox(width: 2),
-          Text(
-            rateText,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

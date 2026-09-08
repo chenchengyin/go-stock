@@ -45,25 +45,36 @@ void main() {
   });
 
   group('shouldTryTongHuaShunMacAppUri', () {
-    test('true for macOS web and false for other web platforms', () {
+    test('defaults to web on macOS', () {
+      expect(StockLauncher.defaultMacAppEnabled, isFalse);
       expect(
         StockLauncher.shouldTryTongHuaShunMacAppUri(
-          isWeb: true,
           platform: TargetPlatform.macOS,
+          useMacApp: StockLauncher.defaultMacAppEnabled,
+        ),
+        isFalse,
+      );
+    });
+
+    test('uses the Mac app only when the preference is enabled', () {
+      expect(
+        StockLauncher.shouldTryTongHuaShunMacAppUri(
+          platform: TargetPlatform.macOS,
+          useMacApp: true,
         ),
         isTrue,
       );
       expect(
         StockLauncher.shouldTryTongHuaShunMacAppUri(
-          isWeb: true,
           platform: TargetPlatform.windows,
+          useMacApp: true,
         ),
         isFalse,
       );
       expect(
         StockLauncher.shouldTryTongHuaShunMacAppUri(
-          isWeb: false,
           platform: TargetPlatform.macOS,
+          useMacApp: false,
         ),
         isFalse,
       );

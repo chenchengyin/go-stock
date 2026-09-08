@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -6,8 +7,53 @@ import '../../../core/theme/theme_manager.dart';
 import '../../../core/utils/stock_launcher.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
-class SystemSettingsPage extends StatelessWidget {
+class SystemSettingsPage extends StatefulWidget {
   const SystemSettingsPage({super.key});
+
+  @override
+  State<SystemSettingsPage> createState() => _SystemSettingsPageState();
+}
+
+class _SystemSettingsPageState extends State<SystemSettingsPage> {
+  bool _macAppEnabled = StockLauncher.defaultMacAppEnabled;
+  bool _loadingMacAppSetting = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMacAppSetting();
+  }
+
+  Future<void> _loadMacAppSetting() async {
+    await StockLauncher.initialize();
+    if (!mounted) return;
+    setState(() {
+      _macAppEnabled = StockLauncher.macAppEnabled;
+      _loadingMacAppSetting = false;
+    });
+  }
+
+  Future<void> _setMacAppEnabled(bool enabled) async {
+    if (_loadingMacAppSetting) return;
+    setState(() => _macAppEnabled = enabled);
+    final saved = await StockLauncher.setMacAppEnabled(enabled);
+    if (!mounted || saved) return;
+
+    setState(() => _macAppEnabled = StockLauncher.macAppEnabled);
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('保存失败'),
+        content: const Text('同花顺打开方式未能保存，请稍后重试。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('知道了'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _openInFlush(BuildContext context) async {
     final opened = await StockLauncher.openTongHuaShun(code: '601318');
@@ -85,6 +131,7 @@ class SystemSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
     final tm = context.watch<ThemeManager>();
+    final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
     AppColors.of(context);
 
     return Container(
@@ -122,6 +169,26 @@ class SystemSettingsPage extends StatelessWidget {
                           subtitle: '30秒/60秒/120秒',
                           showDivider: true,
                         ),
+                        if (isMacOS)
+                          _SettingsItem(
+                            icon: CupertinoIcons.arrow_right_arrow_left,
+                            title: '同花顺打开方式',
+                            subtitle: _loadingMacAppSetting
+                                ? '正在读取设置'
+                                : _macAppEnabled
+                                ? 'Mac客户端'
+                                : '网页端（新标签页）',
+                            showDivider: true,
+                            onTap: _loadingMacAppSetting
+                                ? null
+                                : () => _setMacAppEnabled(!_macAppEnabled),
+                            trailing: _loadingMacAppSetting
+                                ? const CupertinoActivityIndicator()
+                                : CupertinoSwitch(
+                                    value: _macAppEnabled,
+                                    onChanged: _setMacAppEnabled,
+                                  ),
+                          ),
                         _SettingsItem(
                           icon: CupertinoIcons.arrow_right_arrow_left,
                           title: '跳转同花顺',
@@ -241,6 +308,7 @@ class _SettingsItem extends StatelessWidget {
     required this.subtitle,
     required this.showDivider,
     this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
@@ -248,6 +316,7 @@ class _SettingsItem extends StatelessWidget {
   final String subtitle;
   final bool showDivider;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -284,11 +353,12 @@ class _SettingsItem extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(
-                  CupertinoIcons.chevron_right,
-                  size: 16,
-                  color: AppColors.textTertiary,
-                ),
+                trailing ??
+                    Icon(
+                      CupertinoIcons.chevron_right,
+                      size: 16,
+                      color: AppColors.textTertiary,
+                    ),
               ],
             ),
           ),

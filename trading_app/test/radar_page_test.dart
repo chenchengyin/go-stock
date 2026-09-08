@@ -163,7 +163,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('命中显示条件的股票名称显示为红色', (tester) async {
+  testWidgets('命中显示条件的股票名称在三个策略页均显示为红色', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -179,16 +179,29 @@ void main() {
 
     addTearDown(disposeVms);
 
+    Map<String, dynamic> result() => {
+      '股票代码': '600001.XSHG',
+      '股票名称': '三连形态股',
+      '形态': 'ZT|ZT|PB',
+      '命中条件': ['涨停＋涨停＋阳线破板'],
+      '形态样本数': 2,
+      '形态达标率(%)': 50,
+      '形态真亏率(%)': 20,
+      '买入信号': 'blue',
+    };
+
     strategyVm.applyResponseForTest({
       'date': '2026-09-02',
-      'results': [
-        {
-          '股票代码': '600001.XSHG',
-          '股票名称': '命中股',
-          '命中条件': ['任意K线＋涨停＋跌停'],
-        },
-      ],
+      'results': [result()],
     });
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [result()],
+    }, moduleCode: t0PurpleStrategyModuleCode);
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [result()],
+    }, moduleCode: t0BlueStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -205,11 +218,12 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('主板策略(1)'));
-    await tester.pumpAndSettle();
-
-    final name = tester.widget<Text>(find.text('命中股'));
-    expect(name.style?.color, AppColors.error);
+    for (final tabLabel in ['紫策(1)', '主板策略(1)', '蓝策(1)']) {
+      await tester.tap(find.text(tabLabel));
+      await tester.pumpAndSettle();
+      final stockName = tester.widget<Text>(find.text('三连形态股'));
+      expect(stockName.style?.color, AppColors.error);
+    }
     disposeVms();
   });
 
@@ -345,11 +359,39 @@ void main() {
     final mainPreviousButton = tester.widget<TextButton>(
       find.widgetWithText(TextButton, '前一天'),
     );
+    final mainNextButton = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, '后一天'),
+    );
     expect(mainPreviousButton.onPressed, isNotNull);
+    final previousLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.widgetWithText(TextButton, '前一天'),
+        matching: find.text('前一天'),
+      ),
+    );
+    final nextLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.widgetWithText(TextButton, '后一天'),
+        matching: find.text('后一天'),
+      ),
+    );
+    expect(previousLabel.style?.fontSize, 16);
+    expect(nextLabel.style?.fontSize, 16);
+    expect(
+      mainPreviousButton.style?.padding?.resolve({}),
+      const EdgeInsets.symmetric(horizontal: 10),
+    );
+    expect(
+      mainNextButton.style?.padding?.resolve({}),
+      const EdgeInsets.symmetric(horizontal: 10),
+    );
+    expect(tester.widget<Text>(find.text('当前显示')).style?.fontSize, 16);
+    expect(dateDropdown.style?.fontSize, 17);
+    expect(tester.widget<Text>(find.text('选股结果')).style?.fontSize, 16);
     disposeVms();
   });
 
-  testWidgets('紫策的涨停破板标签显示为皮', (tester) async {
+  testWidgets('紫策的涨停破板标签与形态统计在 Flutter UI 中正确显示', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -372,6 +414,7 @@ void main() {
           '股票代码': '600001.XSHG',
           '股票名称': '紫策破板股',
           '标记': '涨停破板',
+          '形态': 'ZT|ZT|MYIN',
           '形态样本数': 2,
           '形态达标率(%)': 50,
           '形态真亏率(%)': 30,
@@ -385,6 +428,7 @@ void main() {
           '股票代码': '600001.XSHG',
           '股票名称': '紫策破板股',
           '标记': '涨停破板',
+          '形态': 'ZT|ZT|MYIN',
           '形态样本数': 2,
           '形态达标率(%)': 50,
           '形态真亏率(%)': 30,
@@ -412,6 +456,11 @@ void main() {
 
     expect(find.text('[皮]'), findsOneWidget);
     expect(find.text('[石皮]'), findsNothing);
+    expect(find.text('50/70/2'), findsOneWidget);
+    expect(
+      find.byTooltip('达标 50%  ·  赚率 70%（T0≥0，含小赚，不是达标率）'),
+      findsNothing,
+    );
     disposeVms();
   });
 

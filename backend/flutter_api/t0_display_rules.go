@@ -3,6 +3,7 @@ package flutter_api
 const (
 	displayRuleAnyLimitUpLimitDown = "任意K线＋涨停＋跌停"
 	displayRuleLimitUpBearishTag   = "涨停＋阴线标记"
+	displayRuleBullishZtZtPb       = "涨停＋涨停＋阳线破板"
 )
 
 // t0DisplayRule 只负责列表展示命中，不参与股票池过滤或选股结果归档。
@@ -20,6 +21,10 @@ var t0DisplayRules = []t0DisplayRule{
 	{
 		Name:  displayRuleLimitUpBearishTag,
 		Match: matchesLimitUpAndBearishTag,
+	},
+	{
+		Name:  displayRuleBullishZtZtPb,
+		Match: matchesBullishZtZtPb,
 	},
 }
 
@@ -61,6 +66,14 @@ func matchesLimitUpAndBearishTag(hist []dailyBar) bool {
 	latestHist := []dailyBar{limitUpBase, limitUp, latest}
 	highRet, openRet, closeRet, ok := prevDayRetsFromHist(latestHist)
 	return ok && isPrevDayBearishTag(highRet, openRet, closeRet)
+}
+
+func matchesBullishZtZtPb(hist []dailyBar) bool {
+	if patternFromHist(hist) != "ZT|ZT|PB" || len(hist) == 0 {
+		return false
+	}
+	brokenLimitUp := hist[len(hist)-1]
+	return brokenLimitUp.Close > brokenLimitUp.Open
 }
 
 func isCloseLimitDownDay(prevClose float64, bar dailyBar) bool {

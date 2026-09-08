@@ -1,8 +1,52 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class StockLauncher {
   const StockLauncher._();
+
+  static const String macAppEnabledPreferenceKey =
+      'stock_launcher_mac_app_enabled';
+  static const bool defaultMacAppEnabled = false;
+
+  static bool _macAppEnabled = defaultMacAppEnabled;
+  static Future<void>? _initializeFuture;
+
+  static bool get macAppEnabled => _macAppEnabled;
+
+  /// Loads the Mac launch preference before the app becomes interactive.
+  static Future<void> initialize() {
+    return _initializeFuture ??= _loadPreference();
+  }
+
+  static Future<void> _loadPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _macAppEnabled =
+          prefs.getBool(macAppEnabledPreferenceKey) ?? defaultMacAppEnabled;
+    } catch (error, stackTrace) {
+      debugPrint('StockLauncher preference load failed: $error\n$stackTrace');
+    }
+  }
+
+  static Future<bool> setMacAppEnabled(bool enabled) async {
+    await initialize();
+    final previous = _macAppEnabled;
+    _macAppEnabled = enabled;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = await prefs.setBool(macAppEnabledPreferenceKey, enabled);
+      if (!saved) {
+        _macAppEnabled = previous;
+      }
+      return saved;
+    } catch (error, stackTrace) {
+      _macAppEnabled = previous;
+      debugPrint('StockLauncher preference save failed: $error\n$stackTrace');
+      return false;
+    }
+  }
 
   static Future<bool> openTongHuaShun({
     required String code,
@@ -20,6 +64,10 @@ class StockLauncher {
 
     final isWeb = isWebOverride ?? kIsWeb;
     final platform = platformOverride ?? defaultTargetPlatform;
+    final useMacApp = shouldTryTongHuaShunMacAppUri(
+      platform: platform,
+      useMacApp: _macAppEnabled,
+    );
 
     if (shouldUseAndroidWebIntent(isWeb: isWeb, platform: platform)) {
       if (await _tryLaunchPreferLaunch(
@@ -30,7 +78,11 @@ class StockLauncher {
       return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
     }
 
-    if (shouldTryTongHuaShunMacAppUri(isWeb: isWeb, platform: platform)) {
+    if (platform == TargetPlatform.macOS && !useMacApp) {
+      return _tryLaunch(buildTongHuaShunWebUri(normalizedCode));
+    }
+
+    if (isWeb && useMacApp) {
       if (await _tryLaunchPreferLaunch(
         buildTongHuaShunAppUri(normalizedCode, marketId: resolvedMarketId),
       )) {
@@ -82,10 +134,10 @@ class StockLauncher {
   }
 
   static bool shouldTryTongHuaShunMacAppUri({
-    required bool isWeb,
     required TargetPlatform platform,
+    required bool useMacApp,
   }) {
-    return isWeb && platform == TargetPlatform.macOS;
+    return useMacApp && platform == TargetPlatform.macOS;
   }
 
   static bool isAndroidMobileUserAgent(String userAgent) {

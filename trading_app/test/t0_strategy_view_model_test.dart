@@ -147,6 +147,36 @@ void main() {
     ]);
   });
 
+  test('策略结果默认按真赚率从高到低排序', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+
+    vm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '低真赚率但开盘涨幅高',
+          'T0开盘涨幅(%)': 9,
+          '形态真亏率(%)': 70,
+        },
+        {'股票代码': '600002.XSHG', '股票名称': '高真赚率', 'T0开盘涨幅(%)': 1, '形态真亏率(%)': 10},
+        {
+          '股票代码': '600003.XSHG',
+          '股票名称': '同真赚率但开盘涨幅低',
+          'T0开盘涨幅(%)': 2,
+          '形态真亏率(%)': 70,
+        },
+      ],
+    });
+
+    expect(vm.results.map((stock) => stock.rawCode).toList(), [
+      '600002',
+      '600001',
+      '600003',
+    ]);
+  });
+
   test('parses pattern buy signal fields', () {
     final s = T0StrategyStock.fromJson({
       '股票代码': '001203.XSHE',
@@ -196,7 +226,7 @@ void main() {
     expect(s.patternEarnPct, closeTo(44.4, 0.01));
   });
 
-  test('blueResults：只返回 blue 并保持主板策略顺序', () {
+  test('blueResults：只返回 blue 并遵循默认策略排序', () {
     final vm = T0StrategyViewModel();
     addTearDown(vm.dispose);
 
@@ -212,9 +242,9 @@ void main() {
 
     expect(vm.blueResults.map((s) => s.rawCode).toList(), ['600002', '600003']);
     expect(vm.results.map((s) => s.rawCode).toList(), [
-      '600001',
       '600002',
       '600003',
+      '600001',
       '600004',
     ]);
     expect(() => vm.blueResults.clear(), throwsUnsupportedError);
@@ -250,7 +280,7 @@ void main() {
     expect(archiveVm.blueResults.map((s) => s.rawCode).toList(), ['600020']);
   });
 
-  test('purpleResults：达标率不低于30且赚率严格超过60并保持主板策略顺序', () {
+  test('purpleResults：达标率不低于30且赚率严格超过60并遵循默认策略排序', () {
     final vm = T0StrategyViewModel();
     addTearDown(vm.dispose);
 
@@ -289,15 +319,15 @@ void main() {
     });
 
     expect(vm.purpleResults.map((s) => s.rawCode).toList(), [
-      '600001',
       '600002',
       '600004',
+      '600001',
     ]);
     expect(vm.results.map((s) => s.rawCode).toList(), [
-      '600001',
       '600002',
-      '600003',
       '600004',
+      '600001',
+      '600003',
     ]);
     expect(() => vm.purpleResults.clear(), throwsUnsupportedError);
   });
@@ -387,8 +417,8 @@ void main() {
     });
 
     expect(previewVm.purpleResults.map((s) => s.rawCode).toList(), [
-      '600010',
       '600011',
+      '600010',
     ]);
     expect(archiveVm.purpleResults.map((s) => s.rawCode).toList(), ['600020']);
   });

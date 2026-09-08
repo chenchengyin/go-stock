@@ -439,7 +439,7 @@ func (receiver *EastMoneyKLineApi) convertStockCode(stockCode string) string {
 	}
 
 	// 纯数字代码，根据代码规则判断市场
-	if len(stockCode) >= 1 && validator.IsNumber(stockCode) {
+	if len(stockCode) >= 1 && validator.IsNumberStr(stockCode) {
 		firstChar := stockCode[0:1]
 		switch firstChar {
 		case "6": // 沪市主板

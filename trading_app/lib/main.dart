@@ -5,11 +5,13 @@ import 'app/app_config.dart';
 import 'app/app_shell.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/theme_manager.dart';
+import 'core/utils/stock_launcher.dart';
 import 'features/auth/presentation/auth_gate.dart';
 import 'features/radar/data/notification_util.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await StockLauncher.initialize();
   await initNotifications(onTap: _handleNotificationTap);
   runApp(const TradingRadarApp());
 }
