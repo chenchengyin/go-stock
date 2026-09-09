@@ -109,6 +109,55 @@ func TestBuildPrewarmReadyResponseInjectsHistorical(t *testing.T) {
 	}
 }
 
+func TestBuildPrewarmReadyResponseEnrichesHistoricalDisplayRules(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	daily := map[string][]dailyBar{
+		"600000": {
+			{Date: "2026-09-01", Close: 10},
+			{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+			{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+			{Date: "2026-09-04", Open: 12.4, Close: 12.1, High: 12.4, Low: 12},
+			{Date: "2026-09-05", Open: 12.25, Close: 12.2, High: 12.3, Low: 12.1},
+		},
+	}
+	stocks := []t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "历史命中股"}}
+	if err := saveT0DailyCache("2026-09-05", stocks, daily); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveT0DailyCache("2026-09-06", stocks, daily); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveT0SelectionArchiveFull(&t0SelectionArchive{
+		Date:  "2026-09-05",
+		Count: 1,
+		Results: []T0SelectionResult{{
+			Time:      "2026-09-05",
+			StockCode: "600000.XSHG",
+			StockName: "历史命中股",
+			OpenGap:   1.2,
+			BuySignal: BuySignalBlue,
+		}},
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := buildPrewarmReadyResponseAt("2026-09-06",
+		time.Date(2026, 9, 6, 8, 0, 0, 0, chinaLocation()))
+	results, ok := resp["results"].([]T0SelectionResult)
+	if !ok || len(results) != 1 {
+		t.Fatalf("results=%v", resp["results"])
+	}
+	for _, hit := range results[0].DisplayRuleHits {
+		if hit == displayRuleZtZtBearishT0 {
+			return
+		}
+	}
+	t.Fatalf("historical display rule missing: %v", results[0].DisplayRuleHits)
+}
+
 func TestBuildPrewarmReadyResponseNoHistoricalAfter0900(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()

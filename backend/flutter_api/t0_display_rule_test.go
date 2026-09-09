@@ -121,3 +121,55 @@ func TestEnrichT0ResultsForDisplayReadsExistingGobAndDoesNotFilter(t *testing.T)
 		t.Fatalf("original result mutated: %v", original[0].DisplayRuleHits)
 	}
 }
+
+func TestEnrichT0ResultsForDisplayMatchesHistoricalTwoLimitUpsAndBearishRule(t *testing.T) {
+	daily := map[string][]dailyBar{
+		"600000": {
+			{Date: "2026-09-01", Close: 10},
+			{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+			{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+			{Date: "2026-09-04", Open: 12.4, Close: 12.1, High: 12.4, Low: 12},
+			{Date: "2026-09-05", Open: 12.25, Close: 12.2, High: 12.3, Low: 12.1},
+		},
+	}
+	results := []T0SelectionResult{{
+		Time:      "2026-09-05",
+		StockCode: "600000.XSHG",
+		StockName: "历史命中股",
+		OpenGap:   1.2,
+	}}
+
+	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-05")
+	want := []string{
+		"涨停＋阴线标记",
+		"涨停＋涨停＋普通阴线（T0开盘0.01%～3%）",
+	}
+	if !reflect.DeepEqual(got[0].DisplayRuleHits, want) {
+		t.Fatalf("hits=%v want %v", got[0].DisplayRuleHits, want)
+	}
+}
+
+func TestEnrichT0ResultsForDisplayDoesNotMarkPreviewWithoutT0OpenGap(t *testing.T) {
+	daily := map[string][]dailyBar{
+		"600000": {
+			{Date: "2026-09-01", Close: 10},
+			{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+			{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+			{Date: "2026-09-04", Open: 12.4, Close: 12.1, High: 12.4, Low: 12},
+			{Date: "2026-09-05", Open: 12.25, Close: 12.2, High: 12.3, Low: 12.1},
+		},
+	}
+	results := []T0SelectionResult{{
+		Time:      "2026-09-05",
+		StockCode: "600000.XSHG",
+		StockName: "预览股",
+		OpenGap:   0,
+	}}
+
+	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-05")
+	for _, hit := range got[0].DisplayRuleHits {
+		if hit == displayRuleZtZtBearishT0 {
+			t.Fatalf("preview unexpectedly matched new rule: %v", got[0].DisplayRuleHits)
+		}
+	}
+}

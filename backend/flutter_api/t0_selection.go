@@ -680,8 +680,9 @@ func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]int
 		if a, found := findLatestSelectionArchiveBefore(tradeDate); found {
 			resp["historical"] = true
 			resp["display_date"] = a.Date
+			historicalResults := enrichArchivedResults(a.Date, a.Results)
 			resp["results"] = sortT0ResultsForClient(
-				enrichArchivedResults(a.Date, a.Results))
+				enrichT0ResultsForDisplay(a.Date, historicalResults))
 		}
 		return resp
 	}
