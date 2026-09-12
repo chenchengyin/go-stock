@@ -73,6 +73,7 @@ void main() {
       strategyVm.dispose();
       voiceVm.dispose();
     }
+
     addTearDown(() {
       disposeVms();
     });
@@ -281,6 +282,8 @@ void main() {
       final stockName = tester.widget<Text>(find.text('三连形态股'));
       expect(stockName.style?.color, AppColors.error);
     }
+
+    expect(find.byTooltip('命中：涨停＋涨停＋阳线破板'), findsNothing);
     disposeVms();
   });
 

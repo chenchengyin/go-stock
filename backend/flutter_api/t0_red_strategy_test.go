@@ -11,39 +11,34 @@ import (
 	"time"
 )
 
-func TestFilterRedT0Results(t *testing.T) {
+func TestFilterRedT0ResultsMatchesDisplayRedOnly(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
 		TradeDate: "2026-09-09",
 		Daily: map[string][]dailyBar{
 			"600000": {
 				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Close: 10.5},
+				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+				{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
 			},
 			"600001": {
 				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Close: 10.5},
+				{Date: "2026-09-02", Open: 10, Close: 10.2, High: 10.2, Low: 10},
+				{Date: "2026-09-03", Open: 10.2, Close: 10.1, High: 10.3, Low: 10},
 			},
 			"600002": {
-				{Date: "2026-09-07", Close: 20},
-				{Date: "2026-09-08", Close: 20.5},
-			},
-			"600003": {
 				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Close: 10.5},
-			},
-			"600004": {
-				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Close: 10.5},
+				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+				{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
 			},
 		},
 	}
 	results := []T0SelectionResult{
-		{StockCode: "600000.XSHG", PrevClose: 10, PatternWinPct: 20, PatternFailPct: 50},
-		{StockCode: "600001.XSHG", PrevClose: 9.99, PatternWinPct: 20, PatternFailPct: 50},
-		{StockCode: "600002.XSHG", PrevClose: 20, PatternWinPct: 20, PatternFailPct: 50},
-		{StockCode: "600003.XSHG", PrevClose: 10, PatternWinPct: 20, PatternFailPct: 50.01},
-		{StockCode: "600004.XSHG", PrevClose: 10, PatternWinPct: 19.99, PatternFailPct: 50},
-		{StockCode: "600005.XSHG", PrevClose: 10, PatternWinPct: 20, PatternFailPct: 50},
+		// 原红策条件通过，但没有任何标红命中，应该剔除。
+		{StockCode: "600001.XSHG", PrevClose: 10, PatternWinPct: 20, PatternFailPct: 50},
+		// 原红策条件不通过，但命中了标红逻辑，应该保留。
+		{StockCode: "600002.XSHG", PrevClose: 0, PatternWinPct: 0, PatternFailPct: 100},
 	}
 
 	got := filterRedT0Results(results, ctx)
@@ -51,7 +46,7 @@ func TestFilterRedT0Results(t *testing.T) {
 	for _, result := range got {
 		codes = append(codes, result.StockCode)
 	}
-	want := []string{"600000.XSHG", "600002.XSHG"}
+	want := []string{"600002.XSHG"}
 	if !reflect.DeepEqual(codes, want) {
 		t.Fatalf("red codes = %v, want %v", codes, want)
 	}
@@ -199,8 +194,10 @@ func TestFilterRedT0ResultsRecalculatesTagsFromDaily(t *testing.T) {
 		TradeDate: "2026-09-09",
 		Daily: map[string][]dailyBar{
 			"600000": {
-				{Date: "2026-09-01", Open: 10, Close: 10, High: 10, Low: 9.8},
-				{Date: "2026-09-08", Open: 10.8, Close: 10.5, High: 11, Low: 10.4},
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+				{Date: "2026-09-08", Open: 12.2, Close: 12.3, High: 13.3, Low: 12.1},
 			},
 		},
 	}

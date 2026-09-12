@@ -3,15 +3,15 @@ package flutter_api
 import "go-stock/backend/analysis/candlepattern"
 
 const (
-	displayRuleAnyLimitUpLimitDown = "任意K线＋涨停＋跌停"
-	displayRuleRedKLimitDownT0     = "红K＋跌停后的开盘竞价"
-	displayRuleLimitUpBearishTag   = "涨停＋阴线标记"
-	displayRuleBullishZtZtPb       = "涨停＋涨停＋阳线破板"
-	displayRuleZtZtBearishT0       = "涨停＋涨停＋普通阴线"
+	displayRuleAnyLimitUpLimitDown   = "任意K线＋涨停＋跌停"
+	displayRuleMediumYangLimitDownT0 = "中阳及以上＋跌停后的开盘竞价"
+	displayRuleLimitUpBearishTag     = "涨停＋阴线标记"
+	displayRuleBullishZtZtPb         = "涨停＋涨停＋阳线破板"
+	displayRuleZtZtBearishT0         = "涨停＋涨停＋普通阴线"
 )
 
-// t0DisplayRule 只负责列表展示命中，不参与股票池过滤或选股结果归档。
-// 后续增加展示条件时，在 t0DisplayRules 中追加一项即可。
+// t0DisplayRule 定义列表标红的命中条件；红策直接复用同一组条件筛选结果。
+// 它不参与基础股票池过滤或主选股链；后续增加标红条件时，在 t0DisplayRules 中追加一项即可。
 type t0DisplayRule struct {
 	Name        string
 	Match       func([]dailyBar) bool
@@ -24,8 +24,8 @@ var t0DisplayRules = []t0DisplayRule{
 		Match: matchesAnyLimitUpLimitDown,
 	},
 	{
-		Name:        displayRuleRedKLimitDownT0,
-		MatchResult: matchesRedKThenLimitDownT0,
+		Name:        displayRuleMediumYangLimitDownT0,
+		MatchResult: matchesMediumYangThenLimitDownT0,
 	},
 	{
 		Name:  displayRuleLimitUpBearishTag,
@@ -61,9 +61,9 @@ func displayRuleHitsForResult(hist []dailyBar, result T0SelectionResult) []strin
 	return hits
 }
 
-// matchesRedKThenLimitDownT0 匹配最近三根历史K线：第一根不限，第二根红K，第三根跌停。
-// 红K沿用形态统计口径：ZT、YX、SY、MY、DY；仅正式T0竞价结果（0.01%～3%）命中。
-func matchesRedKThenLimitDownT0(hist []dailyBar, result T0SelectionResult) bool {
+// matchesMediumYangThenLimitDownT0 匹配最近三根历史K线：第一根不限，第二根中阳及以上，第三根跌停。
+// 中阳及以上沿用形态统计口径：MY、DY、ZT；仅正式T0竞价结果（0.01%～3%）命中。
+func matchesMediumYangThenLimitDownT0(hist []dailyBar, result T0SelectionResult) bool {
 	if result.OpenGap < 0.01 || result.OpenGap > 3 {
 		return false
 	}
@@ -75,7 +75,7 @@ func matchesRedKThenLimitDownT0(hist []dailyBar, result T0SelectionResult) bool 
 	redK := hist[len(hist)-2]
 	limitDown := hist[len(hist)-1]
 	redType := classifyDisplayBar(base.Close, redK)
-	if !isRedKType(redType) {
+	if !isMediumYangOrAboveType(redType) {
 		return false
 	}
 	return classifyDisplayBar(redK.Close, limitDown) == candlepattern.BarDT
@@ -93,10 +93,9 @@ func classifyDisplayBar(prevClose float64, bar dailyBar) candlepattern.BarType {
 	})
 }
 
-func isRedKType(barType candlepattern.BarType) bool {
+func isMediumYangOrAboveType(barType candlepattern.BarType) bool {
 	switch barType {
-	case candlepattern.BarZT, candlepattern.BarYX, candlepattern.BarSY,
-		candlepattern.BarMY, candlepattern.BarDY:
+	case candlepattern.BarZT, candlepattern.BarMY, candlepattern.BarDY:
 		return true
 	default:
 		return false

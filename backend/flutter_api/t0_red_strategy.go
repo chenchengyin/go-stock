@@ -184,30 +184,6 @@ type t0ModuleSelectionContext struct {
 	Daily     map[string][]dailyBar
 }
 
-type redT0Filter struct {
-	name  string
-	match func(T0SelectionResult, []dailyBar) bool
-}
-
-var redT0Filters = []redT0Filter{
-	{
-		name:  "T-1收盘价不低于实际最早收盘价",
-		match: passesT0HistoricalPriceFloor,
-	},
-	{
-		name: "真赚率不低于50%",
-		match: func(result T0SelectionResult, _ []dailyBar) bool {
-			return 100-result.PatternFailPct >= 50
-		},
-	},
-	{
-		name: "达标率不低于20%",
-		match: func(result T0SelectionResult, _ []dailyBar) bool {
-			return result.PatternWinPct >= 20
-		},
-	},
-}
-
 func filterRedT0Results(
 	results []T0SelectionResult,
 	ctx *t0ModuleSelectionContext,
@@ -220,17 +196,12 @@ func filterRedT0Results(
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
-		keep := true
-		for _, filter := range redT0Filters {
-			if filter.match == nil || !filter.match(result, hist) {
-				keep = false
-				break
-			}
-		}
-		if !keep {
+		displayRuleHits := displayRuleHitsForResult(hist, result)
+		if len(displayRuleHits) == 0 {
 			continue
 		}
 
+		result.DisplayRuleHits = displayRuleHits
 		result.Tag = ""
 		if highRet, openRet, closeRet, ok := prevDayRetsFromHist(hist); ok {
 			result.Tag = pickPrevDayTag(highRet, openRet, closeRet)

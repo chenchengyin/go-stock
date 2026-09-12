@@ -1169,12 +1169,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         child: Row(
           children: [
             // 名称
-            stock.hasDisplayRuleHit
-                ? Tooltip(
-                    message: '命中：${stock.displayRuleHits.join('、')}',
-                    child: stockName,
-                  )
-                : stockName,
+            stockName,
             if (stock.tag.isNotEmpty) ...[
               const SizedBox(width: 4),
               Text(

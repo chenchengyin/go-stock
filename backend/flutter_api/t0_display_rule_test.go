@@ -20,7 +20,7 @@ func TestDisplayRuleHitsMatchesAnyLimitUpLimitDown(t *testing.T) {
 	}
 }
 
-func TestDisplayRuleHitsMatchesRedKThenLimitDownT0(t *testing.T) {
+func TestDisplayRuleHitsMatchesMediumYangThenLimitDownT0(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},
 		{Date: "2026-09-02", Open: 10, Close: 10.5, High: 10.5, Low: 10},
@@ -28,13 +28,47 @@ func TestDisplayRuleHitsMatchesRedKThenLimitDownT0(t *testing.T) {
 	}
 
 	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
-	want := []string{"红K＋跌停后的开盘竞价"}
+	want := []string{"中阳及以上＋跌停后的开盘竞价"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("displayRuleHitsForResult()=%v want %v", got, want)
 	}
 }
 
-func TestDisplayRuleHitsDoesNotMatchRedKThenLimitDownPreview(t *testing.T) {
+func TestDisplayRuleHitsMediumYangThenLimitDownRequiresMediumYangOrAbove(t *testing.T) {
+	cases := []struct {
+		name       string
+		redOpen    float64
+		redClose   float64
+		limitDown  float64
+		wantMarked bool
+	}{
+		{name: "小阳不命中", redOpen: 10, redClose: 10.2, limitDown: 9.18, wantMarked: false},
+		{name: "中阳命中", redOpen: 10, redClose: 10.3, limitDown: 9.27, wantMarked: true},
+		{name: "大阳命中", redOpen: 10, redClose: 10.7, limitDown: 9.63, wantMarked: true},
+		{name: "涨停命中", redOpen: 10, redClose: 11, limitDown: 9.9, wantMarked: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hist := []dailyBar{
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: tc.redOpen, Close: tc.redClose, High: tc.redClose, Low: tc.redOpen},
+				{Date: "2026-09-03", Open: tc.limitDown, Close: tc.limitDown, High: tc.limitDown, Low: tc.limitDown},
+			}
+			got := false
+			for _, hit := range displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2}) {
+				if hit == displayRuleMediumYangLimitDownT0 {
+					got = true
+				}
+			}
+			if got != tc.wantMarked {
+				t.Fatalf("red K + limit-down hit=%v want %v", got, tc.wantMarked)
+			}
+		})
+	}
+}
+
+func TestDisplayRuleHitsDoesNotMatchMediumYangThenLimitDownPreview(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},
 		{Date: "2026-09-02", Open: 10, Close: 10.5, High: 10.5, Low: 10},
@@ -43,8 +77,8 @@ func TestDisplayRuleHitsDoesNotMatchRedKThenLimitDownPreview(t *testing.T) {
 
 	got := displayRuleHitsForResult(hist, T0SelectionResult{})
 	for _, hit := range got {
-		if hit == displayRuleRedKLimitDownT0 {
-			t.Fatalf("preview unexpectedly matched %q: %v", displayRuleRedKLimitDownT0, got)
+		if hit == displayRuleMediumYangLimitDownT0 {
+			t.Fatalf("preview unexpectedly matched %q: %v", displayRuleMediumYangLimitDownT0, got)
 		}
 	}
 }
@@ -58,8 +92,8 @@ func TestDisplayRuleHitsDoesNotMatchBearishKThenLimitDownT0(t *testing.T) {
 
 	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
 	for _, hit := range got {
-		if hit == displayRuleRedKLimitDownT0 {
-			t.Fatalf("bearish K unexpectedly matched %q: %v", displayRuleRedKLimitDownT0, got)
+		if hit == displayRuleMediumYangLimitDownT0 {
+			t.Fatalf("bearish K unexpectedly matched %q: %v", displayRuleMediumYangLimitDownT0, got)
 		}
 	}
 }
@@ -159,7 +193,7 @@ func TestEnrichT0ResultsForDisplayReadsExistingGobAndDoesNotFilter(t *testing.T)
 		t.Fatalf("result count=%d want 1", len(got))
 	}
 	if !reflect.DeepEqual(got[0].DisplayRuleHits,
-		[]string{"任意K线＋涨停＋跌停", "红K＋跌停后的开盘竞价"}) {
+		[]string{"任意K线＋涨停＋跌停", "中阳及以上＋跌停后的开盘竞价"}) {
 		t.Fatalf("hits=%v", got[0].DisplayRuleHits)
 	}
 	if original[0].DisplayRuleHits != nil {
