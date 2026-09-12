@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
@@ -40,6 +42,46 @@ T0StrategyStock _stock({
 }
 
 void main() {
+  test(
+    'red strategy request carries its module code and exposes server results',
+    () async {
+      Map<String, dynamic>? seenQuery;
+      final vm = T0StrategyViewModel(
+        request: (moduleCode, query) async {
+          expect(moduleCode, t0RedStrategyModuleCode);
+          seenQuery = Map<String, dynamic>.from(query);
+          if (query['list_dates'] == '1') return {'dates': <dynamic>[]};
+          return {
+            'archived': true,
+            'date': '2026-08-11',
+            'results': [
+              {
+                '股票代码': '600000.XSHG',
+                '股票名称': '红策股',
+                '标记': '涨停破板',
+                '命中条件': ['涨停＋涨停＋阳线破板'],
+              },
+            ],
+          };
+        },
+      );
+      addTearDown(vm.dispose);
+
+      await vm.loadResults(
+        moduleCode: t0RedStrategyModuleCode,
+        date: '2026-08-11',
+        archived: true,
+      );
+
+      expect(seenQuery?['module_code'], t0RedStrategyModuleCode);
+      expect(vm.resultsFor(t0RedStrategyModuleCode), hasLength(1));
+      expect(
+        vm.resultsFor(t0RedStrategyModuleCode).single.hasDisplayRuleHit,
+        true,
+      );
+    },
+  );
+
   test('result request carries its explicit module code', () async {
     Map<String, dynamic>? seenQuery;
     final vm = T0StrategyViewModel(
@@ -59,6 +101,95 @@ void main() {
 
     expect(seenQuery?['module_code'], 'radar.main_strategy');
     expect(vm.resultsFor('radar.purple_strategy'), isEmpty);
+  });
+
+  test('周末响应显示无数据并保留周末日期', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+
+    vm.applyResponseForTest({
+      'date': '2026-09-12',
+      'no_data': true,
+      'count': 0,
+      'results': <dynamic>[],
+    });
+
+    final state = vm.stateFor(t0MainStrategyModuleCode);
+    expect(state.noData, true);
+    expect(state.results, isEmpty);
+    expect(state.selectedDate, '2026-09-12');
+  });
+
+  test('周末加载日期时不回退到最新归档', () async {
+    final requests = <Map<String, dynamic>>[];
+    final vm = T0StrategyViewModel(
+      now: () => DateTime.utc(2026, 9, 12, 1),
+      request: (moduleCode, query) async {
+        requests.add(Map<String, dynamic>.from(query));
+        if (query['list_dates'] == '1') {
+          return {
+            'dates': <dynamic>['2026-09-11', '2026-09-10'],
+          };
+        }
+        return {
+          'date': '2026-09-12',
+          'no_data': true,
+          'count': 0,
+          'results': <dynamic>[],
+        };
+      },
+    );
+    addTearDown(vm.dispose);
+
+    await vm.loadAvailableDates();
+    await vm.loadResults();
+
+    expect(vm.selectedDate, '2026-09-12');
+    expect(vm.stateFor(t0MainStrategyModuleCode).noData, true);
+    expect(vm.results, isEmpty);
+    expect(
+      requests.where((query) => query['list_dates'] != '1').single['date'],
+      isNull,
+    );
+  });
+
+  test('切换历史日期时不会被尚未完成的今日请求覆盖', () async {
+    final todayResponse = Completer<Map<String, dynamic>>();
+    final requests = <Map<String, dynamic>>[];
+    final vm = T0StrategyViewModel(
+      request: (moduleCode, query) {
+        requests.add(Map<String, dynamic>.from(query));
+        if (query['list_dates'] == '1') {
+          return Future<Map<String, dynamic>>.value({
+            'dates': <dynamic>['2026-08-11'],
+          });
+        }
+        if (query['archived'] == '1') {
+          return Future<Map<String, dynamic>>.value({
+            'archived': true,
+            'date': '2026-08-11',
+            'results': <dynamic>[],
+          });
+        }
+        return todayResponse.future;
+      },
+    );
+    addTearDown(vm.dispose);
+
+    final todayLoad = vm.loadResults();
+    await Future<void>.delayed(Duration.zero);
+    final archiveLoad = vm.selectDate('radar.main_strategy', '2026-08-11');
+
+    expect(vm.selectedDate, '2026-08-11');
+    expect(requests, hasLength(2));
+    expect(requests[0]['date'], isNull);
+    expect(requests[1]['date'], '2026-08-11');
+    expect(requests[1]['archived'], '1');
+
+    todayResponse.complete({'date': '2026-09-10', 'results': <dynamic>[]});
+    await Future.wait([todayLoad, archiveLoad]);
+
+    expect(vm.selectedDate, '2026-08-11');
   });
 
   test('module forbidden callback names only the rejected module', () async {
@@ -519,12 +650,14 @@ void main() {
       now: () => DateTime.utc(2026, 8, 12, 1, 10), // 上海 09:10
     );
     addTearDown(vm.dispose);
-    vm.applyResponseForTest(_candidateReady(
-      date: '2026-08-12',
-      candidates: [
-        {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
-      ],
-    ));
+    vm.applyResponseForTest(
+      _candidateReady(
+        date: '2026-08-12',
+        candidates: [
+          {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+        ],
+      ),
+    );
 
     expect(vm.phase, T0StrategyPhase.waiting);
     expect(vm.showingCandidatePreview, false);
@@ -537,14 +670,16 @@ void main() {
       now: () => DateTime.utc(2026, 8, 12, 1, 20), // 上海 09:20
     );
     addTearDown(vm.dispose);
-    vm.applyResponseForTest(_candidateReady(
-      date: '2026-08-12',
-      candidates: [
-        {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
-        {'股票代码': '000001.XSHE', '股票名称': '平安银行'},
-        {'股票代码': '600519.XSHG', '股票名称': '贵州茅台'},
-      ],
-    ));
+    vm.applyResponseForTest(
+      _candidateReady(
+        date: '2026-08-12',
+        candidates: [
+          {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+          {'股票代码': '000001.XSHE', '股票名称': '平安银行'},
+          {'股票代码': '600519.XSHG', '股票名称': '贵州茅台'},
+        ],
+      ),
+    );
     expect(vm.phase, T0StrategyPhase.candidatePreview);
     expect(vm.showingCandidatePreview, true);
     expect(vm.results.length, 3);
@@ -554,7 +689,11 @@ void main() {
       '000001': {'code': '000001', 'changePercent': 2.5},
     });
 
-    expect(vm.results.map((e) => e.rawCode).toList(), ['000001', '600000', '600519']);
+    expect(vm.results.map((e) => e.rawCode).toList(), [
+      '000001',
+      '600000',
+      '600519',
+    ]);
     expect(vm.results.first.liveChangePercent, 2.5);
   });
 
@@ -563,12 +702,14 @@ void main() {
       now: () => DateTime.utc(2026, 8, 12, 1, 25), // 上海 09:25
     );
     addTearDown(vm.dispose);
-    vm.applyResponseForTest(_candidateReady(
-      date: '2026-08-12',
-      candidates: [
-        {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
-      ],
-    ));
+    vm.applyResponseForTest(
+      _candidateReady(
+        date: '2026-08-12',
+        candidates: [
+          {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+        ],
+      ),
+    );
     expect(vm.showingCandidatePreview, false);
 
     vm.applyResponseForTest({
@@ -663,6 +804,39 @@ void main() {
       expect(vm.selectedDate, '2026-08-12');
       expect(vm.previousArchiveDate, '2026-08-11');
       expect(vm.nextArchiveDate, isNull);
+    });
+
+    test('历史归档数据不可用时保留请求日期，不回跳今天', () async {
+      final vm = T0StrategyViewModel(
+        now: () => DateTime.utc(2026, 9, 10, 1),
+        request: (moduleCode, query) async {
+          if (query['list_dates'] == '1') {
+            return {
+              'dates': <dynamic>['2026-09-10', '2026-09-04', '2026-09-03'],
+            };
+          }
+          return {
+            'error': '红策日线缓存未就绪: 2026-09-03',
+            'date': '2026-09-03',
+            'archived': true,
+            'count': 0,
+          };
+        },
+      );
+      addTearDown(vm.dispose);
+      vm.applyAvailableDatesForTest(['2026-09-10', '2026-09-04', '2026-09-03']);
+      vm.applyResponseForTest({
+        'archived': true,
+        'date': '2026-09-04',
+        'results': [
+          {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
+        ],
+      });
+
+      await vm.selectPreviousArchive(t0RedStrategyModuleCode);
+
+      expect(vm.selectedDate, '2026-09-03');
+      expect(vm.error, '红策日线缓存未就绪: 2026-09-03');
     });
   });
 }

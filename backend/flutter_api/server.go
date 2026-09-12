@@ -143,6 +143,9 @@ func Start() {
 	if err := initT0CacheRoot(); err != nil {
 		logger.SugaredLogger.Fatalf("[T0选股] 初始化缓存目录失败：%v", err)
 	}
+	if err := validateRegisteredModuleContracts(); err != nil {
+		logger.SugaredLogger.Fatalf("[模块注册] 校验失败：%v", err)
+	}
 
 	if err := MigrateAuthTables(db.Dao); err != nil {
 		logger.SugaredLogger.Errorf("认证表迁移失败: %v", err)

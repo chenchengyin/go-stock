@@ -383,9 +383,21 @@ func t0DisplaySortRank(result T0SelectionResult) int {
 	}
 }
 
-func filterPurpleT0Results(results []T0SelectionResult) []T0SelectionResult {
+func filterPurpleT0Results(
+	results []T0SelectionResult,
+	ctx *t0ModuleSelectionContext,
+) []T0SelectionResult {
+	if ctx == nil {
+		return nil
+	}
+
 	filtered := make([]T0SelectionResult, 0, len(results))
 	for _, result := range results {
+		shortCode := t0ShortCodeFromResultCode(result.StockCode)
+		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
+		if !passesT0HistoricalPriceFloor(result, hist) {
+			continue
+		}
 		if result.PatternT0N >= 2 && result.PatternWinPct >= 30 &&
 			100-result.PatternFailPct > 60 {
 			filtered = append(filtered, result)
@@ -402,22 +414,6 @@ func filterBlueT0Results(results []T0SelectionResult) []T0SelectionResult {
 		}
 	}
 	return filtered
-}
-
-func selectT0ResultsForModule(
-	moduleCode string, results []T0SelectionResult,
-) ([]T0SelectionResult, error) {
-	switch moduleCode {
-	case "radar.main_strategy":
-		return results, nil
-	case "radar.purple_strategy":
-		return filterPurpleT0Results(results), nil
-	case "radar.blue_strategy":
-		return filterBlueT0Results(results), nil
-	default:
-		return nil, newAuthError(http.StatusBadRequest,
-			"INVALID_ARGUMENT", "模块不存在")
-	}
 }
 
 func invalidateT0ArchiveDatesCache() {
@@ -640,10 +636,22 @@ func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
 }
 
 func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]interface{} {
+	var cached *t0DailyCachePayload
+	if payload, ok := loadT0DailyCache(tradeDate); ok {
+		cached = payload
+	}
+	return buildPrewarmReadyResponseAtWithCache(tradeDate, now, cached)
+}
+
+func buildPrewarmReadyResponseAtWithCache(
+	tradeDate string,
+	now time.Time,
+	cached *t0DailyCachePayload,
+) map[string]interface{} {
 	tStart := time.Now()
-	stocks, daily, ok := []t0Stock(nil), map[string][]dailyBar(nil), false
-	if cached, hit := loadT0DailyCache(tradeDate); hit {
-		stocks, daily, ok = cached.Stocks, cached.Daily, true
+	stocks, daily, ok := []t0Stock(nil), map[string][]dailyBar(nil), cached != nil
+	if ok {
+		stocks, daily = cached.Stocks, cached.Daily
 	}
 	hist := make(map[string][]dailyBar, len(daily))
 	if ok {
@@ -1667,11 +1675,18 @@ func normalizeT0TradeDate(tradeDate string) (string, error) {
 // RunT0Selection 执行完整 T0 选股链
 // tradeDate: 交易日 "2006-01-02"，空字符串 = 今天
 func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
+	results, _, err := runT0SelectionWithDaily(tradeDate)
+	return results, err
+}
+
+func runT0SelectionWithDaily(
+	tradeDate string,
+) ([]T0SelectionResult, map[string][]dailyBar, error) {
 	tStart := time.Now()
 
 	tradeDate, err := normalizeT0TradeDate(tradeDate)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	logger.SugaredLogger.Infof("========== T0 开盘日线选股 | 基准日: %s ==========", tradeDate)
@@ -1680,7 +1695,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 	t12 := time.Now()
 	allStocks, dailyCache, fromCache, err := loadOrFetchT0Daily(tradeDate)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	logger.SugaredLogger.Infof("[T0选股] [1-2/5] 股票池+日线就绪: 股票%d 日线%d 缓存命中=%v (%.1fs)",
 		len(allStocks), len(dailyCache), fromCache, time.Since(t12).Seconds())
@@ -1697,7 +1712,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 	step2 := filterTurnover(step1, histCache, 5.0)
 	if len(step2) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] 成交额过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
-		return nil, fmt.Errorf("成交额过滤后无股票")
+		return nil, nil, fmt.Errorf("成交额过滤后无股票")
 	}
 	logger.SugaredLogger.Infof("[T0选股] [3/5] 日线过滤完成: %d -> %d只 (MA20门闸已暂缓) (%.1fs)",
 		len(allStocks), len(step2), time.Since(t3).Seconds())
@@ -1716,7 +1731,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 
 	if len(step4) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] T0开盘过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
-		return nil, fmt.Errorf("T0开盘过滤后无股票")
+		return nil, nil, fmt.Errorf("T0开盘过滤后无股票")
 	}
 
 	// ── 6. 组装结果 ──
@@ -1792,7 +1807,7 @@ func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
 		len(results), time.Since(t6).Seconds())
 	logger.SugaredLogger.Infof("[T0选股] 总耗时: %.1fs", time.Since(tStart).Seconds())
 
-	return results, nil
+	return results, dailyCache, nil
 }
 
 func round2(v float64) float64 {
@@ -1823,7 +1838,7 @@ func newT0SelectionHandler(moduleService *ModuleService) http.HandlerFunc {
 		}
 
 		moduleCode := strings.TrimSpace(q.Get("module_code"))
-		if _, err := selectT0ResultsForModule(moduleCode, nil); err != nil {
+		if err := validateT0ModuleCode(moduleCode); err != nil {
 			WriteAuthError(w, err)
 			return
 		}
@@ -1861,6 +1876,15 @@ func t0SelectionModuleCode(r *http.Request) string {
 func scopeT0ResponseResults(
 	moduleCode string, response map[string]interface{}, field string,
 ) error {
+	return scopeT0ResponseResultsWithContext(moduleCode, response, field, nil)
+}
+
+func scopeT0ResponseResultsWithContext(
+	moduleCode string,
+	response map[string]interface{},
+	field string,
+	ctx *t0ModuleSelectionContext,
+) error {
 	raw, ok := response[field]
 	if !ok {
 		return nil
@@ -1869,7 +1893,7 @@ func scopeT0ResponseResults(
 	if !ok {
 		return nil
 	}
-	selected, err := selectT0ResultsForModule(moduleCode, results)
+	selected, err := selectT0ResultsForModule(moduleCode, results, ctx)
 	if err != nil {
 		return err
 	}
@@ -1888,12 +1912,35 @@ func scopeT0ResponseResults(
 func writeScopedT0Response(
 	w http.ResponseWriter, moduleCode string, response map[string]interface{}, fields ...string,
 ) {
+	writeScopedT0ResponseWithContext(w, moduleCode, response, nil, fields...)
+}
+
+func writeScopedT0ResponseWithContext(
+	w http.ResponseWriter,
+	moduleCode string,
+	response map[string]interface{},
+	ctx *t0ModuleSelectionContext,
+	fields ...string,
+) {
 	for _, field := range fields {
-		if err := scopeT0ResponseResults(moduleCode, response, field); err != nil {
+		if err := scopeT0ResponseResultsWithContext(moduleCode, response, field, ctx); err != nil {
 			WriteAuthError(w, err)
 			return
 		}
-		enrichT0ResponseFieldForDisplay(response, field)
+		if ctx == nil {
+			enrichT0ResponseFieldForDisplay(response, field)
+			continue
+		}
+		raw, ok := response[field]
+		if !ok {
+			continue
+		}
+		results, ok := raw.([]T0SelectionResult)
+		if !ok {
+			continue
+		}
+		response[field] = enrichT0ResultsForDisplayWithDaily(
+			results, ctx.Daily, ctx.TradeDate)
 	}
 	WriteJSON(w, response)
 }
@@ -1949,6 +1996,19 @@ func isPreopenPrevResultWindow(now time.Time, tradeDate string) bool {
 	return local.Hour()*60+local.Minute() < t0AutoPrewarmEndHM
 }
 
+func isT0WeekendDate(tradeDate string) bool {
+	date, err := time.ParseInLocation("2006-01-02", tradeDate, chinaLocation())
+	if err != nil {
+		return false
+	}
+	switch date.Weekday() {
+	case time.Saturday, time.Sunday:
+		return true
+	default:
+		return false
+	}
+}
+
 // isBeforeT0AuctionCutoff 判断 now 是否仍早于当日 09:25（上海时区）。
 // 仅当 tradeDate 等于「上海时区的今天」时，预竞价窗口才生效。
 func isBeforeT0AuctionCutoff(now time.Time, tradeDate string) bool {
@@ -1972,12 +2032,20 @@ func writeT0PrewarmHTTP(w http.ResponseWriter, tradeDate, moduleCode string) {
 		return
 	}
 	if isT0DailyCacheFilePresent(tradeDate) {
+		if isT0DailyContextModule(moduleCode) {
+			writeContextT0PrewarmReadyHTTP(w, tradeDate, moduleCode)
+			return
+		}
 		writeScopedT0Response(w, moduleCode, buildPrewarmReadyResponse(tradeDate),
 			"results", "candidates")
 		return
 	}
 	t0PrewarmStarter(tradeDate)
 	if isT0DailyCacheFilePresent(tradeDate) {
+		if isT0DailyContextModule(moduleCode) {
+			writeContextT0PrewarmReadyHTTP(w, tradeDate, moduleCode)
+			return
+		}
 		writeScopedT0Response(w, moduleCode, buildPrewarmReadyResponse(tradeDate),
 			"results", "candidates")
 		return
@@ -1994,6 +2062,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := r.URL.Query()
+	moduleCode := t0SelectionModuleCode(r)
 	// list_dates：返回所有有效选股归档日期（降序）
 	if isTruthyQuery(q.Get("list_dates")) {
 		WriteJSON(w, map[string]interface{}{
@@ -2002,8 +2071,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	moduleCode := t0SelectionModuleCode(r)
-	if _, err := selectT0ResultsForModule(moduleCode, nil); err != nil {
+	if err := validateT0ModuleCode(moduleCode); err != nil {
 		WriteAuthError(w, err)
 		return
 	}
@@ -2017,6 +2085,22 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("日期格式错误: %s (需为 2006-01-02)", tradeDate),
 			"date":  tradeDate,
 		})
+		return
+	}
+
+	// 周末不属于交易日，不能回退展示前一交易日的归档结果。
+	if isT0WeekendDate(tradeDate) {
+		response := map[string]interface{}{
+			"date":    tradeDate,
+			"no_data": true,
+			"count":   0,
+			"results": []T0SelectionResult{},
+		}
+		if isT0DailyContextModule(moduleCode) {
+			WriteJSON(w, response)
+			return
+		}
+		writeScopedT0Response(w, moduleCode, response, "results")
 		return
 	}
 
@@ -2043,19 +2127,30 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		results, err := selectT0ResultsForModule(moduleCode, a.Results)
+		selectionContext, err := loadT0ModuleSelectionContextForResults(
+			moduleCode, tradeDate, a.Results)
+		if err != nil {
+			WriteJSON(w, map[string]interface{}{
+				"error":    err.Error(),
+				"date":     tradeDate,
+				"archived": true,
+				"count":    0,
+			})
+			return
+		}
+		results, err := selectT0ResultsForModule(moduleCode, a.Results, selectionContext)
 		if err != nil {
 			WriteAuthError(w, err)
 			return
 		}
-		writeScopedT0Response(w, moduleCode, map[string]interface{}{
+		writeScopedT0ResponseWithContext(w, moduleCode, map[string]interface{}{
 			"date":             a.Date,
 			"archived":         true,
 			"saved_at":         a.SavedAt,
 			"close_updated_at": a.CloseUpdatedAt,
 			"count":            len(results),
 			"results":          sortT0ResultsForClient(results),
-		}, "results")
+		}, selectionContext, "results")
 		return
 	}
 
@@ -2067,6 +2162,19 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 				"error": err.Error(),
 				"date":  tradeDate,
 			})
+			return
+		}
+		if isT0DailyContextModule(moduleCode) {
+			selectionContext, contextErr := loadT0ModuleSelectionContext(moduleCode, tradeDate)
+			if contextErr != nil {
+				WriteJSON(w, map[string]interface{}{
+					"error": contextErr.Error(),
+					"date":  tradeDate,
+				})
+				return
+			}
+			writeScopedT0ResponseWithContext(
+				w, moduleCode, out, selectionContext, "results")
 			return
 		}
 		writeScopedT0Response(w, moduleCode, out, "results")
@@ -2081,6 +2189,19 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 				"error": err.Error(),
 				"date":  tradeDate,
 			})
+			return
+		}
+		if isT0DailyContextModule(moduleCode) {
+			selectionContext, contextErr := loadT0ModuleSelectionContext(moduleCode, tradeDate)
+			if contextErr != nil {
+				WriteJSON(w, map[string]interface{}{
+					"error": contextErr.Error(),
+					"date":  tradeDate,
+				})
+				return
+			}
+			writeScopedT0ResponseWithContext(
+				w, moduleCode, out, selectionContext, "results")
 			return
 		}
 		writeScopedT0Response(w, moduleCode, out, "results")
@@ -2098,12 +2219,17 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if shouldReturnWarmingForSelection(tradeDate) {
-		writeScopedT0Response(w, moduleCode, map[string]interface{}{
+		response := map[string]interface{}{
 			"date":    tradeDate,
 			"status":  string(t0WarmStatusWarming),
 			"count":   0,
 			"results": []T0SelectionResult{},
-		}, "results")
+		}
+		if isT0DailyContextModule(moduleCode) {
+			WriteJSON(w, response)
+			return
+		}
+		writeScopedT0Response(w, moduleCode, response, "results")
 		return
 	}
 
@@ -2116,7 +2242,23 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	forceSave := isTruthyQuery(q.Get("save"))
-	results, err := RunT0Selection(tradeDate)
+	var (
+		results          []T0SelectionResult
+		selectionContext *t0ModuleSelectionContext
+		err              error
+	)
+	if isT0DailyContextModule(moduleCode) {
+		var daily map[string][]dailyBar
+		results, daily, err = runT0SelectionWithDaily(tradeDate)
+		if err == nil {
+			selectionContext = &t0ModuleSelectionContext{
+				TradeDate: tradeDate,
+				Daily:     daily,
+			}
+		}
+	} else {
+		results, err = RunT0Selection(tradeDate)
+	}
 	if err != nil {
 		WriteJSON(w, map[string]interface{}{
 			"error":   err.Error(),
@@ -2130,15 +2272,15 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	if saveErr := saveT0SelectionArchive(tradeDate, results, forceSave); saveErr != nil {
 		logger.SugaredLogger.Warnf("[T0选股] 结果归档写入失败: %v", saveErr)
 	}
-	selected, err := selectT0ResultsForModule(moduleCode, results)
+	selected, err := selectT0ResultsForModule(moduleCode, results, selectionContext)
 	if err != nil {
 		WriteAuthError(w, err)
 		return
 	}
 
-	writeScopedT0Response(w, moduleCode, map[string]interface{}{
+	writeScopedT0ResponseWithContext(w, moduleCode, map[string]interface{}{
 		"date":    tradeDate,
 		"count":   len(selected),
 		"results": sortT0ResultsForClient(selected),
-	}, "results")
+	}, selectionContext, "results")
 }

@@ -20,6 +20,50 @@ func TestDisplayRuleHitsMatchesAnyLimitUpLimitDown(t *testing.T) {
 	}
 }
 
+func TestDisplayRuleHitsMatchesRedKThenLimitDownT0(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 10.5, High: 10.5, Low: 10},
+		{Date: "2026-09-03", Open: 9.45, Close: 9.45, High: 9.45, Low: 9.45},
+	}
+
+	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
+	want := []string{"红K＋跌停后的开盘竞价"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("displayRuleHitsForResult()=%v want %v", got, want)
+	}
+}
+
+func TestDisplayRuleHitsDoesNotMatchRedKThenLimitDownPreview(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 10.5, High: 10.5, Low: 10},
+		{Date: "2026-09-03", Open: 9.45, Close: 9.45, High: 9.45, Low: 9.45},
+	}
+
+	got := displayRuleHitsForResult(hist, T0SelectionResult{})
+	for _, hit := range got {
+		if hit == displayRuleRedKLimitDownT0 {
+			t.Fatalf("preview unexpectedly matched %q: %v", displayRuleRedKLimitDownT0, got)
+		}
+	}
+}
+
+func TestDisplayRuleHitsDoesNotMatchBearishKThenLimitDownT0(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10.5, Close: 10, High: 10.5, Low: 10},
+		{Date: "2026-09-03", Open: 9, Close: 9, High: 9, Low: 9},
+	}
+
+	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
+	for _, hit := range got {
+		if hit == displayRuleRedKLimitDownT0 {
+			t.Fatalf("bearish K unexpectedly matched %q: %v", displayRuleRedKLimitDownT0, got)
+		}
+	}
+}
+
 func TestDisplayRuleHitsMatchesLimitUpAndLatestBearishTagLogic(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},
@@ -114,7 +158,8 @@ func TestEnrichT0ResultsForDisplayReadsExistingGobAndDoesNotFilter(t *testing.T)
 	if len(got) != 1 {
 		t.Fatalf("result count=%d want 1", len(got))
 	}
-	if !reflect.DeepEqual(got[0].DisplayRuleHits, []string{"任意K线＋涨停＋跌停"}) {
+	if !reflect.DeepEqual(got[0].DisplayRuleHits,
+		[]string{"任意K线＋涨停＋跌停", "红K＋跌停后的开盘竞价"}) {
 		t.Fatalf("hits=%v", got[0].DisplayRuleHits)
 	}
 	if original[0].DisplayRuleHits != nil {
@@ -142,7 +187,7 @@ func TestEnrichT0ResultsForDisplayMatchesHistoricalTwoLimitUpsAndBearishRule(t *
 	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-05")
 	want := []string{
 		"涨停＋阴线标记",
-		"涨停＋涨停＋普通阴线（T0开盘0.01%～3%）",
+		"涨停＋涨停＋普通阴线",
 	}
 	if !reflect.DeepEqual(got[0].DisplayRuleHits, want) {
 		t.Fatalf("hits=%v want %v", got[0].DisplayRuleHits, want)

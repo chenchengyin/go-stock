@@ -249,15 +249,19 @@ func TestT0PrewarmHistoricalLegacyArchiveIsEnrichedBeforeModuleScope(t *testing.
   "date": "2026-01-08",
   "saved_at": "2026-01-08T09:30:00Z",
   "count": 1,
-  "results": [{"股票代码": "600000.XSHG", "股票名称": "浦发银行"}]
+  "results": [{"股票代码": "600000.XSHG", "股票名称": "浦发银行", "前一交易日收盘": 10.3}]
 }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	response := buildPrewarmReadyResponseAt(tradeDate,
 		time.Date(2026, 1, 9, 8, 0, 0, 0, chinaLocation()))
-	if err := scopeT0ResponseResults(
-		"radar.purple_strategy", response, "results"); err != nil {
+	selectionContext := &t0ModuleSelectionContext{
+		TradeDate: tradeDate,
+		Daily:     daily,
+	}
+	if err := scopeT0ResponseResultsWithContext(
+		"radar.purple_strategy", response, "results", selectionContext); err != nil {
 		t.Fatal(err)
 	}
 	results, ok := response["results"].([]T0SelectionResult)

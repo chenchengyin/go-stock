@@ -16,6 +16,15 @@ import 'package:trading_app/features/permissions/presentation/module_permission_
 final _allRadarModules = <ModuleDefinition>[
   ...publicModuleDefinitions,
   const ModuleDefinition(
+    code: 'radar.red_strategy',
+    name: '红策',
+    client: 'flutter_web',
+    placement: 'radar_tab',
+    parentCode: null,
+    sort: 15,
+    accessMode: ModuleAccessMode.userAllowlist,
+  ),
+  const ModuleDefinition(
     code: 'radar.purple_strategy',
     name: '紫策',
     client: 'flutter_web',
@@ -51,6 +60,50 @@ ChangeNotifierProvider<ModulePermissionController> _permissionProvider() {
 }
 
 void main() {
+  testWidgets('周末策略状态显示无数据', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+    addTearDown(() {
+      disposeVms();
+    });
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-12',
+      'no_data': true,
+      'results': <dynamic>[],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('主板策略'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('无数据'), findsOneWidget);
+    disposeVms();
+  });
+
   testWidgets('主板策略页内容支持文本选择', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
@@ -115,7 +168,7 @@ void main() {
     expect(find.text('股票代码已复制'), findsOneWidget);
   });
 
-  testWidgets('涨停破板标签在 Flutter UI 中显示为石皮', (tester) async {
+  testWidgets('涨停破板标签在 Flutter UI 中显示为 P', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -158,12 +211,12 @@ void main() {
     await tester.tap(find.text('主板策略(1)'));
     await tester.pumpAndSettle();
 
-    expect(find.text('[石皮]'), findsOneWidget);
+    expect(find.text('[P]'), findsOneWidget);
     expect(find.text('[涨停破板]'), findsNothing);
     disposeVms();
   });
 
-  testWidgets('命中显示条件的股票名称在三个策略页均显示为红色', (tester) async {
+  testWidgets('命中显示条件的股票名称在四个策略页均显示为红色', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -197,6 +250,10 @@ void main() {
     strategyVm.applyResponseForTest({
       'date': '2026-09-02',
       'results': [result()],
+    }, moduleCode: t0RedStrategyModuleCode);
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [result()],
     }, moduleCode: t0PurpleStrategyModuleCode);
     strategyVm.applyResponseForTest({
       'date': '2026-09-02',
@@ -218,7 +275,7 @@ void main() {
     );
     await tester.pump();
 
-    for (final tabLabel in ['紫策(1)', '主板策略(1)', '蓝策(1)']) {
+    for (final tabLabel in ['红策(1)', '紫策(1)', '主板策略(1)', '蓝策(1)']) {
       await tester.tap(find.text(tabLabel));
       await tester.pumpAndSettle();
       final stockName = tester.widget<Text>(find.text('三连形态股'));
@@ -457,10 +514,7 @@ void main() {
     expect(find.text('[皮]'), findsOneWidget);
     expect(find.text('[石皮]'), findsNothing);
     expect(find.text('50/70/2'), findsOneWidget);
-    expect(
-      find.byTooltip('达标 50%  ·  赚率 70%（T0≥0，含小赚，不是达标率）'),
-      findsNothing,
-    );
+    expect(find.byTooltip('达标 50%  ·  赚率 70%（T0≥0，含小赚，不是达标率）'), findsNothing);
     disposeVms();
   });
 
@@ -618,7 +672,12 @@ void main() {
           '形态达标率(%)': 30.1,
           '形态真亏率(%)': 39.9,
         },
-        {'股票代码': '600002.XSHG', '股票名称': '非紫股', '形态达标率(%)': 29.9, '形态真亏率(%)': 20},
+        {
+          '股票代码': '600002.XSHG',
+          '股票名称': '非紫股',
+          '形态达标率(%)': 29.9,
+          '形态真亏率(%)': 20,
+        },
       ],
     });
     strategyVm.applyResponseForTest({
@@ -631,7 +690,12 @@ void main() {
           '形态达标率(%)': 30.1,
           '形态真亏率(%)': 39.9,
         },
-        {'股票代码': '600002.XSHG', '股票名称': '非紫股', '形态达标率(%)': 29.9, '形态真亏率(%)': 20},
+        {
+          '股票代码': '600002.XSHG',
+          '股票名称': '非紫股',
+          '形态达标率(%)': 29.9,
+          '形态真亏率(%)': 20,
+        },
       ],
     }, moduleCode: t0PurpleStrategyModuleCode);
 

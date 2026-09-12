@@ -88,15 +88,23 @@ func TestEnrichResultWithPattern(t *testing.T) {
 
 func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	results := []T0SelectionResult{
-		{StockCode: "purple", PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
-		{StockCode: "purple-win-boundary", PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
-		{StockCode: "purple-earn-boundary", PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 40, BuySignal: BuySignalGreen},
+		{StockCode: "purple", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
+		{StockCode: "purple-win-boundary", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
+		{StockCode: "purple-earn-boundary", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 40, BuySignal: BuySignalGreen},
 		{StockCode: "blue", PatternT0N: 1, BuySignal: BuySignalBlue},
 		{StockCode: "other", PatternT0N: 2, PatternWinPct: 29.9, PatternFailPct: 39, BuySignal: BuySignalGreen},
 	}
 	original := append([]T0SelectionResult(nil), results...)
+	purpleContext := &t0ModuleSelectionContext{
+		TradeDate: "2026-09-10",
+		Daily: map[string][]dailyBar{
+			"purple":               {{Date: "2026-07-01", Close: 10}, {Date: "2026-09-09", Close: 10}},
+			"purple-win-boundary":  {{Date: "2026-07-01", Close: 10}, {Date: "2026-09-09", Close: 10}},
+			"purple-earn-boundary": {{Date: "2026-07-01", Close: 10}, {Date: "2026-09-09", Close: 10}},
+		},
+	}
 
-	purple, err := selectT0ResultsForModule("radar.purple_strategy", results)
+	purple, err := selectT0ResultsForModule("radar.purple_strategy", results, purpleContext)
 	if err != nil {
 		t.Fatalf("select purple: %v", err)
 	}
@@ -108,7 +116,7 @@ func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	}
 	purple[0].StockCode = "mutated"
 
-	blue, err := selectT0ResultsForModule("radar.blue_strategy", results)
+	blue, err := selectT0ResultsForModule("radar.blue_strategy", results, nil)
 	if err != nil {
 		t.Fatalf("select blue: %v", err)
 	}
@@ -120,7 +128,7 @@ func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	}
 	blue[0].StockCode = "mutated"
 
-	main, err := selectT0ResultsForModule("radar.main_strategy", results)
+	main, err := selectT0ResultsForModule("radar.main_strategy", results, nil)
 	if err != nil {
 		t.Fatalf("select main: %v", err)
 	}
@@ -133,7 +141,7 @@ func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 }
 
 func TestSelectT0ResultsForModuleRejectsUnknownModule(t *testing.T) {
-	if _, err := selectT0ResultsForModule("radar.monitored", nil); !IsAuthCode(err, "INVALID_ARGUMENT") {
+	if _, err := selectT0ResultsForModule("radar.monitored", nil, nil); !IsAuthCode(err, "INVALID_ARGUMENT") {
 		t.Fatalf("error = %v, want INVALID_ARGUMENT", err)
 	}
 }

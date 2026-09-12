@@ -4,6 +4,7 @@ import '../../../permissions/domain/module_definition.dart';
 
 enum RadarContentKind {
   monitored,
+  redStrategy,
   purpleStrategy,
   mainStrategy,
   blueStrategy,
@@ -35,6 +36,13 @@ const radarModuleDefinitions = <RadarModuleDefinition>[
     sort: 10,
     accessMode: ModuleAccessMode.public,
     contentKind: RadarContentKind.monitored,
+  ),
+  RadarModuleDefinition(
+    code: 'radar.red_strategy',
+    name: '红策',
+    sort: 15,
+    accessMode: ModuleAccessMode.userAllowlist,
+    contentKind: RadarContentKind.redStrategy,
   ),
   RadarModuleDefinition(
     code: 'radar.purple_strategy',

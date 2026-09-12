@@ -52,7 +52,7 @@ class StockCodeCopyButton extends StatelessWidget {
   }
 }
 
-enum _StrategyListKind { main, purple, blue }
+enum _StrategyListKind { main, red, purple, blue }
 
 class RadarPage extends StatefulWidget {
   const RadarPage({super.key});
@@ -360,6 +360,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   String _tabLabel(RadarModuleDefinition module, T0StrategyViewModel t0Vm) {
     final count = switch (module.contentKind) {
+      RadarContentKind.redStrategy => t0Vm.resultsFor(module.code).length,
       RadarContentKind.purpleStrategy =>
         t0Vm.purpleResultsFor(module.code).length,
       RadarContentKind.mainStrategy => t0Vm.resultsFor(module.code).length,
@@ -374,6 +375,16 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       case RadarContentKind.monitored:
         return Consumer<RadarViewModel>(
           builder: (_, vm, __) => _buildStockTab(vm),
+        );
+      case RadarContentKind.redStrategy:
+        return Consumer<T0StrategyViewModel>(
+          builder: (_, vm, __) => SelectionArea(
+            child: _buildStrategyTab(
+              vm,
+              moduleCode: module.code,
+              kind: _StrategyListKind.red,
+            ),
+          ),
         );
       case RadarContentKind.purpleStrategy:
         return Consumer<T0StrategyViewModel>(
@@ -908,14 +919,18 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final state = vm.stateFor(moduleCode);
     final stocks = switch (kind) {
       _StrategyListKind.main => vm.resultsFor(moduleCode),
+      _StrategyListKind.red => vm.resultsFor(moduleCode),
       _StrategyListKind.purple => vm.purpleResultsFor(moduleCode),
       _StrategyListKind.blue => vm.blueResultsFor(moduleCode),
     };
-    final emptyText = switch (kind) {
-      _StrategyListKind.main => '暂无符合条件的股票',
-      _StrategyListKind.purple => '暂无符合紫策条件的股票',
-      _StrategyListKind.blue => '暂无蓝色灯股票',
-    };
+    final emptyText = state.noData
+        ? '无数据'
+        : switch (kind) {
+            _StrategyListKind.main => '暂无符合条件的股票',
+            _StrategyListKind.red => '暂无符合红策条件的股票',
+            _StrategyListKind.purple => '暂无符合紫策条件的股票',
+            _StrategyListKind.blue => '暂无蓝色灯股票',
+          };
     final wp = state.warmProgress;
 
     // 预热进度 / 等待中
@@ -1124,8 +1139,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final tagLabel = stock.tag == '涨停破板'
         ? (kind == _StrategyListKind.purple ? '皮' : 'P')
         : (stock.tag == '前一天跌停'
-            ? '足'
-            : (stock.tag == '前一天大阴线' ? '月' : stock.tag));
+              ? '足'
+              : (stock.tag == '前一天大阴线' ? '月' : stock.tag));
     final livePct = stock.liveChangePercent ?? 0.0;
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;

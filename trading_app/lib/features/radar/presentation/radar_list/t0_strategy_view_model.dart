@@ -56,9 +56,7 @@ class T0StrategyStock {
   factory T0StrategyStock.fromJson(Map<String, dynamic> json) {
     final rawDisplayRuleHits = json['命中条件'];
     final displayRuleHits = rawDisplayRuleHits is List
-        ? List<String>.unmodifiable(
-            rawDisplayRuleHits.whereType<String>(),
-          )
+        ? List<String>.unmodifiable(rawDisplayRuleHits.whereType<String>())
         : const <String>[];
     return T0StrategyStock(
       stockCode: json['股票代码'] as String? ?? '',
@@ -135,7 +133,8 @@ class T0WarmProgress {
   bool get isFailed => status == 'failed';
 }
 
-/// 主板策略（T0 开盘日线选股）ViewModel
+/// T0 策略（开盘日线选股）ViewModel
+const t0RedStrategyModuleCode = 'radar.red_strategy';
 const t0PurpleStrategyModuleCode = 'radar.purple_strategy';
 const t0MainStrategyModuleCode = 'radar.main_strategy';
 const t0BlueStrategyModuleCode = 'radar.blue_strategy';
@@ -160,6 +159,7 @@ class T0ModuleState {
     required this.selectedDate,
     required this.phase,
     required this.loaded,
+    required this.noData,
   });
 
   final List<T0StrategyStock> results;
@@ -173,6 +173,7 @@ class T0ModuleState {
   final String? selectedDate;
   final T0StrategyPhase phase;
   final bool loaded;
+  final bool noData;
 
   bool get showingCandidatePreview => phase == T0StrategyPhase.candidatePreview;
 
@@ -196,6 +197,8 @@ class _MutableT0ModuleState {
   String? selectedDate;
   T0StrategyPhase phase = T0StrategyPhase.waiting;
   bool loaded = false;
+  bool noData = false;
+  int loadGeneration = 0;
 }
 
 class T0StrategyViewModel extends ChangeNotifier {
@@ -214,6 +217,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   final T0Request? _request;
   final void Function(String moduleCode)? _onModuleForbidden;
   final Map<String, _MutableT0ModuleState> _states = {
+    t0RedStrategyModuleCode: _MutableT0ModuleState(),
     t0PurpleStrategyModuleCode: _MutableT0ModuleState(),
     t0MainStrategyModuleCode: _MutableT0ModuleState(),
     t0BlueStrategyModuleCode: _MutableT0ModuleState(),
@@ -237,6 +241,7 @@ class T0StrategyViewModel extends ChangeNotifier {
       selectedDate: state.selectedDate,
       phase: state.phase,
       loaded: state.loaded,
+      noData: state.noData,
     );
   }
 
@@ -375,9 +380,11 @@ class T0StrategyViewModel extends ChangeNotifier {
       state.availableDates = raw.map((e) => e.toString()).toList();
       if (state.selectedDate == null && state.availableDates.isNotEmpty) {
         final today = _shanghaiToday();
-        state.selectedDate = state.availableDates.contains(today)
+        state.selectedDate = _isWeekendDate(today)
             ? today
-            : state.availableDates.first;
+            : (state.availableDates.contains(today)
+                  ? today
+                  : state.availableDates.first);
       }
       notifyListeners();
     } catch (error) {
@@ -440,11 +447,28 @@ class T0StrategyViewModel extends ChangeNotifier {
   Future<void> selectDate(String moduleCode, String date) async {
     final state = _mutableState(moduleCode);
     if (date.isEmpty || date == state.selectedDate) return;
+    state.results = [];
+    state.candidates = [];
+    state.error = null;
+    state.warmProgress = null;
+    state.displayDate = null;
+    state.showingHistorical = false;
+    state.phase = T0StrategyPhase.waiting;
+    state.noData = false;
+    state.selectedDate = date;
+    _stopQuotePolling(moduleCode);
+    _stopPolling(moduleCode);
+    notifyListeners();
     final today = _shanghaiToday();
     if (date == today) {
-      await loadResults(moduleCode: moduleCode);
+      await _loadResults(moduleCode: moduleCode, replaceLoading: true);
     } else {
-      await loadResults(moduleCode: moduleCode, date: date, archived: true);
+      await _loadResults(
+        moduleCode: moduleCode,
+        date: date,
+        archived: true,
+        replaceLoading: true,
+      );
     }
   }
 
@@ -454,11 +478,22 @@ class T0StrategyViewModel extends ChangeNotifier {
     String? date,
     bool archived = false,
   }) async {
-    final state = _mutableState(moduleCode);
-    if (state.loading) return;
+    await _loadResults(moduleCode: moduleCode, date: date, archived: archived);
+  }
 
+  Future<void> _loadResults({
+    required String moduleCode,
+    String? date,
+    bool archived = false,
+    bool replaceLoading = false,
+  }) async {
+    final state = _mutableState(moduleCode);
+    if (state.loading && !replaceLoading) return;
+
+    final loadGeneration = ++state.loadGeneration;
     state.loading = true;
     state.error = null;
+    state.noData = false;
     notifyListeners();
 
     try {
@@ -471,11 +506,13 @@ class T0StrategyViewModel extends ChangeNotifier {
       }
 
       final data = await _sendRequest(moduleCode, queryParams);
+      if (loadGeneration != state.loadGeneration) return;
       _applyResponse(moduleCode, data, date);
       if (_mutableState(moduleCode).phase != T0StrategyPhase.candidatePreview) {
         await loadAvailableDates(moduleCode: moduleCode);
       }
     } catch (error) {
+      if (loadGeneration != state.loadGeneration) return;
       if (_isModuleForbidden(error)) {
         _forbidModule(moduleCode);
       } else {
@@ -485,8 +522,10 @@ class T0StrategyViewModel extends ChangeNotifier {
         state.warmProgress = null;
       }
     } finally {
-      state.loading = false;
-      notifyListeners();
+      if (loadGeneration == state.loadGeneration) {
+        state.loading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -500,6 +539,13 @@ class T0StrategyViewModel extends ChangeNotifier {
     final m = now.month.toString().padLeft(2, '0');
     final d = now.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
+  }
+
+  bool _isWeekendDate(String date) {
+    final parsed = DateTime.tryParse(date);
+    if (parsed == null) return false;
+    return parsed.weekday == DateTime.saturday ||
+        parsed.weekday == DateTime.sunday;
   }
 
   int _shanghaiMinutes() {
@@ -519,6 +565,22 @@ class T0StrategyViewModel extends ChangeNotifier {
   ) {
     final state = _mutableState(moduleCode);
     state.loaded = true;
+    final noData = data['no_data'] as bool? ?? false;
+    if (noData) {
+      state.results = [];
+      state.candidates = [];
+      state.error = null;
+      state.warmProgress = null;
+      state.displayDate = null;
+      state.showingHistorical = false;
+      state.selectedDate = data['date'] as String? ?? date;
+      state.phase = T0StrategyPhase.waiting;
+      state.noData = true;
+      _stopQuotePolling(moduleCode);
+      _stopPolling(moduleCode);
+      return;
+    }
+    state.noData = false;
     final status = data['status'] as String?;
     final prewarm = data['prewarm'] as bool? ?? false;
     final archived = data['archived'] as bool? ?? false;
@@ -630,7 +692,18 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.showingHistorical = false;
     state.selectedDate = null;
     state.phase = T0StrategyPhase.waiting;
+    state.noData = false;
     state.warmProgress = null;
+    final responseError = data['error'] as String?;
+    state.error = responseError;
+    if (date != null && date.isNotEmpty && responseError != null) {
+      state.selectedDate = date;
+      state.showingHistorical =
+          archived || (data['historical'] as bool? ?? false);
+      state.phase = archived
+          ? T0StrategyPhase.historical
+          : T0StrategyPhase.waiting;
+    }
     _stopQuotePolling(moduleCode);
     _stopPolling(moduleCode);
   }

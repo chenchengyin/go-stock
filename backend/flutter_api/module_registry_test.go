@@ -6,6 +6,7 @@ func TestRegisteredModulesContainsCurrentRadarTabs(t *testing.T) {
 	got := RegisteredModules()
 	want := []string{
 		"radar.monitored",
+		"radar.red_strategy",
 		"radar.purple_strategy",
 		"radar.main_strategy",
 		"radar.blue_strategy",
@@ -23,6 +24,31 @@ func TestRegisteredModulesContainsCurrentRadarTabs(t *testing.T) {
 			t.Fatalf("module[%d] = %+v", index, module)
 		}
 		seen[module.Code] = true
+	}
+}
+
+func TestRegisteredStrategyModulesHaveSelectionDispatch(t *testing.T) {
+	if err := validateRegisteredModuleContracts(); err != nil {
+		t.Fatalf("registered module contract: %v", err)
+	}
+}
+
+func TestRegisteredModuleContractsRejectMissingStrategyDispatch(t *testing.T) {
+	original := registeredModules
+	registeredModules = append(append([]ModuleDefinition(nil), original...), ModuleDefinition{
+		Code:       "radar.future_strategy",
+		Name:       "未来策略",
+		Client:     "flutter_web",
+		Placement:  "radar_tab",
+		Sort:       70,
+		AccessMode: ModuleAccessAllowlist,
+	})
+	t.Cleanup(func() {
+		registeredModules = original
+	})
+
+	if err := validateRegisteredModuleContracts(); err == nil {
+		t.Fatal("expected missing strategy dispatch to be rejected")
 	}
 }
 

@@ -11,6 +11,15 @@ var registeredModules = []ModuleDefinition{
 		AccessMode: ModuleAccessPublic,
 	},
 	{
+		Code:       "radar.red_strategy",
+		Name:       "红策",
+		Client:     "flutter_web",
+		Placement:  "radar_tab",
+		ParentCode: nil,
+		Sort:       15,
+		AccessMode: ModuleAccessAllowlist,
+	},
+	{
 		Code:       "radar.purple_strategy",
 		Name:       "紫策",
 		Client:     "flutter_web",

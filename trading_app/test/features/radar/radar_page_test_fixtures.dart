@@ -19,6 +19,15 @@ List<ModuleDefinition> radarModulesFor(Iterable<String> codes) {
 
 ModuleDefinition _moduleFor(String code) {
   return switch (code) {
+    'radar.red_strategy' => const ModuleDefinition(
+      code: 'radar.red_strategy',
+      name: '红策',
+      client: 'flutter_web',
+      placement: 'radar_tab',
+      parentCode: null,
+      sort: 15,
+      accessMode: ModuleAccessMode.userAllowlist,
+    ),
     'radar.purple_strategy' => const ModuleDefinition(
       code: 'radar.purple_strategy',
       name: '紫策',

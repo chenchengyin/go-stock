@@ -180,6 +180,63 @@ func TestBuildPrewarmReadyResponseNoHistoricalAfter0900(t *testing.T) {
 	}
 }
 
+func TestHandleT0SelectionWeekendReturnsNoData(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	for _, date := range []string{"2026-09-12", "2026-09-13"} {
+		t.Run(date, func(t *testing.T) {
+			if err := saveT0DailyCache(date,
+				[]t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "周末测试股"}},
+				map[string][]dailyBar{"600000": {{Date: "2026-09-11", Close: 10}}}); err != nil {
+				t.Fatal(err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/t0-selection?module_code=radar.main_strategy&date="+date, nil)
+			rr := httptest.NewRecorder()
+			handleT0Selection(rr, req)
+
+			body := rr.Body.String()
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status %d body %s", rr.Code, body)
+			}
+			if !strings.Contains(body, `"no_data":true`) {
+				t.Fatalf("weekend response should be marked no_data: %s", body)
+			}
+			if strings.Contains(body, `"candidates"`) || strings.Contains(body, `"historical":true`) {
+				t.Fatalf("weekend response must not expose previous-day data: %s", body)
+			}
+		})
+	}
+}
+
+func TestHandleT0SelectionWeekendPurpleReturnsNoData(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	date := "2026-09-12"
+	if err := saveT0DailyCache(date,
+		[]t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "周末测试股"}},
+		map[string][]dailyBar{"600000": {{Date: "2026-09-11", Close: 10}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.purple_strategy&date="+date, nil)
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"no_data":true`) {
+		t.Fatalf("purple weekend response should be marked no_data: %s", rr.Body.String())
+	}
+}
+
 func TestListSelectionArchiveDates(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
@@ -225,6 +282,27 @@ func TestHandleT0SelectionListDates(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "2026-08-10") {
 		t.Fatalf("body: %s", rr.Body.String())
+	}
+}
+
+func TestHandleT0SelectionListDatesKeepsRedDatesWithoutDailyCaches(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	mustSaveArchive(t, "2026-09-03", "600003.XSHG")
+	mustSaveArchive(t, "2026-09-04", "600004.XSHG")
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?list_dates=1&module_code=radar.red_strategy", nil)
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "2026-09-04") ||
+		!strings.Contains(rr.Body.String(), "2026-09-03") {
+		t.Fatalf("red dates without daily cache must remain selectable: %s", rr.Body.String())
 	}
 }
 
