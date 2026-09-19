@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -84,6 +85,63 @@ func TestAdminHTTPListsUsersAndFiltersKeywordWithSessionCookie(t *testing.T) {
 	}
 	if body.Total != 1 || len(body.Items) != 1 || body.Items[0].Nickname != "Alice" {
 		t.Fatalf("list body = %+v, want one Alice", body)
+	}
+	if body.Items[0].LastUsedAt != nil {
+		t.Fatalf("lastUsedAt = %v, want nil before first use", body.Items[0].LastUsedAt)
+	}
+}
+
+func TestAdminHTTPListsUsersWithLastUsedAt(t *testing.T) {
+	auth := newTestAuthService(t)
+	createAdminForTest(t, auth.dao)
+	handler := NewAdminHTTPHandler(NewAdminService(auth.dao, nil), NewModuleService(auth.dao))
+	registered := createUserForAdminTest(t, auth, "13800000000", "Alice")
+	if _, err := newTestAdminService(auth.dao).UpdateUserStatus(context.Background(), registered.User.ID, authStatusActive); err != nil {
+		t.Fatalf("enable user: %v", err)
+	}
+	session, err := auth.Login(context.Background(), LoginInput{
+		Phone: "13800000000", Password: "secret123", DeviceID: "device-a",
+	})
+	if err != nil {
+		t.Fatalf("login user: %v", err)
+	}
+	if _, err := auth.Authenticate(context.Background(), session.AccessToken); err != nil {
+		t.Fatalf("authenticate user: %v", err)
+	}
+	auth.nowValue = auth.nowValue.Add(time.Hour)
+	session, err = auth.Login(context.Background(), LoginInput{
+		Phone: "13800000000", Password: "secret123", DeviceID: "device-b",
+	})
+	if err != nil {
+		t.Fatalf("login user again: %v", err)
+	}
+	if _, err := auth.Authenticate(context.Background(), session.AccessToken); err != nil {
+		t.Fatalf("authenticate user again: %v", err)
+	}
+
+	cookie := loginAdminCookieForTest(t, handler)
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var body struct {
+		Items []struct {
+			Phone      string     `json:"phone"`
+			LastUsedAt *time.Time `json:"lastUsedAt"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(body.Items) != 1 || body.Items[0].Phone != "13800000000" {
+		t.Fatalf("list body = %+v, want one user", body)
+	}
+	if body.Items[0].LastUsedAt == nil || !body.Items[0].LastUsedAt.Equal(auth.nowValue) {
+		t.Fatalf("lastUsedAt = %v, want %v", body.Items[0].LastUsedAt, auth.nowValue)
 	}
 }
 

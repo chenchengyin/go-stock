@@ -141,15 +141,16 @@ async function handlePermissionsSaved() {
             <th>角色</th>
             <th>状态</th>
             <th>注册时间</th>
+            <th>上次使用</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="7" class="table-state">正在加载用户…</td>
+            <td colspan="8" class="table-state">正在加载用户…</td>
           </tr>
           <tr v-else-if="users.length === 0">
-            <td colspan="7" class="table-state">暂无用户</td>
+            <td colspan="8" class="table-state">暂无用户</td>
           </tr>
           <tr v-for="user in users" v-else :key="user.id">
             <td>
@@ -166,6 +167,7 @@ async function handlePermissionsSaved() {
             <td>{{ user.role === 'admin' ? '管理员' : '普通用户' }}</td>
             <td><span class="status-badge" :class="`status-${user.status}`">{{ user.status === 'active' ? '启用' : '禁用' }}</span></td>
             <td>{{ new Date(user.createdAt).toLocaleString('zh-CN') }}</td>
+            <td>{{ user.lastUsedAt ? new Date(user.lastUsedAt).toLocaleString('zh-CN') : '—' }}</td>
             <td>
               <button
                 type="button"

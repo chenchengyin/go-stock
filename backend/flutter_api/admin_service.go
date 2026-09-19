@@ -32,13 +32,14 @@ type AdminPrincipal struct {
 }
 
 type AdminUser struct {
-	ID        string    `json:"id"`
-	Phone     string    `json:"phone"`
-	Nickname  string    `json:"nickname"`
-	Role      string    `json:"role"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID         string     `json:"id"`
+	Phone      string     `json:"phone"`
+	Nickname   string     `json:"nickname"`
+	Role       string     `json:"role"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
+	LastUsedAt *time.Time `json:"lastUsedAt"`
 }
 
 type AdminUserList struct {
@@ -170,11 +171,43 @@ func (s *AdminService) ListUsers(ctx context.Context, keyword string) (*AdminUse
 	if err := query.Order("created_at DESC").Find(&users).Error; err != nil {
 		return nil, err
 	}
+	lastUsedAtByUserID, err := s.listLastUsedAt(ctx, users)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]AdminUser, 0, len(users))
 	for _, user := range users {
-		items = append(items, toAdminUser(user))
+		items = append(items, toAdminUserWithLastUsedAt(user, lastUsedAtByUserID[user.ID]))
 	}
 	return &AdminUserList{Items: items, Total: total}, nil
+}
+
+func (s *AdminService) listLastUsedAt(ctx context.Context, users []AuthUser) (map[string]*time.Time, error) {
+	lastUsedAtByUserID := make(map[string]*time.Time, len(users))
+	if len(users) == 0 {
+		return lastUsedAtByUserID, nil
+	}
+
+	userIDs := make([]string, 0, len(users))
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+	var sessions []AuthSession
+	if err := s.dao.WithContext(ctx).Model(&AuthSession{}).
+		Select("user_id, last_seen_at").
+		Where("user_id IN ?", userIDs).
+		Order("last_seen_at DESC").
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	for _, session := range sessions {
+		if _, exists := lastUsedAtByUserID[session.UserID]; exists {
+			continue
+		}
+		lastUsedAt := session.LastSeenAt
+		lastUsedAtByUserID[session.UserID] = &lastUsedAt
+	}
+	return lastUsedAtByUserID, nil
 }
 
 func (s *AdminService) UpdateUserStatus(ctx context.Context, userID, status string) (*AdminUser, error) {
@@ -217,5 +250,18 @@ func (s *AdminService) UpdateUserStatus(ctx context.Context, userID, status stri
 }
 
 func toAdminUser(user AuthUser) AdminUser {
-	return AdminUser{ID: user.ID, Phone: user.Phone, Nickname: user.Nickname, Role: user.Role, Status: user.Status, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
+	return toAdminUserWithLastUsedAt(user, nil)
+}
+
+func toAdminUserWithLastUsedAt(user AuthUser, lastUsedAt *time.Time) AdminUser {
+	return AdminUser{
+		ID:         user.ID,
+		Phone:      user.Phone,
+		Nickname:   user.Nickname,
+		Role:       user.Role,
+		Status:     user.Status,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+		LastUsedAt: lastUsedAt,
+	}
 }
