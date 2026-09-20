@@ -10,11 +10,13 @@ import 'package:trading_app/features/radar/domain/voice_announcement_view_model.
 import 'package:trading_app/features/permissions/domain/module_definition.dart';
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
 import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
+
 import 'monitor_settings_page.dart';
 import 'radar_view_model.dart';
 import 't0_strategy_view_model.dart';
 import 'radar_module_definitions.dart';
 import 'search_results_panel.dart';
+import 'stock_rating_store.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 
@@ -28,9 +30,8 @@ class StockCodeCopyButton extends StatelessWidget {
     if (normalizedCode.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: normalizedCode));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('股票代码已复制')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('股票代码已复制')));
   }
 
   @override
@@ -90,6 +91,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   List<RadarModuleDefinition> _visibleModules = [];
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
+  final StockRatingStore _stockRatingStore = StockRatingStore();
+  Map<String, StockRating> _stockRatings = <String, StockRating>{};
 
   bool get _permissionLoadFailed =>
       _permissionController.state == ModulePermissionState.failure;
@@ -103,6 +106,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     _tabController.addListener(_onTabChanged);
     _permissionController.addListener(_onPermissionsChanged);
     _radarViewModel = context.read<RadarViewModel>();
+    _loadStockRatings();
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
@@ -122,6 +126,26 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         );
       }
     });
+  }
+
+  Future<void> _loadStockRatings() async {
+    final ratings = await _stockRatingStore.loadAll();
+    if (!mounted) return;
+    setState(() => _stockRatings = ratings);
+  }
+
+  Future<void> _setStockRating(String stockCode, StockRating rating) async {
+    final normalizedCode = StockRatingStore.normalizeStockCode(stockCode);
+    if (normalizedCode.isEmpty) return;
+
+    setState(() {
+      if (rating == StockRating.unrated) {
+        _stockRatings.remove(normalizedCode);
+      } else {
+        _stockRatings[normalizedCode] = rating;
+      }
+    });
+    await _stockRatingStore.save(stockCode, rating);
   }
 
   List<RadarModuleDefinition> _resolveVisibleModules() {
@@ -781,9 +805,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Future<void> _openInTongHuaShun(BuildContext context, String code) async {
     final opened = await StockLauncher.openTongHuaShun(code: code);
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('未能打开同花顺或浏览器')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('未能打开同花顺或浏览器')));
     }
   }
 
@@ -842,7 +865,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       color: AppColors.cardBg,
-      child: Row(
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 4,
         children: [
           Text(
             '当前显示',
@@ -1157,6 +1182,68 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
+  Color _stockRatingColor(StockRating rating) {
+    return switch (rating) {
+      StockRating.heavy => AppColors.error,
+      StockRating.light => AppColors.tagOrange,
+      StockRating.avoid => AppColors.textSecondary,
+      StockRating.unrated => AppColors.textTertiary,
+    };
+  }
+
+  Widget _buildStockRatingChip(T0StrategyStock stock) {
+    final normalizedCode = StockRatingStore.normalizeStockCode(stock.rawCode);
+    final rating = _stockRatings[normalizedCode] ?? StockRating.unrated;
+    final color = _stockRatingColor(rating);
+
+    return PopupMenuButton<StockRating>(
+      key: ValueKey('stock-rating-$normalizedCode'),
+      tooltip: '设置股票评级',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      onSelected: (nextRating) => _setStockRating(stock.rawCode, nextRating),
+      itemBuilder: (_) => StockRating.values
+          .map(
+            (option) => PopupMenuItem<StockRating>(
+              value: option,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 20,
+                    child: option == rating
+                        ? Icon(
+                            Icons.check,
+                            size: 16,
+                            color: _stockRatingColor(option),
+                          )
+                        : null,
+                  ),
+                  Text(option.label),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          rating.label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStrategyCard(
     T0StrategyStock stock, {
     bool preview = false,
@@ -1176,18 +1263,74 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final livePct = stock.liveChangePercent ?? 0.0;
     final liveUp = livePct >= 0;
     final liveColor = liveUp ? AppColors.textPriceUp : AppColors.textPriceDown;
-    final stockName = Text(
+    Widget buildStockName() => Text(
       stock.stockName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: TextStyle(
         fontWeight: FontWeight.w600,
         fontSize: 14,
         color: stock.hasStrongDisplayRuleHit
-            ? AppColors.errorStrong
+            ? AppColors.error
             : stock.hasDisplayRuleHit
             ? AppColors.error
             : AppColors.textPrimary,
       ),
     );
+
+    List<Widget> buildLeadingItems() => <Widget>[
+      buildStockName(),
+      if (stock.tag.isNotEmpty)
+        Text(
+          '[$tagLabel]',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: stock.tag == '涨停破板' ? AppColors.tagRed : AppColors.tagGreen,
+          ),
+        ),
+      if (!preview)
+        Text(
+          '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: closeColor,
+          ),
+        ),
+      Text(
+        stock.rawCode,
+        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+      ),
+      _buildBuySignalChip(stock),
+      _buildStockRatingChip(stock),
+    ];
+
+    List<Widget> buildTrailingItems() => <Widget>[
+      if (preview) ...[
+        Text(
+          '竞价预览（未确认）',
+          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        ),
+        Text(
+          '${liveUp ? "+" : ""}${livePct.toStringAsFixed(2)}%',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: liveColor,
+          ),
+        ),
+      ] else if (kind != _StrategyListKind.purple)
+        Text(
+          '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: openColor,
+          ),
+        ),
+      StockCodeCopyButton(code: stock.rawCode),
+    ];
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1200,81 +1343,33 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.border),
         ),
-        child: Row(
-          children: [
-            // 名称
-            stockName,
-            if (stock.tag.isNotEmpty) ...[
-              const SizedBox(width: 4),
-              Text(
-                '[$tagLabel]',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: stock.tag == '涨停破板'
-                      ? AppColors.tagRed
-                      : AppColors.tagGreen,
-                ),
-              ),
-            ],
-            const SizedBox(width: 6),
-            if (!preview)
-              Text(
-                '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: closeColor,
-                ),
-              ),
-            if (!preview) const SizedBox(width: 6),
-            Text(
-              stock.rawCode,
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
-            const SizedBox(width: 6),
-            _buildBuySignalChip(stock),
-            const Spacer(),
-            if (preview) ...[
-              Text(
-                '竞价预览（未确认）',
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${liveUp ? "+" : ""}${livePct.toStringAsFixed(2)}%',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: liveColor,
-                ),
-              ),
-            ] else if (kind != _StrategyListKind.purple)
-              Text(
-                '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: openColor,
-                ),
-              ),
-            const SizedBox(width: 8),
-            // 同花顺按钮暂时隐藏，保留原代码逻辑，后续需要时可恢复。
-            // Material(
-            //   color: Colors.transparent,
-            //   child: InkWell(
-            //     onTap: () => _openInTongHuaShun(context, stock.rawCode),
-            //     borderRadius: BorderRadius.circular(6),
-            //     child: Image.asset(
-            //       'assets/images/kline_button.png',
-            //       width: 22,
-            //       height: 22,
-            //       fit: BoxFit.contain,
-            //     ),
-            //   ),
-            // ),
-            StockCodeCopyButton(code: stock.rawCode),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final leadingItems = buildLeadingItems();
+            final trailingItems = buildTrailingItems();
+            if (constraints.maxWidth < 680) {
+              return Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [...leadingItems, ...trailingItems],
+              );
+            }
+
+            return Row(
+              children: [
+                for (var i = 0; i < leadingItems.length; i++) ...[
+                  leadingItems[i],
+                  if (i < leadingItems.length - 1) const SizedBox(width: 6),
+                ],
+                const Spacer(),
+                for (var i = 0; i < trailingItems.length; i++) ...[
+                  trailingItems[i],
+                  if (i < trailingItems.length - 1) const SizedBox(width: 8),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
