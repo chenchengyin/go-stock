@@ -10,6 +10,35 @@ enum T0StrategyPhase { historical, waiting, candidatePreview, confirmed }
 typedef T0QuoteFetcher =
     Future<Map<String, Map<String, dynamic>>> Function(List<String> codes);
 
+class T0ReferenceHit {
+  final String ruleKey;
+  final String name;
+  final String researchTier;
+  final double strictWinRate;
+  final int sampleCount;
+  final int manualRank;
+
+  const T0ReferenceHit({
+    required this.ruleKey,
+    required this.name,
+    required this.researchTier,
+    required this.strictWinRate,
+    required this.sampleCount,
+    required this.manualRank,
+  });
+
+  factory T0ReferenceHit.fromJson(Map<String, dynamic> json) {
+    return T0ReferenceHit(
+      ruleKey: json['rule_key'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      researchTier: json['research_tier'] as String? ?? '',
+      strictWinRate: (json['strict_win_rate'] as num?)?.toDouble() ?? 0.0,
+      sampleCount: (json['sample_count'] as num?)?.toInt() ?? 0,
+      manualRank: (json['manual_rank'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 /// T0 选股结果单条数据
 class T0StrategyStock {
   final String stockCode;
@@ -29,6 +58,11 @@ class T0StrategyStock {
   final double patternFailPct; // 形态真亏率(%) T0<0，库内口径；展示用赚率
   final String buySignal; // blue | orange | green | yellow | red | insufficient
   final List<String> displayRuleHits; // 列表显示命中的可扩展条件
+  final bool strongDisplayRuleHit; // 显式深红候选命中（含旧两连涨停条件）
+  final List<T0ReferenceHit> t0ReferenceHits;
+  final String t0ReferenceTier;
+  final double t0ReferenceWinPct;
+  final int t0ReferenceSamples;
 
   /// 赚率：T0≥0 的比例 = 100% − 真亏率（含未达标的小赚和打平，不等于达标率）。
   double get patternEarnPct => 100 - patternFailPct;
@@ -51,6 +85,11 @@ class T0StrategyStock {
     this.patternFailPct = 0,
     this.buySignal = '',
     this.displayRuleHits = const [],
+    this.strongDisplayRuleHit = false,
+    this.t0ReferenceHits = const [],
+    this.t0ReferenceTier = '',
+    this.t0ReferenceWinPct = 0,
+    this.t0ReferenceSamples = 0,
   });
 
   factory T0StrategyStock.fromJson(Map<String, dynamic> json) {
@@ -58,6 +97,18 @@ class T0StrategyStock {
     final displayRuleHits = rawDisplayRuleHits is List
         ? List<String>.unmodifiable(rawDisplayRuleHits.whereType<String>())
         : const <String>[];
+    final rawReferenceHits = json['T0参考形态命中'];
+    final referenceHits = rawReferenceHits is List
+        ? List<T0ReferenceHit>.unmodifiable(
+            rawReferenceHits
+                .whereType<Map>()
+                .map(
+                  (item) =>
+                      T0ReferenceHit.fromJson(Map<String, dynamic>.from(item)),
+                )
+                .toList(),
+          )
+        : const <T0ReferenceHit>[];
     return T0StrategyStock(
       stockCode: json['股票代码'] as String? ?? '',
       stockName: json['股票名称'] as String? ?? '',
@@ -75,10 +126,16 @@ class T0StrategyStock {
       patternFailPct: (json['形态真亏率(%)'] as num?)?.toDouble() ?? 0.0,
       buySignal: json['买入信号'] as String? ?? '',
       displayRuleHits: displayRuleHits,
+      strongDisplayRuleHit: json['重点标红'] as bool? ?? false,
+      t0ReferenceHits: referenceHits,
+      t0ReferenceTier: json['T0参考最高等级'] as String? ?? '',
+      t0ReferenceWinPct: (json['T0参考严格胜率(%)'] as num?)?.toDouble() ?? 0.0,
+      t0ReferenceSamples: (json['T0参考样本数'] as num?)?.toInt() ?? 0,
     );
   }
 
   bool get hasDisplayRuleHit => displayRuleHits.isNotEmpty;
+  bool get hasStrongDisplayRuleHit => strongDisplayRuleHit;
 
   T0StrategyStock copyWith({double? liveChangePercent}) {
     return T0StrategyStock(
@@ -99,6 +156,11 @@ class T0StrategyStock {
       patternFailPct: patternFailPct,
       buySignal: buySignal,
       displayRuleHits: displayRuleHits,
+      strongDisplayRuleHit: strongDisplayRuleHit,
+      t0ReferenceHits: t0ReferenceHits,
+      t0ReferenceTier: t0ReferenceTier,
+      t0ReferenceWinPct: t0ReferenceWinPct,
+      t0ReferenceSamples: t0ReferenceSamples,
     );
   }
 
@@ -138,6 +200,8 @@ const t0RedStrategyModuleCode = 'radar.red_strategy';
 const t0PurpleStrategyModuleCode = 'radar.purple_strategy';
 const t0MainStrategyModuleCode = 'radar.main_strategy';
 const t0BlueStrategyModuleCode = 'radar.blue_strategy';
+const t0PurpleDefaultMinSamples = 3;
+const t0PurpleDefaultMinEarnPct = 70.0;
 
 typedef T0Request =
     Future<Map<String, dynamic>> Function(
@@ -198,6 +262,8 @@ class _MutableT0ModuleState {
   T0StrategyPhase phase = T0StrategyPhase.waiting;
   bool loaded = false;
   bool noData = false;
+  int purpleMinSamples = t0PurpleDefaultMinSamples;
+  double purpleMinEarnPct = t0PurpleDefaultMinEarnPct;
   int loadGeneration = 0;
 }
 
@@ -250,8 +316,10 @@ class T0StrategyViewModel extends ChangeNotifier {
     return List.unmodifiable(_sortForDisplay(state, state.results));
   }
 
-  List<T0StrategyStock> purpleResultsFor(String moduleCode) =>
-      List.unmodifiable(_purpleFilter(resultsFor(moduleCode)));
+  List<T0StrategyStock> purpleResultsFor(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    return List.unmodifiable(_purpleFilter(resultsFor(moduleCode), state));
+  }
 
   List<T0StrategyStock> blueResultsFor(String moduleCode) => List.unmodifiable(
     resultsFor(moduleCode).where((stock) => stock.buySignal == 'blue'),
@@ -265,7 +333,12 @@ class T0StrategyViewModel extends ChangeNotifier {
     final sourceModuleCode = purple.loaded
         ? t0PurpleStrategyModuleCode
         : t0MainStrategyModuleCode;
-    return List.unmodifiable(_purpleFilter(resultsFor(sourceModuleCode)));
+    return List.unmodifiable(
+      _purpleFilter(
+        resultsFor(sourceModuleCode),
+        _mutableState(sourceModuleCode),
+      ),
+    );
   }
 
   List<T0StrategyStock> get blueResults {
@@ -305,11 +378,49 @@ class T0StrategyViewModel extends ChangeNotifier {
   /// 下拉选项：归档日 +（今日正式结果且不在列表时）把今日放首位
   List<String> dropdownDatesFor(String moduleCode) {
     final state = _mutableState(moduleCode);
-    final out = List<String>.from(state.availableDates);
-    if (state.selectedDate != null && !out.contains(state.selectedDate)) {
+    final out = moduleCode == t0PurpleStrategyModuleCode
+        ? _purpleDropdownDates(state.availableDates)
+        : List<String>.from(state.availableDates);
+    if (moduleCode != t0PurpleStrategyModuleCode &&
+        state.selectedDate != null &&
+        !out.contains(state.selectedDate)) {
       out.insert(0, state.selectedDate!);
     }
     return out;
+  }
+
+  List<String> _purpleDropdownDates(List<String> availableDates) {
+    final tradingDates = availableDates
+        .where((date) => !_isWeekendDate(date))
+        .toList();
+    if (tradingDates.isEmpty) return const <String>[];
+
+    final latest = tradingDates.reduce(
+      (left, right) => left.compareTo(right) >= 0 ? left : right,
+    );
+    final latestDate = DateTime.tryParse(latest);
+    if (latestDate == null) return tradingDates;
+
+    final startDate = _subtractCalendarMonths(latestDate, 2);
+    return tradingDates.where((date) {
+      final parsed = DateTime.tryParse(date);
+      return parsed != null &&
+          !parsed.isBefore(startDate) &&
+          !parsed.isAfter(latestDate);
+    }).toList();
+  }
+
+  DateTime _subtractCalendarMonths(DateTime date, int months) {
+    final firstOfTargetMonth = DateTime(date.year, date.month - months, 1);
+    final lastDayOfTargetMonth = DateTime(
+      firstOfTargetMonth.year,
+      firstOfTargetMonth.month + 1,
+      0,
+    ).day;
+    final day = date.day < lastDayOfTargetMonth
+        ? date.day
+        : lastDayOfTargetMonth;
+    return DateTime(firstOfTargetMonth.year, firstOfTargetMonth.month, day);
   }
 
   List<String> get dropdownDates => dropdownDatesFor(t0MainStrategyModuleCode);
@@ -379,12 +490,17 @@ class T0StrategyViewModel extends ChangeNotifier {
       final state = _mutableState(moduleCode);
       state.availableDates = raw.map((e) => e.toString()).toList();
       if (state.selectedDate == null && state.availableDates.isNotEmpty) {
-        final today = _shanghaiToday();
-        state.selectedDate = _isWeekendDate(today)
-            ? today
-            : (state.availableDates.contains(today)
-                  ? today
-                  : state.availableDates.first);
+        if (moduleCode == t0PurpleStrategyModuleCode) {
+          final purpleDates = _purpleDropdownDates(state.availableDates);
+          state.selectedDate = purpleDates.isEmpty ? null : purpleDates.first;
+        } else {
+          final today = _shanghaiToday();
+          state.selectedDate = _isWeekendDate(today)
+              ? today
+              : (state.availableDates.contains(today)
+                    ? today
+                    : state.availableDates.first);
+        }
       }
       notifyListeners();
     } catch (error) {
@@ -565,6 +681,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   ) {
     final state = _mutableState(moduleCode);
     state.loaded = true;
+    _applyPurpleFilterConfig(state, data);
     final noData = data['no_data'] as bool? ?? false;
     if (noData) {
       state.results = [];
@@ -708,6 +825,24 @@ class T0StrategyViewModel extends ChangeNotifier {
     _stopPolling(moduleCode);
   }
 
+  void _applyPurpleFilterConfig(
+    _MutableT0ModuleState state,
+    Map<String, dynamic> data,
+  ) {
+    state.purpleMinSamples = t0PurpleDefaultMinSamples;
+    state.purpleMinEarnPct = t0PurpleDefaultMinEarnPct;
+    final raw = data['purple_filter'];
+    if (raw is! Map) return;
+    final minSamples = (raw['min_samples'] as num?)?.toInt();
+    final minEarnPct = (raw['min_earn_pct'] as num?)?.toDouble();
+    if (minSamples != null && minSamples > 0) {
+      state.purpleMinSamples = minSamples;
+    }
+    if (minEarnPct != null && minEarnPct > 0) {
+      state.purpleMinEarnPct = minEarnPct;
+    }
+  }
+
   void _mergeQuotes(
     String moduleCode,
     Map<String, Map<String, dynamic>> quotes,
@@ -747,6 +882,25 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
   }
 
+  static int referenceTierSortRank(T0StrategyStock stock) {
+    if (stock.t0ReferenceHits.isEmpty) return 3;
+    switch (stock.t0ReferenceTier) {
+      case 'A':
+        return 0;
+      case 'B':
+        return 1;
+      case 'normal':
+        return 2;
+      default:
+        return 3;
+    }
+  }
+
+  static int referenceManualRank(T0StrategyStock stock) {
+    if (stock.t0ReferenceHits.isEmpty) return 1 << 30;
+    return stock.t0ReferenceHits.first.manualRank;
+  }
+
   /// 所有策略列表共用的默认展示排序：真赚率优先，其次沿用原业务优先级。
   static List<T0StrategyStock> sortStrategyStocksForDisplay(
     List<T0StrategyStock> list, {
@@ -755,6 +909,14 @@ class T0StrategyViewModel extends ChangeNotifier {
   }) {
     final out = List<T0StrategyStock>.from(list);
     out.sort((a, b) {
+      final referenceTier = referenceTierSortRank(
+        a,
+      ).compareTo(referenceTierSortRank(b));
+      if (referenceTier != 0) return referenceTier;
+      final referenceRank = referenceManualRank(
+        a,
+      ).compareTo(referenceManualRank(b));
+      if (referenceRank != 0) return referenceRank;
       final earnRate = b.patternEarnPct.compareTo(a.patternEarnPct);
       if (earnRate != 0) return earnRate;
       final br = strategySortRank(a).compareTo(strategySortRank(b));
@@ -888,13 +1050,15 @@ class T0StrategyViewModel extends ChangeNotifier {
     _onModuleForbidden?.call(moduleCode);
   }
 
-  static List<T0StrategyStock> _purpleFilter(Iterable<T0StrategyStock> stocks) {
+  List<T0StrategyStock> _purpleFilter(
+    Iterable<T0StrategyStock> stocks,
+    _MutableT0ModuleState state,
+  ) {
     return stocks
         .where(
           (stock) =>
-              stock.patternT0N >= 2 &&
-              stock.patternWinPct >= 30 &&
-              stock.patternEarnPct > 60,
+              stock.patternT0N >= state.purpleMinSamples &&
+              stock.patternEarnPct >= state.purpleMinEarnPct,
         )
         .toList();
   }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"go-stock/backend/data"
 	"go-stock/backend/logger"
+	"go-stock/backend/models"
 	"math"
 	"net/http"
 	"os"
@@ -235,7 +236,7 @@ func shouldReturnWarmingForSelection(tradeDate string) bool {
 	return !isT0DailyCacheFilePresent(tradeDate) && getT0WarmProgress(tradeDate).Status == t0WarmStatusWarming
 }
 
-func loadT0DailyCache(tradeDate string) (*t0DailyCachePayload, bool) {
+func readT0DailyCachePayload(tradeDate string) (*t0DailyCachePayload, bool) {
 	_ = ensureT0CacheDirs()
 	path := t0DailyCachePath(tradeDate)
 	f, err := os.Open(path)
@@ -249,10 +250,44 @@ func loadT0DailyCache(tradeDate string) (*t0DailyCachePayload, bool) {
 		logger.SugaredLogger.Warnf("[T0选股] 日线缓存解码失败 %s: %v", path, err)
 		return nil, false
 	}
-	if payload.TradeDate != tradeDate || !payload.StockPoolComplete || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
+	if payload.TradeDate != tradeDate || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
 		return nil, false
 	}
 	return &payload, true
+}
+
+func loadT0DailyCache(tradeDate string) (*t0DailyCachePayload, bool) {
+	payload, ok := readT0DailyCachePayload(tradeDate)
+	if !ok || !payload.StockPoolComplete {
+		return nil, false
+	}
+	return payload, true
+}
+
+// loadT0DailyCacheForResults 只为历史归档中的结果股读取日线。
+// 股票池分页未完整不代表已经归档的结果股没有可用日线，不能因此整天回退实时请求。
+func loadT0DailyCacheForResults(
+	tradeDate string,
+	results []T0SelectionResult,
+) (map[string][]dailyBar, bool) {
+	payload, ok := readT0DailyCachePayload(tradeDate)
+	if !ok {
+		return nil, false
+	}
+
+	daily := make(map[string][]dailyBar, len(results))
+	for _, result := range results {
+		shortCode := t0ShortCodeFromResultCode(result.StockCode)
+		if shortCode == "" {
+			continue
+		}
+		bars, exists := payload.Daily[shortCode]
+		if !exists || len(bars) < 2 {
+			return nil, false
+		}
+		daily[shortCode] = bars
+	}
+	return daily, true
 }
 
 func saveT0DailyCache(tradeDate string, stocks []t0Stock, daily map[string][]dailyBar) error {
@@ -346,6 +381,16 @@ func sortT0ResultsForClient(results []T0SelectionResult) []T0SelectionResult {
 	sorted := make([]T0SelectionResult, len(results))
 	copy(sorted, results)
 	sort.SliceStable(sorted, func(i, j int) bool {
+		referenceRankI := t0ReferenceDisplaySortRank(sorted[i])
+		referenceRankJ := t0ReferenceDisplaySortRank(sorted[j])
+		if referenceRankI != referenceRankJ {
+			return referenceRankI < referenceRankJ
+		}
+		manualRankI := t0ReferenceManualRank(sorted[i])
+		manualRankJ := t0ReferenceManualRank(sorted[j])
+		if manualRankI != manualRankJ {
+			return manualRankI < manualRankJ
+		}
 		ri := t0DisplaySortRank(sorted[i])
 		rj := t0DisplaySortRank(sorted[j])
 		if ri != rj {
@@ -359,6 +404,29 @@ func sortT0ResultsForClient(results []T0SelectionResult) []T0SelectionResult {
 		return sorted[i].OpenGap > sorted[j].OpenGap
 	})
 	return sorted
+}
+
+func t0ReferenceDisplaySortRank(result T0SelectionResult) int {
+	if len(result.T0ReferenceHits) == 0 {
+		return 3
+	}
+	switch result.T0ReferenceTier {
+	case "A":
+		return 0
+	case "B":
+		return 1
+	case "normal":
+		return 2
+	default:
+		return 3
+	}
+}
+
+func t0ReferenceManualRank(result T0SelectionResult) int {
+	if len(result.T0ReferenceHits) == 0 {
+		return 1 << 30
+	}
+	return result.T0ReferenceHits[0].ManualRank
 }
 
 func t0DisplaySortRank(result T0SelectionResult) int {
@@ -385,25 +453,20 @@ func t0DisplaySortRank(result T0SelectionResult) int {
 
 func filterPurpleT0Results(
 	results []T0SelectionResult,
-	ctx *t0ModuleSelectionContext,
 ) []T0SelectionResult {
-	if ctx == nil {
-		return nil
-	}
-
 	filtered := make([]T0SelectionResult, 0, len(results))
+	patternConfig := loadPatternConfig()
 	for _, result := range results {
-		shortCode := t0ShortCodeFromResultCode(result.StockCode)
-		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
-		if !passesT0HistoricalPriceFloor(result, hist) {
-			continue
-		}
-		if result.PatternT0N >= 2 && result.PatternWinPct >= 30 &&
-			100-result.PatternFailPct > 60 {
+		if passesPurpleT0Pattern(result, patternConfig) {
 			filtered = append(filtered, result)
 		}
 	}
 	return filtered
+}
+
+func passesPurpleT0Pattern(result T0SelectionResult, cfg models.T0PatternConfig) bool {
+	return result.PatternT0N >= cfg.EffectivePurpleMinSamples() &&
+		100-result.PatternFailPct >= cfg.EffectivePurpleMinEarn()
 }
 
 func filterBlueT0Results(results []T0SelectionResult) []T0SelectionResult {
@@ -823,23 +886,28 @@ type t0Realtime struct {
 
 // T0SelectionResult 最终选股结果
 type T0SelectionResult struct {
-	Time            string   `json:"时间"`
-	OpenGap         float64  `json:"T0开盘涨幅(%)"`
-	CloseRet        float64  `json:"T0收盘涨幅(%)"`
-	LimitUpDates    string   `json:"涨停日期"`
-	MA20            float64  `json:"MA20"`
-	AmountYi        float64  `json:"成交额(亿)"`
-	StockCode       string   `json:"股票代码"` // 如 600000.XSHG
-	StockName       string   `json:"股票名称"`
-	PrevClose       float64  `json:"前一交易日收盘"`
-	PrevCloseRet    float64  `json:"前一交易日收盘涨幅(%)"`
-	Tag             string   `json:"标记"`
-	Pattern         string   `json:"形态"`
-	PatternT0N      int      `json:"形态样本数"`
-	PatternWinPct   float64  `json:"形态达标率(%)"`
-	PatternFailPct  float64  `json:"形态真亏率(%)"`
-	BuySignal       string   `json:"买入信号"`
-	DisplayRuleHits []string `json:"命中条件,omitempty"`
+	Time                 string           `json:"时间"`
+	OpenGap              float64          `json:"T0开盘涨幅(%)"`
+	CloseRet             float64          `json:"T0收盘涨幅(%)"`
+	LimitUpDates         string           `json:"涨停日期"`
+	MA20                 float64          `json:"MA20"`
+	AmountYi             float64          `json:"成交额(亿)"`
+	StockCode            string           `json:"股票代码"` // 如 600000.XSHG
+	StockName            string           `json:"股票名称"`
+	PrevClose            float64          `json:"前一交易日收盘"`
+	PrevCloseRet         float64          `json:"前一交易日收盘涨幅(%)"`
+	Tag                  string           `json:"标记"`
+	Pattern              string           `json:"形态"`
+	PatternT0N           int              `json:"形态样本数"`
+	PatternWinPct        float64          `json:"形态达标率(%)"`
+	PatternFailPct       float64          `json:"形态真亏率(%)"`
+	BuySignal            string           `json:"买入信号"`
+	DisplayRuleHits      []string         `json:"命中条件,omitempty"`
+	StrongDisplayRuleHit bool             `json:"重点标红,omitempty"`
+	T0ReferenceHits      []T0ReferenceHit `json:"T0参考形态命中,omitempty"`
+	T0ReferenceTier      string           `json:"T0参考最高等级,omitempty"`
+	T0ReferenceWinPct    float64          `json:"T0参考严格胜率(%),omitempty"`
+	T0ReferenceSamples   int              `json:"T0参考样本数,omitempty"`
 }
 
 // t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05
@@ -1922,6 +1990,11 @@ func writeScopedT0ResponseWithContext(
 	ctx *t0ModuleSelectionContext,
 	fields ...string,
 ) {
+	patternConfig := loadPatternConfig()
+	response["purple_filter"] = map[string]interface{}{
+		"min_samples":  patternConfig.EffectivePurpleMinSamples(),
+		"min_earn_pct": patternConfig.EffectivePurpleMinEarn(),
+	}
 	for _, field := range fields {
 		if err := scopeT0ResponseResultsWithContext(moduleCode, response, field, ctx); err != nil {
 			WriteAuthError(w, err)
@@ -2131,10 +2204,13 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			moduleCode, tradeDate, a.Results)
 		if err != nil {
 			WriteJSON(w, map[string]interface{}{
-				"error":    err.Error(),
-				"date":     tradeDate,
-				"archived": true,
-				"count":    0,
+				"code":            "T0_DATA_INCOMPLETE",
+				"error":           err.Error(),
+				"data_incomplete": true,
+				"date":            tradeDate,
+				"archived":        true,
+				"count":           0,
+				"results":         []T0SelectionResult{},
 			})
 			return
 		}
