@@ -3,6 +3,8 @@ package flutter_api
 import (
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,6 +36,9 @@ func loadT0ModuleSelectionContext(
 	moduleCode string,
 	tradeDate string,
 ) (*t0ModuleSelectionContext, error) {
+	if moduleCode == purpleT0StrategyModuleCode {
+		return nil, nil
+	}
 	if !isT0DailyContextModule(moduleCode) {
 		return nil, nil
 	}
@@ -53,19 +58,47 @@ func loadT0ModuleSelectionContextForResults(
 	tradeDate string,
 	results []T0SelectionResult,
 ) (*t0ModuleSelectionContext, error) {
+	if moduleCode == purpleT0StrategyModuleCode {
+		return nil, nil
+	}
 	if !isT0DailyContextModule(moduleCode) {
 		return nil, nil
 	}
-	if cached, ok := loadT0DailyCache(tradeDate); ok && cached != nil {
+	if daily, ok := loadT0DailyCacheForResults(tradeDate, results); ok {
 		return &t0ModuleSelectionContext{
 			TradeDate: tradeDate,
-			Daily:     cached.Daily,
+			Daily:     daily,
 		}, nil
 	}
-	return &t0ModuleSelectionContext{
-		TradeDate: tradeDate,
-		Daily:     fetchRedT0DailyKLines(results, tradeDate),
-	}, nil
+	daily := fetchRedT0DailyKLines(results, tradeDate)
+	missing := missingT0ResultDailyCodes(results, daily)
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("%s历史日线数据不完整: %s",
+			t0DailyContextModuleName(moduleCode), strings.Join(missing, ", "))
+	}
+	return &t0ModuleSelectionContext{TradeDate: tradeDate, Daily: daily}, nil
+}
+
+func missingT0ResultDailyCodes(
+	results []T0SelectionResult,
+	daily map[string][]dailyBar,
+) []string {
+	missingSet := make(map[string]struct{})
+	for _, result := range results {
+		shortCode := t0ShortCodeFromResultCode(result.StockCode)
+		if shortCode == "" {
+			continue
+		}
+		if len(daily[shortCode]) < 2 {
+			missingSet[shortCode] = struct{}{}
+		}
+	}
+	missing := make([]string, 0, len(missingSet))
+	for code := range missingSet {
+		missing = append(missing, code)
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 func fetchRedT0DailyKLines(
@@ -193,10 +226,18 @@ func filterRedT0Results(
 	}
 
 	filtered := make([]T0SelectionResult, 0, len(results))
+	referenceRules := loadT0ReferenceRuleRuntimes()
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
 		displayRuleHits := displayRuleHitsForResult(hist, result)
+		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, result)
+		enrichT0ReferenceResult(&result, hist, referenceRules)
+		for _, hit := range result.T0ReferenceHits {
+			if hit.DeepRed {
+				displayRuleHits = append(displayRuleHits, hit.Name)
+			}
+		}
 		if len(displayRuleHits) == 0 {
 			continue
 		}
@@ -229,11 +270,7 @@ func selectT0ResultsForModule(
 		}
 		return filterRedT0Results(results, ctx), nil
 	case purpleT0StrategyModuleCode:
-		if ctx == nil {
-			return nil, newAuthError(http.StatusInternalServerError,
-				"T0_DATA_NOT_READY", "紫策日线数据未就绪")
-		}
-		return filterPurpleT0Results(results, ctx), nil
+		return filterPurpleT0Results(results), nil
 	case "radar.blue_strategy":
 		return filterBlueT0Results(results), nil
 	default:

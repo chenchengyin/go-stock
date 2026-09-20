@@ -54,6 +54,28 @@ class StockCodeCopyButton extends StatelessWidget {
 
 enum _StrategyListKind { main, red, purple, blue }
 
+const _patternDescriptions = <String, String>{
+  'ZT': '涨停',
+  'DT': '跌停',
+  'PB': '涨停破板',
+  'YX': '阳十字星',
+  'YXN': '阴十字星',
+  'SY': '小阳',
+  'XY': '小阴',
+  'MY': '中阳',
+  'MYIN': '中阴',
+  'DY': '大阳',
+  'DYIN': '大阴',
+  'XX': '其他',
+};
+
+String _patternDescription(String pattern) {
+  return pattern
+      .split('|')
+      .map((code) => _patternDescriptions[code] ?? code)
+      .join('＋');
+}
+
 class RadarPage extends StatefulWidget {
   const RadarPage({super.key});
 
@@ -1104,24 +1126,34 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         ? '—/—/${stock.patternT0N}'
         : '${stock.patternWinPct.round()}/${stock.patternEarnPct.round()}/${stock.patternT0N}';
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 2),
-        Text(
-          rateText,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
+    final tooltipMessage = noStats
+        ? '形态样本不足'
+        : '形态：${stock.pattern}（${_patternDescription(stock.pattern)}）\n'
+              '达标率：${stock.patternWinPct.round()}%\n'
+              '赚率：${stock.patternEarnPct.round()}%\n'
+              '样本数：${stock.patternT0N}';
+
+    return Tooltip(
+      message: tooltipMessage,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
-        ),
-      ],
+          const SizedBox(width: 2),
+          Text(
+            rateText,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: noStats ? AppColors.textTertiary : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1149,7 +1181,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       style: TextStyle(
         fontWeight: FontWeight.w600,
         fontSize: 14,
-        color: stock.hasDisplayRuleHit
+        color: stock.hasStrongDisplayRuleHit
+            ? AppColors.errorStrong
+            : stock.hasDisplayRuleHit
             ? AppColors.error
             : AppColors.textPrimary,
       ),
