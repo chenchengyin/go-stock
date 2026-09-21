@@ -91,8 +91,6 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   List<RadarModuleDefinition> _visibleModules = [];
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
-  final StockRatingStore _stockRatingStore = StockRatingStore();
-  Map<String, StockRating> _stockRatings = <String, StockRating>{};
 
   bool get _permissionLoadFailed =>
       _permissionController.state == ModulePermissionState.failure;
@@ -106,7 +104,6 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     _tabController.addListener(_onTabChanged);
     _permissionController.addListener(_onPermissionsChanged);
     _radarViewModel = context.read<RadarViewModel>();
-    _loadStockRatings();
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
@@ -126,26 +123,6 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         );
       }
     });
-  }
-
-  Future<void> _loadStockRatings() async {
-    final ratings = await _stockRatingStore.loadAll();
-    if (!mounted) return;
-    setState(() => _stockRatings = ratings);
-  }
-
-  Future<void> _setStockRating(String stockCode, StockRating rating) async {
-    final normalizedCode = StockRatingStore.normalizeStockCode(stockCode);
-    if (normalizedCode.isEmpty) return;
-
-    setState(() {
-      if (rating == StockRating.unrated) {
-        _stockRatings.remove(normalizedCode);
-      } else {
-        _stockRatings[normalizedCode] = rating;
-      }
-    });
-    await _stockRatingStore.save(stockCode, rating);
   }
 
   List<RadarModuleDefinition> _resolveVisibleModules() {
@@ -1212,39 +1189,20 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   }
 
   Widget _buildStockRatingChip(T0StrategyStock stock) {
-    final normalizedCode = StockRatingStore.normalizeStockCode(stock.rawCode);
-    final rating = _stockRatings[normalizedCode] ?? StockRating.unrated;
+    final hasStats = stock.pattern.isNotEmpty && stock.patternT0N > 0;
+    final rating = calculateStockRating(
+      hasStats: hasStats,
+      earnPct: stock.patternEarnPct,
+    );
     final color = _stockRatingColor(rating);
+    final message = rating == StockRating.unrated
+        ? '评级：未评级\n原因：暂无有效形态统计'
+        : '评级：${rating.label}\n真赚率：${stock.patternEarnPct.round()}%\n'
+              '规则：重仓≥75%，轻仓≥55%，不买<55%';
 
-    return PopupMenuButton<StockRating>(
-      key: ValueKey('stock-rating-$normalizedCode'),
-      tooltip: '设置股票评级',
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-      onSelected: (nextRating) => _setStockRating(stock.rawCode, nextRating),
-      itemBuilder: (_) => StockRating.values
-          .map(
-            (option) => PopupMenuItem<StockRating>(
-              value: option,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 20,
-                    child: option == rating
-                        ? Icon(
-                            Icons.check,
-                            size: 16,
-                            color: _stockRatingColor(option),
-                          )
-                        : null,
-                  ),
-                  Text(option.label),
-                ],
-              ),
-            ),
-          )
-          .toList(),
+    return Tooltip(
+      key: ValueKey('stock-rating-${stock.rawCode}'),
+      message: message,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(

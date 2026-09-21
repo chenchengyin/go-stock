@@ -13,6 +13,16 @@ enum StockRating {
   final String label;
 }
 
+StockRating calculateStockRating({
+  required bool hasStats,
+  required double earnPct,
+}) {
+  if (!hasStats) return StockRating.unrated;
+  if (earnPct >= 75) return StockRating.heavy;
+  if (earnPct >= 55) return StockRating.light;
+  return StockRating.avoid;
+}
+
 class StockRatingStore {
   static const storageKey = 'radar:stock_ratings:v1';
 

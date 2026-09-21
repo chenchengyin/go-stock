@@ -24,4 +24,32 @@ void main() {
 
     expect(await StockRatingStore().loadAll(), {'600519': StockRating.light});
   });
+
+  group('自动评级', () {
+    test('按真赚率边界计算重仓轻仓和不买', () {
+      expect(
+        calculateStockRating(hasStats: true, earnPct: 75),
+        StockRating.heavy,
+      );
+      expect(
+        calculateStockRating(hasStats: true, earnPct: 74.99),
+        StockRating.light,
+      );
+      expect(
+        calculateStockRating(hasStats: true, earnPct: 55),
+        StockRating.light,
+      );
+      expect(
+        calculateStockRating(hasStats: true, earnPct: 54.99),
+        StockRating.avoid,
+      );
+    });
+
+    test('没有有效形态统计时保持未评级', () {
+      expect(
+        calculateStockRating(hasStats: false, earnPct: 100),
+        StockRating.unrated,
+      );
+    });
+  });
 }
