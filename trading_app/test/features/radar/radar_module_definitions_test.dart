@@ -4,11 +4,12 @@ import 'package:trading_app/features/radar/presentation/radar_list/radar_module_
 
 void main() {
   test(
-    'radar catalog has seven independent stable modules in server order',
+    'radar catalog has eight independent stable modules in server order',
     () {
       expect(radarModuleDefinitions.map((item) => item.code), [
         'radar.monitored',
         'radar.red_strategy',
+        'radar.gold_strategy',
         'radar.purple_strategy',
         'radar.main_strategy',
         'radar.blue_strategy',
@@ -25,12 +26,16 @@ void main() {
         radarModuleDefinitions.where(
           (item) => item.accessMode == ModuleAccessMode.userAllowlist,
         ),
-        hasLength(4),
+        hasLength(5),
       );
       final red = radarModuleDefinitions[1];
       expect(red.name, '红策');
       expect(red.sort, 15);
       expect(red.contentKind, RadarContentKind.redStrategy);
+      final gold = radarModuleDefinitions[2];
+      expect(gold.name, '金策');
+      expect(gold.sort, 18);
+      expect(gold.contentKind, RadarContentKind.goldStrategy);
     },
   );
 }

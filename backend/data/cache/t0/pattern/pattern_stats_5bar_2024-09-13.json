@@ -1,0 +1,200 @@
+[
+  {
+    "pattern": "MYIN|SY|ZT|YXN|MYIN",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "MY|XY|ZT|SY|ZT",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "PB|DT|DT|DY|XY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "PB|ZT|PB|ZT|ZT",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "SY|SY|YXN|SY|SY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|SY|XY|YX|PB",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|XY|XY|ZT|MYIN",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|YXN|MYIN|ZT|XY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|ZT|MYIN|XY|SY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|DT|DT|DT|DT",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|DT|DT|DT|MY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|DT|DT|SY|MYIN",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|DY|XY|MY|MYIN",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|PB|DT|DT|DY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|PB|DT|MYIN|XY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|ZT|DT|DT|DT",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|ZT|ZT|DT|XY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|ZT|ZT|MYIN|DY",
+    "window": 5,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  }
+]

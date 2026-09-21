@@ -85,7 +85,9 @@ class RadarViewModel extends ChangeNotifier {
     if (_selectedChangeTypes.length == ChangeTypeConfig.allTypes.length) {
       return changes;
     }
-    return changes.where((c) => _selectedChangeTypes.contains(c.changeType)).toList();
+    return changes
+        .where((c) => _selectedChangeTypes.contains(c.changeType))
+        .toList();
   }
 
   // ── Tab ① 监控股票 ─────────────────────────────────────
@@ -107,7 +109,8 @@ class RadarViewModel extends ChangeNotifier {
   List<StockChange> _localAlertsToday = [];
 
   /// 过滤用户已禁用类型的本地异动
-  List<StockChange> get _filteredLocalAlerts => filterChanges(_localAlertsToday);
+  List<StockChange> get _filteredLocalAlerts =>
+      filterChanges(_localAlertsToday);
 
   // ── Tab ③ 全市场异动 ───────────────────────────────────
   List<StockChange> allChanges = [];
@@ -160,18 +163,28 @@ class RadarViewModel extends ChangeNotifier {
   /// 获取指定股票最新的异动描述（用于监控列表展示）
   /// 只返回未读异动，全部已读后不显示
   String? getLatestAlertDescription(String code) {
-    final alerts = watchChanges.where((c) => c.stockCode == code && !isChangeRead(c)).toList();
+    final alerts = watchChanges
+        .where((c) => c.stockCode == code && !isChangeRead(c))
+        .toList();
     if (alerts.isEmpty) return null;
     // 按时间倒序取最新一条
-    alerts.sort((a, b) => '${b.changeDate}${b.changeTime}'.compareTo('${a.changeDate}${a.changeTime}'));
+    alerts.sort(
+      (a, b) => '${b.changeDate}${b.changeTime}'.compareTo(
+        '${a.changeDate}${a.changeTime}',
+      ),
+    );
     final first = alerts.first;
-    debugPrint('[getLatestAlertDescription] first.desc=${first.description} typeName=${first.typeName} changeRate=${first.changeRate}');
+    debugPrint(
+      '[getLatestAlertDescription] first.desc=${first.description} typeName=${first.typeName} changeRate=${first.changeRate}',
+    );
     // 优先用 description，服务端异动没有则用 typeName + changeRate 拼接
     if (first.description != null && first.description!.isNotEmpty) {
       return first.description;
     }
     final rate = first.changeRate;
-    final rateStr = rate >= 0 ? '+${rate.toStringAsFixed(2)}%' : '${rate.toStringAsFixed(2)}%';
+    final rateStr = rate >= 0
+        ? '+${rate.toStringAsFixed(2)}%'
+        : '${rate.toStringAsFixed(2)}%';
     return '${first.typeName} $rateStr';
   }
 
@@ -196,9 +209,11 @@ class RadarViewModel extends ChangeNotifier {
       // 兜底：用本地时间，周末退到周五
       final now = DateTime.now();
       var d = now;
-      if (d.weekday == DateTime.saturday) d = d.subtract(const Duration(days: 1));
+      if (d.weekday == DateTime.saturday)
+        d = d.subtract(const Duration(days: 1));
       if (d.weekday == DateTime.sunday) d = d.subtract(const Duration(days: 2));
-      tradingDate = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      tradingDate =
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     }
     return changes.where((c) => c.changeDate == tradingDate).toList();
   }
@@ -219,6 +234,7 @@ class RadarViewModel extends ChangeNotifier {
 
   static const _localAlertsKey = 'local_alerts_today';
   static const _localAlertsVersionKey = 'local_alerts_cache_version';
+
   /// 缓存版本号：修改异动生成逻辑后递增，自动清除旧缓存
   static const int _localAlertsVersion = 0;
 
@@ -256,9 +272,7 @@ class RadarViewModel extends ChangeNotifier {
 
   /// 批量预加载监控股票的已读状态
   Future<void> _preloadReadStates(List<String> codes) async {
-    await Future.wait(
-      codes.map((code) => _getReadChangesForCode(code)),
-    );
+    await Future.wait(codes.map((code) => _getReadChangesForCode(code)));
   }
 
   /// 重新计算哪些股票有未读异动
@@ -367,13 +381,16 @@ class RadarViewModel extends ChangeNotifier {
                 serverTime: (q['serverTime'] as num?)?.toInt() ?? s.serverTime,
                 date: q['date'] as String? ?? s.date,
                 mainForceNetInflow:
-                    (q['mainForceNetInflow'] as num?)?.toDouble() ?? s.mainForceNetInflow,
+                    (q['mainForceNetInflow'] as num?)?.toDouble() ??
+                    s.mainForceNetInflow,
                 mainForceNetRatio:
-                    (q['mainForceNetRatio'] as num?)?.toDouble() ?? s.mainForceNetRatio,
+                    (q['mainForceNetRatio'] as num?)?.toDouble() ??
+                    s.mainForceNetRatio,
                 dayNetInflow:
                     (q['dayNetInflow'] as num?)?.toDouble() ?? s.dayNetInflow,
                 accumNetInflow:
-                    (q['accumNetInflow'] as num?)?.toDouble() ?? s.accumNetInflow,
+                    (q['accumNetInflow'] as num?)?.toDouble() ??
+                    s.accumNetInflow,
               );
             }
             return s;
@@ -431,7 +448,9 @@ class RadarViewModel extends ChangeNotifier {
     for (final entry in quotes.entries) {
       final name = entry.value['name'] as String? ?? entry.key;
       final rate = (entry.value['changePercent'] as num?)?.toDouble() ?? 0.0;
-      final rateStr = rate >= 0 ? '+${rate.toStringAsFixed(2)}%' : '${rate.toStringAsFixed(2)}%';
+      final rateStr = rate >= 0
+          ? '+${rate.toStringAsFixed(2)}%'
+          : '${rate.toStringAsFixed(2)}%';
       buffer.write('\n  $name: $rateStr');
     }
     debugPrint(buffer.toString());
@@ -551,7 +570,9 @@ class RadarViewModel extends ChangeNotifier {
     await _loadDismissedSellWarnings();
     monitoredStocks = await _repository.getMonitoredStocks();
     if (monitoredStocks.isNotEmpty) {
-      debugPrint('[Radar] loadMonitoredStocks: ${monitoredStocks.length} items');
+      debugPrint(
+        '[Radar] loadMonitoredStocks: ${monitoredStocks.length} items',
+      );
       for (final s in monitoredStocks) {
         debugPrint('  ${s.code} ${s.name} createdAt=${s.createdAt}');
       }
@@ -598,9 +619,11 @@ class RadarViewModel extends ChangeNotifier {
               serverTime: (q['serverTime'] as num?)?.toInt() ?? s.serverTime,
               date: q['date'] as String? ?? s.date,
               mainForceNetInflow:
-                  (q['mainForceNetInflow'] as num?)?.toDouble() ?? s.mainForceNetInflow,
+                  (q['mainForceNetInflow'] as num?)?.toDouble() ??
+                  s.mainForceNetInflow,
               mainForceNetRatio:
-                  (q['mainForceNetRatio'] as num?)?.toDouble() ?? s.mainForceNetRatio,
+                  (q['mainForceNetRatio'] as num?)?.toDouble() ??
+                  s.mainForceNetRatio,
               dayNetInflow:
                   (q['dayNetInflow'] as num?)?.toDouble() ?? s.dayNetInflow,
               accumNetInflow:
@@ -619,11 +642,15 @@ class RadarViewModel extends ChangeNotifier {
       monitoredStocks.sort((a, b) {
         final ta = a.createdAt ?? '';
         final tb = b.createdAt ?? '';
-        debugPrint('[Radar] sort: ${a.code}($ta) vs ${b.code}($tb) => ${tb.compareTo(ta)}');
+        debugPrint(
+          '[Radar] sort: ${a.code}($ta) vs ${b.code}($tb) => ${tb.compareTo(ta)}',
+        );
         return tb.compareTo(ta);
       });
       // 排序后验证
-      debugPrint('[Radar] after sort top=${monitoredStocks.first.code}(${monitoredStocks.first.createdAt}) bottom=${monitoredStocks.last.code}(${monitoredStocks.last.createdAt})');
+      debugPrint(
+        '[Radar] after sort top=${monitoredStocks.first.code}(${monitoredStocks.first.createdAt}) bottom=${monitoredStocks.last.code}(${monitoredStocks.last.createdAt})',
+      );
 
       _updateStockWidget();
     } else {
@@ -677,7 +704,9 @@ class RadarViewModel extends ChangeNotifier {
     _sellWarningTracker.remove(code);
     await _saveDismissedSellWarnings();
     // 清理该股票的本地异动
-    _localAlertsToday = _localAlertsToday.where((c) => c.stockCode != code).toList();
+    _localAlertsToday = _localAlertsToday
+        .where((c) => c.stockCode != code)
+        .toList();
     _saveLocalAlerts();
     await loadMonitoredStocks();
   }

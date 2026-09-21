@@ -82,6 +82,42 @@ void main() {
     },
   );
 
+  test(
+    'gold strategy puts strong gold ahead of a higher ordinary score',
+    () async {
+      final vm = T0StrategyViewModel(
+        request: (moduleCode, query) async {
+          expect(moduleCode, t0GoldStrategyModuleCode);
+          return {
+            'archived': true,
+            'date': '2026-09-10',
+            'results': [
+              {
+                '股票代码': '600001.XSHG',
+                '股票名称': '低分股',
+                '形态样本数': 40,
+                '综合评分': 58.0,
+                '强金策': true,
+              },
+              {'股票代码': '600000.XSHG', '股票名称': '高分股', '形态样本数': 20, '综合评分': 64.0},
+            ],
+          };
+        },
+      );
+      addTearDown(vm.dispose);
+
+      await vm.loadResults(
+        moduleCode: t0GoldStrategyModuleCode,
+        date: '2026-09-10',
+        archived: true,
+      );
+
+      final results = vm.resultsFor(t0GoldStrategyModuleCode);
+      expect(results.map((stock) => stock.stockName), ['低分股', '高分股']);
+      expect(results.first.strongGoldSignal, true);
+    },
+  );
+
   test('result request carries its explicit module code', () async {
     Map<String, dynamic>? seenQuery;
     final vm = T0StrategyViewModel(
@@ -278,6 +314,59 @@ void main() {
     ]);
   });
 
+  test('sortStrategyStocksForDisplay：T0参考等级优先于旧买入信号', () {
+    final sorted = T0StrategyViewModel.sortStrategyStocksForDisplay([
+      _stock(code: 'normal', buySignal: 'blue'),
+      T0StrategyStock(
+        stockCode: 'b',
+        stockName: 'b',
+        openGap: 0,
+        closeRet: 0,
+        limitUpDates: '',
+        ma20: 0,
+        amountYi: 0,
+        prevClose: 0,
+        prevCloseRet: 0,
+        buySignal: 'red',
+        t0ReferenceTier: 'B',
+        t0ReferenceHits: const [
+          T0ReferenceHit(
+            ruleKey: 'b',
+            name: 'b',
+            researchTier: 'B',
+            strictWinRate: 65,
+            sampleCount: 10,
+            manualRank: 20,
+          ),
+        ],
+      ),
+      T0StrategyStock(
+        stockCode: 'a',
+        stockName: 'a',
+        openGap: 0,
+        closeRet: 0,
+        limitUpDates: '',
+        ma20: 0,
+        amountYi: 0,
+        prevClose: 0,
+        prevCloseRet: 0,
+        buySignal: 'red',
+        t0ReferenceTier: 'A',
+        t0ReferenceHits: const [
+          T0ReferenceHit(
+            ruleKey: 'a',
+            name: 'a',
+            researchTier: 'A',
+            strictWinRate: 70,
+            sampleCount: 20,
+            manualRank: 30,
+          ),
+        ],
+      ),
+    ], liveChangePercent: (_) => null);
+    expect(sorted.map((stock) => stock.stockCode), ['a', 'b', 'normal.XSHG']);
+  });
+
   test('策略结果默认按真赚率从高到低排序', () {
     final vm = T0StrategyViewModel();
     addTearDown(vm.dispose);
@@ -329,6 +418,29 @@ void main() {
     expect(s.pattern, 'XY|ZT|ZT');
   });
 
+  test('parses optional T0 reference tier and hits', () {
+    final stock = T0StrategyStock.fromJson({
+      '股票代码': '600000.XSHG',
+      'T0参考最高等级': 'A',
+      'T0参考严格胜率(%)': 70,
+      'T0参考样本数': 20,
+      'T0参考形态命中': [
+        {
+          'rule_key': 'v1:test',
+          'name': 'test',
+          'research_tier': 'A',
+          'strict_win_rate': 70,
+          'sample_count': 20,
+          'manual_rank': 1,
+        },
+      ],
+    });
+    expect(stock.t0ReferenceTier, 'A');
+    expect(stock.t0ReferenceWinPct, 70);
+    expect(stock.t0ReferenceSamples, 20);
+    expect(stock.t0ReferenceHits.single.name, 'test');
+  });
+
   test('parses display rule hits and exposes the red display state', () {
     final s = T0StrategyStock.fromJson({
       '股票代码': '600001.XSHG',
@@ -338,6 +450,16 @@ void main() {
 
     expect(s.displayRuleHits, ['任意K线＋涨停＋跌停']);
     expect(s.hasDisplayRuleHit, isTrue);
+  });
+
+  test('parses the strong red display state', () {
+    final s = T0StrategyStock.fromJson({
+      '股票代码': '600001.XSHG',
+      '股票名称': '深红股',
+      '重点标红': true,
+    });
+
+    expect(s.hasStrongDisplayRuleHit, isTrue);
   });
 
   test('insufficient 仍解析并保留形态统计数字', () {
@@ -411,7 +533,7 @@ void main() {
     expect(archiveVm.blueResults.map((s) => s.rawCode).toList(), ['600020']);
   });
 
-  test('purpleResults：达标率不低于30且赚率严格超过60并遵循默认策略排序', () {
+  test('purpleResults：严格要求N不低于3且真赚率不低于70', () {
     final vm = T0StrategyViewModel();
     addTearDown(vm.dispose);
 
@@ -420,28 +542,28 @@ void main() {
       'results': [
         {
           '股票代码': '600001.XSHG',
-          '股票名称': '紫股一',
-          '形态样本数': 2,
-          '形态达标率(%)': 30.01,
-          '形态真亏率(%)': 39.99,
+          '股票名称': '高真赚率紫股',
+          '形态样本数': 3,
+          '形态达标率(%)': 0,
+          '形态真亏率(%)': 30,
         },
         {
           '股票代码': '600002.XSHG',
-          '股票名称': '边界达标率',
+          '股票名称': '样本不足',
           '形态样本数': 2,
-          '形态达标率(%)': 30,
-          '形态真亏率(%)': 20,
+          '形态达标率(%)': 100,
+          '形态真亏率(%)': 0,
         },
         {
           '股票代码': '600003.XSHG',
-          '股票名称': '边界赚率',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
-          '形态真亏率(%)': 40,
+          '股票名称': '真赚率不足',
+          '形态样本数': 3,
+          '形态达标率(%)': 100,
+          '形态真亏率(%)': 30.01,
         },
         {
           '股票代码': '600004.XSHG',
-          '股票名称': '紫股二',
+          '股票名称': '旧紫策条件',
           '形态样本数': 2,
           '形态达标率(%)': 31,
           '形态真亏率(%)': 39.9,
@@ -449,16 +571,12 @@ void main() {
       ],
     });
 
-    expect(vm.purpleResults.map((s) => s.rawCode).toList(), [
-      '600002',
-      '600004',
-      '600001',
-    ]);
+    expect(vm.purpleResults.map((s) => s.rawCode).toList(), ['600001']);
     expect(vm.results.map((s) => s.rawCode).toList(), [
       '600002',
-      '600004',
       '600001',
       '600003',
+      '600004',
     ]);
     expect(() => vm.purpleResults.clear(), throwsUnsupportedError);
   });
@@ -494,10 +612,60 @@ void main() {
       ],
     });
 
-    expect(vm.purpleResults.map((s) => s.rawCode).toList(), ['600006']);
+    expect(vm.purpleResults, isEmpty);
   });
 
-  test('purpleResults：候选预览和历史归档均使用相同百分比过滤', () {
+  test('purpleResults：追加N大于等于3且真赚率大于等于70的高真赚率形态', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+
+    vm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600030.XSHG',
+          '股票名称': '高胜率形态',
+          '形态样本数': 3,
+          '形态达标率(%)': 0,
+          '形态真亏率(%)': 30,
+        },
+        {
+          '股票代码': '600031.XSHG',
+          '股票名称': '样本不足',
+          '形态样本数': 2,
+          '形态达标率(%)': 100,
+          '形态真亏率(%)': 0,
+        },
+        {
+          '股票代码': '600032.XSHG',
+          '股票名称': '达标率不足',
+          '形态样本数': 3,
+          '形态达标率(%)': 100,
+          '形态真亏率(%)': 30.01,
+        },
+      ],
+    });
+
+    expect(vm.purpleResults.map((s) => s.rawCode).toList(), ['600030']);
+  });
+
+  test('purpleResults：使用服务端下发的可调真赚率阈值', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+
+    vm.applyResponseForTest({
+      'purple_filter': {'min_samples': 5, 'min_earn_pct': 80},
+      'results': [
+        {'股票代码': '600040.XSHG', '形态样本数': 5, '形态达标率(%)': 0, '形态真亏率(%)': 20},
+        {'股票代码': '600041.XSHG', '形态样本数': 3, '形态达标率(%)': 100, '形态真亏率(%)': 0},
+        {'股票代码': '600042.XSHG', '形态样本数': 5, '形态达标率(%)': 100, '形态真亏率(%)': 20.01},
+      ],
+    });
+
+    expect(vm.purpleResults.map((s) => s.rawCode).toList(), ['600040']);
+  });
+
+  test('purpleResults：候选预览和历史归档均使用相同真赚率过滤', () {
     final previewVm = T0StrategyViewModel(
       now: () => DateTime.utc(2026, 9, 2, 1, 20),
     );
@@ -509,16 +677,16 @@ void main() {
           {
             '股票代码': '600010.XSHG',
             '股票名称': '紫色候选',
-            '形态样本数': 2,
-            '形态达标率(%)': 30.1,
-            '形态真亏率(%)': 39.9,
+            '形态样本数': 3,
+            '形态达标率(%)': 0,
+            '形态真亏率(%)': 30,
           },
           {
             '股票代码': '600011.XSHG',
             '股票名称': '边界候选',
-            '形态样本数': 2,
-            '形态达标率(%)': 30,
-            '形态真亏率(%)': 20,
+            '形态样本数': 3,
+            '形态达标率(%)': 100,
+            '形态真亏率(%)': 30.01,
           },
         ],
       ),
@@ -533,24 +701,21 @@ void main() {
         {
           '股票代码': '600020.XSHG',
           '股票名称': '历史紫股',
-          '形态样本数': 2,
-          '形态达标率(%)': 45,
-          '形态真亏率(%)': 35,
+          '形态样本数': 3,
+          '形态达标率(%)': 0,
+          '形态真亏率(%)': 30,
         },
         {
           '股票代码': '600021.XSHG',
           '股票名称': '历史普通股',
-          '形态样本数': 2,
-          '形态达标率(%)': 45,
-          '形态真亏率(%)': 40,
+          '形态样本数': 3,
+          '形态达标率(%)': 100,
+          '形态真亏率(%)': 30.01,
         },
       ],
     });
 
-    expect(previewVm.purpleResults.map((s) => s.rawCode).toList(), [
-      '600011',
-      '600010',
-    ]);
+    expect(previewVm.purpleResults.map((s) => s.rawCode).toList(), ['600010']);
     expect(archiveVm.purpleResults.map((s) => s.rawCode).toList(), ['600020']);
   });
 
@@ -643,6 +808,43 @@ void main() {
 
     expect(vm.dropdownDates, ['2026-08-12', '2026-08-11', '2026-08-10']);
     expect(vm.showDateSelector, true);
+  });
+
+  test('紫策日期只展示最新归档日前两个月内的交易日', () {
+    final vm = T0StrategyViewModel();
+    vm.applyAvailableDatesForTest([
+      '2026-09-10',
+      '2026-09-09',
+      '2026-09-06', // 周日
+      '2026-08-03',
+      '2026-07-10',
+      '2026-06-30',
+    ], moduleCode: t0PurpleStrategyModuleCode);
+
+    expect(vm.dropdownDatesFor(t0PurpleStrategyModuleCode), [
+      '2026-09-10',
+      '2026-09-09',
+      '2026-08-03',
+      '2026-07-10',
+    ]);
+  });
+
+  test('紫策周末默认选中最新交易归档', () async {
+    final vm = T0StrategyViewModel(
+      now: () => DateTime.utc(2026, 9, 12, 1), // 上海周六 09:00
+      request: (moduleCode, query) async {
+        expect(moduleCode, t0PurpleStrategyModuleCode);
+        expect(query['list_dates'], '1');
+        return {
+          'dates': <dynamic>['2026-09-11', '2026-09-10', '2026-09-06'],
+        };
+      },
+    );
+    addTearDown(vm.dispose);
+
+    await vm.loadAvailableDates(moduleCode: t0PurpleStrategyModuleCode);
+
+    expect(vm.stateFor(t0PurpleStrategyModuleCode).selectedDate, '2026-09-11');
   });
 
   test('09:10 即使带 candidates 也不进入预览列表', () {
@@ -824,19 +1026,24 @@ void main() {
         },
       );
       addTearDown(vm.dispose);
-      vm.applyAvailableDatesForTest(['2026-09-10', '2026-09-04', '2026-09-03']);
+      vm.applyAvailableDatesForTest([
+        '2026-09-10',
+        '2026-09-04',
+        '2026-09-03',
+      ], moduleCode: t0RedStrategyModuleCode);
       vm.applyResponseForTest({
         'archived': true,
         'date': '2026-09-04',
         'results': [
           {'股票代码': '600000.XSHG', '股票名称': '浦发银行'},
         ],
-      });
+      }, moduleCode: t0RedStrategyModuleCode);
 
       await vm.selectPreviousArchive(t0RedStrategyModuleCode);
 
-      expect(vm.selectedDate, '2026-09-03');
-      expect(vm.error, '红策日线缓存未就绪: 2026-09-03');
+      final redState = vm.stateFor(t0RedStrategyModuleCode);
+      expect(redState.selectedDate, '2026-09-03');
+      expect(redState.error, '红策日线缓存未就绪: 2026-09-03');
     });
   });
 }

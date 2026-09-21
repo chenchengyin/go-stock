@@ -245,6 +245,32 @@ func TestRebuildNovSecondHalf2025PoolAndSelection(t *testing.T) {
 	rebuildT0PoolAndSelection(t, "2026-08-21", 250, dates)
 }
 
+// TestRebuildDec2025PoolAndSelection 重拉 2025 年 12 月全部交易日股池日线并强制覆盖选股归档。
+// 用法: RUN_REBUILD_DEC_2025=1 go test ./backend/flutter_api -run TestRebuildDec2025PoolAndSelection -count=1 -v -timeout 60m
+func TestRebuildDec2025PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_DEC_2025") != "1" {
+		t.Skip("set RUN_REBUILD_DEC_2025=1 to rebuild December 2025 T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	dates := weekdaysThrough(2025, time.December, 31)
+	rebuildT0PoolAndSelection(t, "2026-08-21", 220, dates)
+}
+
+// TestRebuild2024PoolAndSelection 重拉 2024 年全年交易日股池日线并强制覆盖选股归档。
+// 用法: RUN_REBUILD_2024=1 go test ./backend/flutter_api -run TestRebuild2024PoolAndSelection -count=1 -v -timeout 180m
+func TestRebuild2024PoolAndSelection(t *testing.T) {
+	if os.Getenv("RUN_REBUILD_2024") != "1" {
+		t.Skip("set RUN_REBUILD_2024=1 to rebuild 2024 T0 pool and selection")
+	}
+	setupRebuildTest(t)
+	var dates []string
+	for month := time.January; month <= time.December; month++ {
+		lastDay := time.Date(2024, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+		dates = append(dates, weekdaysThrough(2024, month, lastDay)...)
+	}
+	rebuildT0PoolAndSelection(t, "2026-08-21", 750, dates)
+}
+
 func setupRebuildTest(t *testing.T) {
 	t.Helper()
 	if logger.SugaredLogger == nil {

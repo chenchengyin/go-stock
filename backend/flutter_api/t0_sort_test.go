@@ -98,6 +98,21 @@ func TestSortT0ResultsForClientSignalThenTagPriority(t *testing.T) {
 	}
 }
 
+func TestSortT0ResultsForClientReferenceTierPrecedesLegacySignal(t *testing.T) {
+	in := []T0SelectionResult{
+		{StockCode: "normal", BuySignal: BuySignalBlue},
+		{StockCode: "b", BuySignal: BuySignalRed, T0ReferenceTier: "B", T0ReferenceHits: []T0ReferenceHit{{ManualRank: 20}}},
+		{StockCode: "a", BuySignal: BuySignalRed, T0ReferenceTier: "A", T0ReferenceHits: []T0ReferenceHit{{ManualRank: 30}}},
+	}
+	got := sortT0ResultsForClient(in)
+	want := []string{"a", "b", "normal"}
+	for i, code := range want {
+		if got[i].StockCode != code {
+			t.Fatalf("pos %d = %s want %s", i, got[i].StockCode, code)
+		}
+	}
+}
+
 func codes(rs []T0SelectionResult) []string {
 	out := make([]string, len(rs))
 	for i, r := range rs {

@@ -11,7 +11,14 @@ import (
 
 const (
 	redT0StrategyModuleCode    = "radar.red_strategy"
+	goldT0StrategyModuleCode   = "radar.gold_strategy"
 	purpleT0StrategyModuleCode = "radar.purple_strategy"
+	goldMinPatternSamples      = 20
+	goldMinEarnPct             = 58.0
+	goldStrongEarnPct          = 65.0
+	goldMinTargetPct           = 20.0
+	goldTargetWeight           = 0.6
+	goldEarnWeight             = 0.4
 )
 
 var redT0DailyKLineFetcher = fetchDailyKLineWithLimit
@@ -152,7 +159,8 @@ func fetchRedT0DailyKLineSafely(shortCode, tradeDate string) (bars []dailyBar) {
 func validateT0ModuleCode(moduleCode string) error {
 	switch moduleCode {
 	case "radar.main_strategy", redT0StrategyModuleCode,
-		purpleT0StrategyModuleCode, "radar.blue_strategy":
+		goldT0StrategyModuleCode, purpleT0StrategyModuleCode,
+		"radar.blue_strategy":
 		return nil
 	default:
 		return newAuthError(http.StatusBadRequest,
@@ -252,6 +260,38 @@ func filterRedT0Results(
 	return filtered
 }
 
+// filterGoldT0Results selects statistically credible patterns and orders them
+// by a target-oriented composite score. It intentionally does not use real-time
+// display tags or buy-signal colors, so gold remains independently testable.
+func filterGoldT0Results(results []T0SelectionResult) []T0SelectionResult {
+	filtered := make([]T0SelectionResult, 0, len(results))
+	for _, result := range results {
+		earnPct := 100 - result.PatternFailPct
+		if result.PatternT0N < goldMinPatternSamples ||
+			earnPct < goldMinEarnPct ||
+			result.PatternWinPct < goldMinTargetPct {
+			continue
+		}
+		result.PatternScore = round2(
+			goldTargetWeight*result.PatternWinPct + goldEarnWeight*earnPct)
+		result.StrongGoldSignal = earnPct >= goldStrongEarnPct
+		filtered = append(filtered, result)
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].StrongGoldSignal != filtered[j].StrongGoldSignal {
+			return filtered[i].StrongGoldSignal
+		}
+		if filtered[i].PatternScore != filtered[j].PatternScore {
+			return filtered[i].PatternScore > filtered[j].PatternScore
+		}
+		if filtered[i].PatternT0N != filtered[j].PatternT0N {
+			return filtered[i].PatternT0N > filtered[j].PatternT0N
+		}
+		return filtered[i].StockCode < filtered[j].StockCode
+	})
+	return filtered
+}
+
 func selectT0ResultsForModule(
 	moduleCode string,
 	results []T0SelectionResult,
@@ -269,6 +309,8 @@ func selectT0ResultsForModule(
 				"T0_DATA_NOT_READY", "红策日线数据未就绪")
 		}
 		return filterRedT0Results(results, ctx), nil
+	case goldT0StrategyModuleCode:
+		return filterGoldT0Results(results), nil
 	case purpleT0StrategyModuleCode:
 		return filterPurpleT0Results(results), nil
 	case "radar.blue_strategy":

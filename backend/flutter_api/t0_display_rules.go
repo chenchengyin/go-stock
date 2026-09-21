@@ -8,20 +8,24 @@ const (
 	displayRuleLimitUpBearishTag     = "涨停＋阴线标记"
 	displayRuleBullishZtZtPb         = "涨停＋涨停＋阳线破板"
 	displayRuleZtZtBearishT0         = "涨停＋涨停＋普通阴线"
+	displayRuleZtNonOneWordT0        = "涨停＋非一字涨停后的开盘竞价"
+	strongDisplayPrevDayOpenGap      = 3.0
 )
 
 // t0DisplayRule 定义列表标红的命中条件；红策直接复用同一组条件筛选结果。
 // 它不参与基础股票池过滤或主选股链；后续增加标红条件时，在 t0DisplayRules 中追加一项即可。
 type t0DisplayRule struct {
-	Name        string
-	Match       func([]dailyBar) bool
-	MatchResult func([]dailyBar, T0SelectionResult) bool
+	Name         string
+	Match        func([]dailyBar) bool
+	MatchResult  func([]dailyBar, T0SelectionResult) bool
+	DeepRedMatch func([]dailyBar, T0SelectionResult) bool
 }
 
 var t0DisplayRules = []t0DisplayRule{
 	{
-		Name:  displayRuleAnyLimitUpLimitDown,
-		Match: matchesAnyLimitUpLimitDown,
+		Name:         displayRuleAnyLimitUpLimitDown,
+		Match:        matchesAnyLimitUpLimitDown,
+		DeepRedMatch: matchesAnyLimitUpLimitDownDeepRed,
 	},
 	{
 		Name:        displayRuleMediumYangLimitDownT0,
@@ -38,6 +42,11 @@ var t0DisplayRules = []t0DisplayRule{
 	{
 		Name:        displayRuleZtZtBearishT0,
 		MatchResult: matchesZtZtBearishT0,
+	},
+	{
+		Name:         displayRuleZtNonOneWordT0,
+		MatchResult:  matchesZtNonOneWordT0,
+		DeepRedMatch: matchesStrongTwoLimitUpNonOneWordAuction,
 	},
 }
 
@@ -59,6 +68,51 @@ func displayRuleHitsForResult(hist []dailyBar, result T0SelectionResult) []strin
 		}
 	}
 	return hits
+}
+
+// matchesStrongPrevDayOpenGap 判断前一交易日相对再前一日收盘价的开盘涨幅 >= 3%。
+func matchesStrongPrevDayOpenGap(hist []dailyBar) bool {
+	_, openRet, _, ok := prevDayRetsFromHist(hist)
+	return ok && openRet >= strongDisplayPrevDayOpenGap
+}
+
+// matchesZtNonOneWordT0 匹配：T-2 收盘涨停、T-1 收盘涨停且 T-1 非一字，
+// 随后正式 T0 竞价买入。当前正式竞价口径为 0.01%～3%。
+func matchesZtNonOneWordT0(hist []dailyBar, result T0SelectionResult) bool {
+	if result.OpenGap < 0.01 || result.OpenGap > 3 || len(hist) < 3 {
+		return false
+	}
+	base := hist[len(hist)-3]
+	firstLimitUp := hist[len(hist)-2]
+	secondLimitUp := hist[len(hist)-1]
+	return isCloseLimitUpDay(base.Close, firstLimitUp, t0LimitUpCloseRet) &&
+		isNonOneWordLimitUpDay(firstLimitUp.Close, secondLimitUp)
+}
+
+// matchesStrongTwoLimitUpNonOneWordAuction 是上述组合中 T-1 开盘涨幅 >= 3% 的子集，
+// 仅用于列表深红强调，不改变普通红策命中条件。
+func matchesStrongTwoLimitUpNonOneWordAuction(
+	hist []dailyBar,
+	result T0SelectionResult,
+) bool {
+	return matchesZtNonOneWordT0(hist, result) && matchesStrongPrevDayOpenGap(hist)
+}
+
+func matchesDeepRedDisplayRule(hist []dailyBar, result T0SelectionResult) bool {
+	for _, rule := range t0DisplayRules {
+		if rule.DeepRedMatch != nil && rule.DeepRedMatch(hist, result) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNonOneWordLimitUpDay(prevClose float64, bar dailyBar) bool {
+	if !isCloseLimitUpDay(prevClose, bar, t0LimitUpCloseRet) ||
+		bar.Open <= 0 || bar.High <= 0 || bar.Low <= 0 {
+		return false
+	}
+	return bar.Open != bar.Close || bar.High != bar.Close || bar.Low != bar.Close
 }
 
 // matchesMediumYangThenLimitDownT0 匹配最近三根历史K线：第一根不限，第二根中阳及以上，第三根跌停。
@@ -112,6 +166,13 @@ func matchesAnyLimitUpLimitDown(hist []dailyBar) bool {
 	limitDown := hist[len(hist)-1]
 	return isCloseLimitUpDay(first.Close, limitUp, t0LimitUpCloseRet) &&
 		isCloseLimitDownDay(limitUp.Close, limitDown)
+}
+
+func matchesAnyLimitUpLimitDownDeepRed(hist []dailyBar, result T0SelectionResult) bool {
+	if result.OpenGap < 0.01 || result.OpenGap > 3 {
+		return false
+	}
+	return matchesAnyLimitUpLimitDown(hist)
 }
 
 // matchesLimitUpAndBearishTag 匹配最近两根历史K线：前一根涨停，最新一根符合阴线标记逻辑。
@@ -192,10 +253,13 @@ func enrichT0ResultsForDisplayWithDaily(
 ) []T0SelectionResult {
 	out := make([]T0SelectionResult, len(results))
 	copy(out, results)
+	referenceRules := loadT0ReferenceRuleRuntimes()
 	for i := range out {
 		hist := histBarsBeforeTradeDate(
 			daily[t0ShortCodeFromResultCode(out[i].StockCode)], tradeDate)
 		out[i].DisplayRuleHits = displayRuleHitsForResult(hist, out[i])
+		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
+		enrichT0ReferenceResult(&out[i], hist, referenceRules)
 	}
 	return out
 }

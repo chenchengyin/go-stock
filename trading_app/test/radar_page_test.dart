@@ -8,6 +8,7 @@ import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_page.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/radar_view_model.dart';
+import 'package:trading_app/features/radar/presentation/radar_list/stock_rating_store.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/permissions/domain/module_definition.dart';
@@ -238,8 +239,8 @@ void main() {
       '股票名称': '三连形态股',
       '形态': 'ZT|ZT|PB',
       '命中条件': ['涨停＋涨停＋阳线破板'],
-      '形态样本数': 2,
-      '形态达标率(%)': 50,
+      '形态样本数': 3,
+      '形态达标率(%)': 70,
       '形态真亏率(%)': 20,
       '买入信号': 'blue',
     };
@@ -287,7 +288,58 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('紫策可浏览全部归档日期且不影响主板策略', (tester) async {
+  testWidgets('满足深红组合的股票名称显示为深红色', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-02',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '深红股',
+          '命中条件': ['涨停＋非一字涨停后的开盘竞价'],
+          '重点标红': true,
+          '买入信号': 'red',
+        },
+      ],
+    }, moduleCode: t0RedStrategyModuleCode);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('红策(1)'));
+    await tester.pumpAndSettle();
+
+    final stockName = tester.widget<Text>(find.text('深红股'));
+    expect(stockName.style?.color, AppColors.errorStrong);
+    disposeVms();
+  });
+
+  testWidgets('紫策可浏览两个月内归档交易日且不影响主板策略', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -329,8 +381,8 @@ void main() {
         {
           '股票代码': '600001.XSHG',
           '股票名称': '紫策股',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -341,8 +393,8 @@ void main() {
         {
           '股票代码': '600001.XSHG',
           '股票名称': '紫策股',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -368,7 +420,7 @@ void main() {
     var dateDropdown = tester.widget<DropdownButton<String>>(
       find.byType(DropdownButton<String>),
     );
-    expect(dateDropdown.items, hasLength(8));
+    expect(dateDropdown.items, hasLength(6));
 
     strategyVm.applyResponseForTest({
       'archived': true,
@@ -377,8 +429,8 @@ void main() {
         {
           '股票代码': '600001.XSHG',
           '股票名称': '紫策股',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -398,8 +450,8 @@ void main() {
         {
           '股票代码': '600001.XSHG',
           '股票名称': '紫策股',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -475,8 +527,8 @@ void main() {
           '股票名称': '紫策破板股',
           '标记': '涨停破板',
           '形态': 'ZT|ZT|MYIN',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -489,8 +541,8 @@ void main() {
           '股票名称': '紫策破板股',
           '标记': '涨停破板',
           '形态': 'ZT|ZT|MYIN',
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -516,8 +568,133 @@ void main() {
 
     expect(find.text('[皮]'), findsOneWidget);
     expect(find.text('[石皮]'), findsNothing);
-    expect(find.text('50/70/2'), findsOneWidget);
-    expect(find.byTooltip('达标 50%  ·  赚率 70%（T0≥0，含小赚，不是达标率）'), findsNothing);
+    expect(find.text('70/70/3'), findsOneWidget);
+    expect(
+      find.byTooltip('形态：ZT|ZT|MYIN（涨停＋涨停＋中阴）\n达标率：70%\n赚率：70%\n样本数：3'),
+      findsOneWidget,
+    );
+    disposeVms();
+  });
+
+  testWidgets('策略股票根据真赚率自动显示仓位评级', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'voice_announcement_asked': true,
+      StockRatingStore.storageKey: '{"600001":"avoid"}',
+    });
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '评级测试股',
+          '形态': 'ZT|ZT|MYIN',
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
+          '形态真亏率(%)': 20,
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.ensureVisible(find.text('主板策略(1)'));
+    await tester.tap(find.text('主板策略(1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('70/80/3'), findsOneWidget);
+    expect(find.text('重仓'), findsOneWidget);
+    expect(
+      find.byTooltip('评级：重仓\n真赚率：80%\n规则：重仓≥75%，轻仓≥55%，不买<55%'),
+      findsOneWidget,
+    );
+    disposeVms();
+  });
+
+  testWidgets('窄屏长股票名下评级紧跟形态统计且不溢出', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SharedPreferences.setMockInitialValues({
+      'voice_announcement_asked': true,
+      StockRatingStore.storageKey: '{"600001":"light"}',
+    });
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-03',
+      'results': [
+        {
+          '股票代码': '600001.XSHG',
+          '股票名称': '这是一个非常长的股票名称',
+          'T0开盘涨幅(%)': 1.23,
+          'T0收盘涨幅(%)': 2.34,
+          '形态': 'ZT|ZT|MYIN',
+          '形态样本数': 123,
+          '形态达标率(%)': 70,
+          '形态真亏率(%)': 30,
+        },
+      ],
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.ensureVisible(find.text('主板策略(1)'));
+    await tester.tap(find.text('主板策略(1)'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getTopLeft(find.text('轻仓')).dx,
+      greaterThan(tester.getTopRight(find.text('70/70/123')).dx),
+    );
     disposeVms();
   });
 
@@ -545,8 +722,8 @@ void main() {
           '股票名称': '紫策涨幅股',
           'T0开盘涨幅(%)': 1.23,
           'T0收盘涨幅(%)': 2.34,
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -559,8 +736,8 @@ void main() {
           '股票名称': '紫策涨幅股',
           'T0开盘涨幅(%)': 1.23,
           'T0收盘涨幅(%)': 2.34,
-          '形态样本数': 2,
-          '形态达标率(%)': 50,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 30,
         },
       ],
@@ -649,7 +826,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('紫策位于主板策略左侧并只显示两个百分比均达标的股票', (tester) async {
+  testWidgets('紫策位于主板策略左侧并只显示严格阈值达标的股票', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -671,8 +848,8 @@ void main() {
         {
           '股票代码': '600001.XSHG',
           '股票名称': '紫股',
-          '形态样本数': 2,
-          '形态达标率(%)': 30.1,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 39.9,
         },
         {
@@ -689,8 +866,8 @@ void main() {
         {
           '股票代码': '600001.XSHG',
           '股票名称': '紫股',
-          '形态样本数': 2,
-          '形态达标率(%)': 30.1,
+          '形态样本数': 3,
+          '形态达标率(%)': 70,
           '形态真亏率(%)': 39.9,
         },
         {

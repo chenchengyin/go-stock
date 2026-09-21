@@ -130,11 +130,14 @@ func initT0CacheRoot() error {
 
 // t0DailyCachePayload 按交易日落盘的股票池 + 日线缓存
 type t0DailyCachePayload struct {
+	DataSchemaVersion int
 	TradeDate         string
 	Stocks            []t0Stock
 	Daily             map[string][]dailyBar
 	StockPoolComplete bool // 股票池分页已完整结束；旧缓存没有该标记，必须重新获取
 }
+
+const t0DailyCacheSchemaVersion = 2
 
 // t0SelectionArchive 按日选股结果归档
 type t0SelectionArchive struct {
@@ -250,7 +253,9 @@ func readT0DailyCachePayload(tradeDate string) (*t0DailyCachePayload, bool) {
 		logger.SugaredLogger.Warnf("[T0选股] 日线缓存解码失败 %s: %v", path, err)
 		return nil, false
 	}
-	if payload.TradeDate != tradeDate || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
+	if payload.DataSchemaVersion != t0DailyCacheSchemaVersion ||
+		payload.TradeDate != tradeDate || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
+		logger.SugaredLogger.Warnf("[T0选股] 日线缓存版本或内容不可用，等待按新成交额口径重建: %s", path)
 		return nil, false
 	}
 	return &payload, true
@@ -295,6 +300,7 @@ func saveT0DailyCache(tradeDate string, stocks []t0Stock, daily map[string][]dai
 		return err
 	}
 	payload := t0DailyCachePayload{
+		DataSchemaVersion: t0DailyCacheSchemaVersion,
 		TradeDate:         tradeDate,
 		Stocks:            stocks,
 		Daily:             daily,
@@ -722,10 +728,10 @@ func buildPrewarmReadyResponseAtWithCache(
 			hist[sc] = histBarsBeforeTradeDate(bars, tradeDate)
 		}
 	}
-	var step2 []t0Stock
+	var step1, step2 []t0Stock
 	candidateCount := 0
 	if ok {
-		step1 := filterLimitUpRecent(stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
+		step1 = filterLimitUpRecent(stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 		step2 = filterTurnover(step1, hist, 5.0)
 		candidateCount = len(step2)
 	}
@@ -745,6 +751,18 @@ func buildPrewarmReadyResponseAtWithCache(
 		"cache_hit":       true,
 		"elapsed_sec":     round2(time.Since(tStart).Seconds()),
 	}
+	var warnings []t0DataWarning
+	if warning := buildT0DailyCacheWarning(stocks, daily); warning != nil {
+		warnings = append(warnings, *warning)
+	}
+	if warning := buildT0TurnoverWarning(step1, hist); warning != nil {
+		warnings = append(warnings, *warning)
+	}
+	for _, warning := range warnings {
+		logger.SugaredLogger.Warnf("[T0数据监控] %s code=%s phase=%s expected=%d actual=%d missing=%d",
+			warning.Message, warning.Code, warning.Phase, warning.Expected, warning.Actual, warning.Missing)
+	}
+	attachT0DataWarnings(resp, warnings)
 
 	// 凌晨窗口内：附带最近历史归档，供前端直接展示前一交易日结果；不附当日 candidates
 	if isPreopenPrevResultWindow(now, tradeDate) {
@@ -810,17 +828,20 @@ func assembleT0CandidateResults(tradeDate string, stocks []t0Stock, histCache ma
 			marketSuffix = ".XSHG"
 		}
 		out = append(out, T0SelectionResult{
-			Time:         tradeDate,
-			OpenGap:      0,
-			CloseRet:     0,
-			LimitUpDates: limitUpInfo,
-			MA20:         round2(calcMA20(hist)),
-			AmountYi:     round2(prevAmountYi),
-			StockCode:    s.ShortCode + marketSuffix,
-			StockName:    s.Name,
-			PrevClose:    round2(prevClose),
-			PrevCloseRet: round2(prevRet),
-			Tag:          tag,
+			Time:             tradeDate,
+			OpenGap:          0,
+			CloseRet:         0,
+			LimitUpDates:     limitUpInfo,
+			MA20:             round2(calcMA20(hist)),
+			AmountYi:         round2(prevAmountYi),
+			TurnoverSource:   hist[len(hist)-1].AmountSource,
+			TurnoverUnit:     hist[len(hist)-1].AmountUnit,
+			TurnoverVerified: isDailyTurnoverVerified(hist[len(hist)-1]),
+			StockCode:        s.ShortCode + marketSuffix,
+			StockName:        s.Name,
+			PrevClose:        round2(prevClose),
+			PrevCloseRet:     round2(prevRet),
+			Tag:              tag,
 		})
 		enrichResultWithPattern(&out[len(out)-1], hist)
 	}
@@ -846,6 +867,14 @@ func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[str
 	}
 	if prog.Status == t0WarmStatusFailed && prog.Err != "" {
 		resp["error"] = prog.Err
+		warning := t0DataWarning{
+			Code:    "T0_DAILY_DATA_UNAVAILABLE",
+			Message: "日线数据获取异常，暂未生成正式选股结果",
+			Phase:   "daily_fetch",
+		}
+		logger.SugaredLogger.Warnf("[T0数据监控] %s code=%s phase=%s error=%s",
+			warning.Message, warning.Code, warning.Phase, prog.Err)
+		attachT0DataWarnings(resp, []t0DataWarning{warning})
 	}
 	if prog.BackfillDate != "" {
 		resp["backfill_date"] = prog.BackfillDate
@@ -860,13 +889,34 @@ func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[str
 
 // dailyBar 内部使用的日线数据
 type dailyBar struct {
-	Date     string
-	Open     float64
-	Close    float64
-	High     float64
-	Low      float64
-	Volume   float64 // 成交量(股)
-	AmountYi float64 // 成交额(亿元)
+	Date           string
+	Open           float64
+	Close          float64
+	High           float64
+	Low            float64
+	Volume         float64 // 成交量(源数据原始单位)
+	AmountYi       float64 // 成交额(亿元)
+	AmountSource   string  // 成交额来源：eastmoney/sina/tencent/tdx
+	AmountUnit     string  // 统一为 yuan
+	AmountVerified bool    // 是否由数据源直接提供成交额，禁止用成交量×收盘价反推
+}
+
+type t0DataWarning struct {
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	Phase    string `json:"phase"`
+	Source   string `json:"source,omitempty"`
+	Expected int    `json:"expected,omitempty"`
+	Actual   int    `json:"actual,omitempty"`
+	Missing  int    `json:"missing,omitempty"`
+}
+
+func attachT0DataWarnings(response map[string]interface{}, warnings []t0DataWarning) {
+	if len(warnings) == 0 {
+		return
+	}
+	response["data_warning"] = warnings[0]
+	response["data_warnings"] = warnings
 }
 
 // t0Stock 股票基础信息
@@ -892,6 +942,9 @@ type T0SelectionResult struct {
 	LimitUpDates         string           `json:"涨停日期"`
 	MA20                 float64          `json:"MA20"`
 	AmountYi             float64          `json:"成交额(亿)"`
+	TurnoverSource       string           `json:"成交额来源,omitempty"`
+	TurnoverUnit         string           `json:"成交额单位,omitempty"`
+	TurnoverVerified     bool             `json:"成交额已确认,omitempty"`
 	StockCode            string           `json:"股票代码"` // 如 600000.XSHG
 	StockName            string           `json:"股票名称"`
 	PrevClose            float64          `json:"前一交易日收盘"`
@@ -901,6 +954,8 @@ type T0SelectionResult struct {
 	PatternT0N           int              `json:"形态样本数"`
 	PatternWinPct        float64          `json:"形态达标率(%)"`
 	PatternFailPct       float64          `json:"形态真亏率(%)"`
+	PatternScore         float64          `json:"综合评分,omitempty"`
+	StrongGoldSignal     bool             `json:"强金策,omitempty"`
 	BuySignal            string           `json:"买入信号"`
 	DisplayRuleHits      []string         `json:"命中条件,omitempty"`
 	StrongDisplayRuleHit bool             `json:"重点标红,omitempty"`
@@ -1306,10 +1361,14 @@ func fetchStockPoolFromSina() []t0Stock {
 
 // ── 日线 K 线获取 ──────────────────────────────────────────────────────────
 
-// parseKLineToDailyBar 将 KLineData 转为内部 dailyBar
-func parseKLineToDailyBar(kd data.KLineData) (dailyBar, bool) {
+// parseKLineToDailyBar 将 KLineData 转为内部 dailyBar。
+// 成交额统一按数据源直接返回的“元”解析，禁止用成交量×收盘价反推。
+func parseKLineToDailyBar(kd data.KLineData, source string) (dailyBar, bool) {
 	var bar dailyBar
 	bar.Date = kd.Day
+	if len(bar.Date) >= len("2006-01-02") {
+		bar.Date = bar.Date[:len("2006-01-02")]
+	}
 
 	parse := func(s string) (float64, bool) {
 		v, err := strconv.ParseFloat(s, 64)
@@ -1337,8 +1396,14 @@ func parseKLineToDailyBar(kd data.KLineData) (dailyBar, bool) {
 	if !ok {
 		return bar, false
 	}
-	// 成交额(亿元) = 成交量 * 收盘价 / 1e8
-	bar.AmountYi = bar.Volume * bar.Close / 1e8
+	amount, ok := parse(kd.Amount)
+	if !ok || amount <= 0 {
+		return bar, false
+	}
+	bar.AmountYi = amount / 1e8
+	bar.AmountSource = source
+	bar.AmountUnit = "yuan"
+	bar.AmountVerified = true
 	return bar, true
 }
 
@@ -1357,14 +1422,14 @@ func fetchDailyKLineWithLimit(shortCode string, endDate string, limit int) []dai
 	if limit <= 0 {
 		limit = 30
 	}
-	result := data.FetchKLineWithFallback(shortCode, "", "101", limit, endDate)
+	result := data.FetchDailyKLineWithTurnoverFallback(shortCode, "", limit, endDate)
 	if result == nil || result.Data == nil {
 		return nil
 	}
 
 	var bars []dailyBar
 	for _, kd := range *result.Data {
-		if bar, ok := parseKLineToDailyBar(kd); ok {
+		if bar, ok := parseKLineToDailyBar(kd, result.Source); ok {
 			bars = append(bars, bar)
 		}
 	}
@@ -1596,6 +1661,51 @@ func filterLimitUpRecent(stocks []t0Stock, cache map[string][]dailyBar, days int
 	return result
 }
 
+func isDailyTurnoverVerified(bar dailyBar) bool {
+	// 旧的内存测试夹具只填 AmountYi；磁盘缓存必须经过 schema=2 和解析器，
+	// 真实数据都带 AmountVerified=true。
+	return bar.AmountVerified || (bar.AmountSource == "" && bar.AmountYi > 0)
+}
+
+func buildT0TurnoverWarning(stocks []t0Stock, cache map[string][]dailyBar) *t0DataWarning {
+	missing := 0
+	valid := 0
+	for _, s := range stocks {
+		bars := cache[s.ShortCode]
+		if len(bars) == 0 || !isDailyTurnoverVerified(bars[len(bars)-1]) {
+			missing++
+			continue
+		}
+		valid++
+	}
+	if missing == 0 {
+		return nil
+	}
+	return &t0DataWarning{
+		Code:     "T0_TURNOVER_DATA_INCOMPLETE",
+		Message:  fmt.Sprintf("成交额数据不可确认，已跳过%d只股票", missing),
+		Phase:    "daily_turnover",
+		Expected: len(stocks),
+		Actual:   valid,
+		Missing:  missing,
+	}
+}
+
+func buildT0DailyCacheWarning(stocks []t0Stock, cache map[string][]dailyBar) *t0DataWarning {
+	if len(stocks) == 0 || len(cache) >= len(stocks) {
+		return nil
+	}
+	missing := len(stocks) - len(cache)
+	return &t0DataWarning{
+		Code:     "T0_DAILY_DATA_INCOMPLETE",
+		Message:  fmt.Sprintf("日线数据不完整，缺少%d只股票", missing),
+		Phase:    "daily_fetch",
+		Expected: len(stocks),
+		Actual:   len(cache),
+		Missing:  missing,
+	}
+}
+
 // filterTurnover 过滤3：前一交易日成交额 ≥ minTurnover 亿
 func filterTurnover(stocks []t0Stock, cache map[string][]dailyBar, minTurnover float64) []t0Stock {
 	logger.SugaredLogger.Infof("[T0选股] 过滤3(成交额≥%.1f亿): %d只", minTurnover, len(stocks))
@@ -1607,7 +1717,7 @@ func filterTurnover(stocks []t0Stock, cache map[string][]dailyBar, minTurnover f
 			continue
 		}
 		last := bars[len(bars)-1]
-		if last.AmountYi >= minTurnover {
+		if isDailyTurnoverVerified(last) && last.AmountYi >= minTurnover {
 			result = append(result, s)
 		}
 	}
@@ -1689,7 +1799,7 @@ func histBarsBeforeTradeDate(bars []dailyBar, tradeDate string) []dailyBar {
 // buildT0AuctionQuotes 构建竞价开盘价口径：
 //   - 历史回测（tradeDate < 今天）：日线含当日 K → 用当日 Open 作竞价开盘
 //   - 当天实盘（tradeDate == 今天）：一律腾讯 Open（09:25 后即竞价价），避免未收盘日线 Open 干扰
-func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[string][]dailyBar) (map[string]t0Realtime, string) {
+func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning) {
 	today := time.Now().In(chinaLocation()).Format("2006-01-02")
 	useLiveOnly := tradeDate == today || tradeDate > today
 
@@ -1699,7 +1809,8 @@ func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[str
 
 	for _, s := range stocks {
 		bars := dailyCache[s.ShortCode]
-		if !useLiveOnly && len(bars) >= 2 && bars[len(bars)-1].Date == tradeDate && bars[len(bars)-1].Open > 0 {
+		if !useLiveOnly && len(bars) >= 2 && bars[len(bars)-1].Date == tradeDate &&
+			bars[len(bars)-1].Open > 0 && bars[len(bars)-2].Close > 0 {
 			last := bars[len(bars)-1]
 			prev := bars[len(bars)-2]
 			out[s.ShortCode] = t0Realtime{
@@ -1725,7 +1836,25 @@ func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[str
 			source = fmt.Sprintf("混合(日线%d/腾讯%d)", fromDaily, len(live))
 		}
 	}
-	return out, source
+	missing := len(stocks) - len(out)
+	if missing > 0 {
+		warning := &t0DataWarning{
+			Code:     "T0_AUCTION_DATA_INCOMPLETE",
+			Message:  fmt.Sprintf("竞价开盘数据不完整，缺少%d只股票", missing),
+			Phase:    "auction",
+			Source:   source,
+			Expected: len(stocks),
+			Actual:   len(out),
+			Missing:  missing,
+		}
+		logger.SugaredLogger.Warnf("[T0数据监控] %s code=%s phase=%s source=%s expected=%d actual=%d missing=%d",
+			warning.Message, warning.Code, warning.Phase, warning.Source,
+			warning.Expected, warning.Actual, warning.Missing)
+		return out, source, warning
+	}
+	logger.SugaredLogger.Infof("[T0数据监控] 竞价数据完整 code=T0_AUCTION_OK phase=auction source=%s expected=%d actual=%d",
+		source, len(stocks), len(out))
+	return out, source, nil
 }
 
 // ── 主函数 ──────────────────────────────────────────────────────────────────
@@ -1743,18 +1872,18 @@ func normalizeT0TradeDate(tradeDate string) (string, error) {
 // RunT0Selection 执行完整 T0 选股链
 // tradeDate: 交易日 "2006-01-02"，空字符串 = 今天
 func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
-	results, _, err := runT0SelectionWithDaily(tradeDate)
+	results, _, _, err := runT0SelectionWithDaily(tradeDate)
 	return results, err
 }
 
 func runT0SelectionWithDaily(
 	tradeDate string,
-) ([]T0SelectionResult, map[string][]dailyBar, error) {
+) ([]T0SelectionResult, map[string][]dailyBar, []t0DataWarning, error) {
 	tStart := time.Now()
 
 	tradeDate, err := normalizeT0TradeDate(tradeDate)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	logger.SugaredLogger.Infof("========== T0 开盘日线选股 | 基准日: %s ==========", tradeDate)
@@ -1763,7 +1892,7 @@ func runT0SelectionWithDaily(
 	t12 := time.Now()
 	allStocks, dailyCache, fromCache, err := loadOrFetchT0Daily(tradeDate)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	logger.SugaredLogger.Infof("[T0选股] [1-2/5] 股票池+日线就绪: 股票%d 日线%d 缓存命中=%v (%.1fs)",
 		len(allStocks), len(dailyCache), fromCache, time.Since(t12).Seconds())
@@ -1778,16 +1907,30 @@ func runT0SelectionWithDaily(
 	t3 := time.Now()
 	step1 := filterLimitUpRecent(allStocks, histCache, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 	step2 := filterTurnover(step1, histCache, 5.0)
+	var warnings []t0DataWarning
+	if warning := buildT0DailyCacheWarning(allStocks, dailyCache); warning != nil {
+		logger.SugaredLogger.Warnf("[T0数据监控] %s code=%s phase=%s expected=%d actual=%d missing=%d",
+			warning.Message, warning.Code, warning.Phase, warning.Expected, warning.Actual, warning.Missing)
+		warnings = append(warnings, *warning)
+	}
+	if warning := buildT0TurnoverWarning(step1, histCache); warning != nil {
+		logger.SugaredLogger.Warnf("[T0数据监控] %s code=%s phase=%s expected=%d actual=%d missing=%d",
+			warning.Message, warning.Code, warning.Phase, warning.Expected, warning.Actual, warning.Missing)
+		warnings = append(warnings, *warning)
+	}
 	if len(step2) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] 成交额过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
-		return nil, nil, fmt.Errorf("成交额过滤后无股票")
+		return nil, dailyCache, warnings, fmt.Errorf("成交额过滤后无股票")
 	}
 	logger.SugaredLogger.Infof("[T0选股] [3/5] 日线过滤完成: %d -> %d只 (MA20门闸已暂缓) (%.1fs)",
 		len(allStocks), len(step2), time.Since(t3).Seconds())
 
 	// ── 4. 竞价开盘价（历史用当日日线 Open；当日盘中用腾讯 Open）──
 	t4 := time.Now()
-	auction, auctionSrc := buildT0AuctionQuotes(tradeDate, step2, dailyCache)
+	auction, auctionSrc, auctionWarning := buildT0AuctionQuotes(tradeDate, step2, dailyCache)
+	if auctionWarning != nil {
+		warnings = append(warnings, *auctionWarning)
+	}
 	logger.SugaredLogger.Infof("[T0选股] [4/5] 竞价开盘价就绪: %d只 来源=%s (%.1fs)",
 		len(auction), auctionSrc, time.Since(t4).Seconds())
 
@@ -1799,7 +1942,7 @@ func runT0SelectionWithDaily(
 
 	if len(step4) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] T0开盘过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
-		return nil, nil, fmt.Errorf("T0开盘过滤后无股票")
+		return nil, dailyCache, warnings, fmt.Errorf("T0开盘过滤后无股票")
 	}
 
 	// ── 6. 组装结果 ──
@@ -1852,17 +1995,20 @@ func runT0SelectionWithDaily(
 		userCode := s.ShortCode + marketSuffix
 
 		results = append(results, T0SelectionResult{
-			Time:         tradeDate,
-			OpenGap:      round2(openGap),
-			CloseRet:     round2(t0CloseRet),
-			LimitUpDates: limitUpInfo,
-			MA20:         round2(ma20),
-			AmountYi:     round2(prevAmountYi),
-			StockCode:    userCode,
-			StockName:    s.Name,
-			PrevClose:    round2(prevClose),
-			PrevCloseRet: round2(prevRet),
-			Tag:          tag,
+			Time:             tradeDate,
+			OpenGap:          round2(openGap),
+			CloseRet:         round2(t0CloseRet),
+			LimitUpDates:     limitUpInfo,
+			MA20:             round2(ma20),
+			AmountYi:         round2(prevAmountYi),
+			TurnoverSource:   hist[len(hist)-1].AmountSource,
+			TurnoverUnit:     hist[len(hist)-1].AmountUnit,
+			TurnoverVerified: isDailyTurnoverVerified(hist[len(hist)-1]),
+			StockCode:        userCode,
+			StockName:        s.Name,
+			PrevClose:        round2(prevClose),
+			PrevCloseRet:     round2(prevRet),
+			Tag:              tag,
 		})
 		enrichResultWithPattern(&results[len(results)-1], hist)
 	}
@@ -1875,7 +2021,7 @@ func runT0SelectionWithDaily(
 		len(results), time.Since(t6).Seconds())
 	logger.SugaredLogger.Infof("[T0选股] 总耗时: %.1fs", time.Since(tStart).Seconds())
 
-	return results, dailyCache, nil
+	return results, dailyCache, warnings, nil
 }
 
 func round2(v float64) float64 {
@@ -2320,28 +2466,27 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	forceSave := isTruthyQuery(q.Get("save"))
 	var (
 		results          []T0SelectionResult
+		warnings         []t0DataWarning
+		daily            map[string][]dailyBar
 		selectionContext *t0ModuleSelectionContext
 		err              error
 	)
-	if isT0DailyContextModule(moduleCode) {
-		var daily map[string][]dailyBar
-		results, daily, err = runT0SelectionWithDaily(tradeDate)
-		if err == nil {
-			selectionContext = &t0ModuleSelectionContext{
-				TradeDate: tradeDate,
-				Daily:     daily,
-			}
+	results, daily, warnings, err = runT0SelectionWithDaily(tradeDate)
+	if err == nil && isT0DailyContextModule(moduleCode) {
+		selectionContext = &t0ModuleSelectionContext{
+			TradeDate: tradeDate,
+			Daily:     daily,
 		}
-	} else {
-		results, err = RunT0Selection(tradeDate)
 	}
 	if err != nil {
-		WriteJSON(w, map[string]interface{}{
+		response := map[string]interface{}{
 			"error":   err.Error(),
 			"date":    tradeDate,
 			"count":   0,
 			"results": []T0SelectionResult{},
-		})
+		}
+		attachT0DataWarnings(response, warnings)
+		WriteJSON(w, response)
 		return
 	}
 
@@ -2354,9 +2499,11 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeScopedT0ResponseWithContext(w, moduleCode, map[string]interface{}{
+	response := map[string]interface{}{
 		"date":    tradeDate,
 		"count":   len(selected),
 		"results": sortT0ResultsForClient(selected),
-	}, selectionContext, "results")
+	}
+	attachT0DataWarnings(response, warnings)
+	writeScopedT0ResponseWithContext(w, moduleCode, response, selectionContext, "results")
 }

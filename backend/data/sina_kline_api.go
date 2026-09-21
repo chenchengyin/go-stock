@@ -595,6 +595,47 @@ func FetchKLineWithFallback(stockCode, stockName, klt string, limit int, end str
 	return &KLineSourceResult{Data: &[]KLineData{}, Source: ""}
 }
 
+// FetchDailyKLineWithTurnoverFallback 获取带有可靠成交额字段的日线。
+// 新浪历史日线的成交额字段为空，不能再用成交量×收盘价反推，否则会把“手/股”单位差异放大成百倍误差。
+// T0 过滤成交额时只接受各数据源直接返回的成交额（元）。
+func FetchDailyKLineWithTurnoverFallback(stockCode, stockName string, limit int, end string) *KLineSourceResult {
+	type fetcher func() *KLineSourceResult
+	fetchers := []fetcher{
+		func() *KLineSourceResult { return fetchFromEastMoney(stockCode, stockName, "101", limit, end) },
+		func() *KLineSourceResult { return fetchFromSina(stockCode, "101", limit) },
+		func() *KLineSourceResult { return fetchFromTencent(stockCode, "101", limit) },
+		func() *KLineSourceResult { return fetchFromTdx(stockCode, "101", limit) },
+	}
+	sources := []string{"eastmoney", "sina", "tencent", "tdx"}
+	for i, fetch := range fetchers {
+		result := fetch()
+		if result == nil || result.Data == nil || len(*result.Data) == 0 {
+			continue
+		}
+		if !hasCompleteDailyTurnover(*result.Data) {
+			logger.SugaredLogger.Warnf("日K成交额字段不完整，跳过数据源: code=%s source=%s", stockCode, sources[i])
+			continue
+		}
+		result.Source = sources[i]
+		return result
+	}
+	logger.SugaredLogger.Warnf("所有日K数据源均未提供完整成交额: code=%s", stockCode)
+	return &KLineSourceResult{Data: &[]KLineData{}, Source: ""}
+}
+
+func hasCompleteDailyTurnover(rows []KLineData) bool {
+	if len(rows) == 0 {
+		return false
+	}
+	for _, row := range rows {
+		amount, err := strconv.ParseFloat(strings.TrimSpace(row.Amount), 64)
+		if err != nil || amount <= 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func fetchFromEastMoney(stockCode, stockName, klt string, limit int, end string) *KLineSourceResult {
 	api := NewEastMoneyKLineApi(GetSettingConfig())
 	var data *[]KLineData

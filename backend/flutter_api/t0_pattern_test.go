@@ -88,9 +88,9 @@ func TestEnrichResultWithPattern(t *testing.T) {
 
 func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	results := []T0SelectionResult{
-		{StockCode: "purple", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
-		{StockCode: "purple-win-boundary", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39.9, BuySignal: BuySignalGreen},
-		{StockCode: "purple-earn-boundary", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30.1, PatternFailPct: 40, BuySignal: BuySignalGreen},
+		{StockCode: "purple", PrevClose: 10, PatternT0N: 3, PatternWinPct: 0, PatternFailPct: 30, BuySignal: BuySignalGreen},
+		{StockCode: "purple-win-boundary", PrevClose: 10, PatternT0N: 2, PatternWinPct: 100, PatternFailPct: 0, BuySignal: BuySignalGreen},
+		{StockCode: "purple-earn-boundary", PrevClose: 10, PatternT0N: 3, PatternWinPct: 100, PatternFailPct: 30.1, BuySignal: BuySignalGreen},
 		{StockCode: "blue", PatternT0N: 1, BuySignal: BuySignalBlue},
 		{StockCode: "other", PatternT0N: 2, PatternWinPct: 29.9, PatternFailPct: 39, BuySignal: BuySignalGreen},
 	}
@@ -108,7 +108,7 @@ func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	if err != nil {
 		t.Fatalf("select purple: %v", err)
 	}
-	if got := []string{purple[0].StockCode, purple[1].StockCode}; !reflect.DeepEqual(got, []string{"purple", "purple-win-boundary"}) {
+	if got := []string{purple[0].StockCode}; !reflect.DeepEqual(got, []string{"purple"}) {
 		t.Fatalf("purple results = %v", got)
 	}
 	if &purple[0] == &results[0] {
@@ -137,6 +137,99 @@ func TestSelectT0ResultsForModuleUsesIndependentStrategyViews(t *testing.T) {
 	}
 	if !reflect.DeepEqual(results, original) {
 		t.Fatalf("input results mutated: got %#v want %#v", results, original)
+	}
+}
+
+func TestSelectPurpleT0ResultsUsesStrictTrueEarnPatterns(t *testing.T) {
+	results := []T0SelectionResult{
+		// 严格紫策：N>=3 且真赚率>=70%，不看达标率。
+		{StockCode: "600000.XSHG", PrevClose: 10, PatternT0N: 3, PatternWinPct: 0, PatternFailPct: 30},
+		// N 不足，即使真赚率100%也不进入。
+		{StockCode: "600001.XSHG", PrevClose: 10, PatternT0N: 2, PatternWinPct: 100, PatternFailPct: 0},
+		// 真赚率低于70%，不应进入。
+		{StockCode: "600002.XSHG", PrevClose: 10, PatternT0N: 3, PatternWinPct: 100, PatternFailPct: 30.01},
+		// 达标率低不影响真赚率筛选。
+		{StockCode: "600003.XSHG", PrevClose: 10, PatternT0N: 3, PatternWinPct: 0, PatternFailPct: 30},
+	}
+
+	got, err := selectT0ResultsForModule("radar.purple_strategy", results, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codes := make([]string, 0, len(got))
+	for _, result := range got {
+		codes = append(codes, result.StockCode)
+	}
+	if !reflect.DeepEqual(codes, []string{"600000.XSHG", "600003.XSHG"}) {
+		t.Fatalf("purple codes = %v, want strict true-earn results only", codes)
+	}
+}
+
+func TestPurpleT0PatternUsesTrueEarnRateWithoutTargetRate(t *testing.T) {
+	cfg := models.DefaultT0PatternConfig("test")
+	cases := []struct {
+		name   string
+		result T0SelectionResult
+		want   bool
+	}{
+		{
+			name: "true earn boundary passes regardless of target rate",
+			result: T0SelectionResult{
+				PatternT0N:     3,
+				PatternWinPct:  0,
+				PatternFailPct: 30,
+			},
+			want: true,
+		},
+		{
+			name: "true earn below boundary fails",
+			result: T0SelectionResult{
+				PatternT0N:     3,
+				PatternFailPct: 30.01,
+			},
+			want: false,
+		},
+		{
+			name: "sample count below boundary fails",
+			result: T0SelectionResult{
+				PatternT0N:     2,
+				PatternFailPct: 0,
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := passesPurpleT0Pattern(tc.result, cfg); got != tc.want {
+				t.Fatalf("passesPurpleT0Pattern() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPurpleT0PatternUsesTunableThresholds(t *testing.T) {
+	cfg := models.DefaultT0PatternConfig("test")
+	cfg.PurpleMinSamples = 5
+	cfg.PurpleMinEarn = 80
+
+	if !passesPurpleT0Pattern(T0SelectionResult{
+		PatternT0N:     5,
+		PatternFailPct: 20,
+	}, cfg) {
+		t.Fatal("configured boundary should pass purple filter")
+	}
+	if passesPurpleT0Pattern(T0SelectionResult{
+		PatternT0N:     4,
+		PatternFailPct: 0,
+	}, cfg) {
+		t.Fatal("sample count below configured threshold should fail")
+	}
+	if passesPurpleT0Pattern(T0SelectionResult{
+		PatternT0N:     5,
+		PatternFailPct: 20.01,
+	}, cfg) {
+		t.Fatal("true earn rate below configured threshold should fail")
 	}
 }
 

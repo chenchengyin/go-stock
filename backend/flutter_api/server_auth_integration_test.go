@@ -126,7 +126,7 @@ func TestT0SelectionDoesNotCoupleMainPurpleAndBlue(t *testing.T) {
 	}
 
 	for _, code := range []string{
-		"radar.purple_strategy", "radar.blue_strategy",
+		"radar.gold_strategy", "radar.purple_strategy", "radar.blue_strategy",
 	} {
 		req := httptest.NewRequest(http.MethodGet,
 			"/api/t0-selection?module_code="+url.QueryEscape(code)+

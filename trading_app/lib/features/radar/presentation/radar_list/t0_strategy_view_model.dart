@@ -56,6 +56,8 @@ class T0StrategyStock {
   final int patternT0N; // 形态样本数
   final double patternWinPct; // 形态达标率(%) T0≥2.5%
   final double patternFailPct; // 形态真亏率(%) T0<0，库内口径；展示用赚率
+  final double patternScore; // 金策综合评分：0.6×达标率 + 0.4×真赚率
+  final bool strongGoldSignal; // 真赚率≥65%的强金策
   final String buySignal; // blue | orange | green | yellow | red | insufficient
   final List<String> displayRuleHits; // 列表显示命中的可扩展条件
   final bool strongDisplayRuleHit; // 显式深红候选命中（含旧两连涨停条件）
@@ -83,6 +85,8 @@ class T0StrategyStock {
     this.patternT0N = 0,
     this.patternWinPct = 0,
     this.patternFailPct = 0,
+    this.patternScore = 0,
+    this.strongGoldSignal = false,
     this.buySignal = '',
     this.displayRuleHits = const [],
     this.strongDisplayRuleHit = false,
@@ -124,6 +128,8 @@ class T0StrategyStock {
       patternT0N: (json['形态样本数'] as num?)?.toInt() ?? 0,
       patternWinPct: (json['形态达标率(%)'] as num?)?.toDouble() ?? 0.0,
       patternFailPct: (json['形态真亏率(%)'] as num?)?.toDouble() ?? 0.0,
+      patternScore: (json['综合评分'] as num?)?.toDouble() ?? 0.0,
+      strongGoldSignal: json['强金策'] as bool? ?? false,
       buySignal: json['买入信号'] as String? ?? '',
       displayRuleHits: displayRuleHits,
       strongDisplayRuleHit: json['重点标红'] as bool? ?? false,
@@ -154,6 +160,8 @@ class T0StrategyStock {
       patternT0N: patternT0N,
       patternWinPct: patternWinPct,
       patternFailPct: patternFailPct,
+      patternScore: patternScore,
+      strongGoldSignal: strongGoldSignal,
       buySignal: buySignal,
       displayRuleHits: displayRuleHits,
       strongDisplayRuleHit: strongDisplayRuleHit,
@@ -197,6 +205,7 @@ class T0WarmProgress {
 
 /// T0 策略（开盘日线选股）ViewModel
 const t0RedStrategyModuleCode = 'radar.red_strategy';
+const t0GoldStrategyModuleCode = 'radar.gold_strategy';
 const t0PurpleStrategyModuleCode = 'radar.purple_strategy';
 const t0MainStrategyModuleCode = 'radar.main_strategy';
 const t0BlueStrategyModuleCode = 'radar.blue_strategy';
@@ -224,6 +233,8 @@ class T0ModuleState {
     required this.phase,
     required this.loaded,
     required this.noData,
+    required this.dataWarningMessage,
+    required this.dataWarningKey,
   });
 
   final List<T0StrategyStock> results;
@@ -238,6 +249,8 @@ class T0ModuleState {
   final T0StrategyPhase phase;
   final bool loaded;
   final bool noData;
+  final String? dataWarningMessage;
+  final String? dataWarningKey;
 
   bool get showingCandidatePreview => phase == T0StrategyPhase.candidatePreview;
 
@@ -262,6 +275,8 @@ class _MutableT0ModuleState {
   T0StrategyPhase phase = T0StrategyPhase.waiting;
   bool loaded = false;
   bool noData = false;
+  String? dataWarningMessage;
+  String? dataWarningKey;
   int purpleMinSamples = t0PurpleDefaultMinSamples;
   double purpleMinEarnPct = t0PurpleDefaultMinEarnPct;
   int loadGeneration = 0;
@@ -284,6 +299,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   final void Function(String moduleCode)? _onModuleForbidden;
   final Map<String, _MutableT0ModuleState> _states = {
     t0RedStrategyModuleCode: _MutableT0ModuleState(),
+    t0GoldStrategyModuleCode: _MutableT0ModuleState(),
     t0PurpleStrategyModuleCode: _MutableT0ModuleState(),
     t0MainStrategyModuleCode: _MutableT0ModuleState(),
     t0BlueStrategyModuleCode: _MutableT0ModuleState(),
@@ -296,8 +312,12 @@ class T0StrategyViewModel extends ChangeNotifier {
   T0ModuleState stateFor(String moduleCode) {
     final state = _mutableState(moduleCode);
     return T0ModuleState(
-      results: List.unmodifiable(_sortForDisplay(state, state.results)),
-      candidates: List.unmodifiable(_sortForDisplay(state, state.candidates)),
+      results: List.unmodifiable(
+        _sortForDisplay(moduleCode, state, state.results),
+      ),
+      candidates: List.unmodifiable(
+        _sortForDisplay(moduleCode, state, state.candidates),
+      ),
       loading: state.loading,
       error: state.error,
       warmProgress: state.warmProgress,
@@ -308,12 +328,14 @@ class T0StrategyViewModel extends ChangeNotifier {
       phase: state.phase,
       loaded: state.loaded,
       noData: state.noData,
+      dataWarningMessage: state.dataWarningMessage,
+      dataWarningKey: state.dataWarningKey,
     );
   }
 
   List<T0StrategyStock> resultsFor(String moduleCode) {
     final state = _mutableState(moduleCode);
-    return List.unmodifiable(_sortForDisplay(state, state.results));
+    return List.unmodifiable(_sortForDisplay(moduleCode, state, state.results));
   }
 
   List<T0StrategyStock> purpleResultsFor(String moduleCode) {
@@ -566,6 +588,8 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.results = [];
     state.candidates = [];
     state.error = null;
+    state.dataWarningMessage = null;
+    state.dataWarningKey = null;
     state.warmProgress = null;
     state.displayDate = null;
     state.showingHistorical = false;
@@ -610,6 +634,8 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.loading = true;
     state.error = null;
     state.noData = false;
+    state.dataWarningMessage = null;
+    state.dataWarningKey = null;
     notifyListeners();
 
     try {
@@ -681,6 +707,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   ) {
     final state = _mutableState(moduleCode);
     state.loaded = true;
+    _applyDataWarning(state, data, date);
     _applyPurpleFilterConfig(state, data);
     final noData = data['no_data'] as bool? ?? false;
     if (noData) {
@@ -843,6 +870,24 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
   }
 
+  void _applyDataWarning(
+    _MutableT0ModuleState state,
+    Map<String, dynamic> data,
+    String? date,
+  ) {
+    state.dataWarningMessage = null;
+    state.dataWarningKey = null;
+    final raw = data['data_warning'];
+    if (raw is! Map) return;
+    final warning = Map<String, dynamic>.from(raw);
+    final message = warning['message'] as String?;
+    if (message == null || message.isEmpty) return;
+    final code = warning['code'] as String? ?? 'T0_DATA_WARNING';
+    final warningDate = data['date'] as String? ?? date ?? '';
+    state.dataWarningMessage = message;
+    state.dataWarningKey = '$warningDate:$code';
+  }
+
   void _mergeQuotes(
     String moduleCode,
     Map<String, Map<String, dynamic>> quotes,
@@ -938,9 +983,24 @@ class T0StrategyViewModel extends ChangeNotifier {
   }
 
   static List<T0StrategyStock> _sortForDisplay(
+    String moduleCode,
     _MutableT0ModuleState state,
     List<T0StrategyStock> stocks,
   ) {
+    if (moduleCode == t0GoldStrategyModuleCode) {
+      final out = List<T0StrategyStock>.from(stocks);
+      out.sort((a, b) {
+        if (a.strongGoldSignal != b.strongGoldSignal) {
+          return a.strongGoldSignal ? -1 : 1;
+        }
+        final score = b.patternScore.compareTo(a.patternScore);
+        if (score != 0) return score;
+        final samples = b.patternT0N.compareTo(a.patternT0N);
+        if (samples != 0) return samples;
+        return a.stockCode.compareTo(b.stockCode);
+      });
+      return out;
+    }
     return sortStrategyStocksForDisplay(
       stocks,
       liveChangePercent: (stock) => stock.liveChangePercent,
@@ -1043,6 +1103,8 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.results = [];
     state.candidates = [];
     state.error = null;
+    state.dataWarningMessage = null;
+    state.dataWarningKey = null;
     state.warmProgress = null;
     state.phase = T0StrategyPhase.waiting;
     _stopQuotePolling(moduleCode);

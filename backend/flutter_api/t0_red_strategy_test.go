@@ -1,14 +1,22 @@
 package flutter_api
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/glebarez/sqlite"
+	"go-stock/backend/analysis/t0reference"
+	"go-stock/backend/db"
+	"go-stock/backend/models"
+	"gorm.io/gorm"
 )
 
 func TestFilterRedT0ResultsMatchesDisplayRedOnly(t *testing.T) {
@@ -52,31 +60,123 @@ func TestFilterRedT0ResultsMatchesDisplayRedOnly(t *testing.T) {
 	}
 }
 
-func TestSelectPurpleT0ResultsAppliesRedPriceFloor(t *testing.T) {
+func TestFilterRedT0ResultsMarksOnlyExactTwoLimitUpAuctionDeepRed(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
-		TradeDate: "2026-09-10",
+		TradeDate: "2026-09-04",
 		Daily: map[string][]dailyBar{
 			"600000": {
-				{Date: "2026-07-01", Close: 10},
-				{Date: "2026-09-09", Close: 11},
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11.4, Close: 12.1, High: 12.1, Low: 11.4},
 			},
 			"600001": {
-				{Date: "2026-07-01", Close: 10},
-				{Date: "2026-09-09", Close: 10},
-			},
-			"600002": {
-				{Date: "2026-07-01", Close: 10},
-				{Date: "2026-09-09", Close: 9.99},
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11.1, Close: 12.1, High: 12.1, Low: 11.1},
 			},
 		},
 	}
 	results := []T0SelectionResult{
-		{StockCode: "600000.XSHG", PrevClose: 11, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39},
-		{StockCode: "600001.XSHG", PrevClose: 10, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39},
-		{StockCode: "600002.XSHG", PrevClose: 9.99, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39},
+		{StockCode: "600000.XSHG", OpenGap: 1.2, PatternWinPct: 20, PatternFailPct: 50},
+		{StockCode: "600001.XSHG", OpenGap: 1.2, PatternWinPct: 20, PatternFailPct: 50},
 	}
 
-	got, err := selectT0ResultsForModule("radar.purple_strategy", results, ctx)
+	got := filterRedT0Results(results, ctx)
+	if len(got) != 2 {
+		t.Fatalf("red result count=%d want 2", len(got))
+	}
+	if !got[0].StrongDisplayRuleHit {
+		t.Fatalf("exact two-limit-up non-one-word combination should be deep red: %+v", got[0])
+	}
+	if got[1].StrongDisplayRuleHit {
+		t.Fatalf("same combination with T-1 open gap below 3%% should stay ordinary red: %+v", got[1])
+	}
+}
+
+func TestFilterRedT0ResultsMarksAnyLimitUpLimitDownDeepRed(t *testing.T) {
+	ctx := &t0ModuleSelectionContext{
+		TradeDate: "2026-09-05",
+		Daily: map[string][]dailyBar{
+			"600002": {
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+				{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+			},
+		},
+	}
+
+	got := filterRedT0Results([]T0SelectionResult{
+		{StockCode: "600002.XSHG", OpenGap: 1.2},
+	}, ctx)
+	if len(got) != 1 || !got[0].StrongDisplayRuleHit {
+		t.Fatalf("any-limit-up-limit-down combination should be deep red: %+v", got)
+	}
+	if !reflect.DeepEqual(got[0].DisplayRuleHits,
+		[]string{"任意K线＋涨停＋跌停", "中阳及以上＋跌停后的开盘竞价"}) {
+		t.Fatalf("display hits=%v", got[0].DisplayRuleHits)
+	}
+}
+
+func TestFilterRedT0ResultsIncludesExplicitDeepRedReferencePattern(t *testing.T) {
+	previous := db.Dao
+	t.Cleanup(func() { db.Dao = previous })
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Dao = dao
+	if err := dao.AutoMigrate(&models.T0ReferenceRule{}, &models.T0ReferenceRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	rule, err := modelsRuleForTestName("CUSTOM_SELECTED_PATTERN", `{"sequence":["ZT","DYIN","DT"]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule.DeepRed = true
+	if err := dao.Create(&rule).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.Create(&models.T0ReferenceRuleStat{
+		RuleID: rule.ID, BatchID: "batch", PeriodKey: "all", SampleCount: 8,
+		ProfitWinRate: 75, ResearchTier: t0reference.ResearchTierInsufficient,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := &t0ModuleSelectionContext{
+		TradeDate: "2026-01-08",
+		Daily: map[string][]dailyBar{
+			"600001": {
+				{Date: "2026-01-02", Open: 10, Close: 10, High: 10, Low: 10},
+				{Date: "2026-01-05", Open: 10.5, Close: 11, High: 11, Low: 10.5},
+				{Date: "2026-01-06", Open: 10.8, Close: 10.05, High: 10.8, Low: 10.05},
+				{Date: "2026-01-07", Open: 9.5, Close: 9, High: 9.5, Low: 9},
+			},
+		},
+	}
+	got := filterRedT0Results([]T0SelectionResult{
+		{StockCode: "600001.XSHG", OpenGap: 1},
+	}, ctx)
+	if len(got) != 1 {
+		t.Fatalf("selected deep-red reference result count=%d want 1", len(got))
+	}
+	if !got[0].StrongDisplayRuleHit {
+		t.Fatalf("selected reference pattern should be deep red: %+v", got[0])
+	}
+	if !reflect.DeepEqual(got[0].DisplayRuleHits, []string{"CUSTOM_SELECTED_PATTERN"}) {
+		t.Fatalf("reference display hits=%v", got[0].DisplayRuleHits)
+	}
+}
+
+func TestSelectPurpleT0ResultsUsesTrueEarnRateWithoutPriceFloor(t *testing.T) {
+	results := []T0SelectionResult{
+		{StockCode: "600000.XSHG", PrevClose: 11, PatternT0N: 3, PatternWinPct: 0, PatternFailPct: 30},
+		{StockCode: "600001.XSHG", PrevClose: 10, PatternT0N: 3, PatternWinPct: 100, PatternFailPct: 30.01},
+		{StockCode: "600002.XSHG", PrevClose: 9.99, PatternT0N: 3, PatternWinPct: 0, PatternFailPct: 0},
+	}
+
+	got, err := selectT0ResultsForModule("radar.purple_strategy", results, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,40 +184,63 @@ func TestSelectPurpleT0ResultsAppliesRedPriceFloor(t *testing.T) {
 	for _, result := range got {
 		codes = append(codes, result.StockCode)
 	}
-	want := []string{"600000.XSHG", "600001.XSHG"}
+	want := []string{"600000.XSHG", "600002.XSHG"}
 	if !reflect.DeepEqual(codes, want) {
 		t.Fatalf("purple codes = %v, want %v", codes, want)
 	}
 }
 
-func TestSelectPurpleT0ResultsRequiresDailyContext(t *testing.T) {
-	results := []T0SelectionResult{{StockCode: "600000.XSHG"}}
+func TestSelectPurpleT0ResultsDoesNotRequireDailyContext(t *testing.T) {
+	results := []T0SelectionResult{{
+		StockCode: "600000.XSHG", PatternT0N: 3, PatternFailPct: 30,
+	}}
 	selected, err := selectT0ResultsForModule("radar.purple_strategy", results, nil)
-	if err == nil || selected != nil {
+	if err != nil || len(selected) != 1 {
 		t.Fatalf("purple selection without context = %#v, err=%v", selected, err)
 	}
 }
 
-func TestHandleT0SelectionArchivedPurpleAppliesPriceFloor(t *testing.T) {
+func TestSelectGoldT0ResultsFiltersAndSortsByCompositeScore(t *testing.T) {
+	results := []T0SelectionResult{
+		// 强金策优先：真赚率 85%，综合分 64。
+		{StockCode: "600000.XSHG", PatternT0N: 20, PatternWinPct: 50, PatternFailPct: 15},
+		// 普通金策即使综合分更高，也排在强金策后面。
+		{StockCode: "600001.XSHG", PatternT0N: 40, PatternWinPct: 70, PatternFailPct: 36},
+		// 样本数不足。
+		{StockCode: "600002.XSHG", PatternT0N: 19, PatternWinPct: 90, PatternFailPct: 0},
+		// 真赚率不足 58%。
+		{StockCode: "600003.XSHG", PatternT0N: 20, PatternWinPct: 90, PatternFailPct: 42.01},
+		// 达标率不足 20%。
+		{StockCode: "600004.XSHG", PatternT0N: 20, PatternWinPct: 19.99, PatternFailPct: 0},
+	}
+
+	got, err := selectT0ResultsForModule("radar.gold_strategy", results, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("gold result count=%d want 2: %+v", len(got), got)
+	}
+	if got[0].StockCode != "600000.XSHG" || got[1].StockCode != "600001.XSHG" {
+		t.Fatalf("gold result order=%v", codes(got))
+	}
+	if got[0].PatternScore != 64 || got[1].PatternScore != 67.6 {
+		t.Fatalf("gold scores = %.2f, %.2f; want 64, 67.6", got[0].PatternScore, got[1].PatternScore)
+	}
+	if !got[0].StrongGoldSignal || got[1].StrongGoldSignal {
+		t.Fatalf("gold strong flags = %v, %v; want true, false", got[0].StrongGoldSignal, got[1].StrongGoldSignal)
+	}
+}
+
+func TestHandleT0SelectionArchivedPurpleUsesTrueEarnRate(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = orig })
 
 	date := "2026-09-10"
-	stocks := []t0Stock{
-		{Code: "sh600000", ShortCode: "600000", Name: "价格通过股"},
-		{Code: "sh600001", ShortCode: "600001", Name: "价格不通过股"},
-	}
-	daily := map[string][]dailyBar{
-		"600000": {{Date: "2026-07-01", Close: 10}, {Date: "2026-09-09", Close: 11}},
-		"600001": {{Date: "2026-07-01", Close: 10}, {Date: "2026-09-09", Close: 9.99}},
-	}
-	if err := saveT0DailyCache(date, stocks, daily); err != nil {
-		t.Fatal(err)
-	}
 	if err := saveT0SelectionArchive(date, []T0SelectionResult{
-		{StockCode: "600000.XSHG", PrevClose: 11, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39, BuySignal: BuySignalGreen},
-		{StockCode: "600001.XSHG", PrevClose: 9.99, PatternT0N: 2, PatternWinPct: 30, PatternFailPct: 39, BuySignal: BuySignalGreen},
+		{StockCode: "600000.XSHG", PatternT0N: 3, PatternWinPct: 0, PatternFailPct: 30, BuySignal: BuySignalGreen},
+		{StockCode: "600001.XSHG", PatternT0N: 3, PatternWinPct: 100, PatternFailPct: 30.01, BuySignal: BuySignalGreen},
 	}, true); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +264,7 @@ func TestHandleT0SelectionArchivedPurpleAppliesPriceFloor(t *testing.T) {
 	}
 }
 
-func TestPrewarmCandidatesPurpleApplyPriceFloor(t *testing.T) {
+func TestPrewarmCandidatesPurpleUseTrueEarnRate(t *testing.T) {
 	tradeDate := "2026-09-11"
 	cached := &t0DailyCachePayload{
 		TradeDate: tradeDate,
@@ -167,13 +290,14 @@ func TestPrewarmCandidatesPurpleApplyPriceFloor(t *testing.T) {
 	}
 	response := buildPrewarmReadyResponseAtWithCache(
 		tradeDate, time.Date(2026, 9, 11, 9, 10, 0, 0, chinaLocation()), cached)
-	// 重新写回切片，给预热候选补上满足紫策既有条件的统计字段。
+	// 重新写回切片，给预热候选补上满足紫策条件的统计字段。
 	candidatesForTest := response["candidates"].([]T0SelectionResult)
 	for i := range candidatesForTest {
-		candidatesForTest[i].PatternT0N = 2
-		candidatesForTest[i].PatternWinPct = 30
-		candidatesForTest[i].PatternFailPct = 39
+		candidatesForTest[i].PatternT0N = 3
+		candidatesForTest[i].PatternWinPct = 0
+		candidatesForTest[i].PatternFailPct = 30
 	}
+	candidatesForTest[1].PatternFailPct = 30.01
 	response["candidates"] = candidatesForTest
 	ctx := &t0ModuleSelectionContext{TradeDate: tradeDate, Daily: cached.Daily}
 	if err := scopeT0ResponseResultsWithContext(
@@ -270,6 +394,125 @@ func TestLoadRedT0ContextFetchesMissingDailyKLinesWithoutSavingGob(t *testing.T)
 	}
 	if _, err := os.Stat(t0DailyCachePath("2026-09-03")); !os.IsNotExist(err) {
 		t.Fatalf("missing Gob must not be created, stat err=%v", err)
+	}
+}
+
+func TestLoadT0ModuleSelectionContextForResultsUsesResultScopedDailyCache(t *testing.T) {
+	origRoot := t0CacheRootPath
+	origFetcher := redT0DailyKLineFetcher
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() {
+		t0CacheRootPath = origRoot
+		redT0DailyKLineFetcher = origFetcher
+	})
+
+	date := "2026-07-14"
+	if err := ensureT0CacheDirs(); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Create(t0DailyCachePath(date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := &t0DailyCachePayload{
+		DataSchemaVersion: t0DailyCacheSchemaVersion,
+		TradeDate:         date,
+		Stocks:            []t0Stock{{Code: "sz000811", ShortCode: "000811", Name: "结果股"}},
+		Daily: map[string][]dailyBar{
+			"000811": {
+				{Date: "2026-07-10", Close: 30},
+				{Date: "2026-07-13", Close: 32},
+			},
+		},
+		StockPoolComplete: false,
+	}
+	if err := gob.NewEncoder(f).Encode(payload); err != nil {
+		_ = f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	fetchCalls := 0
+	redT0DailyKLineFetcher = func(shortCode, endDate string, limit int) []dailyBar {
+		fetchCalls++
+		return nil
+	}
+
+	ctx, err := loadT0ModuleSelectionContextForResults(
+		redT0StrategyModuleCode,
+		date,
+		[]T0SelectionResult{{StockCode: "000811.XSHE"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fetchCalls != 0 {
+		t.Fatalf("result-scoped cache miss triggered live fetch %d times", fetchCalls)
+	}
+	if ctx == nil || len(ctx.Daily["000811"]) != 2 {
+		t.Fatalf("result-scoped cached daily data = %+v", ctx)
+	}
+}
+
+func TestLoadT0ModuleSelectionContextForResultsRejectsMissingResultDaily(t *testing.T) {
+	origRoot := t0CacheRootPath
+	origFetcher := redT0DailyKLineFetcher
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() {
+		t0CacheRootPath = origRoot
+		redT0DailyKLineFetcher = origFetcher
+	})
+
+	redT0DailyKLineFetcher = func(shortCode, endDate string, limit int) []dailyBar {
+		if shortCode == "600000" {
+			return []dailyBar{
+				{Date: "2026-07-10", Close: 30},
+				{Date: "2026-07-13", Close: 32},
+			}
+		}
+		return nil
+	}
+
+	ctx, err := loadT0ModuleSelectionContextForResults(
+		redT0StrategyModuleCode,
+		"2026-07-14",
+		[]T0SelectionResult{
+			{StockCode: "600000.XSHG"},
+			{StockCode: "000001.XSHE"},
+		},
+	)
+	if err == nil || ctx != nil {
+		t.Fatalf("missing result daily data should be rejected: ctx=%+v err=%v", ctx, err)
+	}
+}
+
+func TestHandleT0SelectionArchivedPurpleDoesNotRequireDailyData(t *testing.T) {
+	origRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = origRoot })
+
+	date := "2026-07-15"
+	if err := saveT0SelectionArchive(date, []T0SelectionResult{
+		{StockCode: "600000.XSHG", PatternT0N: 3, PatternFailPct: 30, BuySignal: BuySignalGreen},
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code="+purpleT0StrategyModuleCode+"&archived=1&date="+date, nil)
+	handleT0Selection(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d body %s", rr.Code, rr.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["code"] != nil || body["data_incomplete"] != nil || body["count"] != float64(1) {
+		t.Fatalf("purple archived response=%s", rr.Body.String())
 	}
 }
 

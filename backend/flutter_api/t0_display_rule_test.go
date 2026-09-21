@@ -20,6 +20,22 @@ func TestDisplayRuleHitsMatchesAnyLimitUpLimitDown(t *testing.T) {
 	}
 }
 
+func TestDeepRedDisplayRuleMatchesAnyLimitUpLimitDown(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+		{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+	}
+
+	if !matchesDeepRedDisplayRule(hist, T0SelectionResult{OpenGap: 1.2}) {
+		t.Fatal("any-limit-up-limit-down combination should be deep red")
+	}
+	if matchesDeepRedDisplayRule(hist, T0SelectionResult{}) {
+		t.Fatal("deep red rule should require a confirmed T0 auction")
+	}
+}
+
 func TestDisplayRuleHitsMatchesMediumYangThenLimitDownT0(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},
@@ -80,6 +96,128 @@ func TestDisplayRuleHitsDoesNotMatchMediumYangThenLimitDownPreview(t *testing.T)
 		if hit == displayRuleMediumYangLimitDownT0 {
 			t.Fatalf("preview unexpectedly matched %q: %v", displayRuleMediumYangLimitDownT0, got)
 		}
+	}
+}
+
+func TestStrongDisplayRuleMatchesPreviousDayOpenGapAtLeastThreePercent(t *testing.T) {
+	base := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+	}
+	cases := []struct {
+		name      string
+		open      float64
+		wantMatch bool
+	}{
+		{name: "刚好三个百分点命中", open: 10.3, wantMatch: true},
+		{name: "低于三个百分点不命中", open: 10.299, wantMatch: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hist := append(append([]dailyBar(nil), base...), dailyBar{
+				Date:  "2026-09-02",
+				Open:  tc.open,
+				Close: 10.1,
+				High:  tc.open,
+				Low:   10,
+			})
+			if got := matchesStrongPrevDayOpenGap(hist); got != tc.wantMatch {
+				t.Fatalf("matchesStrongPrevDayOpenGap()=%v want %v", got, tc.wantMatch)
+			}
+		})
+	}
+}
+
+func TestDisplayRuleHitsMatchesTwoLimitUpThenNonOneWordAuction(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 11.4, Close: 12.1, High: 12.1, Low: 11.4},
+	}
+
+	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
+	want := []string{"涨停＋非一字涨停后的开盘竞价"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("displayRuleHitsForResult()=%v want %v", got, want)
+	}
+}
+
+func TestDisplayRuleHitsDoesNotMatchOneWordSecondLimitUp(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 12.1},
+	}
+
+	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
+	for _, hit := range got {
+		if hit == "涨停＋非一字涨停后的开盘竞价" {
+			t.Fatalf("one-word second limit-up unexpectedly matched: %v", got)
+		}
+	}
+}
+
+func TestStrongDisplayRuleRequiresTwoLimitUpNonOneWordAuction(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 11.4, Close: 12.1, High: 12.1, Low: 11.4},
+	}
+	if !matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
+		t.Fatal("strong display rule should match the exact two-limit-up auction combination")
+	}
+
+	hist[len(hist)-1].Open = 11.1
+	if matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
+		t.Fatal("strong display rule matched T-1 open gap below 3%")
+	}
+}
+
+func TestStrongDisplayRuleDoesNotMatchOneWordSecondLimitUp(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 12.1},
+	}
+	if matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
+		t.Fatal("strong display rule matched a one-word second limit-up")
+	}
+}
+
+func TestStrongDisplayRuleDoesNotUpgradeAnotherDisplayRule(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-03", Open: 11.4, Close: 9.9, High: 11.4, Low: 9.9},
+	}
+
+	hits := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
+	if len(hits) == 0 {
+		t.Fatal("expected the other display rule to remain matched")
+	}
+	if matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
+		t.Fatalf("another display rule was incorrectly upgraded to deep red: %v", hits)
+	}
+}
+
+func TestEnrichStrongDisplayRuleRequiresAnExistingDisplayRuleHit(t *testing.T) {
+	daily := map[string][]dailyBar{
+		"600000": {
+			{Date: "2026-09-01", Close: 10},
+			{Date: "2026-09-02", Open: 10.3, Close: 10.1, High: 10.3, Low: 10},
+			{Date: "2026-09-03", Open: 10.1, Close: 10.1, High: 10.1, Low: 10},
+		},
+	}
+	results := []T0SelectionResult{{
+		StockCode: "600000.XSHG",
+	}}
+
+	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-03")
+	if len(got[0].DisplayRuleHits) != 0 {
+		t.Fatalf("display rule hits=%v want none", got[0].DisplayRuleHits)
+	}
+	if got[0].StrongDisplayRuleHit {
+		t.Fatal("strong display flag should require an existing display rule hit")
 	}
 }
 

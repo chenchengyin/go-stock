@@ -48,6 +48,10 @@ func AutoMigrate() {
 		&models.MarketStatistic{},
 		&models.T0PatternStat{},
 		&models.T0PatternConfig{},
+		&models.T0ReferenceObservation{},
+		&models.T0ReferenceBar{},
+		&models.T0ReferenceRule{},
+		&models.T0ReferenceRuleStat{},
 		// 资讯表由 Flutter API 直接读写。旧部署曾把这些表留在另一份
 		// SQLite 文件中，导致当前服务库查询/写入时静默返回空数据。
 		&models.Tags{},
@@ -56,6 +60,28 @@ func AutoMigrate() {
 	)
 	// 补充旧表缺少的字段和去重索引。
 	runTelegraphMigrations()
+	runT0ReferenceMigrations()
+}
+
+func runT0ReferenceMigrations() {
+	if db.Dao == nil {
+		return
+	}
+	// Older development builds briefly created a single-column unique index
+	// on source_batch. Replace it with the version key promised by the model so
+	// one cache batch can contain every stock in the universe.
+	db.Dao.Exec("DROP INDEX IF EXISTS idx_t0_reference_source")
+	db.Dao.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_t0_reference_source
+		ON t0_reference_observations (trade_date, stock_code, source_batch);
+	`)
+	// GORM 的结构化索引无法表达 SQLite 的部分唯一索引；活动版本必须
+	// 在数据库层保证同一股票日最多一条。
+	db.Dao.Exec(`
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_t0_reference_active_version
+		ON t0_reference_observations (trade_date, stock_code)
+		WHERE is_active = 1;
+	`)
 }
 
 // runTelegraphMigrations 执行 Telegraph 表的 SQL 迁移

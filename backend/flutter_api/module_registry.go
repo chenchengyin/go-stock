@@ -20,6 +20,15 @@ var registeredModules = []ModuleDefinition{
 		AccessMode: ModuleAccessAllowlist,
 	},
 	{
+		Code:       "radar.gold_strategy",
+		Name:       "金策",
+		Client:     "flutter_web",
+		Placement:  "radar_tab",
+		ParentCode: nil,
+		Sort:       18,
+		AccessMode: ModuleAccessAllowlist,
+	},
+	{
 		Code:       "radar.purple_strategy",
 		Name:       "紫策",
 		Client:     "flutter_web",

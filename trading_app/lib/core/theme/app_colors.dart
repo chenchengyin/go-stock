@@ -52,6 +52,7 @@ class AppColors {
   static Color warning = _light.warning;
   static Color success = _light.success;
   static Color error = _light.error;
+  static Color errorStrong = _light.errorStrong;
   static Color info = _light.info;
   static Color link = _light.link;
 
@@ -115,6 +116,7 @@ class AppColors {
     warning = p.warning;
     success = p.success;
     error = p.error;
+    errorStrong = p.errorStrong;
     info = p.info;
     link = p.link;
     disabled = p.disabled;
@@ -169,6 +171,7 @@ class AppColors {
     warning: const Color(0xfff9a825),
     success: const Color(0xff43a047),
     error: const Color(0xffe53935),
+    errorStrong: const Color(0xffb71c1c),
     info: const Color(0xff1e88e5),
     link: const Color(0xff1a73e8),
     disabled: const Color(0xffbdbdbd),
@@ -204,6 +207,7 @@ class AppColors {
     warning: const Color(0xfffdd835),
     success: const Color(0xff66bb6a),
     error: const Color(0xffef5350),
+    errorStrong: const Color(0xffff8a80),
     info: const Color(0xff42a5f5),
     link: const Color(0xff64b5f6),
     disabled: const Color(0xff616161),
@@ -242,6 +246,7 @@ class _Palette {
     required this.warning,
     required this.success,
     required this.error,
+    required this.errorStrong,
     required this.info,
     required this.link,
     required this.disabled,
@@ -276,6 +281,7 @@ class _Palette {
   final Color warning;
   final Color success;
   final Color error;
+  final Color errorStrong;
   final Color info;
   final Color link;
   final Color disabled;

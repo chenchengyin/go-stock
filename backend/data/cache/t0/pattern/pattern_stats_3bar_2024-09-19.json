@@ -1,0 +1,189 @@
+[
+  {
+    "pattern": "DT|DT|XY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "DT|MYIN|SY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "MYIN|DT|SY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "MYIN|MYIN|YXN",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0.9055118110236235,
+    "t0_median_pnl": 0.9055118110236235,
+    "insufficient": true
+  },
+  {
+    "pattern": "MYIN|ZT|XY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": -0.34843205574912145,
+    "t0_median_pnl": -0.34843205574912145,
+    "insufficient": true
+  },
+  {
+    "pattern": "MY|DT|XY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "MY|YX|ZT",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "SY|MY|YX",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 1.860465116279067,
+    "t0_median_pnl": 1.860465116279067,
+    "insufficient": true
+  },
+  {
+    "pattern": "SY|ZT|ZT",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|MYIN|MYIN",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 1.54083204930662,
+    "t0_median_pnl": 1.54083204930662,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|MYIN|XY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0.2764612954186425,
+    "t0_median_pnl": 0.2764612954186425,
+    "insufficient": true
+  },
+  {
+    "pattern": "XY|SY|ZT",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "YX|XY|ZT",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|SY|ZT",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|XY|DY",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 0,
+    "t0_subset_count": 1,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": -2.5387870239774415,
+    "t0_median_pnl": -2.5387870239774415,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|ZT|DYIN",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  },
+  {
+    "pattern": "ZT|ZT|PB",
+    "window": 3,
+    "sample_count": 1,
+    "next_yang_rate": 1,
+    "t0_subset_count": 0,
+    "t0_win_rate_2p5": 0,
+    "t0_avg_pnl": 0,
+    "t0_median_pnl": 0,
+    "insufficient": true
+  }
+]

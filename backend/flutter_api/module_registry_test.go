@@ -7,6 +7,7 @@ func TestRegisteredModulesContainsCurrentRadarTabs(t *testing.T) {
 	want := []string{
 		"radar.monitored",
 		"radar.red_strategy",
+		"radar.gold_strategy",
 		"radar.purple_strategy",
 		"radar.main_strategy",
 		"radar.blue_strategy",

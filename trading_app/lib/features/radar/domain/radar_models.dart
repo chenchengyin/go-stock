@@ -19,8 +19,15 @@ class StockChange {
   factory StockChange.fromJson(Map<String, dynamic> json) {
     final market = json['market'] as int? ?? 0;
     final rawCode = json['stockCode'] as String? ?? '';
-    final prefix = market == 0 ? 'sz' : market == 1 ? 'sh' : 'bj';
-    final stockCode = rawCode.startsWith('sh') || rawCode.startsWith('sz') || rawCode.startsWith('bj')
+    final prefix = market == 0
+        ? 'sz'
+        : market == 1
+        ? 'sh'
+        : 'bj';
+    final stockCode =
+        rawCode.startsWith('sh') ||
+            rawCode.startsWith('sz') ||
+            rawCode.startsWith('bj')
         ? rawCode
         : '$prefix$rawCode';
     return StockChange(
@@ -54,20 +61,20 @@ class StockChange {
   final double currentChangeRate;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'changeTime': changeTime,
-        'changeDate': changeDate,
-        'stockCode': stockCode,
-        'stockName': stockName,
-        'changeType': changeType,
-        'typeName': typeName,
-        'price': price,
-        'changeRate': changeRate,
-        'volume': volume,
-        'amount': amount,
-        'description': description,
-        'currentChangeRate': currentChangeRate,
-      };
+    'id': id,
+    'changeTime': changeTime,
+    'changeDate': changeDate,
+    'stockCode': stockCode,
+    'stockName': stockName,
+    'changeType': changeType,
+    'typeName': typeName,
+    'price': price,
+    'changeRate': changeRate,
+    'volume': volume,
+    'amount': amount,
+    'description': description,
+    'currentChangeRate': currentChangeRate,
+  };
 }
 
 /// 监控股票配置（含实时行情）
@@ -113,7 +120,8 @@ class MonitoredStock {
       createdAt: json['createdAt'] as String?,
       serverTime: (json['serverTime'] as num?)?.toInt() ?? 0,
       date: json['date'] as String? ?? '',
-      mainForceNetInflow: (json['mainForceNetInflow'] as num?)?.toDouble() ?? 0.0,
+      mainForceNetInflow:
+          (json['mainForceNetInflow'] as num?)?.toDouble() ?? 0.0,
       mainForceNetRatio: (json['mainForceNetRatio'] as num?)?.toDouble() ?? 0.0,
       dayNetInflow: (json['dayNetInflow'] as num?)?.toDouble() ?? 0.0,
       accumNetInflow: (json['accumNetInflow'] as num?)?.toDouble() ?? 0.0,
@@ -121,26 +129,26 @@ class MonitoredStock {
   }
 
   Map<String, dynamic> toJson() => {
-        'code': code,
-        'name': name,
-        'changeTypes': changeTypes,
-        'price': price,
-        'changePercent': changePercent,
-        'volume': volume,
-        'amount': amount,
-        'open': open,
-        'preClose': preClose,
-        'high': high,
-        'low': low,
-        'previousHigh': previousHigh,
-        'createdAt': createdAt,
-        'serverTime': serverTime,
-        'date': date,
-        'mainForceNetInflow': mainForceNetInflow,
-        'mainForceNetRatio': mainForceNetRatio,
-        'dayNetInflow': dayNetInflow,
-        'accumNetInflow': accumNetInflow,
-      };
+    'code': code,
+    'name': name,
+    'changeTypes': changeTypes,
+    'price': price,
+    'changePercent': changePercent,
+    'volume': volume,
+    'amount': amount,
+    'open': open,
+    'preClose': preClose,
+    'high': high,
+    'low': low,
+    'previousHigh': previousHigh,
+    'createdAt': createdAt,
+    'serverTime': serverTime,
+    'date': date,
+    'mainForceNetInflow': mainForceNetInflow,
+    'mainForceNetRatio': mainForceNetRatio,
+    'dayNetInflow': dayNetInflow,
+    'accumNetInflow': accumNetInflow,
+  };
 
   final String code;
   final String name;
@@ -155,8 +163,8 @@ class MonitoredStock {
   final double previousHigh;
   final String changeTypes;
   final String? createdAt;
-  final int serverTime;       // 服务端毫秒时间戳
-  final String date;          // 行情日期 yyyy-MM-dd
+  final int serverTime; // 服务端毫秒时间戳
+  final String date; // 行情日期 yyyy-MM-dd
   final double mainForceNetInflow;
   final double mainForceNetRatio;
   final double dayNetInflow;

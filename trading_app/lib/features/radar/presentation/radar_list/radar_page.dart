@@ -10,7 +10,6 @@ import 'package:trading_app/features/radar/domain/voice_announcement_view_model.
 import 'package:trading_app/features/permissions/domain/module_definition.dart';
 import 'package:trading_app/shared/widgets/stock_change_card.dart';
 import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
-
 import 'monitor_settings_page.dart';
 import 'radar_view_model.dart';
 import 't0_strategy_view_model.dart';
@@ -30,8 +29,9 @@ class StockCodeCopyButton extends StatelessWidget {
     if (normalizedCode.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: normalizedCode));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('股票代码已复制')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('股票代码已复制')));
   }
 
   @override
@@ -53,7 +53,7 @@ class StockCodeCopyButton extends StatelessWidget {
   }
 }
 
-enum _StrategyListKind { main, red, purple, blue }
+enum _StrategyListKind { main, red, gold, purple, blue }
 
 const _patternDescriptions = <String, String>{
   'ZT': '涨停',
@@ -88,9 +88,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   late TabController _tabController;
   late final RadarViewModel _radarViewModel;
   late final ModulePermissionController _permissionController;
+  late final T0StrategyViewModel _t0StrategyViewModel;
   List<RadarModuleDefinition> _visibleModules = [];
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
+  final Set<String> _shownT0WarningKeys = {};
 
   bool get _permissionLoadFailed =>
       _permissionController.state == ModulePermissionState.failure;
@@ -99,11 +101,13 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _permissionController = context.read<ModulePermissionController>();
+    _t0StrategyViewModel = context.read<T0StrategyViewModel>();
     _visibleModules = _resolveVisibleModules();
     _tabController = TabController(length: _visibleModules.length, vsync: this);
     _tabController.addListener(_onTabChanged);
     _permissionController.addListener(_onPermissionsChanged);
     _radarViewModel = context.read<RadarViewModel>();
+    _t0StrategyViewModel.addListener(_onT0DataWarning);
     _bindVoiceAnnouncement();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
@@ -193,9 +197,29 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     }
   }
 
+  void _onT0DataWarning() {
+    if (!mounted) return;
+    for (final module in _visibleModules) {
+      if (module.accessMode != ModuleAccessMode.userAllowlist) continue;
+      final state = _t0StrategyViewModel.stateFor(module.code);
+      final message = state.dataWarningMessage;
+      final key = state.dataWarningKey;
+      if (message == null || message.isEmpty || key == null) continue;
+      final uniqueKey = '${module.code}:$key';
+      if (!_shownT0WarningKeys.add(uniqueKey)) continue;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text('T0数据提醒：$message')));
+      });
+    }
+  }
+
   @override
   void dispose() {
     _unbindVoiceAnnouncement();
+    _t0StrategyViewModel.removeListener(_onT0DataWarning);
     _permissionController.removeListener(_onPermissionsChanged);
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
@@ -384,6 +408,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   String _tabLabel(RadarModuleDefinition module, T0StrategyViewModel t0Vm) {
     final count = switch (module.contentKind) {
       RadarContentKind.redStrategy => t0Vm.resultsFor(module.code).length,
+      RadarContentKind.goldStrategy => t0Vm.resultsFor(module.code).length,
       RadarContentKind.purpleStrategy =>
         t0Vm.purpleResultsFor(module.code).length,
       RadarContentKind.mainStrategy => t0Vm.resultsFor(module.code).length,
@@ -407,6 +432,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             kind: _StrategyListKind.red,
           ),
         );
+      case RadarContentKind.goldStrategy:
+        return Consumer<T0StrategyViewModel>(
+          builder: (_, vm, __) => _buildStrategyTab(
+            vm,
+            moduleCode: module.code,
+            kind: _StrategyListKind.gold,
+          ),
+        );
       case RadarContentKind.purpleStrategy:
         return Consumer<T0StrategyViewModel>(
           builder: (_, vm, __) => _buildStrategyTab(
@@ -417,10 +450,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         );
       case RadarContentKind.mainStrategy:
         return Consumer<T0StrategyViewModel>(
-          builder: (_, vm, __) => _buildStrategyTab(
-            vm,
-            moduleCode: module.code,
-          ),
+          builder: (_, vm, __) =>
+              _buildStrategyTab(vm, moduleCode: module.code),
         );
       case RadarContentKind.blueStrategy:
         return Consumer<T0StrategyViewModel>(
@@ -808,8 +839,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Future<void> _openInTongHuaShun(BuildContext context, String code) async {
     final opened = await StockLauncher.openTongHuaShun(code: code);
     if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('未能打开同花顺或浏览器')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('未能打开同花顺或浏览器')));
     }
   }
 
@@ -970,6 +1002,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     final stocks = switch (kind) {
       _StrategyListKind.main => vm.resultsFor(moduleCode),
       _StrategyListKind.red => vm.resultsFor(moduleCode),
+      _StrategyListKind.gold => vm.resultsFor(moduleCode),
       _StrategyListKind.purple => vm.purpleResultsFor(moduleCode),
       _StrategyListKind.blue => vm.blueResultsFor(moduleCode),
     };
@@ -978,6 +1011,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         : switch (kind) {
             _StrategyListKind.main => '暂无符合条件的股票',
             _StrategyListKind.red => '暂无符合红策条件的股票',
+            _StrategyListKind.gold => '暂无符合金策条件的股票',
             _StrategyListKind.purple => '暂无符合紫策条件的股票',
             _StrategyListKind.blue => '暂无蓝色灯股票',
           };
@@ -1255,7 +1289,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         fontWeight: FontWeight.w600,
         fontSize: 14,
         color: stock.hasStrongDisplayRuleHit
-            ? AppColors.error
+            ? AppColors.errorStrong
             : stock.hasDisplayRuleHit
             ? AppColors.error
             : AppColors.textPrimary,
@@ -1288,6 +1322,19 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       ),
       _buildBuySignalChip(stock),
       _buildStockRatingChip(stock),
+      if (kind == _StrategyListKind.gold)
+        Text(
+          stock.strongGoldSignal
+              ? '强金·${stock.patternScore.toStringAsFixed(1)}'
+              : '评分${stock.patternScore.toStringAsFixed(1)}',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: stock.strongGoldSignal
+                ? AppColors.errorStrong
+                : AppColors.tagOrange,
+          ),
+        ),
     ];
 
     List<Widget> buildTrailingItems() => <Widget>[
@@ -1304,7 +1351,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             color: liveColor,
           ),
         ),
-      ] else if (kind != _StrategyListKind.purple)
+      ] else
         Text(
           '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
           style: TextStyle(
