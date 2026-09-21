@@ -401,38 +401,33 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         );
       case RadarContentKind.redStrategy:
         return Consumer<T0StrategyViewModel>(
-          builder: (_, vm, __) => SelectionArea(
-            child: _buildStrategyTab(
-              vm,
-              moduleCode: module.code,
-              kind: _StrategyListKind.red,
-            ),
+          builder: (_, vm, __) => _buildStrategyTab(
+            vm,
+            moduleCode: module.code,
+            kind: _StrategyListKind.red,
           ),
         );
       case RadarContentKind.purpleStrategy:
         return Consumer<T0StrategyViewModel>(
-          builder: (_, vm, __) => SelectionArea(
-            child: _buildStrategyTab(
-              vm,
-              moduleCode: module.code,
-              kind: _StrategyListKind.purple,
-            ),
+          builder: (_, vm, __) => _buildStrategyTab(
+            vm,
+            moduleCode: module.code,
+            kind: _StrategyListKind.purple,
           ),
         );
       case RadarContentKind.mainStrategy:
         return Consumer<T0StrategyViewModel>(
-          builder: (_, vm, __) => SelectionArea(
-            child: _buildStrategyTab(vm, moduleCode: module.code),
+          builder: (_, vm, __) => _buildStrategyTab(
+            vm,
+            moduleCode: module.code,
           ),
         );
       case RadarContentKind.blueStrategy:
         return Consumer<T0StrategyViewModel>(
-          builder: (_, vm, __) => SelectionArea(
-            child: _buildStrategyTab(
-              vm,
-              moduleCode: module.code,
-              kind: _StrategyListKind.blue,
-            ),
+          builder: (_, vm, __) => _buildStrategyTab(
+            vm,
+            moduleCode: module.code,
+            kind: _StrategyListKind.blue,
           ),
         );
       case RadarContentKind.watchChanges:

@@ -105,7 +105,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('主板策略页内容支持文本选择', (tester) async {
+  testWidgets('主板策略页内容不支持文本选择', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = T0StrategyViewModel();
@@ -127,7 +127,7 @@ void main() {
     await tester.tap(find.byType(Tab).at(2));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SelectionArea), findsOneWidget);
+    expect(find.byType(SelectionArea), findsNothing);
 
     // RadarViewModel 启动了周期刷新；测试结束前取消定时器，避免测试框架报未处理定时器。
     radarVm.dispose();
