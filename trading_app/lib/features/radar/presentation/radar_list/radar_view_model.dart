@@ -19,7 +19,40 @@ class RadarViewModel extends ChangeNotifier {
   final StockLocalMonitor _localMonitor = StockLocalMonitor();
   final SellWarningTracker _sellWarningTracker = SellWarningTracker();
 
+  static const _dismissedSellWarningsKey = 'dismissed_sell_warning_trade_dates';
+
   bool hasSellWarning(String code) => _sellWarningTracker.contains(code);
+
+  Future<void> dismissSellWarning(String code) async {
+    if (!_sellWarningTracker.dismiss(code)) return;
+    notifyListeners();
+    await _saveDismissedSellWarnings();
+  }
+
+  Future<void> _loadDismissedSellWarnings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dismissedSellWarningsKey);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      _sellWarningTracker.restoreDismissedTradeDates(
+        decoded.map((code, date) => MapEntry(code, date.toString())),
+      );
+    } catch (_) {
+      _sellWarningTracker.restoreDismissedTradeDates(const {});
+      await prefs.remove(_dismissedSellWarningsKey);
+    }
+  }
+
+  Future<void> _saveDismissedSellWarnings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dismissed = _sellWarningTracker.dismissedTradeDates;
+    if (dismissed.isEmpty) {
+      await prefs.remove(_dismissedSellWarningsKey);
+    } else {
+      await prefs.setString(_dismissedSellWarningsKey, jsonEncode(dismissed));
+    }
+  }
 
   // ── 异动类型筛选 ─────────────────────────────────────
   Set<int> _selectedChangeTypes = ChangeTypeConfig.defaultMonitorIds;
@@ -346,7 +379,9 @@ class RadarViewModel extends ChangeNotifier {
             return s;
           }).toList();
 
-          _sellWarningTracker.observe(monitoredStocks);
+          if (_sellWarningTracker.observe(monitoredStocks)) {
+            await _saveDismissedSellWarnings();
+          }
 
           // 本地监控检测，合并到当日池（跨刷新保留）
           newLocalAlerts = _localMonitor.pushSnapshots(monitoredStocks);
@@ -513,6 +548,7 @@ class RadarViewModel extends ChangeNotifier {
   Future<void> loadMonitoredStocks() async {
     await loadSelectedTypes();
     await _loadLocalAlerts();
+    await _loadDismissedSellWarnings();
     monitoredStocks = await _repository.getMonitoredStocks();
     if (monitoredStocks.isNotEmpty) {
       debugPrint('[Radar] loadMonitoredStocks: ${monitoredStocks.length} items');
@@ -575,7 +611,9 @@ class RadarViewModel extends ChangeNotifier {
         }).toList();
       }
 
-      _sellWarningTracker.observe(monitoredStocks);
+      if (_sellWarningTracker.observe(monitoredStocks)) {
+        await _saveDismissedSellWarnings();
+      }
 
       // 按添加时间倒序排列（新添加在最前），无时间戳的排末尾
       monitoredStocks.sort((a, b) {
@@ -589,6 +627,9 @@ class RadarViewModel extends ChangeNotifier {
 
       _updateStockWidget();
     } else {
+      if (_sellWarningTracker.observe(const <MonitoredStock>[])) {
+        await _saveDismissedSellWarnings();
+      }
       StockWidgetManager.clear();
     }
     notifyListeners();
@@ -634,6 +675,7 @@ class RadarViewModel extends ChangeNotifier {
     await _repository.removeMonitoredStock(code);
     _codesWithNewChanges.remove(code);
     _sellWarningTracker.remove(code);
+    await _saveDismissedSellWarnings();
     // 清理该股票的本地异动
     _localAlertsToday = _localAlertsToday.where((c) => c.stockCode != code).toList();
     _saveLocalAlerts();

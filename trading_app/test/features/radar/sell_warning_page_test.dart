@@ -64,6 +64,21 @@ void main() {
     expect(badge, findsOneWidget);
     final badgeText = tester.widget<Text>(badge);
     expect(badgeText.style?.color, Colors.white);
+
+    await tester.tap(badge);
+    await tester.pump();
+
+    expect(find.text('卖出'), findsNothing);
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getString('dismissed_sell_warning_trade_dates'),
+      contains('2026-09-21'),
+    );
+
+    final reloadedVm = RadarViewModel(_SellWarningRepository());
+    await reloadedVm.loadMonitoredStocks();
+    expect(reloadedVm.hasSellWarning('sz000001'), isFalse);
+    reloadedVm.dispose();
     disposeAll();
   });
 }

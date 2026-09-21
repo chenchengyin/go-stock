@@ -753,7 +753,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 ],
               ),
             ),
-            if (vm.hasSellWarning(stock.code)) _buildSellWarningBadge(),
+            if (vm.hasSellWarning(stock.code))
+              _buildSellWarningBadge(vm, stock.code),
             // X（移除监控）
             IconButton(
               icon: Icon(Icons.close, size: 18, color: AppColors.textTertiary),
@@ -780,20 +781,30 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildSellWarningBadge() {
-    return Container(
-      margin: const EdgeInsets.only(right: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.tagRed,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: const Text(
-        '卖出',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
+  Widget _buildSellWarningBadge(RadarViewModel vm, String code) {
+    return Tooltip(
+      message: '点击后今日不再显示',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => vm.dismissSellWarning(code),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            margin: const EdgeInsets.only(right: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.tagRed,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: const Text(
+              '卖出',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ),
       ),
     );

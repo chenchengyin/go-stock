@@ -35,11 +35,38 @@ SellWarning? evaluateSellWarning(MonitoredStock stock) {
 
 class SellWarningTracker {
   final Map<String, SellWarning> _warnings = <String, SellWarning>{};
+  final Map<String, String> _dismissedTradeDates = <String, String>{};
 
-  void observe(Iterable<MonitoredStock> stocks) {
+  Map<String, String> get dismissedTradeDates =>
+      Map<String, String>.unmodifiable(_dismissedTradeDates);
+
+  void restoreDismissedTradeDates(Map<String, String> tradeDates) {
+    _dismissedTradeDates
+      ..clear()
+      ..addAll(
+        Map<String, String>.fromEntries(
+          tradeDates.entries.where(
+            (entry) => entry.key.isNotEmpty && entry.value.isNotEmpty,
+          ),
+        ),
+      );
+  }
+
+  bool observe(Iterable<MonitoredStock> stocks) {
+    var dismissalsChanged = false;
     final activeCodes = <String>{};
     for (final stock in stocks) {
       activeCodes.add(stock.code);
+      final dismissedTradeDate = _dismissedTradeDates[stock.code];
+      if (dismissedTradeDate != null) {
+        if (dismissedTradeDate == stock.date) {
+          _warnings.remove(stock.code);
+          continue;
+        }
+        _dismissedTradeDates.remove(stock.code);
+        dismissalsChanged = true;
+      }
+
       final previous = _warnings[stock.code];
       if (previous != null && previous.tradeDate == stock.date) {
         continue;
@@ -51,11 +78,24 @@ class SellWarningTracker {
       }
     }
     _warnings.removeWhere((code, _) => !activeCodes.contains(code));
+    final dismissalCount = _dismissedTradeDates.length;
+    _dismissedTradeDates.removeWhere((code, _) => !activeCodes.contains(code));
+    return dismissalsChanged || dismissalCount != _dismissedTradeDates.length;
   }
 
   bool contains(String code) => _warnings.containsKey(code);
 
-  void remove(String code) => _warnings.remove(code);
+  bool dismiss(String code) {
+    final warning = _warnings.remove(code);
+    if (warning == null) return false;
+    _dismissedTradeDates[code] = warning.tradeDate;
+    return true;
+  }
+
+  void remove(String code) {
+    _warnings.remove(code);
+    _dismissedTradeDates.remove(code);
+  }
 }
 
 bool _isPositiveFinite(double value) => value.isFinite && value > 0;

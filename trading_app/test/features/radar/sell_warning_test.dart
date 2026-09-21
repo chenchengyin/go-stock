@@ -121,4 +121,44 @@ void main() {
     ]);
     expect(tracker.contains(triggered.code), isFalse);
   });
+
+  test('点击消除卖出信号后当日不再出现，下一交易日自动解除', () {
+    final tracker = SellWarningTracker();
+    final triggered = quote(
+      open: 9.8,
+      preClose: 10,
+      changePercent: -1,
+      high: 9.9,
+    );
+
+    tracker.observe([triggered]);
+    tracker.dismiss(triggered.code);
+    expect(tracker.contains(triggered.code), isFalse);
+    expect(tracker.dismissedTradeDates, {triggered.code: '2026-09-21'});
+
+    tracker.observe([triggered]);
+    expect(tracker.contains(triggered.code), isFalse);
+
+    final nextDayTriggered = quote(
+      open: 9.8,
+      preClose: 10,
+      changePercent: -1,
+      high: 9.9,
+      date: '2026-09-22',
+    );
+    tracker.observe([nextDayTriggered]);
+    expect(tracker.contains(triggered.code), isTrue);
+    expect(tracker.dismissedTradeDates, isEmpty);
+  });
+
+  test('恢复的当日消除状态仍会阻止卖出信号再次出现', () {
+    final tracker = SellWarningTracker();
+    tracker.restoreDismissedTradeDates({'sz000001': '2026-09-21'});
+
+    tracker.observe([
+      quote(open: 9.8, preClose: 10, changePercent: -1, high: 9.9),
+    ]);
+
+    expect(tracker.contains('sz000001'), isFalse);
+  });
 }
