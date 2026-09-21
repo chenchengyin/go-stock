@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/core/stock_local_monitor/stock_local_monitor.dart';
 import 'package:trading_app/features/radar/domain/change_type_config.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
+import 'package:trading_app/features/radar/domain/sell_warning.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 import 'package:trading_app/features/radar/data/notification_util.dart';
 import 'package:trading_app/core/widget/stock_widget_manager.dart';
@@ -16,6 +17,9 @@ class RadarViewModel extends ChangeNotifier {
 
   final RadarRepository _repository;
   final StockLocalMonitor _localMonitor = StockLocalMonitor();
+  final SellWarningTracker _sellWarningTracker = SellWarningTracker();
+
+  bool hasSellWarning(String code) => _sellWarningTracker.contains(code);
 
   // ── 异动类型筛选 ─────────────────────────────────────
   Set<int> _selectedChangeTypes = ChangeTypeConfig.defaultMonitorIds;
@@ -321,6 +325,10 @@ class RadarViewModel extends ChangeNotifier {
                 preClose: (q['preClose'] as num?)?.toDouble() ?? s.preClose,
                 high: (q['high'] as num?)?.toDouble() ?? s.high,
                 low: (q['low'] as num?)?.toDouble() ?? s.low,
+                previousHigh:
+                    ((q['prevHigh'] ?? q['previousHigh']) as num?)
+                        ?.toDouble() ??
+                    s.previousHigh,
                 changeTypes: s.changeTypes,
                 createdAt: s.createdAt,
                 serverTime: (q['serverTime'] as num?)?.toInt() ?? s.serverTime,
@@ -337,6 +345,8 @@ class RadarViewModel extends ChangeNotifier {
             }
             return s;
           }).toList();
+
+          _sellWarningTracker.observe(monitoredStocks);
 
           // 本地监控检测，合并到当日池（跨刷新保留）
           newLocalAlerts = _localMonitor.pushSnapshots(monitoredStocks);
@@ -544,6 +554,9 @@ class RadarViewModel extends ChangeNotifier {
               preClose: (q['preClose'] as num?)?.toDouble() ?? s.preClose,
               high: (q['high'] as num?)?.toDouble() ?? s.high,
               low: (q['low'] as num?)?.toDouble() ?? s.low,
+              previousHigh:
+                  ((q['prevHigh'] ?? q['previousHigh']) as num?)?.toDouble() ??
+                  s.previousHigh,
               changeTypes: s.changeTypes,
               createdAt: s.createdAt,
               serverTime: (q['serverTime'] as num?)?.toInt() ?? s.serverTime,
@@ -561,6 +574,8 @@ class RadarViewModel extends ChangeNotifier {
           return s;
         }).toList();
       }
+
+      _sellWarningTracker.observe(monitoredStocks);
 
       // 按添加时间倒序排列（新添加在最前），无时间戳的排末尾
       monitoredStocks.sort((a, b) {
@@ -618,6 +633,7 @@ class RadarViewModel extends ChangeNotifier {
   Future<void> removeMonitoredStock(String code) async {
     await _repository.removeMonitoredStock(code);
     _codesWithNewChanges.remove(code);
+    _sellWarningTracker.remove(code);
     // 清理该股票的本地异动
     _localAlertsToday = _localAlertsToday.where((c) => c.stockCode != code).toList();
     _saveLocalAlerts();

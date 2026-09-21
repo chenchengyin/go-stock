@@ -83,6 +83,7 @@ class MonitoredStock {
     this.preClose = 0,
     this.high = 0,
     this.low = 0,
+    this.previousHigh = 0,
     this.changeTypes = '',
     this.createdAt,
     this.serverTime = 0,
@@ -106,6 +107,9 @@ class MonitoredStock {
       preClose: (json['preClose'] as num?)?.toDouble() ?? 0.0,
       high: (json['high'] as num?)?.toDouble() ?? 0.0,
       low: (json['low'] as num?)?.toDouble() ?? 0.0,
+      previousHigh:
+          ((json['previousHigh'] ?? json['prevHigh']) as num?)?.toDouble() ??
+          0.0,
       createdAt: json['createdAt'] as String?,
       serverTime: (json['serverTime'] as num?)?.toInt() ?? 0,
       date: json['date'] as String? ?? '',
@@ -128,6 +132,7 @@ class MonitoredStock {
         'preClose': preClose,
         'high': high,
         'low': low,
+        'previousHigh': previousHigh,
         'createdAt': createdAt,
         'serverTime': serverTime,
         'date': date,
@@ -147,6 +152,7 @@ class MonitoredStock {
   final double preClose;
   final double high;
   final double low;
+  final double previousHigh;
   final String changeTypes;
   final String? createdAt;
   final int serverTime;       // 服务端毫秒时间戳

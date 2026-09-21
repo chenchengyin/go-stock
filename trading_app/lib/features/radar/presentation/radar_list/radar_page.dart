@@ -776,6 +776,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 ],
               ),
             ),
+            if (vm.hasSellWarning(stock.code)) _buildSellWarningBadge(),
             // X（移除监控）
             IconButton(
               icon: Icon(Icons.close, size: 18, color: AppColors.textTertiary),
@@ -797,6 +798,25 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSellWarningBadge() {
+    return Container(
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.tagRed,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Text(
+        '卖出',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

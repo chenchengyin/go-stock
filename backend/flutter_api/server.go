@@ -904,6 +904,7 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		PreClose           float64 `json:"preClose"`
 		High               float64 `json:"high"`
 		Low                float64 `json:"low"`
+		PreviousHigh       float64 `json:"prevHigh"`
 		MainForceNetInflow float64 `json:"mainForceNetInflow"`
 		MainForceNetRatio  float64 `json:"mainForceNetRatio"`
 		DayNetInflow       float64 `json:"dayNetInflow"`   // 当日净流入
@@ -922,6 +923,7 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 		preClose, _ := strconv.ParseFloat(s.PreClose, 64)
 		high, _ := strconv.ParseFloat(s.High, 64)
 		low, _ := strconv.ParseFloat(s.Low, 64)
+		previousHigh := getPreviousHigh(s.Code, s.Date)
 		changePct := 0.0
 		if preClose > 0 {
 			changePct = (price - preClose) / preClose * 100
@@ -972,6 +974,7 @@ func handleStockRealtime(w http.ResponseWriter, r *http.Request) {
 			PreClose:           preClose,
 			High:               high,
 			Low:                low,
+			PreviousHigh:       previousHigh,
 			MainForceNetInflow: mainForceNetInflow,
 			MainForceNetRatio:  mainForceNetRatio,
 			DayNetInflow:       dayNetInflow,
