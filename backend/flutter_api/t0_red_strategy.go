@@ -2,6 +2,7 @@ package flutter_api
 
 import (
 	"fmt"
+	"go-stock/backend/analysis/t0reference"
 	"net/http"
 	"sort"
 	"strings"
@@ -234,17 +235,24 @@ func filterRedT0Results(
 	}
 
 	filtered := make([]T0SelectionResult, 0, len(results))
+	referenceRules := loadT0ReferenceRuleRuntimes()
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
-		techBlueHit := matchesTechBlueRedRule(hist, result)
+		redEntryHits := matchingRedEntryReferenceRuntimes(hist, result, referenceRules)
 		displayRuleHits := displayRuleHitsForResult(hist, result)
+		result.StrongContinuationDisplayRuleHit = false
 		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, result)
-		if !techBlueHit && len(displayRuleHits) == 0 {
+		if len(redEntryHits) == 0 && len(displayRuleHits) == 0 {
 			continue
 		}
 
-		result.TechBlueDisplayRuleHit = techBlueHit
+		for _, runtime := range redEntryHits {
+			if runtime.rule.Definition.Name == t0reference.RuleNameStrongContinuation {
+				result.StrongContinuationDisplayRuleHit = true
+				break
+			}
+		}
 		result.DisplayRuleHits = displayRuleHits
 		result.Tag = ""
 		if highRet, openRet, closeRet, ok := prevDayRetsFromHist(hist); ok {

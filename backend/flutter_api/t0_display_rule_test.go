@@ -43,14 +43,14 @@ func TestDisplayRuleHitsMatchesMediumYangThenLimitDownT0(t *testing.T) {
 		{Date: "2026-09-03", Open: 9.45, Close: 9.45, High: 9.45, Low: 9.45},
 	}
 
-	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
-	want := []string{"中阳及以上＋跌停后的开盘竞价"}
+	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 0.5})
+	want := []string{displayRuleMediumYangLimitDownT0}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("displayRuleHitsForResult()=%v want %v", got, want)
 	}
 }
 
-func TestDisplayRuleHitsMediumYangThenLimitDownRequiresMediumYangOrAbove(t *testing.T) {
+func TestDisplayRuleHitsMediumYangThenLimitDownRequiresMediumYangOrLargeButExcludesLimitUp(t *testing.T) {
 	cases := []struct {
 		name       string
 		redOpen    float64
@@ -61,7 +61,7 @@ func TestDisplayRuleHitsMediumYangThenLimitDownRequiresMediumYangOrAbove(t *test
 		{name: "小阳不命中", redOpen: 10, redClose: 10.2, limitDown: 9.18, wantMarked: false},
 		{name: "中阳命中", redOpen: 10, redClose: 10.3, limitDown: 9.27, wantMarked: true},
 		{name: "大阳命中", redOpen: 10, redClose: 10.7, limitDown: 9.63, wantMarked: true},
-		{name: "涨停命中", redOpen: 10, redClose: 11, limitDown: 9.9, wantMarked: true},
+		{name: "涨停不命中", redOpen: 10, redClose: 11, limitDown: 9.9, wantMarked: false},
 	}
 
 	for _, tc := range cases {
@@ -72,7 +72,7 @@ func TestDisplayRuleHitsMediumYangThenLimitDownRequiresMediumYangOrAbove(t *test
 				{Date: "2026-09-03", Open: tc.limitDown, Close: tc.limitDown, High: tc.limitDown, Low: tc.limitDown},
 			}
 			got := false
-			for _, hit := range displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2}) {
+			for _, hit := range displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 0.5}) {
 				if hit == displayRuleMediumYangLimitDownT0 {
 					got = true
 				}
@@ -81,6 +81,44 @@ func TestDisplayRuleHitsMediumYangThenLimitDownRequiresMediumYangOrAbove(t *test
 				t.Fatalf("red K + limit-down hit=%v want %v", got, tc.wantMarked)
 			}
 		})
+	}
+}
+
+func TestDisplayRuleHitsMediumYangThenLimitDownUsesStrictEntryGapAndExcludesLimitUp(t *testing.T) {
+	base := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 10.5, High: 10.5, Low: 10},
+		{Date: "2026-09-03", Open: 9.45, Close: 9.45, High: 9.45, Low: 9.45},
+	}
+	for _, tc := range []struct {
+		name    string
+		gap     float64
+		wantHit bool
+	}{
+		{name: "最低边界", gap: 0.01, wantHit: true},
+		{name: "最高边界", gap: 0.75, wantHit: true},
+		{name: "超过最高边界", gap: 0.76, wantHit: false},
+		{name: "预览没有竞价", gap: 0, wantHit: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := false
+			for _, hit := range displayRuleHitsForResult(base, T0SelectionResult{OpenGap: tc.gap}) {
+				if hit == displayRuleMediumYangLimitDownT0 {
+					got = true
+				}
+			}
+			if got != tc.wantHit {
+				t.Fatalf("gap %.2f hit=%v want %v", tc.gap, got, tc.wantHit)
+			}
+		})
+	}
+
+	limitUp := append([]dailyBar(nil), base...)
+	limitUp[1] = dailyBar{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10}
+	for _, hit := range displayRuleHitsForResult(limitUp, T0SelectionResult{OpenGap: 0.5}) {
+		if hit == displayRuleMediumYangLimitDownT0 {
+			t.Fatalf("limit-up candle should not match medium-yang rule")
+		}
 	}
 }
 
@@ -99,36 +137,7 @@ func TestDisplayRuleHitsDoesNotMatchMediumYangThenLimitDownPreview(t *testing.T)
 	}
 }
 
-func TestStrongDisplayRuleMatchesPreviousDayOpenGapAtLeastThreePercent(t *testing.T) {
-	base := []dailyBar{
-		{Date: "2026-09-01", Close: 10},
-	}
-	cases := []struct {
-		name      string
-		open      float64
-		wantMatch bool
-	}{
-		{name: "刚好三个百分点命中", open: 10.3, wantMatch: true},
-		{name: "低于三个百分点不命中", open: 10.299, wantMatch: false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			hist := append(append([]dailyBar(nil), base...), dailyBar{
-				Date:  "2026-09-02",
-				Open:  tc.open,
-				Close: 10.1,
-				High:  tc.open,
-				Low:   10,
-			})
-			if got := matchesStrongPrevDayOpenGap(hist); got != tc.wantMatch {
-				t.Fatalf("matchesStrongPrevDayOpenGap()=%v want %v", got, tc.wantMatch)
-			}
-		})
-	}
-}
-
-func TestDisplayRuleHitsMatchesTwoLimitUpThenNonOneWordAuction(t *testing.T) {
+func TestDisplayRuleHitsDoesNotMatchRemovedTwoLimitUpNonOneWordAuction(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},
 		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
@@ -136,56 +145,14 @@ func TestDisplayRuleHitsMatchesTwoLimitUpThenNonOneWordAuction(t *testing.T) {
 	}
 
 	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
-	want := []string{"涨停＋非一字涨停后的开盘竞价"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("displayRuleHitsForResult()=%v want %v", got, want)
+	if len(got) != 0 {
+		t.Fatalf("removed display rule still matched: %v", got)
 	}
 }
 
-func TestDisplayRuleHitsDoesNotMatchOneWordSecondLimitUp(t *testing.T) {
-	hist := []dailyBar{
-		{Date: "2026-09-01", Close: 10},
-		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
-		{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 12.1},
-	}
-
-	got := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
-	for _, hit := range got {
-		if hit == "涨停＋非一字涨停后的开盘竞价" {
-			t.Fatalf("one-word second limit-up unexpectedly matched: %v", got)
-		}
-	}
-}
-
-func TestStrongDisplayRuleRequiresTwoLimitUpNonOneWordAuction(t *testing.T) {
-	hist := []dailyBar{
-		{Date: "2026-09-01", Close: 10},
-		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
-		{Date: "2026-09-03", Open: 11.4, Close: 12.1, High: 12.1, Low: 11.4},
-	}
-	if !matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
-		t.Fatal("strong display rule should match the exact two-limit-up auction combination")
-	}
-
-	hist[len(hist)-1].Open = 11.1
-	if matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
-		t.Fatal("strong display rule matched T-1 open gap below 3%")
-	}
-}
-
-func TestStrongDisplayRuleDoesNotMatchOneWordSecondLimitUp(t *testing.T) {
-	hist := []dailyBar{
-		{Date: "2026-09-01", Close: 10},
-		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
-		{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 12.1},
-	}
-	if matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
-		t.Fatal("strong display rule matched a one-word second limit-up")
-	}
-}
-
-func TestTechBlueRedRuleRequiresAllConfirmedConditions(t *testing.T) {
+func TestStrongContinuationReferenceRuleRequiresAllConfirmedConditions(t *testing.T) {
 	baseHist := []dailyBar{
+		{Date: "2026-08-31", Close: 9.5},
 		{Date: "2026-09-01", Close: 10},
 		{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
 		{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
@@ -199,34 +166,34 @@ func TestTechBlueRedRuleRequiresAllConfirmedConditions(t *testing.T) {
 		{
 			name: "T-2一字板",
 			mutate: func(hist []dailyBar) {
-				hist[1].Open = hist[1].Close
-				hist[1].High = hist[1].Close
-				hist[1].Low = hist[1].Close
+				hist[2].Open = hist[2].Close
+				hist[2].High = hist[2].Close
+				hist[2].Low = hist[2].Close
 			},
 		},
 		{
 			name: "T-1一字板",
 			mutate: func(hist []dailyBar) {
-				hist[2].Low = hist[2].Close
+				hist[3].Low = hist[3].Close
 			},
 		},
 		{
 			name: "T-1开盘涨幅低于7%",
 			mutate: func(hist []dailyBar) {
-				hist[2].Open = 11.7
+				hist[3].Open = 11.7
 			},
 		},
 		{
 			name:      "T-1开盘涨幅达到7%",
-			mutate:    func(hist []dailyBar) { hist[2].Open = 11.78 },
+			mutate:    func(hist []dailyBar) { hist[3].Open = 11.78 },
 			wantMatch: true,
 		},
 		{
 			name: "T-2开盘强于T-1",
 			mutate: func(hist []dailyBar) {
-				hist[1].Open = 11.2
-				hist[1].High = 11.2
-				hist[1].Low = 10.8
+				hist[2].Open = 11.2
+				hist[2].High = 11.2
+				hist[2].Low = 10.8
 			},
 			wantMatch: true,
 		},
@@ -247,31 +214,23 @@ func TestTechBlueRedRuleRequiresAllConfirmedConditions(t *testing.T) {
 			if tc.name == "T0开盘涨幅超出范围" {
 				openGap = 3.1
 			}
-			got := matchesTechBlueRedRule(hist, T0SelectionResult{OpenGap: openGap})
+			got := false
+			for _, runtime := range matchingRedEntryReferenceRuntimes(
+				hist, T0SelectionResult{OpenGap: openGap}, loadT0ReferenceRuleRuntimes(),
+			) {
+				if runtime.rule.Definition.Name == "强势连板" {
+					got = true
+					break
+				}
+			}
 			want := tc.wantMatch
 			if tc.name == "全部条件满足" {
 				want = true
 			}
 			if got != want {
-				t.Fatalf("matchesTechBlueRedRule()=%v want %v", got, want)
+				t.Fatalf("strong continuation reference match=%v want %v", got, want)
 			}
 		})
-	}
-}
-
-func TestStrongDisplayRuleDoesNotUpgradeAnotherDisplayRule(t *testing.T) {
-	hist := []dailyBar{
-		{Date: "2026-09-01", Close: 10},
-		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
-		{Date: "2026-09-03", Open: 11.4, Close: 9.9, High: 11.4, Low: 9.9},
-	}
-
-	hits := displayRuleHitsForResult(hist, T0SelectionResult{OpenGap: 1.2})
-	if len(hits) == 0 {
-		t.Fatal("expected the other display rule to remain matched")
-	}
-	if matchesStrongTwoLimitUpNonOneWordAuction(hist, T0SelectionResult{OpenGap: 1.2}) {
-		t.Fatalf("another display rule was incorrectly upgraded to deep red: %v", hits)
 	}
 }
 
@@ -403,7 +362,7 @@ func TestEnrichT0ResultsForDisplayReadsExistingGobAndDoesNotFilter(t *testing.T)
 		t.Fatalf("result count=%d want 1", len(got))
 	}
 	if !reflect.DeepEqual(got[0].DisplayRuleHits,
-		[]string{"任意K线＋涨停＋跌停", "中阳及以上＋跌停后的开盘竞价"}) {
+		[]string{"任意K线＋涨停＋跌停"}) {
 		t.Fatalf("hits=%v", got[0].DisplayRuleHits)
 	}
 	if original[0].DisplayRuleHits != nil {
@@ -437,7 +396,7 @@ func TestEnrichT0ResultsForDisplayMatchesHistoricalTwoLimitUpsAndBearishRule(t *
 	}
 }
 
-func TestEnrichT0ResultsForDisplayDoesNotMarkTechBlueOutsideRedSelection(t *testing.T) {
+func TestEnrichT0ResultsForDisplayDoesNotMarkStrongContinuationOutsideRedSelection(t *testing.T) {
 	daily := map[string][]dailyBar{
 		"600000": {
 			{Date: "2026-09-01", Close: 10},
@@ -451,8 +410,8 @@ func TestEnrichT0ResultsForDisplayDoesNotMarkTechBlueOutsideRedSelection(t *test
 	}}
 
 	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-04")
-	if got[0].TechBlueDisplayRuleHit {
-		t.Fatalf("generic display enrichment should not mark tech blue: %+v", got[0])
+	if got[0].StrongContinuationDisplayRuleHit {
+		t.Fatalf("generic display enrichment should not mark strong continuation: %+v", got[0])
 	}
 }
 

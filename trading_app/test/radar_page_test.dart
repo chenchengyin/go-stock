@@ -288,7 +288,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('满足深红组合的股票名称显示为深红色', (tester) async {
+  testWidgets('满足强势连板条件的股票名称显示为蓝色', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -308,9 +308,22 @@ void main() {
       'results': [
         {
           '股票代码': '600001.XSHG',
-          '股票名称': '深红股',
-          '命中条件': ['涨停＋非一字涨停后的开盘竞价'],
+          '股票名称': '强势连板股',
+          '命中条件': [],
+          '强势连板': true,
           '重点标红': true,
+          'T0参考形态命中': [
+            {
+              'rule_key': 'v1:strong-continuation',
+              'name': '强势连板',
+              'research_tier': 'A',
+              'strict_win_rate': 70,
+              'target_rate': 55,
+              'earn_rate': 80,
+              'sample_count': 20,
+              'manual_rank': 5,
+            },
+          ],
           '买入信号': 'red',
         },
       ],
@@ -334,8 +347,19 @@ void main() {
     await tester.tap(find.text('红策(1)'));
     await tester.pumpAndSettle();
 
-    final stockName = tester.widget<Text>(find.text('深红股'));
-    expect(stockName.style?.color, AppColors.errorStrong);
+    final stockName = tester.widget<Text>(find.text('强势连板股'));
+    expect(stockName.style?.color, AppColors.info);
+    expect(find.text('强势连板 55/80/20'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        '自定义形态：强势连板\n'
+        '达标率：55%\n'
+        '真赚率：80%\n'
+        '严格胜率：70%\n'
+        '样本数：20',
+      ),
+      findsOneWidget,
+    );
     disposeVms();
   });
 

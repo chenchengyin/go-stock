@@ -4,12 +4,9 @@ import "go-stock/backend/analysis/candlepattern"
 
 const (
 	displayRuleAnyLimitUpLimitDown   = "任意K线＋涨停＋跌停"
-	displayRuleMediumYangLimitDownT0 = "中阳及以上＋跌停后的开盘竞价"
+	displayRuleMediumYangLimitDownT0 = "中阳/大阳＋跌停后的开盘竞价（T0开盘涨幅0.01%～0.75%）"
 	displayRuleBullishZtZtPb         = "涨停＋涨停＋阳线破板"
 	displayRuleZtZtBearishT0         = "涨停＋涨停＋普通阴线"
-	displayRuleZtNonOneWordT0        = "涨停＋非一字涨停后的开盘竞价"
-	strongDisplayPrevDayOpenGap      = 3.0
-	techBlueT1OpenGap                = 7.0
 	bearishBoundaryEpsilon           = 1e-9
 )
 
@@ -40,11 +37,6 @@ var t0DisplayRules = []t0DisplayRule{
 		Name:        displayRuleZtZtBearishT0,
 		MatchResult: matchesZtZtBearishT0,
 	},
-	{
-		Name:         displayRuleZtNonOneWordT0,
-		MatchResult:  matchesZtNonOneWordT0,
-		DeepRedMatch: matchesStrongTwoLimitUpNonOneWordAuction,
-	},
 }
 
 func displayRuleHitsForHist(hist []dailyBar) []string {
@@ -67,61 +59,6 @@ func displayRuleHitsForResult(hist []dailyBar, result T0SelectionResult) []strin
 	return hits
 }
 
-// matchesStrongPrevDayOpenGap 判断前一交易日相对再前一日收盘价的开盘涨幅 >= 3%。
-func matchesStrongPrevDayOpenGap(hist []dailyBar) bool {
-	_, openRet, _, ok := prevDayRetsFromHist(hist)
-	return ok && openRet >= strongDisplayPrevDayOpenGap
-}
-
-// matchesZtNonOneWordT0 匹配：T-2 收盘涨停、T-1 收盘涨停且 T-1 非一字，
-// 随后正式 T0 竞价买入。当前正式竞价口径为 0.01%～3%。
-func matchesZtNonOneWordT0(hist []dailyBar, result T0SelectionResult) bool {
-	if result.OpenGap < 0.01 || result.OpenGap > 3 || len(hist) < 3 {
-		return false
-	}
-	base := hist[len(hist)-3]
-	firstLimitUp := hist[len(hist)-2]
-	secondLimitUp := hist[len(hist)-1]
-	return isCloseLimitUpDay(base.Close, firstLimitUp, t0LimitUpCloseRet) &&
-		isNonOneWordLimitUpDay(firstLimitUp.Close, secondLimitUp)
-}
-
-// matchesStrongTwoLimitUpNonOneWordAuction 是上述组合中 T-1 开盘涨幅 >= 3% 的子集，
-// 仅保留用于兼容列表深红强调；红策准入由 matchesTechBlueRedRule 决定。
-func matchesStrongTwoLimitUpNonOneWordAuction(
-	hist []dailyBar,
-	result T0SelectionResult,
-) bool {
-	return matchesZtNonOneWordT0(hist, result) && matchesStrongPrevDayOpenGap(hist)
-}
-
-// matchesTechBlueRedRule 是红策的硬准入条件：
-// T-2、T-1 均为非一字涨停；T-1 开盘涨幅至少 7%。
-// T0 竞价仍沿用正式结果口径 0.01%～3%。
-func matchesTechBlueRedRule(hist []dailyBar, result T0SelectionResult) bool {
-	if result.OpenGap < 0.01 || result.OpenGap > 3 || len(hist) < 3 {
-		return false
-	}
-
-	base := hist[len(hist)-3]
-	firstLimitUp := hist[len(hist)-2]
-	secondLimitUp := hist[len(hist)-1]
-	if !isNonOneWordLimitUpDay(base.Close, firstLimitUp) ||
-		!isNonOneWordLimitUpDay(firstLimitUp.Close, secondLimitUp) {
-		return false
-	}
-
-	secondOpenGap, ok := openingGapFromPreviousClose(firstLimitUp.Close, secondLimitUp)
-	return ok && secondOpenGap >= techBlueT1OpenGap
-}
-
-func openingGapFromPreviousClose(prevClose float64, bar dailyBar) (float64, bool) {
-	if prevClose <= 0 || bar.Open <= 0 {
-		return 0, false
-	}
-	return (bar.Open - prevClose) / prevClose * 100, true
-}
-
 func matchesDeepRedDisplayRule(hist []dailyBar, result T0SelectionResult) bool {
 	for _, rule := range t0DisplayRules {
 		if rule.DeepRedMatch != nil && rule.DeepRedMatch(hist, result) {
@@ -131,18 +68,11 @@ func matchesDeepRedDisplayRule(hist []dailyBar, result T0SelectionResult) bool {
 	return false
 }
 
-func isNonOneWordLimitUpDay(prevClose float64, bar dailyBar) bool {
-	if !isCloseLimitUpDay(prevClose, bar, t0LimitUpCloseRet) ||
-		bar.Open <= 0 || bar.High <= 0 || bar.Low <= 0 {
-		return false
-	}
-	return bar.Open != bar.Close || bar.High != bar.Close || bar.Low != bar.Close
-}
-
-// matchesMediumYangThenLimitDownT0 匹配最近三根历史K线：第一根不限，第二根中阳及以上，第三根跌停。
-// 中阳及以上沿用形态统计口径：MY、DY、ZT；仅正式T0竞价结果（0.01%～3%）命中。
+// matchesMediumYangThenLimitDownT0 匹配最近三根历史K线：第一根不限，第二根中阳或大阳，第三根跌停。
+// 这里明确排除 ZT，避免与“任意K线＋涨停＋跌停”重复；仅正式T0竞价结果
+// （开盘涨幅 0.01%～0.75%）命中。
 func matchesMediumYangThenLimitDownT0(hist []dailyBar, result T0SelectionResult) bool {
-	if result.OpenGap < 0.01 || result.OpenGap > 3 {
+	if result.OpenGap < 0.01 || result.OpenGap > 0.75 {
 		return false
 	}
 	if len(hist) < 3 {
@@ -153,7 +83,7 @@ func matchesMediumYangThenLimitDownT0(hist []dailyBar, result T0SelectionResult)
 	redK := hist[len(hist)-2]
 	limitDown := hist[len(hist)-1]
 	redType := classifyDisplayBar(base.Close, redK)
-	if !isMediumYangOrAboveType(redType) {
+	if !isMediumYangOrLargeType(redType) {
 		return false
 	}
 	return classifyDisplayBar(redK.Close, limitDown) == candlepattern.BarDT
@@ -171,9 +101,9 @@ func classifyDisplayBar(prevClose float64, bar dailyBar) candlepattern.BarType {
 	})
 }
 
-func isMediumYangOrAboveType(barType candlepattern.BarType) bool {
+func isMediumYangOrLargeType(barType candlepattern.BarType) bool {
 	switch barType {
-	case candlepattern.BarZT, candlepattern.BarMY, candlepattern.BarDY:
+	case candlepattern.BarMY, candlepattern.BarDY:
 		return true
 	default:
 		return false

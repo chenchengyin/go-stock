@@ -9,6 +9,7 @@ type PreT0Bar struct {
 	Amplitude float64
 	OpenRet   float64
 	CloseRet  float64
+	BodyRet   float64
 }
 
 type PreT0View struct {
@@ -44,6 +45,7 @@ func buildPreT0Bar(bar BarSnapshot) PreT0Bar {
 		Amplitude:   percentFrom(bar.PrevClose, bar.High-bar.Low),
 		OpenRet:     percentChange(bar.PrevClose, bar.Open),
 		CloseRet:    percentChange(bar.PrevClose, bar.Close),
+		BodyRet:     percentFrom(bar.PrevClose, bar.Close-bar.Open),
 	}
 }
 

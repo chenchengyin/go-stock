@@ -69,7 +69,7 @@ func TestPersistRulesAndStatsClearsRemovedDeepRedMarker(t *testing.T) {
 		RuleKind: "sequence", Name: "DYIN|YX|MYIN", DefinitionVersion: "v1",
 		ConditionJSON: `{"sequence":["DYIN","YX","MYIN"]}`,
 		EntryJSON:     `{"field":"entry_gap","op":"between","min":0.01,"max":2,"inclusive":true}`,
-		ManualRank:    1, MinSamples: 5, DeepRed: false,
+		ManualRank:    1, MinSamples: 5, DeepRed: false, RedEntry: true,
 	}
 	compiled, err := t0reference.CompileRule(definition)
 	if err != nil {
@@ -97,5 +97,46 @@ func TestPersistRulesAndStatsClearsRemovedDeepRedMarker(t *testing.T) {
 	}
 	if got.DeepRed {
 		t.Fatal("removed deep-red marker was not cleared")
+	}
+	if !got.RedEntry {
+		t.Fatal("red-entry marker was not persisted")
+	}
+}
+
+func TestPersistRulesAndStatsDisablesDeprecatedRule(t *testing.T) {
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.AutoMigrate(&models.T0ReferenceRule{}, &models.T0ReferenceRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	deprecated := t0reference.RuleDefinition{
+		RuleKind: "condition", Name: t0reference.RuleNameRemovedTwoLimitUpNonOneWord,
+		DefinitionVersion: "v1",
+		ConditionJSON:     `{"field":"t-1.open_ret","op":"gte","value":3}`,
+		EntryJSON:         `{"field":"entry_gap","op":"gte","value":0}`,
+	}
+	compiled, err := t0reference.CompileRule(deprecated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.Create(&models.T0ReferenceRule{
+		RuleKey: compiled.RuleKey, RuleKind: deprecated.RuleKind, Name: deprecated.Name,
+		DefinitionVersion: deprecated.DefinitionVersion, ConditionJSON: deprecated.ConditionJSON,
+		EntryJSON: deprecated.EntryJSON, Enabled: true,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := persistRulesAndStats(dao, nil, "batch", []string{"2026-01-08"}); err != nil {
+		t.Fatal(err)
+	}
+	var got models.T0ReferenceRule
+	if err := dao.Where("rule_key = ?", compiled.RuleKey).First(&got).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled {
+		t.Fatal("deprecated rule remains enabled")
 	}
 }

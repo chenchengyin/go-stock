@@ -23,6 +23,178 @@ func TestDefaultRuleDefinitionsCompile(t *testing.T) {
 	}
 }
 
+func TestDefaultRedEntryDefinitionsIncludeNamedCustomPatterns(t *testing.T) {
+	want := map[string]bool{
+		RuleNameStrongContinuation:       true,
+		RuleNameLimitUpLimitDownReversal: true,
+	}
+	got := make(map[string]bool)
+	for _, definition := range DefaultRuleDefinitions() {
+		if _, ok := want[definition.Name]; !ok {
+			continue
+		}
+		if !definition.RedEntry {
+			t.Fatalf("rule %q must be a red-entry custom pattern", definition.Name)
+		}
+		got[definition.Name] = true
+	}
+	if len(got) != len(want) {
+		t.Fatalf("red-entry custom patterns=%v want=%v", got, want)
+	}
+}
+
+func TestDefaultRulesIncludeBuiltInRedDisplayPatternsWithoutRedEntry(t *testing.T) {
+	want := map[string]bool{
+		RuleNameAnyLimitUpLimitDown: true,
+		RuleNameMediumYangLimitDown: true,
+		RuleNameBullishZtZtPb:       true,
+		RuleNameZtZtBearish:         true,
+	}
+	got := make(map[string]bool)
+	for _, definition := range DefaultRuleDefinitions() {
+		if _, ok := want[definition.Name]; !ok {
+			continue
+		}
+		if definition.RedEntry {
+			t.Fatalf("display-only rule %q must not gate red entry", definition.Name)
+		}
+		if definition.DeepRed {
+			t.Fatalf("display-only rule %q must not be marked deep red", definition.Name)
+		}
+		got[definition.Name] = true
+	}
+	if len(got) != len(want) {
+		t.Fatalf("built-in display patterns=%v want=%v", got, want)
+	}
+}
+
+func TestLimitUpLimitDownReversalRequiresFivePercentT2Body(t *testing.T) {
+	var definition RuleDefinition
+	found := false
+	for _, candidate := range DefaultRuleDefinitions() {
+		if candidate.Name == RuleNameLimitUpLimitDownReversal {
+			definition = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("default rule %q is missing", RuleNameLimitUpLimitDownReversal)
+	}
+	rule, err := CompileRule(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		body float64
+		want bool
+	}{
+		{body: 5.0, want: true},
+		{body: 4.99, want: false},
+	} {
+		view := PreT0View{Bars: map[int]PreT0Bar{
+			-2: {CloseType: "ZT", BodyRet: test.body},
+			-1: {CloseType: "DT"},
+		}}
+		hits := MatchReferenceRules(view, EntryView{Gap: 1.0}, []CompiledRule{rule})
+		if (len(hits) == 1) != test.want {
+			t.Fatalf("body %.2f hit=%v want %v", test.body, len(hits) == 1, test.want)
+		}
+	}
+}
+
+func TestRemovedReferenceRuleIsNotReintroducedByDefaults(t *testing.T) {
+	for _, definition := range DefaultRuleDefinitions() {
+		if definition.Name == RuleNameRemovedTwoLimitUpNonOneWord {
+			t.Fatalf("removed reference rule %q was reintroduced", definition.Name)
+		}
+	}
+}
+
+func TestLegacyMediumYangRuleIsDeprecated(t *testing.T) {
+	if !IsDeprecatedRuleName("中阳及以上＋跌停后的开盘竞价") {
+		t.Fatal("legacy broad medium-yang rule should be deprecated")
+	}
+}
+
+func TestBuiltInRedDisplayRulesMatchTheirDefinedShapes(t *testing.T) {
+	view := PreT0View{Bars: map[int]PreT0Bar{
+		-3: {CloseType: "ZT", BarSnapshot: BarSnapshot{Open: 90, Close: 100}},
+		-2: {CloseType: "ZT", BarSnapshot: BarSnapshot{Open: 100, Close: 110}},
+		-1: {CloseType: "PB", BarSnapshot: BarSnapshot{Open: 110, Close: 111}},
+	}}
+
+	cases := []struct {
+		name string
+		view PreT0View
+	}{
+		{
+			name: RuleNameAnyLimitUpLimitDown,
+			view: PreT0View{Bars: map[int]PreT0Bar{
+				-3: {CloseType: "YX"},
+				-2: {CloseType: "ZT"},
+				-1: {CloseType: "DT"},
+			}},
+		},
+		{
+			name: RuleNameMediumYangLimitDown,
+			view: PreT0View{Bars: map[int]PreT0Bar{
+				-3: {CloseType: "YX"},
+				-2: {CloseType: "MY"},
+				-1: {CloseType: "DT"},
+			}},
+		},
+		{name: RuleNameBullishZtZtPb, view: view},
+		{
+			name: RuleNameZtZtBearish,
+			view: PreT0View{Bars: map[int]PreT0Bar{
+				-3: {CloseType: "ZT"},
+				-2: {CloseType: "ZT", BarSnapshot: BarSnapshot{Close: 100}},
+				-1: {BarSnapshot: BarSnapshot{Open: 103, Close: 101}},
+			}},
+		},
+	}
+
+	definitions := make(map[string]RuleDefinition)
+	for _, definition := range DefaultRuleDefinitions() {
+		definitions[definition.Name] = definition
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			definition, ok := definitions[tc.name]
+			if !ok {
+				t.Fatalf("definition %q is missing", tc.name)
+			}
+			rule, err := CompileRule(definition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hits := MatchReferenceRules(tc.view, EntryView{Gap: 0.5}, []CompiledRule{rule})
+			if len(hits) != 1 {
+				t.Fatalf("rule %q hits=%v", tc.name, hits)
+			}
+		})
+	}
+
+	definition := definitions[RuleNameMediumYangLimitDown]
+	rule, err := CompileRule(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limitUpView := PreT0View{Bars: map[int]PreT0Bar{
+		-3: {CloseType: "YX"},
+		-2: {CloseType: "ZT"},
+		-1: {CloseType: "DT"},
+	}}
+	if hits := MatchReferenceRules(limitUpView, EntryView{Gap: 0.5}, []CompiledRule{rule}); len(hits) != 0 {
+		t.Fatalf("limit-up T-2 should not match optimized medium-yang rule: %v", hits)
+	}
+	mediumView := cases[1].view
+	if hits := MatchReferenceRules(mediumView, EntryView{Gap: 0.76}, []CompiledRule{rule}); len(hits) != 0 {
+		t.Fatalf("entry gap above 0.75 should not match optimized medium-yang rule: %v", hits)
+	}
+}
+
 func TestDefaultRuleDefinitionsSelectOnlyPrimaryAmplitudeAsDeepRed(t *testing.T) {
 	want := map[string]bool{
 		"DYIN|YX|MYIN": false,

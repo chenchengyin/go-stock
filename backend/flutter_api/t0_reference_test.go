@@ -32,7 +32,7 @@ func TestEnrichT0ReferenceUsesPreT0RulesAndLatestStats(t *testing.T) {
 	}
 	if err := dao.Create(&models.T0ReferenceRuleStat{
 		RuleID: rule.ID, BatchID: "batch", PeriodKey: "all", SampleCount: 20,
-		ProfitWinRate: 70, ResearchTier: "A",
+		ProfitWinRate: 70, TargetRate: 55, LossRate: 20, ResearchTier: "A",
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -53,9 +53,13 @@ func TestEnrichT0ReferenceUsesPreT0RulesAndLatestStats(t *testing.T) {
 	if got[0].T0ReferenceTier != "A" || got[0].T0ReferenceWinPct != 70 || got[0].T0ReferenceSamples != 20 {
 		t.Fatalf("reference summary = %+v", got[0])
 	}
+	if len(got[0].T0ReferenceHits) != 1 || got[0].T0ReferenceHits[0].TargetRate != 55 ||
+		got[0].T0ReferenceHits[0].EarnRate != 80 {
+		t.Fatalf("reference stats = %+v", got[0].T0ReferenceHits[0])
+	}
 }
 
-func TestEnrichT0ReferenceHonorsExplicitDeepRedMarker(t *testing.T) {
+func TestEnrichT0ReferenceDoesNotPromoteLegacyDeepRedMarker(t *testing.T) {
 	previous := db.Dao
 	t.Cleanup(func() { db.Dao = previous })
 	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
@@ -96,8 +100,8 @@ func TestEnrichT0ReferenceHonorsExplicitDeepRedMarker(t *testing.T) {
 	got := enrichT0ResultsForDisplayWithDaily([]T0SelectionResult{
 		{StockCode: "600001.XSHG", OpenGap: 1},
 	}, daily, "2026-01-08")
-	if !got[0].StrongDisplayRuleHit {
-		t.Fatalf("selected deep-red reference hit should be deep red: %+v", got[0])
+	if got[0].StrongDisplayRuleHit {
+		t.Fatalf("legacy deep-red reference hit should not promote result: %+v", got[0])
 	}
 }
 

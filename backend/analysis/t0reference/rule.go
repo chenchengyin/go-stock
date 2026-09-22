@@ -20,6 +20,7 @@ type RuleDefinition struct {
 	ManualRank        int
 	MinSamples        int
 	DeepRed           bool
+	RedEntry          bool
 }
 
 type CompiledRule struct {
@@ -37,6 +38,7 @@ type RuleHit struct {
 	ResearchTier  string
 	StrictWinRate float64
 	SampleCount   int
+	RedEntry      bool
 }
 
 func CompileRule(definition RuleDefinition) (CompiledRule, error) {
@@ -82,6 +84,7 @@ func MatchReferenceRules(view PreT0View, entry EntryView, rules []CompiledRule) 
 			Name:         rule.Definition.Name,
 			ManualRank:   rule.Definition.ManualRank,
 			DeepRed:      rule.Definition.DeepRed,
+			RedEntry:     rule.Definition.RedEntry,
 			ResearchTier: "normal",
 		})
 	}
@@ -191,8 +194,10 @@ func isAllowedConditionField(field string) bool {
 		return false
 	}
 	switch parts[1] {
-	case "close_type", "is_one_word", "amplitude", "open_ret", "close_ret", "open", "high", "low", "close", "volume", "amount_yi", "prev_close":
+	case "close_type", "is_one_word", "amplitude", "open_ret", "close_ret", "body_ret", "open", "high", "low", "close", "volume", "amount_yi", "prev_close":
 		return true
+	case "close_vs_t-2_ret", "body_drop_vs_t-2_close", "close_gt_open", "is_bearish":
+		return parts[0] == "t-1"
 	default:
 		return false
 	}
@@ -366,6 +371,27 @@ func fieldValue(field string, view PreT0View) (any, bool) {
 	if !ok {
 		return nil, false
 	}
+	if offset == -1 {
+		previous, previousOK := view.Bars[-2]
+		if previousOK {
+			switch parts[1] {
+			case "close_vs_t-2_ret":
+				if previous.Close <= 0 || bar.Close <= 0 {
+					return nil, false
+				}
+				return percentChange(previous.Close, bar.Close), true
+			case "body_drop_vs_t-2_close":
+				if previous.Close <= 0 {
+					return nil, false
+				}
+				return percentFrom(previous.Close, bar.Open-bar.Close), true
+			case "close_gt_open":
+				return bar.Close > bar.Open, true
+			case "is_bearish":
+				return bar.Close < bar.Open, true
+			}
+		}
+	}
 	switch parts[1] {
 	case "close_type":
 		return bar.CloseType, true
@@ -377,6 +403,8 @@ func fieldValue(field string, view PreT0View) (any, bool) {
 		return bar.OpenRet, true
 	case "close_ret":
 		return bar.CloseRet, true
+	case "body_ret":
+		return bar.BodyRet, true
 	case "open":
 		return bar.Open, true
 	case "high":

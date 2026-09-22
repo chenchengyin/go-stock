@@ -1262,6 +1262,49 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildReferenceRuleChips(T0StrategyStock stock) {
+    if (stock.t0ReferenceHits.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: stock.t0ReferenceHits.map((hit) {
+        final hasStats = hit.sampleCount > 0;
+        final rateText = hasStats
+            ? '${hit.targetRate.round()}/${hit.earnRate.round()}/${hit.sampleCount}'
+            : '—/—/${hit.sampleCount}';
+        final message =
+            '自定义形态：${hit.name}\n'
+            '达标率：${hasStats ? '${hit.targetRate.round()}%' : '—'}\n'
+            '真赚率：${hasStats ? '${hit.earnRate.round()}%' : '—'}\n'
+            '严格胜率：${hasStats ? '${hit.strictWinRate.round()}%' : '—'}\n'
+            '样本数：${hit.sampleCount}';
+        return Tooltip(
+          message: message,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: AppColors.brand.withValues(alpha: 0.28),
+              ),
+            ),
+            child: Text(
+              '${hit.name} $rateText',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: hasStats ? AppColors.brand : AppColors.textTertiary,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildStrategyCard(
     T0StrategyStock stock, {
     bool preview = false,
@@ -1288,7 +1331,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       style: TextStyle(
         fontWeight: FontWeight.w600,
         fontSize: 14,
-        color: stock.hasTechBlueDisplayRuleHit
+        color: stock.hasStrongContinuationDisplayRuleHit
             ? AppColors.info
             : stock.hasStrongDisplayRuleHit
             ? AppColors.errorStrong
@@ -1323,6 +1366,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
       ),
       _buildBuySignalChip(stock),
+      _buildReferenceRuleChips(stock),
       _buildStockRatingChip(stock),
       if (kind == _StrategyListKind.gold)
         Text(

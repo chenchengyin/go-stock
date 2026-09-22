@@ -122,6 +122,83 @@ func TestCompileRuleRejectsUnknownFieldAndOperator(t *testing.T) {
 	}
 }
 
+func TestDerivedConditionFieldsCompareT1WithT2(t *testing.T) {
+	view := PreT0View{Bars: map[int]PreT0Bar{
+		-2: {BarSnapshot: BarSnapshot{Close: 100}},
+		-1: {BarSnapshot: BarSnapshot{Open: 103, Close: 101}},
+	}}
+
+	cases := []struct {
+		field string
+		want  any
+	}{
+		{field: "t-1.close_vs_t-2_ret", want: 1.0},
+		{field: "t-1.body_drop_vs_t-2_close", want: 2.0},
+		{field: "t-1.close_gt_open", want: false},
+		{field: "t-1.is_bearish", want: true},
+	}
+	for _, tc := range cases {
+		got, ok := fieldValue(tc.field, view)
+		if !ok {
+			t.Fatalf("fieldValue(%q) was unavailable", tc.field)
+		}
+		if got != tc.want {
+			t.Fatalf("fieldValue(%q)=%v want %v", tc.field, got, tc.want)
+		}
+	}
+}
+
+func TestBodyRetConditionFieldUsesCloseMinusOpen(t *testing.T) {
+	view := BuildPreT0View(Observation{Bars: map[int]BarSnapshot{
+		-2: {PrevClose: 100, Open: 104, Close: 109, High: 109, Low: 100},
+	}})
+
+	got, ok := fieldValue("t-2.body_ret", view)
+	if !ok {
+		t.Fatal("body_ret field was unavailable")
+	}
+	if got != 5.0 {
+		t.Fatalf("body_ret=%v want 5", got)
+	}
+}
+
+func TestBodyRetConditionUsesInclusiveFivePercentBoundary(t *testing.T) {
+	definition := RuleDefinition{
+		RuleKind:          "condition",
+		DefinitionVersion: "v1",
+		ConditionJSON:     `{"field":"t-2.body_ret","op":"gte","value":5.0}`,
+		EntryJSON:         `{"field":"entry_gap","op":"between","min":0.01,"max":3.0,"inclusive":true}`,
+	}
+	rule, err := CompileRule(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		body float64
+		want bool
+	}{
+		{body: 5.0, want: true},
+		{body: 4.99, want: false},
+	} {
+		view := PreT0View{Bars: map[int]PreT0Bar{
+			-2: {BodyRet: test.body},
+		}}
+		hits := MatchReferenceRules(view, EntryView{Gap: 1.0}, []CompiledRule{rule})
+		if (len(hits) == 1) != test.want {
+			t.Fatalf("body %.2f hit=%v want %v", test.body, len(hits) == 1, test.want)
+		}
+	}
+}
+
+func TestDerivedConditionFieldsRejectMissingComparisonBar(t *testing.T) {
+	view := PreT0View{Bars: map[int]PreT0Bar{
+		-1: {BarSnapshot: BarSnapshot{Open: 103, Close: 101}},
+	}}
+	if _, ok := fieldValue("t-1.close_vs_t-2_ret", view); ok {
+		t.Fatal("derived comparison field should require t-2")
+	}
+}
+
 func TestCompileRuleRejectsTrailingJSONValues(t *testing.T) {
 	if _, err := CompileRule(RuleDefinition{
 		RuleKind:          "sequence",

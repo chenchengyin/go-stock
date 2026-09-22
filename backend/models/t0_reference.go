@@ -64,6 +64,7 @@ type T0ReferenceRule struct {
 	ManualRank        int       `gorm:"column:manual_rank"`
 	MinSamples        int       `gorm:"column:min_samples"`
 	DeepRed           bool      `gorm:"column:deep_red"`
+	RedEntry          bool      `gorm:"column:red_entry"`
 	Enabled           bool      `gorm:"column:enabled;index:idx_t0_reference_rule_enabled"`
 	CreatedAt         time.Time `gorm:"column:created_at"`
 	UpdatedAt         time.Time `gorm:"column:updated_at"`

@@ -430,6 +430,8 @@ void main() {
           'name': 'test',
           'research_tier': 'A',
           'strict_win_rate': 70,
+          'target_rate': 55,
+          'earn_rate': 80,
           'sample_count': 20,
           'manual_rank': 1,
         },
@@ -439,6 +441,8 @@ void main() {
     expect(stock.t0ReferenceWinPct, 70);
     expect(stock.t0ReferenceSamples, 20);
     expect(stock.t0ReferenceHits.single.name, 'test');
+    expect(stock.t0ReferenceHits.single.targetRate, 55);
+    expect(stock.t0ReferenceHits.single.earnRate, 80);
   });
 
   test('parses display rule hits and exposes the red display state', () {
@@ -460,6 +464,16 @@ void main() {
     });
 
     expect(s.hasStrongDisplayRuleHit, isTrue);
+  });
+
+  test('parses the strong-continuation red admission state', () {
+    final s = T0StrategyStock.fromJson({
+      '股票代码': '600001.XSHG',
+      '股票名称': '强势连板股',
+      '强势连板': true,
+    });
+
+    expect(s.hasStrongContinuationDisplayRuleHit, isTrue);
   });
 
   test('insufficient 仍解析并保留形态统计数字', () {

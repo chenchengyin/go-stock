@@ -19,11 +19,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestFilterRedT0ResultsKeepsLegacyDisplayRulesAlongsideTechBlue(t *testing.T) {
+func TestFilterRedT0ResultsKeepsLegacyDisplayRulesAlongsideStrongContinuation(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
 		TradeDate: "2026-09-09",
 		Daily: map[string][]dailyBar{
 			"600000": {
+				{Date: "2026-08-31", Close: 9.5},
 				{Date: "2026-09-01", Close: 10},
 				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
 				{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
@@ -42,10 +43,11 @@ func TestFilterRedT0ResultsKeepsLegacyDisplayRulesAlongsideTechBlue(t *testing.T
 		},
 	}
 	results := []T0SelectionResult{
-		// 不满足科技蓝，也没有其他红策命中，应该剔除。
+		// 不满足强势连板，也没有其他红策命中，应该剔除。
 		{StockCode: "600001.XSHG", PrevClose: 10, PatternWinPct: 20, PatternFailPct: 50},
-		// 不满足科技蓝，但命中任意涨停＋跌停，应该保留。
-		{StockCode: "600002.XSHG", PrevClose: 0, PatternWinPct: 0, PatternFailPct: 100},
+		// 不满足强势连板，但命中任意涨停＋跌停，应该保留。
+		{StockCode: "600002.XSHG", PrevClose: 0, PatternWinPct: 0, PatternFailPct: 100,
+			StrongContinuationDisplayRuleHit: true},
 	}
 
 	got := filterRedT0Results(results, ctx)
@@ -57,13 +59,17 @@ func TestFilterRedT0ResultsKeepsLegacyDisplayRulesAlongsideTechBlue(t *testing.T
 	if !reflect.DeepEqual(codes, want) {
 		t.Fatalf("red codes = %v, want %v", codes, want)
 	}
+	if got[0].StrongContinuationDisplayRuleHit {
+		t.Fatal("stale strong-continuation marker should be cleared when the custom rule does not match")
+	}
 }
 
-func TestFilterRedT0ResultsKeepsLegacyTwoLimitUpRuleAndMarksTechBlueSubset(t *testing.T) {
+func TestFilterRedT0ResultsKeepsStrongContinuationWithoutRemovedLegacyRule(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
 		TradeDate: "2026-09-04",
 		Daily: map[string][]dailyBar{
 			"600000": {
+				{Date: "2026-08-31", Close: 9.5},
 				{Date: "2026-09-01", Close: 10},
 				{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
 				{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
@@ -81,29 +87,21 @@ func TestFilterRedT0ResultsKeepsLegacyTwoLimitUpRuleAndMarksTechBlueSubset(t *te
 	}
 
 	got := filterRedT0Results(results, ctx)
-	if len(got) != 2 {
-		t.Fatalf("red result count=%d want 2", len(got))
+	if len(got) != 1 || got[0].StockCode != "600000.XSHG" {
+		t.Fatalf("red result count/codes=%d/%v want 1/[600000.XSHG]", len(got), got)
 	}
-	if !got[0].StrongDisplayRuleHit {
-		t.Fatalf("exact two-limit-up non-one-word combination should be deep red: %+v", got[0])
+	if !got[0].StrongContinuationDisplayRuleHit {
+		t.Fatalf("complete red admission should be marked strong continuation: %+v", got[0])
 	}
-	if !got[0].TechBlueDisplayRuleHit {
-		t.Fatalf("complete red admission should be marked tech blue: %+v", got[0])
-	}
-	if got[1].StrongDisplayRuleHit || got[1].TechBlueDisplayRuleHit {
-		t.Fatalf("legacy two-limit-up result should remain ordinary red: %+v", got[1])
+	if got[0].StrongDisplayRuleHit {
+		t.Fatalf("removed legacy two-limit-up display rule should not mark deep red: %+v", got[0])
 	}
 }
 
-func TestFilterRedT0ResultsKeepsAnyLimitUpLimitDownWithoutTechBlue(t *testing.T) {
+func TestFilterRedT0ResultsKeepsAnyLimitUpLimitDownWithoutStrongContinuation(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
 		TradeDate: "2026-09-04",
 		Daily: map[string][]dailyBar{
-			"600000": {
-				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
-				{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
-			},
 			"600001": {
 				{Date: "2026-09-01", Close: 10},
 				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
@@ -118,13 +116,57 @@ func TestFilterRedT0ResultsKeepsAnyLimitUpLimitDownWithoutTechBlue(t *testing.T)
 	}
 
 	got := filterRedT0Results([]T0SelectionResult{
-		{StockCode: "600000.XSHG", OpenGap: 1.2},
-		// 旧的涨停＋跌停标红命中，但不是新红策组合。
+		// 旧的涨停＋跌停标红命中，但不是强势连板组合。
 		{StockCode: "600002.XSHG", OpenGap: 1.2},
 	}, ctx)
 
-	if len(got) != 2 || got[0].StockCode != "600000.XSHG" || got[1].StockCode != "600002.XSHG" {
-		t.Fatalf("red results = %+v, want tech-blue and legacy any-limit-up-limit-down conditions", got)
+	if len(got) != 1 || got[0].StockCode != "600002.XSHG" {
+		t.Fatalf("red results = %+v, want legacy any-limit-up-limit-down condition", got)
+	}
+}
+
+func TestFilterRedT0ResultsMarksNonOneWordLimitUpLimitDownReversal(t *testing.T) {
+	previous := db.Dao
+	db.Dao = nil
+	t.Cleanup(func() { db.Dao = previous })
+	ctx := &t0ModuleSelectionContext{
+		TradeDate: "2026-09-04",
+		Daily: map[string][]dailyBar{
+			"600003": {
+				{Date: "2026-08-31", Close: 9.5},
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
+				{Date: "2026-09-03", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.9},
+			},
+		},
+	}
+	result := T0SelectionResult{StockCode: "600003.XSHG", OpenGap: 1.2}
+	redEntryHits := matchingRedEntryReferenceRuntimes(
+		histBarsBeforeTradeDate(ctx.Daily["600003"], ctx.TradeDate),
+		result,
+		loadT0ReferenceRuleRuntimes(),
+	)
+	if len(redEntryHits) != 1 || redEntryHits[0].rule.Definition.Name != t0reference.RuleNameLimitUpLimitDownReversal {
+		t.Fatalf("red-entry reversal hits = %+v", redEntryHits)
+	}
+
+	got := filterRedT0Results([]T0SelectionResult{result}, ctx)
+	if len(got) != 1 || got[0].StrongContinuationDisplayRuleHit {
+		t.Fatalf("reversal result = %+v", got)
+	}
+}
+
+func TestNonOneWordLimitUpLimitDownReversalRejectsOneWordLimitUp(t *testing.T) {
+	hist := []dailyBar{
+		{Date: "2026-08-31", Close: 9.5},
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 11, Close: 11, High: 11, Low: 11},
+		{Date: "2026-09-03", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.9},
+	}
+	hits := matchingRedEntryReferenceRuntimes(
+		hist, T0SelectionResult{OpenGap: 1.2}, loadT0ReferenceRuleRuntimes())
+	if len(hits) != 0 {
+		t.Fatalf("one-word limit-up should not match reversal: %+v", hits)
 	}
 }
 

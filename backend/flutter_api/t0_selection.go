@@ -936,34 +936,34 @@ type t0Realtime struct {
 
 // T0SelectionResult 最终选股结果
 type T0SelectionResult struct {
-	Time                   string           `json:"时间"`
-	OpenGap                float64          `json:"T0开盘涨幅(%)"`
-	CloseRet               float64          `json:"T0收盘涨幅(%)"`
-	LimitUpDates           string           `json:"涨停日期"`
-	MA20                   float64          `json:"MA20"`
-	AmountYi               float64          `json:"成交额(亿)"`
-	TurnoverSource         string           `json:"成交额来源,omitempty"`
-	TurnoverUnit           string           `json:"成交额单位,omitempty"`
-	TurnoverVerified       bool             `json:"成交额已确认,omitempty"`
-	StockCode              string           `json:"股票代码"` // 如 600000.XSHG
-	StockName              string           `json:"股票名称"`
-	PrevClose              float64          `json:"前一交易日收盘"`
-	PrevCloseRet           float64          `json:"前一交易日收盘涨幅(%)"`
-	Tag                    string           `json:"标记"`
-	Pattern                string           `json:"形态"`
-	PatternT0N             int              `json:"形态样本数"`
-	PatternWinPct          float64          `json:"形态达标率(%)"`
-	PatternFailPct         float64          `json:"形态真亏率(%)"`
-	PatternScore           float64          `json:"综合评分,omitempty"`
-	StrongGoldSignal       bool             `json:"强金策,omitempty"`
-	BuySignal              string           `json:"买入信号"`
-	DisplayRuleHits        []string         `json:"命中条件,omitempty"`
-	TechBlueDisplayRuleHit bool             `json:"科技蓝,omitempty"`
-	StrongDisplayRuleHit   bool             `json:"重点标红,omitempty"`
-	T0ReferenceHits        []T0ReferenceHit `json:"T0参考形态命中,omitempty"`
-	T0ReferenceTier        string           `json:"T0参考最高等级,omitempty"`
-	T0ReferenceWinPct      float64          `json:"T0参考严格胜率(%),omitempty"`
-	T0ReferenceSamples     int              `json:"T0参考样本数,omitempty"`
+	Time                             string           `json:"时间"`
+	OpenGap                          float64          `json:"T0开盘涨幅(%)"`
+	CloseRet                         float64          `json:"T0收盘涨幅(%)"`
+	LimitUpDates                     string           `json:"涨停日期"`
+	MA20                             float64          `json:"MA20"`
+	AmountYi                         float64          `json:"成交额(亿)"`
+	TurnoverSource                   string           `json:"成交额来源,omitempty"`
+	TurnoverUnit                     string           `json:"成交额单位,omitempty"`
+	TurnoverVerified                 bool             `json:"成交额已确认,omitempty"`
+	StockCode                        string           `json:"股票代码"` // 如 600000.XSHG
+	StockName                        string           `json:"股票名称"`
+	PrevClose                        float64          `json:"前一交易日收盘"`
+	PrevCloseRet                     float64          `json:"前一交易日收盘涨幅(%)"`
+	Tag                              string           `json:"标记"`
+	Pattern                          string           `json:"形态"`
+	PatternT0N                       int              `json:"形态样本数"`
+	PatternWinPct                    float64          `json:"形态达标率(%)"`
+	PatternFailPct                   float64          `json:"形态真亏率(%)"`
+	PatternScore                     float64          `json:"综合评分,omitempty"`
+	StrongGoldSignal                 bool             `json:"强金策,omitempty"`
+	BuySignal                        string           `json:"买入信号"`
+	DisplayRuleHits                  []string         `json:"命中条件,omitempty"`
+	StrongContinuationDisplayRuleHit bool             `json:"强势连板,omitempty"`
+	StrongDisplayRuleHit             bool             `json:"重点标红,omitempty"`
+	T0ReferenceHits                  []T0ReferenceHit `json:"T0参考形态命中,omitempty"`
+	T0ReferenceTier                  string           `json:"T0参考最高等级,omitempty"`
+	T0ReferenceWinPct                float64          `json:"T0参考严格胜率(%),omitempty"`
+	T0ReferenceSamples               int              `json:"T0参考样本数,omitempty"`
 }
 
 // t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05

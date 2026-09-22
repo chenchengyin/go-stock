@@ -308,6 +308,13 @@ func persistRulesAndStats(dao *gorm.DB, runtimes []ruleRuntime, batchID string, 
 	statCount := 0
 	tierCounts := make(map[string]int)
 	err := dao.Transaction(func(tx *gorm.DB) error {
+		for _, name := range t0reference.DeprecatedRuleNames() {
+			if err := tx.Model(&models.T0ReferenceRule{}).
+				Where("name = ?", name).
+				Update("enabled", false).Error; err != nil {
+				return err
+			}
+		}
 		for _, runtime := range runtimes {
 			definition := runtime.compiled.Definition
 			row := models.T0ReferenceRule{
@@ -322,6 +329,7 @@ func persistRulesAndStats(dao *gorm.DB, runtimes []ruleRuntime, batchID string, 
 				ManualRank:        definition.ManualRank,
 				MinSamples:        definition.MinSamples,
 				DeepRed:           definition.DeepRed,
+				RedEntry:          definition.RedEntry,
 				Enabled:           true,
 			}
 			var existing models.T0ReferenceRule
@@ -336,6 +344,9 @@ func persistRulesAndStats(dao *gorm.DB, runtimes []ruleRuntime, batchID string, 
 				// intentionally reversible when a candidate is removed from the
 				// selected deep-red set, so write it explicitly.
 				if err := tx.Model(&existing).Update("deep_red", row.DeepRed).Error; err != nil {
+					return err
+				}
+				if err := tx.Model(&existing).Update("red_entry", row.RedEntry).Error; err != nil {
 					return err
 				}
 			case errors.Is(findErr, gorm.ErrRecordNotFound):
