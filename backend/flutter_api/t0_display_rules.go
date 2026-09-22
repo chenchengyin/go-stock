@@ -208,6 +208,16 @@ func enrichT0ResultsForDisplayWithDaily(
 	daily map[string][]dailyBar,
 	tradeDate string,
 ) []T0SelectionResult {
+	return enrichT0ResultsForDisplayWithDailyForModule(
+		results, daily, tradeDate, "")
+}
+
+func enrichT0ResultsForDisplayWithDailyForModule(
+	results []T0SelectionResult,
+	daily map[string][]dailyBar,
+	tradeDate string,
+	moduleCode string,
+) []T0SelectionResult {
 	out := make([]T0SelectionResult, len(results))
 	copy(out, results)
 	referenceRules := loadT0ReferenceRuleRuntimes()
@@ -220,7 +230,8 @@ func enrichT0ResultsForDisplayWithDaily(
 		out[i].TechBlueDisplayRuleHit = out[i].TechBlueDisplayRuleHit ||
 			matchesBullishZtZtPb(hist)
 		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
-		enrichT0ReferenceResult(&out[i], hist, referenceRules)
+		enrichT0ReferenceResult(
+			&out[i], hist, referenceRules, moduleCode == redT0StrategyModuleCode)
 	}
 	return out
 }

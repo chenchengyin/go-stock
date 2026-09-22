@@ -121,6 +121,24 @@ func TestLegacyMediumYangRuleIsDeprecated(t *testing.T) {
 	}
 }
 
+func TestLegacyAmplitudeOpenReferenceRulesAreDeprecated(t *testing.T) {
+	removed := []string{
+		"T-2振幅≥8%+T-1开盘≥8%",
+		"T-2非一字+T-1开盘≥8%+T-1振幅<4%",
+		"T-2振幅≥8%+T-1开盘≥8%+T-1振幅<4%",
+	}
+	for _, name := range removed {
+		if !IsDeprecatedRuleName(name) {
+			t.Fatalf("legacy reference rule %q should be deprecated", name)
+		}
+		for _, definition := range DefaultRuleDefinitions() {
+			if definition.Name == name {
+				t.Fatalf("deprecated reference rule %q remains in defaults", name)
+			}
+		}
+	}
+}
+
 func TestBuiltInRedDisplayRulesMatchTheirDefinedShapes(t *testing.T) {
 	view := PreT0View{Bars: map[int]PreT0Bar{
 		-3: {CloseType: "ZT", BarSnapshot: BarSnapshot{Open: 90, Close: 100}},
@@ -203,8 +221,7 @@ func TestDefaultRuleDefinitionsSelectOnlyPrimaryAmplitudeAsDeepRed(t *testing.T)
 	want := map[string]bool{
 		"DYIN|YX|MYIN": false,
 		"ZT|DYIN|DT":   false,
-		"T-2低开+T-1开盘≥3%+T-1振幅≥8%":    true,
-		"T-2振幅≥8%+T-1开盘≥8%+T-1振幅<4%": false,
+		"T-2低开+T-1开盘≥3%+T-1振幅≥8%": true,
 	}
 	got := make(map[string]bool)
 	for _, definition := range DefaultRuleDefinitions() {

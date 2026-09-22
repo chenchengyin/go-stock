@@ -2160,8 +2160,8 @@ func writeScopedT0ResponseWithContext(
 		if !ok {
 			continue
 		}
-		response[field] = enrichT0ResultsForDisplayWithDaily(
-			results, ctx.Daily, ctx.TradeDate)
+		response[field] = enrichT0ResultsForDisplayWithDailyForModule(
+			results, ctx.Daily, ctx.TradeDate, moduleCode)
 	}
 	WriteJSON(w, response)
 }

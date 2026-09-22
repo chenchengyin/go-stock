@@ -191,7 +191,12 @@ func matchingRedEntryReferenceRuntimes(
 	return redEntry
 }
 
-func enrichT0ReferenceResult(result *T0SelectionResult, hist []dailyBar, runtimes []t0ReferenceRuleRuntime) {
+func enrichT0ReferenceResult(
+	result *T0SelectionResult,
+	hist []dailyBar,
+	runtimes []t0ReferenceRuleRuntime,
+	redOnly bool,
+) {
 	if result == nil {
 		return
 	}
@@ -203,6 +208,15 @@ func enrichT0ReferenceResult(result *T0SelectionResult, hist []dailyBar, runtime
 		return
 	}
 	matched := matchingT0ReferenceRuntimes(hist, *result, runtimes)
+	if redOnly {
+		redMatched := matched[:0]
+		for _, runtime := range matched {
+			if runtime.redEntry {
+				redMatched = append(redMatched, runtime)
+			}
+		}
+		matched = redMatched
+	}
 	if len(matched) == 0 {
 		return
 	}

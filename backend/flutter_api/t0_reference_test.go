@@ -105,6 +105,45 @@ func TestEnrichT0ReferenceDoesNotPromoteLegacyDeepRedMarker(t *testing.T) {
 	}
 }
 
+func TestRedReferenceEnrichmentOnlyShowsRedEntryRules(t *testing.T) {
+	condition := `{"all":[
+{"field":"t-2.close_type","op":"eq","value":"ZT"},
+{"field":"t-1.close_type","op":"eq","value":"ZT"}
+]}`
+	redDefinition := t0reference.RuleDefinition{
+		RuleKind: "condition", Name: "RED_PATTERN", DefinitionVersion: "v1",
+		ConditionJSON: condition,
+		EntryJSON:     `{"field":"entry_gap","op":"between","min":0.01,"max":3.0,"inclusive":true}`,
+		ManualRank:    1, MinSamples: 10, RedEntry: true,
+	}
+	referenceDefinition := redDefinition
+	referenceDefinition.Name = "REFERENCE_ONLY"
+	referenceDefinition.DefinitionVersion = "v2"
+	referenceDefinition.RedEntry = false
+	redRule, err := t0reference.CompileRule(redDefinition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	referenceRule, err := t0reference.CompileRule(referenceDefinition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hist := []dailyBar{
+		{Date: "2026-01-01", Close: 10},
+		{Date: "2026-01-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-01-05", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+		{Date: "2026-01-06", Open: 12.2, Close: 13.31, High: 13.31, Low: 12.2},
+	}
+	result := T0SelectionResult{OpenGap: 1}
+	enrichT0ReferenceResult(&result, hist, []t0ReferenceRuleRuntime{
+		{rule: redRule, redEntry: true},
+		{rule: referenceRule, redEntry: false},
+	}, true)
+	if len(result.T0ReferenceHits) != 1 || result.T0ReferenceHits[0].Name != "RED_PATTERN" {
+		t.Fatalf("red reference hits = %+v, want only RED_PATTERN", result.T0ReferenceHits)
+	}
+}
+
 func TestLoadT0ReferenceRulesIgnoresStaleSameNameDefinition(t *testing.T) {
 	previous := db.Dao
 	t.Cleanup(func() { db.Dao = previous })
@@ -162,6 +201,44 @@ func TestLoadT0ReferenceRulesIgnoresStaleSameNameDefinition(t *testing.T) {
 		}
 		if hit.rule.Definition.Name == t0reference.RuleNameAnyLimitUpLimitDown && !hit.redEntry {
 			t.Fatal("canonical any-limit-up-limit-down rule should remain a red-entry rule")
+		}
+	}
+}
+
+func TestLoadT0ReferenceRulesIgnoresDeprecatedAmplitudeRules(t *testing.T) {
+	previous := db.Dao
+	t.Cleanup(func() { db.Dao = previous })
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Dao = dao
+	if err := dao.AutoMigrate(&models.T0ReferenceRule{}, &models.T0ReferenceRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	legacyRules := []struct {
+		name      string
+		condition string
+	}{
+		{t0reference.RuleNameLegacyT2AmplitudeT1Open, `{"sequence":["ZT","ZT","ZT"]}`},
+		{t0reference.RuleNameLegacyT2NonOneWordT1Open, `{"sequence":["ZT","ZT","PB"]}`},
+		{t0reference.RuleNameLegacyT2AmplitudeT1Narrow, `{"sequence":["ZT","ZT","DT"]}`},
+	}
+	for _, legacy := range legacyRules {
+		name := legacy.name
+		condition := legacy.condition
+		rule, err := modelsRuleForTestName(name, condition)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rule.RedEntry = true
+		if err := dao.Create(&rule).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, runtime := range loadT0ReferenceRuleRuntimes() {
+		if t0reference.IsDeprecatedRuleName(runtime.rule.Definition.Name) {
+			t.Fatalf("deprecated database rule was loaded: %q", runtime.rule.Definition.Name)
 		}
 	}
 }

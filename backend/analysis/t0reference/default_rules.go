@@ -11,18 +11,31 @@ const (
 	RuleNameZtZtBearish                 = "涨停＋涨停＋普通阴线"
 	RuleNameRemovedTwoLimitUpNonOneWord = "两连涨停-T1非一字-T1开盘≥3%"
 	RuleNameLegacyMediumYangLimitDown   = "中阳及以上＋跌停后的开盘竞价"
+	RuleNameLegacyT2AmplitudeT1Open     = "T-2振幅≥8%+T-1开盘≥8%"
+	RuleNameLegacyT2NonOneWordT1Open    = "T-2非一字+T-1开盘≥8%+T-1振幅<4%"
+	RuleNameLegacyT2AmplitudeT1Narrow   = "T-2振幅≥8%+T-1开盘≥8%+T-1振幅<4%"
 )
 
 // IsDeprecatedRuleName identifies reference labels that were removed from
 // the product logic but whose historical rows and statistics are retained.
 func IsDeprecatedRuleName(name string) bool {
-	return name == RuleNameRemovedTwoLimitUpNonOneWord || name == RuleNameLegacyMediumYangLimitDown
+	return name == RuleNameRemovedTwoLimitUpNonOneWord ||
+		name == RuleNameLegacyMediumYangLimitDown ||
+		name == RuleNameLegacyT2AmplitudeT1Open ||
+		name == RuleNameLegacyT2NonOneWordT1Open ||
+		name == RuleNameLegacyT2AmplitudeT1Narrow
 }
 
 // DeprecatedRuleNames returns labels that should stay in the database for
 // historical auditability but must no longer participate in runtime matching.
 func DeprecatedRuleNames() []string {
-	return []string{RuleNameRemovedTwoLimitUpNonOneWord, RuleNameLegacyMediumYangLimitDown}
+	return []string{
+		RuleNameRemovedTwoLimitUpNonOneWord,
+		RuleNameLegacyMediumYangLimitDown,
+		RuleNameLegacyT2AmplitudeT1Open,
+		RuleNameLegacyT2NonOneWordT1Open,
+		RuleNameLegacyT2AmplitudeT1Narrow,
+	}
 }
 
 // DefaultRuleDefinitions returns the initial rules used by the historical
@@ -119,44 +132,6 @@ func DefaultRuleDefinitions() []RuleDefinition {
 			EntryJSON:         entry,
 			ManualRank:        120,
 			MinSamples:        10,
-		},
-		{
-			RuleKind:          "condition",
-			Name:              "T-2振幅≥8%+T-1开盘≥8%",
-			DefinitionVersion: "v1",
-			ConditionJSON: `{"all":[
-{"field":"t-2.amplitude","op":"gte","value":8.0},
-{"field":"t-1.open_ret","op":"gte","value":8.0}
-]}`,
-			EntryJSON:  entry,
-			ManualRank: 60,
-			MinSamples: 10,
-		},
-		{
-			RuleKind:          "condition",
-			Name:              "T-2非一字+T-1开盘≥8%+T-1振幅<4%",
-			DefinitionVersion: "v1",
-			ConditionJSON: `{"all":[
-{"field":"t-2.is_one_word","op":"eq","value":false},
-{"field":"t-1.open_ret","op":"gte","value":8.0},
-{"field":"t-1.amplitude","op":"lt","value":4.0}
-]}`,
-			EntryJSON:  entry,
-			ManualRank: 70,
-			MinSamples: 10,
-		},
-		{
-			RuleKind:          "condition",
-			Name:              "T-2振幅≥8%+T-1开盘≥8%+T-1振幅<4%",
-			DefinitionVersion: "v1",
-			ConditionJSON: `{"all":[
-{"field":"t-2.amplitude","op":"gte","value":8.0},
-{"field":"t-1.open_ret","op":"gte","value":8.0},
-{"field":"t-1.amplitude","op":"lt","value":4.0}
-]}`,
-			EntryJSON:  entry,
-			ManualRank: 80,
-			MinSamples: 10,
 		},
 		{
 			RuleKind:          "condition",
