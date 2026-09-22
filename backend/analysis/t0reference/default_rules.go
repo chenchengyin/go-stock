@@ -67,7 +67,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 {"field":"t-1.close_type","op":"eq","value":"DT"}
 ]}`,
 			EntryJSON:  `{"field":"entry_gap","op":"between","min":0.01,"max":3.0,"inclusive":true}`,
-			ManualRank: 20, MinSamples: 10,
+			ManualRank: 20, MinSamples: 10, RedEntry: true,
 		},
 		{
 			RuleKind:          "condition",
@@ -81,7 +81,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 {"field":"t-1.close_type","op":"eq","value":"DT"}
 ]}`,
 			EntryJSON:  `{"field":"entry_gap","op":"between","min":0.01,"max":0.75,"inclusive":true}`,
-			ManualRank: 30, MinSamples: 10,
+			ManualRank: 30, MinSamples: 10, RedEntry: true,
 		},
 		{
 			RuleKind:          "condition",
@@ -94,7 +94,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 {"field":"t-1.close_gt_open","op":"eq","value":true}
 ]}`,
 			EntryJSON:  `{"field":"entry_gap","op":"between","min":0.01,"max":3.0,"inclusive":true}`,
-			ManualRank: 40, MinSamples: 10,
+			ManualRank: 40, MinSamples: 10, RedEntry: true,
 		},
 		{
 			RuleKind:          "condition",
@@ -109,7 +109,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 {"field":"t-1.body_drop_vs_t-2_close","op":"lt","value":8.0}
 ]}`,
 			EntryJSON:  `{"field":"entry_gap","op":"between","min":0.01,"max":3.0,"inclusive":true}`,
-			ManualRank: 50, MinSamples: 10,
+			ManualRank: 50, MinSamples: 10, RedEntry: true,
 		},
 		{
 			RuleKind:          "sequence",

@@ -240,8 +240,10 @@ func filterRedT0Results(
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
 		redEntryHits := matchingRedEntryReferenceRuntimes(hist, result, referenceRules)
-		displayRuleHits := displayRuleHitsForResult(hist, result)
+		displayRuleHits := mergeT0DisplayRuleHits(
+			referenceRuleNames(redEntryHits), displayRuleHitsForResult(hist, result))
 		result.StrongContinuationDisplayRuleHit = false
+		result.TechBlueDisplayRuleHit = matchesBullishZtZtPb(hist)
 		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, result)
 		if len(redEntryHits) == 0 && len(displayRuleHits) == 0 {
 			continue
@@ -250,7 +252,7 @@ func filterRedT0Results(
 		for _, runtime := range redEntryHits {
 			if runtime.rule.Definition.Name == t0reference.RuleNameStrongContinuation {
 				result.StrongContinuationDisplayRuleHit = true
-				break
+				result.TechBlueDisplayRuleHit = true
 			}
 		}
 		result.DisplayRuleHits = displayRuleHits

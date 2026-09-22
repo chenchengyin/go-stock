@@ -23,10 +23,14 @@ func TestDefaultRuleDefinitionsCompile(t *testing.T) {
 	}
 }
 
-func TestDefaultRedEntryDefinitionsIncludeNamedCustomPatterns(t *testing.T) {
+func TestDefaultRedEntryDefinitionsIncludeAllSixRedPatterns(t *testing.T) {
 	want := map[string]bool{
 		RuleNameStrongContinuation:       true,
 		RuleNameLimitUpLimitDownReversal: true,
+		RuleNameAnyLimitUpLimitDown:      true,
+		RuleNameMediumYangLimitDown:      true,
+		RuleNameBullishZtZtPb:            true,
+		RuleNameZtZtBearish:              true,
 	}
 	got := make(map[string]bool)
 	for _, definition := range DefaultRuleDefinitions() {
@@ -34,7 +38,7 @@ func TestDefaultRedEntryDefinitionsIncludeNamedCustomPatterns(t *testing.T) {
 			continue
 		}
 		if !definition.RedEntry {
-			t.Fatalf("rule %q must be a red-entry custom pattern", definition.Name)
+			t.Fatalf("rule %q must be a red-entry pattern", definition.Name)
 		}
 		got[definition.Name] = true
 	}
@@ -43,7 +47,7 @@ func TestDefaultRedEntryDefinitionsIncludeNamedCustomPatterns(t *testing.T) {
 	}
 }
 
-func TestDefaultRulesIncludeBuiltInRedDisplayPatternsWithoutRedEntry(t *testing.T) {
+func TestDefaultRulesIncludeBuiltInRedPatternsWithoutDeepRed(t *testing.T) {
 	want := map[string]bool{
 		RuleNameAnyLimitUpLimitDown: true,
 		RuleNameMediumYangLimitDown: true,
@@ -55,8 +59,8 @@ func TestDefaultRulesIncludeBuiltInRedDisplayPatternsWithoutRedEntry(t *testing.
 		if _, ok := want[definition.Name]; !ok {
 			continue
 		}
-		if definition.RedEntry {
-			t.Fatalf("display-only rule %q must not gate red entry", definition.Name)
+		if !definition.RedEntry {
+			t.Fatalf("red pattern %q must gate red entry", definition.Name)
 		}
 		if definition.DeepRed {
 			t.Fatalf("display-only rule %q must not be marked deep red", definition.Name)
@@ -64,7 +68,7 @@ func TestDefaultRulesIncludeBuiltInRedDisplayPatternsWithoutRedEntry(t *testing.
 		got[definition.Name] = true
 	}
 	if len(got) != len(want) {
-		t.Fatalf("built-in display patterns=%v want=%v", got, want)
+		t.Fatalf("built-in red patterns=%v want=%v", got, want)
 	}
 }
 

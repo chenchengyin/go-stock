@@ -146,13 +146,131 @@ func TestFilterRedT0ResultsMarksNonOneWordLimitUpLimitDownReversal(t *testing.T)
 		result,
 		loadT0ReferenceRuleRuntimes(),
 	)
-	if len(redEntryHits) != 1 || redEntryHits[0].rule.Definition.Name != t0reference.RuleNameLimitUpLimitDownReversal {
+	if len(redEntryHits) < 1 {
 		t.Fatalf("red-entry reversal hits = %+v", redEntryHits)
+	}
+	containsReversal := false
+	for _, hit := range redEntryHits {
+		if hit.rule.Definition.Name == t0reference.RuleNameLimitUpLimitDownReversal {
+			containsReversal = true
+			break
+		}
+	}
+	if !containsReversal {
+		t.Fatalf("red-entry reversal is missing from hits = %+v", redEntryHits)
 	}
 
 	got := filterRedT0Results([]T0SelectionResult{result}, ctx)
 	if len(got) != 1 || got[0].StrongContinuationDisplayRuleHit {
 		t.Fatalf("reversal result = %+v", got)
+	}
+	if !reflect.DeepEqual(got[0].DisplayRuleHits, []string{
+		t0reference.RuleNameLimitUpLimitDownReversal,
+		t0reference.RuleNameAnyLimitUpLimitDown,
+	}) {
+		t.Fatalf("reversal display hits = %v", got[0].DisplayRuleHits)
+	}
+}
+
+func TestFilterRedT0ResultsAdmitsEveryBuiltInRedPattern(t *testing.T) {
+	cases := []struct {
+		name     string
+		code     string
+		openGap  float64
+		history  []dailyBar
+		wantRule string
+	}{
+		{
+			name: "任意K线＋涨停＋跌停", code: "600010.XSHG", openGap: 1.2,
+			history: []dailyBar{
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+				{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+			},
+			wantRule: t0reference.RuleNameAnyLimitUpLimitDown,
+		},
+		{
+			name: "中阳/大阳＋跌停", code: "600011.XSHG", openGap: 0.5,
+			history: []dailyBar{
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+				{Date: "2026-09-03", Open: 10, Close: 10.5, High: 10.5, Low: 10},
+				{Date: "2026-09-04", Open: 9.45, Close: 9.45, High: 9.45, Low: 9.45},
+			},
+			wantRule: t0reference.RuleNameMediumYangLimitDown,
+		},
+		{
+			name: "涨停＋涨停＋阳线破板", code: "600012.XSHG", openGap: 1.2,
+			history: []dailyBar{
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+				{Date: "2026-09-04", Open: 12.2, Close: 13.2, High: 13.6, Low: 12.1},
+			},
+			wantRule: t0reference.RuleNameBullishZtZtPb,
+		},
+		{
+			name: "涨停＋涨停＋普通阴线", code: "600013.XSHG", openGap: 1.2,
+			history: []dailyBar{
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+				{Date: "2026-09-04", Open: 12.4, Close: 12.2, High: 12.4, Low: 12.1},
+			},
+			wantRule: t0reference.RuleNameZtZtBearish,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := &t0ModuleSelectionContext{
+				TradeDate: "2026-09-05",
+				Daily:     map[string][]dailyBar{tc.code[:6]: tc.history},
+			}
+			got := filterRedT0Results([]T0SelectionResult{{
+				StockCode: tc.code, OpenGap: tc.openGap,
+			}}, ctx)
+			if len(got) != 1 {
+				t.Fatalf("red results=%+v, want one result", got)
+			}
+			found := false
+			for _, hit := range got[0].DisplayRuleHits {
+				if hit == tc.wantRule {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("display hits=%v want %q", got[0].DisplayRuleHits, tc.wantRule)
+			}
+		})
+	}
+}
+
+func TestFilterRedT0ResultsMarksBullishZtZtPbAsTechBlue(t *testing.T) {
+	ctx := &t0ModuleSelectionContext{
+		TradeDate: "2026-09-05",
+		Daily: map[string][]dailyBar{
+			"600014": {
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
+				{Date: "2026-09-04", Open: 12.2, Close: 13.2, High: 13.6, Low: 12.1},
+			},
+		},
+	}
+
+	got := filterRedT0Results([]T0SelectionResult{{
+		StockCode: "600014.XSHG", OpenGap: 1.2,
+	}}, ctx)
+	if len(got) != 1 {
+		t.Fatalf("red results=%+v, want one result", got)
+	}
+	if !got[0].TechBlueDisplayRuleHit {
+		t.Fatalf("bullish ZT+ZT+PB should be tech blue: %+v", got[0])
+	}
+	if got[0].StrongContinuationDisplayRuleHit {
+		t.Fatalf("bullish ZT+ZT+PB must not be mislabeled as strong continuation: %+v", got[0])
 	}
 }
 
@@ -165,8 +283,10 @@ func TestNonOneWordLimitUpLimitDownReversalRejectsOneWordLimitUp(t *testing.T) {
 	}
 	hits := matchingRedEntryReferenceRuntimes(
 		hist, T0SelectionResult{OpenGap: 1.2}, loadT0ReferenceRuleRuntimes())
-	if len(hits) != 0 {
-		t.Fatalf("one-word limit-up should not match reversal: %+v", hits)
+	for _, hit := range hits {
+		if hit.rule.Definition.Name == t0reference.RuleNameLimitUpLimitDownReversal {
+			t.Fatalf("one-word limit-up should not match reversal: %+v", hits)
+		}
 	}
 }
 
@@ -639,6 +759,9 @@ func TestWriteScopedRedResponseFiltersAndEnrichesFromDaily(t *testing.T) {
 	}
 	if body.Results[0].Tag != "涨停破板" {
 		t.Fatalf("tag=%q", body.Results[0].Tag)
+	}
+	if !body.Results[0].TechBlueDisplayRuleHit {
+		t.Fatalf("bullish ZT+ZT+PB should remain tech blue after response enrichment: %+v", body.Results[0])
 	}
 	if !reflect.DeepEqual(body.Results[0].DisplayRuleHits,
 		[]string{"涨停＋涨停＋阳线破板"}) {

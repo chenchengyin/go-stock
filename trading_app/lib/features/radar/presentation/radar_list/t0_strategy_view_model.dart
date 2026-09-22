@@ -67,6 +67,7 @@ class T0StrategyStock {
   final String buySignal; // blue | orange | green | yellow | red | insufficient
   final List<String> displayRuleHits; // 列表显示命中的可扩展条件
   final bool strongContinuationDisplayRuleHit; // 强势连板命中，股票名称显示蓝色
+  final bool techBlueDisplayRuleHit; // 科技蓝命中，股票名称显示蓝色
   final bool strongDisplayRuleHit; // 显式深红候选命中（含旧两连涨停条件）
   final List<T0ReferenceHit> t0ReferenceHits;
   final String t0ReferenceTier;
@@ -97,6 +98,7 @@ class T0StrategyStock {
     this.buySignal = '',
     this.displayRuleHits = const [],
     this.strongContinuationDisplayRuleHit = false,
+    this.techBlueDisplayRuleHit = false,
     this.strongDisplayRuleHit = false,
     this.t0ReferenceHits = const [],
     this.t0ReferenceTier = '',
@@ -140,8 +142,9 @@ class T0StrategyStock {
       strongGoldSignal: json['强金策'] as bool? ?? false,
       buySignal: json['买入信号'] as String? ?? '',
       displayRuleHits: displayRuleHits,
-      strongContinuationDisplayRuleHit:
-          (json['强势连板'] as bool?) ?? (json['科技蓝'] as bool? ?? false),
+      strongContinuationDisplayRuleHit: json['强势连板'] as bool? ?? false,
+      techBlueDisplayRuleHit:
+          (json['科技蓝'] as bool?) ?? (json['强势连板'] as bool? ?? false),
       strongDisplayRuleHit: json['重点标红'] as bool? ?? false,
       t0ReferenceHits: referenceHits,
       t0ReferenceTier: json['T0参考最高等级'] as String? ?? '',
@@ -154,8 +157,7 @@ class T0StrategyStock {
   bool get hasStrongContinuationDisplayRuleHit =>
       strongContinuationDisplayRuleHit;
 
-  /// 兼容旧归档和旧调用方；新接口字段与业务名称统一为“强势连板”。
-  bool get hasTechBlueDisplayRuleHit => hasStrongContinuationDisplayRuleHit;
+  bool get hasTechBlueDisplayRuleHit => techBlueDisplayRuleHit;
   bool get hasStrongDisplayRuleHit => strongDisplayRuleHit;
 
   T0StrategyStock copyWith({double? liveChangePercent}) {
@@ -180,6 +182,7 @@ class T0StrategyStock {
       buySignal: buySignal,
       displayRuleHits: displayRuleHits,
       strongContinuationDisplayRuleHit: strongContinuationDisplayRuleHit,
+      techBlueDisplayRuleHit: techBlueDisplayRuleHit,
       strongDisplayRuleHit: strongDisplayRuleHit,
       t0ReferenceHits: t0ReferenceHits,
       t0ReferenceTier: t0ReferenceTier,

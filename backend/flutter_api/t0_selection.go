@@ -959,6 +959,7 @@ type T0SelectionResult struct {
 	BuySignal                        string           `json:"买入信号"`
 	DisplayRuleHits                  []string         `json:"命中条件,omitempty"`
 	StrongContinuationDisplayRuleHit bool             `json:"强势连板,omitempty"`
+	TechBlueDisplayRuleHit           bool             `json:"科技蓝,omitempty"`
 	StrongDisplayRuleHit             bool             `json:"重点标红,omitempty"`
 	T0ReferenceHits                  []T0ReferenceHit `json:"T0参考形态命中,omitempty"`
 	T0ReferenceTier                  string           `json:"T0参考最高等级,omitempty"`

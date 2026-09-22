@@ -140,3 +140,56 @@ func TestPersistRulesAndStatsDisablesDeprecatedRule(t *testing.T) {
 		t.Fatal("deprecated rule remains enabled")
 	}
 }
+
+func TestPersistRulesAndStatsDisablesStaleSameNameRule(t *testing.T) {
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.AutoMigrate(&models.T0ReferenceRule{}, &models.T0ReferenceRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := t0reference.CompileRule(t0reference.RuleDefinition{
+		RuleKind: "condition", Name: t0reference.RuleNameLimitUpLimitDownReversal,
+		DefinitionVersion: "v1",
+		ConditionJSON:     `{"all":[{"field":"t-2.close_type","op":"eq","value":"ZT"},{"field":"t-1.close_type","op":"eq","value":"DT"}]}`,
+		EntryJSON:         `{"field":"entry_gap","op":"between","min":0.01,"max":3,"inclusive":true}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.Create(&models.T0ReferenceRule{
+		RuleKey: legacy.RuleKey, RuleKind: legacy.Definition.RuleKind,
+		Name: legacy.Definition.Name, DefinitionVersion: legacy.Definition.DefinitionVersion,
+		ConditionJSON: legacy.Definition.ConditionJSON, EntryJSON: legacy.Definition.EntryJSON,
+		Enabled: true, RedEntry: true,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var canonical t0reference.RuleDefinition
+	for _, definition := range t0reference.DefaultRuleDefinitions() {
+		if definition.Name == t0reference.RuleNameLimitUpLimitDownReversal {
+			canonical = definition
+			break
+		}
+	}
+	compiled, err := t0reference.CompileRule(canonical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := persistRulesAndStats(dao, []ruleRuntime{{
+		compiled: compiled,
+		stats:    t0reference.NewReferenceStatsAccumulator(compiled),
+	}}, "batch", []string{"2026-01-08"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var got models.T0ReferenceRule
+	if err := dao.Where("rule_key = ?", legacy.RuleKey).First(&got).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled {
+		t.Fatalf("stale same-name rule remains enabled: %+v", got)
+	}
+}

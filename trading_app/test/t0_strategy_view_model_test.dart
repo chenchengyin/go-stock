@@ -474,6 +474,18 @@ void main() {
     });
 
     expect(s.hasStrongContinuationDisplayRuleHit, isTrue);
+    expect(s.hasTechBlueDisplayRuleHit, isTrue);
+  });
+
+  test('parses the bullish breakout tech-blue state separately', () {
+    final s = T0StrategyStock.fromJson({
+      '股票代码': '600002.XSHG',
+      '股票名称': '阳线破板股',
+      '科技蓝': true,
+    });
+
+    expect(s.hasTechBlueDisplayRuleHit, isTrue);
+    expect(s.hasStrongContinuationDisplayRuleHit, isFalse);
   });
 
   test('insufficient 仍解析并保留形态统计数字', () {

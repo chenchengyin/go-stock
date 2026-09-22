@@ -10,8 +10,9 @@ const (
 	bearishBoundaryEpsilon           = 1e-9
 )
 
-// t0DisplayRule 定义列表标红的命中条件。
-// 它不参与基础股票池过滤或主选股链；后续增加标红条件时，在 t0DisplayRules 中追加一项即可。
+// t0DisplayRule 定义列表展示用的命中条件。
+// 红策正式准入由 t0reference 的规范规则控制；这里保留同一组形态的
+// 展示匹配，便于在列表中解释命中原因。
 type t0DisplayRule struct {
 	Name         string
 	Match        func([]dailyBar) bool
@@ -57,6 +58,24 @@ func displayRuleHitsForResult(hist []dailyBar, result T0SelectionResult) []strin
 		}
 	}
 	return hits
+}
+
+func mergeT0DisplayRuleHits(groups ...[]string) []string {
+	seen := make(map[string]struct{})
+	merged := make([]string, 0)
+	for _, group := range groups {
+		for _, hit := range group {
+			if hit == "" {
+				continue
+			}
+			if _, ok := seen[hit]; ok {
+				continue
+			}
+			seen[hit] = struct{}{}
+			merged = append(merged, hit)
+		}
+	}
+	return merged
 }
 
 func matchesDeepRedDisplayRule(hist []dailyBar, result T0SelectionResult) bool {
@@ -195,7 +214,11 @@ func enrichT0ResultsForDisplayWithDaily(
 	for i := range out {
 		hist := histBarsBeforeTradeDate(
 			daily[t0ShortCodeFromResultCode(out[i].StockCode)], tradeDate)
-		out[i].DisplayRuleHits = displayRuleHitsForResult(hist, out[i])
+		out[i].DisplayRuleHits = mergeT0DisplayRuleHits(
+			out[i].DisplayRuleHits, displayRuleHitsForResult(hist, out[i]))
+		out[i].StrongContinuationDisplayRuleHit = false
+		out[i].TechBlueDisplayRuleHit = out[i].TechBlueDisplayRuleHit ||
+			matchesBullishZtZtPb(hist)
 		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
 		enrichT0ReferenceResult(&out[i], hist, referenceRules)
 	}

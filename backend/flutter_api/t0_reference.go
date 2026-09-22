@@ -41,12 +41,16 @@ func loadT0ReferenceRuleRuntimes() []t0ReferenceRuleRuntime {
 	defaults := t0reference.DefaultRuleDefinitions()
 	runtimes := make([]t0ReferenceRuleRuntime, 0, len(defaults))
 	byKey := make(map[string]int, len(defaults))
+	defaultKeysByName := make(map[string]string, len(defaults))
+	defaultDefinitionsByKey := make(map[string]t0reference.RuleDefinition, len(defaults))
 	for _, definition := range defaults {
 		compiled, err := t0reference.CompileRule(definition)
 		if err != nil {
 			continue
 		}
 		byKey[compiled.RuleKey] = len(runtimes)
+		defaultKeysByName[definition.Name] = compiled.RuleKey
+		defaultDefinitionsByKey[compiled.RuleKey] = definition
 		runtimes = append(runtimes, t0ReferenceRuleRuntime{
 			rule: compiled, researchTier: t0reference.ResearchTierInsufficient,
 			redEntry: definition.RedEntry,
@@ -61,6 +65,13 @@ func loadT0ReferenceRuleRuntimes() []t0ReferenceRuleRuntime {
 	}
 	for _, row := range rows {
 		if t0reference.IsDeprecatedRuleName(row.Name) {
+			continue
+		}
+		// A prior definition can have the same display name but a different
+		// rule key (for example, before the T-2 body threshold was added).
+		// Never append that stale row as an additional runtime; otherwise it
+		// silently bypasses the canonical definition.
+		if canonicalKey, ok := defaultKeysByName[row.Name]; ok && row.RuleKey != canonicalKey {
 			continue
 		}
 		if !row.Enabled {
@@ -98,10 +109,17 @@ func loadT0ReferenceRuleRuntimes() []t0ReferenceRuleRuntime {
 				earnRate = 100 - stat.LossRate
 			}
 		}
+		redEntry := row.RedEntry
+		if definition, ok := defaultDefinitionsByKey[row.RuleKey]; ok {
+			// The source definition is authoritative for whether a canonical
+			// product pattern gates red strategy. Older databases may still
+			// carry red_entry=0 from when these patterns were display-only.
+			redEntry = definition.RedEntry
+		}
 		runtime := t0ReferenceRuleRuntime{
 			rule: compiled, researchTier: tier, strictWinRate: winRate, sampleCount: sampleCount,
 			targetRate: targetRate, earnRate: earnRate, deepRed: row.DeepRed,
-			redEntry: row.RedEntry,
+			redEntry: redEntry,
 		}
 		if compiledIndex, ok := byKey[row.RuleKey]; ok {
 			runtimes[compiledIndex] = runtime
@@ -110,6 +128,14 @@ func loadT0ReferenceRuleRuntimes() []t0ReferenceRuleRuntime {
 		runtimes = append(runtimes, runtime)
 	}
 	return runtimes
+}
+
+func referenceRuleNames(runtimes []t0ReferenceRuleRuntime) []string {
+	names := make([]string, 0, len(runtimes))
+	for _, runtime := range runtimes {
+		names = append(names, runtime.rule.Definition.Name)
+	}
+	return names
 }
 
 func matchingT0ReferenceRuntimes(

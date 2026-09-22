@@ -105,6 +105,67 @@ func TestEnrichT0ReferenceDoesNotPromoteLegacyDeepRedMarker(t *testing.T) {
 	}
 }
 
+func TestLoadT0ReferenceRulesIgnoresStaleSameNameDefinition(t *testing.T) {
+	previous := db.Dao
+	t.Cleanup(func() { db.Dao = previous })
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Dao = dao
+	if err := dao.AutoMigrate(&models.T0ReferenceRule{}, &models.T0ReferenceRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := modelsRuleForTestName(t0reference.RuleNameLimitUpLimitDownReversal, `{"all":[
+{"field":"t-2.close_type","op":"eq","value":"ZT"},
+{"field":"t-2.is_one_word","op":"eq","value":false},
+{"field":"t-1.close_type","op":"eq","value":"DT"}
+]}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy.RedEntry = true
+	if err := dao.Create(&legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+	canonicalDefinition := t0reference.RuleDefinition{}
+	for _, definition := range t0reference.DefaultRuleDefinitions() {
+		if definition.Name == t0reference.RuleNameAnyLimitUpLimitDown {
+			canonicalDefinition = definition
+			break
+		}
+	}
+	canonical, err := t0reference.CompileRule(canonicalDefinition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.Create(&models.T0ReferenceRule{
+		RuleKey: canonical.RuleKey, RuleKind: canonicalDefinition.RuleKind,
+		Name: canonicalDefinition.Name, DefinitionVersion: canonicalDefinition.DefinitionVersion,
+		ConditionJSON: canonicalDefinition.ConditionJSON, EntryJSON: canonicalDefinition.EntryJSON,
+		Enabled: true, RedEntry: false,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	hist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
+		{Date: "2026-09-03", Open: 10.6, Close: 11, High: 11, Low: 10.6},
+		{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.9},
+	}
+	hits := matchingRedEntryReferenceRuntimes(
+		hist, T0SelectionResult{OpenGap: 1.2}, loadT0ReferenceRuleRuntimes())
+	for _, hit := range hits {
+		if hit.rule.Definition.Name == t0reference.RuleNameLimitUpLimitDownReversal {
+			t.Fatalf("stale same-name reversal rule still matched: %+v", hit.rule.Definition)
+		}
+		if hit.rule.Definition.Name == t0reference.RuleNameAnyLimitUpLimitDown && !hit.redEntry {
+			t.Fatal("canonical any-limit-up-limit-down rule should remain a red-entry rule")
+		}
+	}
+}
+
 func modelsRuleForTest() (models.T0ReferenceRule, error) {
 	return modelsRuleForTestName("test", `{"sequence":["SY","SY","SY"]}`)
 }

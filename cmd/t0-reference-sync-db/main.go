@@ -317,6 +317,11 @@ func persistRulesAndStats(dao *gorm.DB, runtimes []ruleRuntime, batchID string, 
 		}
 		for _, runtime := range runtimes {
 			definition := runtime.compiled.Definition
+			if err := tx.Model(&models.T0ReferenceRule{}).
+				Where("name = ? AND rule_key <> ?", definition.Name, runtime.compiled.RuleKey).
+				Update("enabled", false).Error; err != nil {
+				return err
+			}
 			row := models.T0ReferenceRule{
 				RuleKey:           runtime.compiled.RuleKey,
 				RuleKind:          definition.RuleKind,
