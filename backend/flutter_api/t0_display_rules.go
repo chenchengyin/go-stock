@@ -10,9 +10,10 @@ const (
 	displayRuleZtZtBearishT0         = "涨停＋涨停＋普通阴线"
 	displayRuleZtNonOneWordT0        = "涨停＋非一字涨停后的开盘竞价"
 	strongDisplayPrevDayOpenGap      = 3.0
+	techBlueT1OpenGap                = 7.0
 )
 
-// t0DisplayRule 定义列表标红的命中条件；红策直接复用同一组条件筛选结果。
+// t0DisplayRule 定义列表标红的命中条件。
 // 它不参与基础股票池过滤或主选股链；后续增加标红条件时，在 t0DisplayRules 中追加一项即可。
 type t0DisplayRule struct {
 	Name         string
@@ -90,12 +91,39 @@ func matchesZtNonOneWordT0(hist []dailyBar, result T0SelectionResult) bool {
 }
 
 // matchesStrongTwoLimitUpNonOneWordAuction 是上述组合中 T-1 开盘涨幅 >= 3% 的子集，
-// 仅用于列表深红强调，不改变普通红策命中条件。
+// 仅保留用于兼容列表深红强调；红策准入由 matchesTechBlueRedRule 决定。
 func matchesStrongTwoLimitUpNonOneWordAuction(
 	hist []dailyBar,
 	result T0SelectionResult,
 ) bool {
 	return matchesZtNonOneWordT0(hist, result) && matchesStrongPrevDayOpenGap(hist)
+}
+
+// matchesTechBlueRedRule 是红策的硬准入条件：
+// T-2、T-1 均为非一字涨停；T-1 开盘涨幅至少 7%。
+// T0 竞价仍沿用正式结果口径 0.01%～3%。
+func matchesTechBlueRedRule(hist []dailyBar, result T0SelectionResult) bool {
+	if result.OpenGap < 0.01 || result.OpenGap > 3 || len(hist) < 3 {
+		return false
+	}
+
+	base := hist[len(hist)-3]
+	firstLimitUp := hist[len(hist)-2]
+	secondLimitUp := hist[len(hist)-1]
+	if !isNonOneWordLimitUpDay(base.Close, firstLimitUp) ||
+		!isNonOneWordLimitUpDay(firstLimitUp.Close, secondLimitUp) {
+		return false
+	}
+
+	secondOpenGap, ok := openingGapFromPreviousClose(firstLimitUp.Close, secondLimitUp)
+	return ok && secondOpenGap >= techBlueT1OpenGap
+}
+
+func openingGapFromPreviousClose(prevClose float64, bar dailyBar) (float64, bool) {
+	if prevClose <= 0 || bar.Open <= 0 {
+		return 0, false
+	}
+	return (bar.Open - prevClose) / prevClose * 100, true
 }
 
 func matchesDeepRedDisplayRule(hist []dailyBar, result T0SelectionResult) bool {
@@ -258,6 +286,7 @@ func enrichT0ResultsForDisplayWithDaily(
 		hist := histBarsBeforeTradeDate(
 			daily[t0ShortCodeFromResultCode(out[i].StockCode)], tradeDate)
 		out[i].DisplayRuleHits = displayRuleHitsForResult(hist, out[i])
+		out[i].TechBlueDisplayRuleHit = matchesTechBlueRedRule(hist, out[i])
 		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
 		enrichT0ReferenceResult(&out[i], hist, referenceRules)
 	}

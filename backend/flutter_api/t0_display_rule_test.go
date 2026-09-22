@@ -184,6 +184,81 @@ func TestStrongDisplayRuleDoesNotMatchOneWordSecondLimitUp(t *testing.T) {
 	}
 }
 
+func TestTechBlueRedRuleRequiresAllConfirmedConditions(t *testing.T) {
+	baseHist := []dailyBar{
+		{Date: "2026-09-01", Close: 10},
+		{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
+		{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
+	}
+	cases := []struct {
+		name      string
+		mutate    func([]dailyBar)
+		wantMatch bool
+	}{
+		{name: "全部条件满足", wantMatch: true},
+		{
+			name: "T-2一字板",
+			mutate: func(hist []dailyBar) {
+				hist[1].Open = hist[1].Close
+				hist[1].High = hist[1].Close
+				hist[1].Low = hist[1].Close
+			},
+		},
+		{
+			name: "T-1一字板",
+			mutate: func(hist []dailyBar) {
+				hist[2].Low = hist[2].Close
+			},
+		},
+		{
+			name: "T-1开盘涨幅低于7%",
+			mutate: func(hist []dailyBar) {
+				hist[2].Open = 11.7
+			},
+		},
+		{
+			name:      "T-1开盘涨幅达到7%",
+			mutate:    func(hist []dailyBar) { hist[2].Open = 11.78 },
+			wantMatch: true,
+		},
+		{
+			name: "T-2开盘强于T-1",
+			mutate: func(hist []dailyBar) {
+				hist[1].Open = 11.2
+				hist[1].High = 11.2
+				hist[1].Low = 10.8
+			},
+			wantMatch: true,
+		},
+		{
+			name:      "T0开盘涨幅超出范围",
+			mutate:    func([]dailyBar) {},
+			wantMatch: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hist := append([]dailyBar(nil), baseHist...)
+			if tc.mutate != nil {
+				tc.mutate(hist)
+			}
+			openGap := 1.2
+			if tc.name == "T0开盘涨幅超出范围" {
+				openGap = 3.1
+			}
+			got := matchesTechBlueRedRule(hist, T0SelectionResult{OpenGap: openGap})
+			want := tc.wantMatch
+			if tc.name == "全部条件满足" {
+				want = true
+			}
+			if got != want {
+				t.Fatalf("matchesTechBlueRedRule()=%v want %v", got, want)
+			}
+		})
+	}
+}
+
 func TestStrongDisplayRuleDoesNotUpgradeAnotherDisplayRule(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},

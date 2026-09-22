@@ -238,6 +238,11 @@ func filterRedT0Results(
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
+		if !matchesTechBlueRedRule(hist, result) {
+			continue
+		}
+
+		result.TechBlueDisplayRuleHit = true
 		displayRuleHits := displayRuleHitsForResult(hist, result)
 		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, result)
 		enrichT0ReferenceResult(&result, hist, referenceRules)

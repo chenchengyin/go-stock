@@ -60,6 +60,7 @@ class T0StrategyStock {
   final bool strongGoldSignal; // 真赚率≥65%的强金策
   final String buySignal; // blue | orange | green | yellow | red | insufficient
   final List<String> displayRuleHits; // 列表显示命中的可扩展条件
+  final bool techBlueDisplayRuleHit; // 红策完整条件命中，股票名称显示科技蓝
   final bool strongDisplayRuleHit; // 显式深红候选命中（含旧两连涨停条件）
   final List<T0ReferenceHit> t0ReferenceHits;
   final String t0ReferenceTier;
@@ -89,6 +90,7 @@ class T0StrategyStock {
     this.strongGoldSignal = false,
     this.buySignal = '',
     this.displayRuleHits = const [],
+    this.techBlueDisplayRuleHit = false,
     this.strongDisplayRuleHit = false,
     this.t0ReferenceHits = const [],
     this.t0ReferenceTier = '',
@@ -132,6 +134,7 @@ class T0StrategyStock {
       strongGoldSignal: json['强金策'] as bool? ?? false,
       buySignal: json['买入信号'] as String? ?? '',
       displayRuleHits: displayRuleHits,
+      techBlueDisplayRuleHit: json['科技蓝'] as bool? ?? false,
       strongDisplayRuleHit: json['重点标红'] as bool? ?? false,
       t0ReferenceHits: referenceHits,
       t0ReferenceTier: json['T0参考最高等级'] as String? ?? '',
@@ -141,6 +144,7 @@ class T0StrategyStock {
   }
 
   bool get hasDisplayRuleHit => displayRuleHits.isNotEmpty;
+  bool get hasTechBlueDisplayRuleHit => techBlueDisplayRuleHit;
   bool get hasStrongDisplayRuleHit => strongDisplayRuleHit;
 
   T0StrategyStock copyWith({double? liveChangePercent}) {
@@ -164,6 +168,7 @@ class T0StrategyStock {
       strongGoldSignal: strongGoldSignal,
       buySignal: buySignal,
       displayRuleHits: displayRuleHits,
+      techBlueDisplayRuleHit: techBlueDisplayRuleHit,
       strongDisplayRuleHit: strongDisplayRuleHit,
       t0ReferenceHits: t0ReferenceHits,
       t0ReferenceTier: t0ReferenceTier,

@@ -1288,7 +1288,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       style: TextStyle(
         fontWeight: FontWeight.w600,
         fontSize: 14,
-        color: stock.hasStrongDisplayRuleHit
+        color: stock.hasTechBlueDisplayRuleHit
+            ? AppColors.info
+            : stock.hasStrongDisplayRuleHit
             ? AppColors.errorStrong
             : stock.hasDisplayRuleHit
             ? AppColors.error
