@@ -311,7 +311,7 @@ func TestDisplayRuleHitsDoesNotMatchBearishKThenLimitDownT0(t *testing.T) {
 	}
 }
 
-func TestDisplayRuleHitsMatchesLimitUpAndLatestBearishTagLogic(t *testing.T) {
+func TestDisplayRuleHitsDoesNotUseStandaloneLimitUpBearishTag(t *testing.T) {
 	hist := []dailyBar{
 		{Date: "2026-09-01", Close: 10},
 		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
@@ -319,9 +319,8 @@ func TestDisplayRuleHitsMatchesLimitUpAndLatestBearishTagLogic(t *testing.T) {
 	}
 
 	got := displayRuleHitsForHist(hist)
-	want := []string{"涨停＋阴线标记"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("displayRuleHitsForHist()=%v want %v", got, want)
+	if len(got) != 0 {
+		t.Fatalf("standalone limit-up plus bearish candle should be removed, got %v", got)
 	}
 }
 
@@ -340,37 +339,35 @@ func TestDisplayRuleHitsMatchesBullishZtZtPb(t *testing.T) {
 	}
 }
 
-func TestDisplayRuleHitsUsesLatestBearishTagBoundaries(t *testing.T) {
+func TestMatchesZtZtBearishT0UsesRequestedBoundaries(t *testing.T) {
 	base := []dailyBar{
-		{Date: "2026-09-01", Close: 10},
-		{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+		{Date: "2026-09-01", Close: 8.28},
+		{Date: "2026-09-02", Open: 8.5, Close: 9.1, High: 9.1, Low: 8.5},
+		{Date: "2026-09-03", Open: 9.5, Close: 10, High: 10, Low: 9.5},
 	}
 	cases := []struct {
 		name      string
 		open      float64
 		close     float64
-		high      float64
 		wantMatch bool
 	}{
-		{name: "实体跌幅低于2不命中", open: 11.21, close: 11, high: 11.21, wantMatch: false},
-		{name: "实体跌幅超过2命中", open: 11.23, close: 11, high: 11.23, wantMatch: true},
-		{name: "实体跌幅低于8命中", open: 11.87, close: 11, high: 11.87, wantMatch: true},
-		{name: "实体跌幅超过8不命中", open: 11.9, close: 11, high: 11.9, wantMatch: false},
-		{name: "收盘跌超2不命中", open: 10.7, close: 10.76, high: 10.7, wantMatch: false},
-		{name: "涨停破板优先不命中阴线标记", open: 11.55, close: 11, high: 12.1, wantMatch: false},
+		{name: "收盘跌幅等于负2允许", open: 10.1, close: 9.8, wantMatch: true},
+		{name: "收盘涨幅等于3允许", open: 10.31, close: 10.3, wantMatch: true},
+		{name: "阴线实体等于8不允许", open: 10.8, close: 10, wantMatch: false},
+		{name: "阴线实体小于8允许", open: 10.79, close: 10, wantMatch: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			hist := append(append([]dailyBar(nil), base...), dailyBar{
-				Date:  "2026-09-03",
+				Date:  "2026-09-04",
 				Open:  tc.open,
 				Close: tc.close,
-				High:  tc.high,
+				High:  tc.open,
 				Low:   tc.close,
 			})
-			got := len(displayRuleHitsForHist(hist)) > 0
+			got := matchesZtZtBearishT0(hist, T0SelectionResult{OpenGap: 1.2})
 			if got != tc.wantMatch {
-				t.Fatalf("match=%v want %v", got, tc.wantMatch)
+				t.Fatalf("matchesZtZtBearishT0()=%v want %v", got, tc.wantMatch)
 			}
 		})
 	}
@@ -433,11 +430,29 @@ func TestEnrichT0ResultsForDisplayMatchesHistoricalTwoLimitUpsAndBearishRule(t *
 
 	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-05")
 	want := []string{
-		"涨停＋阴线标记",
 		"涨停＋涨停＋普通阴线",
 	}
 	if !reflect.DeepEqual(got[0].DisplayRuleHits, want) {
 		t.Fatalf("hits=%v want %v", got[0].DisplayRuleHits, want)
+	}
+}
+
+func TestEnrichT0ResultsForDisplayDoesNotMarkTechBlueOutsideRedSelection(t *testing.T) {
+	daily := map[string][]dailyBar{
+		"600000": {
+			{Date: "2026-09-01", Close: 10},
+			{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
+			{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
+		},
+	}
+	results := []T0SelectionResult{{
+		StockCode: "600000.XSHG",
+		OpenGap:   1.2,
+	}}
+
+	got := enrichT0ResultsForDisplayWithDaily(results, daily, "2026-09-04")
+	if got[0].TechBlueDisplayRuleHit {
+		t.Fatalf("generic display enrichment should not mark tech blue: %+v", got[0])
 	}
 }
 

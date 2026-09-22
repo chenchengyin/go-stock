@@ -234,27 +234,17 @@ func filterRedT0Results(
 	}
 
 	filtered := make([]T0SelectionResult, 0, len(results))
-	referenceRules := loadT0ReferenceRuleRuntimes()
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
-		if !matchesTechBlueRedRule(hist, result) {
-			continue
-		}
-
-		result.TechBlueDisplayRuleHit = true
+		techBlueHit := matchesTechBlueRedRule(hist, result)
 		displayRuleHits := displayRuleHitsForResult(hist, result)
 		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, result)
-		enrichT0ReferenceResult(&result, hist, referenceRules)
-		for _, hit := range result.T0ReferenceHits {
-			if hit.DeepRed {
-				displayRuleHits = append(displayRuleHits, hit.Name)
-			}
-		}
-		if len(displayRuleHits) == 0 {
+		if !techBlueHit && len(displayRuleHits) == 0 {
 			continue
 		}
 
+		result.TechBlueDisplayRuleHit = techBlueHit
 		result.DisplayRuleHits = displayRuleHits
 		result.Tag = ""
 		if highRet, openRet, closeRet, ok := prevDayRetsFromHist(hist); ok {

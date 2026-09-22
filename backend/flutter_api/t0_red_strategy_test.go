@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestFilterRedT0ResultsMatchesDisplayRedOnly(t *testing.T) {
+func TestFilterRedT0ResultsKeepsLegacyDisplayRulesAlongsideTechBlue(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
 		TradeDate: "2026-09-09",
 		Daily: map[string][]dailyBar{
@@ -36,16 +36,15 @@ func TestFilterRedT0ResultsMatchesDisplayRedOnly(t *testing.T) {
 			},
 			"600002": {
 				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Open: 10, Close: 10, High: 10.2, Low: 9.8},
-				{Date: "2026-09-03", Open: 10, Close: 11, High: 11, Low: 10},
-				{Date: "2026-09-04", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
 			},
 		},
 	}
 	results := []T0SelectionResult{
-		// 原红策条件通过，但没有任何标红命中，应该剔除。
+		// 不满足科技蓝，也没有其他红策命中，应该剔除。
 		{StockCode: "600001.XSHG", PrevClose: 10, PatternWinPct: 20, PatternFailPct: 50},
-		// 原红策条件不通过，但命中了标红逻辑，应该保留。
+		// 不满足科技蓝，但命中任意涨停＋跌停，应该保留。
 		{StockCode: "600002.XSHG", PrevClose: 0, PatternWinPct: 0, PatternFailPct: 100},
 	}
 
@@ -60,14 +59,14 @@ func TestFilterRedT0ResultsMatchesDisplayRedOnly(t *testing.T) {
 	}
 }
 
-func TestFilterRedT0ResultsMarksOnlyExactTwoLimitUpAuctionDeepRed(t *testing.T) {
+func TestFilterRedT0ResultsKeepsLegacyTwoLimitUpRuleAndMarksTechBlueSubset(t *testing.T) {
 	ctx := &t0ModuleSelectionContext{
 		TradeDate: "2026-09-04",
 		Daily: map[string][]dailyBar{
 			"600000": {
 				{Date: "2026-09-01", Close: 10},
-				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
-				{Date: "2026-09-03", Open: 11.4, Close: 12.1, High: 12.1, Low: 11.4},
+				{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
+				{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
 			},
 			"600001": {
 				{Date: "2026-09-01", Close: 10},
@@ -88,8 +87,44 @@ func TestFilterRedT0ResultsMarksOnlyExactTwoLimitUpAuctionDeepRed(t *testing.T) 
 	if !got[0].StrongDisplayRuleHit {
 		t.Fatalf("exact two-limit-up non-one-word combination should be deep red: %+v", got[0])
 	}
-	if got[1].StrongDisplayRuleHit {
-		t.Fatalf("same combination with T-1 open gap below 3%% should stay ordinary red: %+v", got[1])
+	if !got[0].TechBlueDisplayRuleHit {
+		t.Fatalf("complete red admission should be marked tech blue: %+v", got[0])
+	}
+	if got[1].StrongDisplayRuleHit || got[1].TechBlueDisplayRuleHit {
+		t.Fatalf("legacy two-limit-up result should remain ordinary red: %+v", got[1])
+	}
+}
+
+func TestFilterRedT0ResultsKeepsAnyLimitUpLimitDownWithoutTechBlue(t *testing.T) {
+	ctx := &t0ModuleSelectionContext{
+		TradeDate: "2026-09-04",
+		Daily: map[string][]dailyBar{
+			"600000": {
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10.2, Close: 11, High: 11, Low: 10.2},
+				{Date: "2026-09-03", Open: 12.1, Close: 12.1, High: 12.1, Low: 11.4},
+			},
+			"600001": {
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 11.4, Close: 12.1, High: 12.1, Low: 11.4},
+			},
+			"600002": {
+				{Date: "2026-09-01", Close: 10},
+				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
+				{Date: "2026-09-03", Open: 9.9, Close: 9.9, High: 9.9, Low: 9.8},
+			},
+		},
+	}
+
+	got := filterRedT0Results([]T0SelectionResult{
+		{StockCode: "600000.XSHG", OpenGap: 1.2},
+		// 旧的涨停＋跌停标红命中，但不是新红策组合。
+		{StockCode: "600002.XSHG", OpenGap: 1.2},
+	}, ctx)
+
+	if len(got) != 2 || got[0].StockCode != "600000.XSHG" || got[1].StockCode != "600002.XSHG" {
+		t.Fatalf("red results = %+v, want tech-blue and legacy any-limit-up-limit-down conditions", got)
 	}
 }
 
@@ -110,15 +145,11 @@ func TestFilterRedT0ResultsMarksAnyLimitUpLimitDownDeepRed(t *testing.T) {
 		{StockCode: "600002.XSHG", OpenGap: 1.2},
 	}, ctx)
 	if len(got) != 1 || !got[0].StrongDisplayRuleHit {
-		t.Fatalf("any-limit-up-limit-down combination should be deep red: %+v", got)
-	}
-	if !reflect.DeepEqual(got[0].DisplayRuleHits,
-		[]string{"任意K线＋涨停＋跌停", "中阳及以上＋跌停后的开盘竞价"}) {
-		t.Fatalf("display hits=%v", got[0].DisplayRuleHits)
+		t.Fatalf("any-limit-up-limit-down combination should enter red and be deep red: %+v", got)
 	}
 }
 
-func TestFilterRedT0ResultsIncludesExplicitDeepRedReferencePattern(t *testing.T) {
+func TestFilterRedT0ResultsRejectsExplicitDeepRedReferencePattern(t *testing.T) {
 	previous := db.Dao
 	t.Cleanup(func() { db.Dao = previous })
 	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
@@ -158,14 +189,8 @@ func TestFilterRedT0ResultsIncludesExplicitDeepRedReferencePattern(t *testing.T)
 	got := filterRedT0Results([]T0SelectionResult{
 		{StockCode: "600001.XSHG", OpenGap: 1},
 	}, ctx)
-	if len(got) != 1 {
-		t.Fatalf("selected deep-red reference result count=%d want 1", len(got))
-	}
-	if !got[0].StrongDisplayRuleHit {
-		t.Fatalf("selected reference pattern should be deep red: %+v", got[0])
-	}
-	if !reflect.DeepEqual(got[0].DisplayRuleHits, []string{"CUSTOM_SELECTED_PATTERN"}) {
-		t.Fatalf("reference display hits=%v", got[0].DisplayRuleHits)
+	if len(got) != 0 {
+		t.Fatalf("selected deep-red reference pattern should not enter red: %+v", got)
 	}
 }
 
@@ -321,13 +346,14 @@ func TestFilterRedT0ResultsRecalculatesTagsFromDaily(t *testing.T) {
 				{Date: "2026-09-01", Close: 10},
 				{Date: "2026-09-02", Open: 10, Close: 11, High: 11, Low: 10},
 				{Date: "2026-09-03", Open: 11, Close: 12.1, High: 12.1, Low: 11},
-				{Date: "2026-09-08", Open: 12.2, Close: 12.3, High: 13.3, Low: 12.1},
+				{Date: "2026-09-08", Open: 13.1, Close: 13.31, High: 13.31, Low: 12.1},
 			},
 		},
 	}
 	results := []T0SelectionResult{
 		{
 			StockCode:      "600000.XSHG",
+			OpenGap:        1.2,
 			PrevClose:      10,
 			PatternWinPct:  20,
 			PatternFailPct: 50,
@@ -339,8 +365,8 @@ func TestFilterRedT0ResultsRecalculatesTagsFromDaily(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("red result count = %d, want 1", len(got))
 	}
-	if got[0].Tag != "涨停破板" {
-		t.Fatalf("red tag = %q, want 涨停破板", got[0].Tag)
+	if got[0].Tag != "" {
+		t.Fatalf("red tag = %q, want empty tag for a complete two-limit-up admission", got[0].Tag)
 	}
 	if results[0].Tag != "旧标签" {
 		t.Fatalf("input tag mutated to %q", results[0].Tag)

@@ -5,12 +5,12 @@ import "go-stock/backend/analysis/candlepattern"
 const (
 	displayRuleAnyLimitUpLimitDown   = "任意K线＋涨停＋跌停"
 	displayRuleMediumYangLimitDownT0 = "中阳及以上＋跌停后的开盘竞价"
-	displayRuleLimitUpBearishTag     = "涨停＋阴线标记"
 	displayRuleBullishZtZtPb         = "涨停＋涨停＋阳线破板"
 	displayRuleZtZtBearishT0         = "涨停＋涨停＋普通阴线"
 	displayRuleZtNonOneWordT0        = "涨停＋非一字涨停后的开盘竞价"
 	strongDisplayPrevDayOpenGap      = 3.0
 	techBlueT1OpenGap                = 7.0
+	bearishBoundaryEpsilon           = 1e-9
 )
 
 // t0DisplayRule 定义列表标红的命中条件。
@@ -31,10 +31,6 @@ var t0DisplayRules = []t0DisplayRule{
 	{
 		Name:        displayRuleMediumYangLimitDownT0,
 		MatchResult: matchesMediumYangThenLimitDownT0,
-	},
-	{
-		Name:  displayRuleLimitUpBearishTag,
-		Match: matchesLimitUpAndBearishTag,
 	},
 	{
 		Name:  displayRuleBullishZtZtPb,
@@ -203,24 +199,6 @@ func matchesAnyLimitUpLimitDownDeepRed(hist []dailyBar, result T0SelectionResult
 	return matchesAnyLimitUpLimitDown(hist)
 }
 
-// matchesLimitUpAndBearishTag 匹配最近两根历史K线：前一根涨停，最新一根符合阴线标记逻辑。
-func matchesLimitUpAndBearishTag(hist []dailyBar) bool {
-	if len(hist) < 3 {
-		return false
-	}
-	limitUpBase := hist[len(hist)-3]
-	limitUp := hist[len(hist)-2]
-	latest := hist[len(hist)-1]
-	if !isCloseLimitUpDay(limitUpBase.Close, limitUp, t0LimitUpCloseRet) {
-		return false
-	}
-
-	// 复用列表现有的前一天标记计算，避免显示条件和标记字段出现口径分叉。
-	latestHist := []dailyBar{limitUpBase, limitUp, latest}
-	highRet, openRet, closeRet, ok := prevDayRetsFromHist(latestHist)
-	return ok && isPrevDayBearishTag(highRet, openRet, closeRet)
-}
-
 func matchesBullishZtZtPb(hist []dailyBar) bool {
 	if patternFromHist(hist) != "ZT|ZT|PB" || len(hist) == 0 {
 		return false
@@ -229,7 +207,8 @@ func matchesBullishZtZtPb(hist []dailyBar) bool {
 	return brokenLimitUp.Close > brokenLimitUp.Open
 }
 
-// matchesZtZtBearishT0 匹配两连涨停后的普通阴线。
+// matchesZtZtBearishT0 匹配两连涨停后的普通阴线：收盘相对第二个涨停收盘在-2%～3%，
+// 阴线实体相对第二个涨停收盘严格小于8%。
 // 正式T0结果的开盘涨幅已由全局选股链限制在0.01%～3%；这里保留同样的范围保护，
 // 避免尚未确认开盘价、OpenGap暂为0的预热候选误命中。
 func matchesZtZtBearishT0(hist []dailyBar, result T0SelectionResult) bool {
@@ -249,11 +228,12 @@ func matchesZtZtBearishT0(hist []dailyBar, result T0SelectionResult) bool {
 		return false
 	}
 	closeRet, _, ok := barCloseHighRet(secondLimitUp.Close, bearish)
-	if !ok || closeRet < -2 || closeRet > 3 {
+	if !ok || closeRet < -2-bearishBoundaryEpsilon ||
+		closeRet > 3+bearishBoundaryEpsilon {
 		return false
 	}
 	bodyDrop := (bearish.Open - bearish.Close) / secondLimitUp.Close * 100
-	return bodyDrop > 0 && bodyDrop <= 8
+	return bodyDrop > 0 && bodyDrop < 8-bearishBoundaryEpsilon
 }
 
 func isCloseLimitDownDay(prevClose float64, bar dailyBar) bool {
@@ -286,7 +266,6 @@ func enrichT0ResultsForDisplayWithDaily(
 		hist := histBarsBeforeTradeDate(
 			daily[t0ShortCodeFromResultCode(out[i].StockCode)], tradeDate)
 		out[i].DisplayRuleHits = displayRuleHitsForResult(hist, out[i])
-		out[i].TechBlueDisplayRuleHit = matchesTechBlueRedRule(hist, out[i])
 		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
 		enrichT0ReferenceResult(&out[i], hist, referenceRules)
 	}
