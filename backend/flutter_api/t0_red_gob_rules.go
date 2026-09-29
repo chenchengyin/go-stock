@@ -109,7 +109,33 @@ func approvedGobRedRules() []redGobRule {
 			},
 			ExcludeLimitDown: true,
 		},
+		{
+			Key: "gob_dyin_myin_myin_t1_body_le_430_v1", Version: 1,
+			Name:             "大阴→中阴→中阴（T-1实体≤-4.3%，A2）",
+			MatchHistory:     matchGobDyinMyinMyinA2BodyCutoff,
+			MatchOpen:        func(open, prevClose float64) bool { return true },
+			ExcludeLimitDown: true,
+		},
 	}
+}
+
+func matchGobDyinMyinMyinA2BodyCutoff(hist []dailyBar) bool {
+	n := len(hist)
+	if n < 5 || hist[n-1].Open <= 0 || hist[n-1].Close <= 0 ||
+		classifyDisplayBar(hist[n-4].Close, hist[n-3]) != candlepattern.BarDYIN ||
+		classifyDisplayBar(hist[n-3].Close, hist[n-2]) != candlepattern.BarMYIN ||
+		classifyDisplayBar(hist[n-2].Close, hist[n-1]) != candlepattern.BarMYIN ||
+		hist[n-1].Close > hist[n-1].Open*0.957 {
+		return false
+	}
+	a2Bars := make([]candlepattern.DailyBar, len(hist))
+	for i, bar := range hist {
+		a2Bars[i] = candlepattern.DailyBar{
+			Date: bar.Date, Open: bar.Open, High: bar.High, Low: bar.Low,
+			Close: bar.Close, AmountYi: bar.AmountYi,
+		}
+	}
+	return candlepattern.InA2Pool(a2Bars)
 }
 
 func matchGobPullbackHistory(hist []dailyBar, second candlepattern.BarType) bool {

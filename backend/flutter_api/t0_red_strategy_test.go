@@ -787,6 +787,67 @@ func gobRedTestBarsB() []dailyBar {
 	return bars
 }
 
+func gobRedDyinMyinMyinTestBars(t1Close float64, amountYi float64, includeLimitUp bool) []dailyBar {
+	anchor := dailyBar{Date: "2026-09-02", Open: 100, High: 110, Low: 100, Close: 110}
+	if !includeLimitUp {
+		anchor = dailyBar{Date: "2026-09-02", Open: 105, High: 106, Low: 105, Close: 106}
+	}
+	return []dailyBar{
+		{Date: "2026-09-01", Open: 100, High: 100, Low: 100, Close: 100},
+		anchor,
+		{Date: "2026-09-03", Open: 110, High: 110, Low: 102.3, Close: 102.3},                    // DYIN
+		{Date: "2026-09-04", Open: 102.3, High: 102.3, Low: 96.69, Close: 96.69},                // MYIN
+		{Date: "2026-09-07", Open: 100, High: 101, Low: 95, Close: t1Close, AmountYi: amountYi}, // MYIN
+	}
+}
+
+func TestGobRedRuleMatchesDyinMyinMyinWithA2BodyFilterAndT1Exit(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "A股"}}
+	prevClose := 95.7
+	got, status := matchGobRedRules("2026-09-08", stock,
+		map[string][]dailyBar{"600101": gobRedDyinMyinMyinTestBars(95.7, 5, true)},
+		map[string]t0Realtime{"600101": {Open: prevClose * 1.05, PrevClose: prevClose}},
+		"realtime_open", approvedGobRedRules())
+	if status.MissingOpen != 0 || len(got) != 1 {
+		t.Fatalf("matches=%+v status=%+v; want a match with a +5%% confirmed open", got, status)
+	}
+	if len(got[0].RedRuleHits) != 1 {
+		t.Fatalf("hits=%+v; want one new-rule hit", got[0].RedRuleHits)
+	}
+	hit := got[0].RedRuleHits[0]
+	if hit.Key != "gob_dyin_myin_myin_t1_body_le_430_v1" || hit.Version != 1 ||
+		hit.ExitHorizon != "T+1_close" || hit.EntrySource != "realtime_open" {
+		t.Fatalf("hit=%+v", hit)
+	}
+}
+
+func TestGobRedDyinMyinMyinRuleRequiresBodyCutoffAndA2Pool(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "A股"}}
+	tests := []struct {
+		name        string
+		close       float64
+		amountYi    float64
+		limitUp     bool
+		wantMatches int
+	}{
+		{name: "body exactly at cutoff", close: 95.7, amountYi: 5, limitUp: true, wantMatches: 1},
+		{name: "body just above cutoff", close: 95.71, amountYi: 5, limitUp: true, wantMatches: 0},
+		{name: "turnover below A2 minimum", close: 95.6, amountYi: 4.99, limitUp: true, wantMatches: 0},
+		{name: "no recent limit-up memory", close: 95.6, amountYi: 5, limitUp: false, wantMatches: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _ := matchGobRedRules("2026-09-08", stock,
+				map[string][]dailyBar{"600101": gobRedDyinMyinMyinTestBars(tc.close, tc.amountYi, tc.limitUp)},
+				map[string]t0Realtime{"600101": {Open: tc.close * 1.02, PrevClose: tc.close}},
+				"realtime_open", approvedGobRedRules())
+			if len(got) != tc.wantMatches {
+				t.Fatalf("matches=%d want=%d", len(got), tc.wantMatches)
+			}
+		})
+	}
+}
+
 func TestGobRedRuleMatchesTwoApprovedShapesOutsideMainPool(t *testing.T) {
 	stocks := []t0Stock{
 		{Code: "sh.600101", ShortCode: "600101", Name: "A股"},
