@@ -52,6 +52,7 @@ func AutoMigrate() {
 		&models.T0ReferenceBar{},
 		&models.T0ReferenceRule{},
 		&models.T0ReferenceRuleStat{},
+		&models.T0RedRuleStat{},
 		// 资讯表由 Flutter API 直接读写。旧部署曾把这些表留在另一份
 		// SQLite 文件中，导致当前服务库查询/写入时静默返回空数据。
 		&models.Tags{},

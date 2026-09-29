@@ -37,4 +37,7 @@ func TestAutoMigrateCreatesT0ReferenceTablesAndActiveVersionIndex(t *testing.T) 
 	if err := db.Dao.Model(&models.T0ReferenceRuleStat{}).Count(&statCount).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Dao.Model(&models.T0RedRuleStat{}).Count(&statCount).Error; err != nil {
+		t.Fatal(err)
+	}
 }

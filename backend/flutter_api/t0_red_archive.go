@@ -123,8 +123,14 @@ func archivedGobRedResults(tradeDate string) (
 		return snapshot.Results, nil, state, !snapshot.Complete
 	}
 	cache, ok := loadT0DailyCache(tradeDate)
+	legacyCache := false
 	if !ok {
-		return nil, nil, "unavailable", true
+		var err error
+		cache, err = readGobRedReplayCache(t0DailyCachePath(tradeDate), tradeDate)
+		if err != nil {
+			return nil, nil, "unavailable", true
+		}
+		legacyCache = true
 	}
 	candidates := buildGobRedPreopenCandidates(
 		tradeDate, cache.Stocks, cache.Daily, approvedGobRedRules())
@@ -133,7 +139,7 @@ func archivedGobRedResults(tradeDate string) (
 	results, matchStatus := matchGobRedRules(
 		tradeDate, resultsToT0Stocks(candidates), cache.Daily,
 		quotes, source, approvedGobRedRules())
-	incomplete := buildT0DailyCacheWarning(cache.Stocks, cache.Daily) != nil ||
+	incomplete := legacyCache || buildT0DailyCacheWarning(cache.Stocks, cache.Daily) != nil ||
 		matchStatus.MissingOpen > 0 || matchStatus.UnknownLimit > 0
 	if incomplete {
 		return results, cache.Daily, "incomplete", true

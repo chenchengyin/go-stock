@@ -2169,8 +2169,12 @@ func writeScopedT0ResponseWithContext(
 		if !ok {
 			continue
 		}
-		response[field] = enrichT0ResultsForDisplayWithDailyForModule(
+		displayed := enrichT0ResultsForDisplayWithDailyForModule(
 			results, ctx.Daily, ctx.TradeDate, moduleCode)
+		if moduleCode == redT0StrategyModuleCode {
+			displayed = enrichGobRedRuleStats(displayed)
+		}
+		response[field] = displayed
 	}
 	WriteJSON(w, response)
 }

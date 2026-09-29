@@ -10,13 +10,14 @@ import (
 // T0RedRuleHit belongs to an independently admitted Gob rule. Legacy T0
 // reference statistics use a different (T0-close) exit and stay separate.
 type T0RedRuleHit struct {
-	Key         string  `json:"rule_key"`
-	Version     int     `json:"rule_version"`
-	Name        string  `json:"name"`
-	ExitHorizon string  `json:"exit_horizon"`
-	EntrySource string  `json:"entry_source"`
-	EntryOpen   float64 `json:"entry_open"`
-	StatsStatus string  `json:"stats_status"`
+	Key         string             `json:"rule_key"`
+	Version     int                `json:"rule_version"`
+	Name        string             `json:"name"`
+	ExitHorizon string             `json:"exit_horizon"`
+	EntrySource string             `json:"entry_source"`
+	EntryOpen   float64            `json:"entry_open"`
+	StatsStatus string             `json:"stats_status"`
+	Stats       *T0RedRuleStatView `json:"stats,omitempty"`
 }
 
 type redGobRule struct {

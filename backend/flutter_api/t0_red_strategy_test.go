@@ -3,6 +3,7 @@ package flutter_api
 import (
 	"encoding/gob"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1183,5 +1184,166 @@ func TestGobRedDateListRequiresRedModulePermission(t *testing.T) {
 		"/api/t0-selection?module_code=radar.red_strategy&list_dates=1", user.AccessToken, ""))
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("ungranted user read red dates: %d %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestGobRedStatsUsesNextTradingCloseAndExcludesMissing(t *testing.T) {
+	hit := T0RedRuleHit{Key: "a_v1", Version: 1, EntrySource: "daily_open", ExitHorizon: "T+1_close", EntryOpen: 10}
+	samples := []gobRedStatSample{
+		{Date: "2026-09-01", StockCode: "600001", Hit: hit, NextClose: 10.1},
+		{Date: "2026-09-02", StockCode: "600002", Hit: hit, NextClose: 10},
+		{Date: "2026-09-03", StockCode: "600003", Hit: hit, NextClose: 10.25},
+		{Date: "2026-09-04", StockCode: "600004", Hit: hit},
+	}
+	stats := aggregateGobRedRuleStats(samples, "2026-09-01", "2026-09-04", "gob-v1", "batch-1")
+	if len(stats) != 1 || stats[0].SampleCount != 3 || stats[0].PositiveCount != 2 ||
+		stats[0].TargetCount != 1 || math.Abs(stats[0].ProfitWinRate-200.0/3) > 1e-9 ||
+		math.Abs(stats[0].TargetRate-100.0/3) > 1e-9 ||
+		stats[0].DateEnd != "2026-09-03" {
+		t.Fatalf("T+1 stats=%+v", stats)
+	}
+}
+
+func TestGobRedStatsSeparatesRulesSourcesAndDeduplicates(t *testing.T) {
+	base := gobRedStatSample{Date: "2026-09-01", StockCode: "600001", NextClose: 11,
+		Hit: T0RedRuleHit{Key: "a_v1", Version: 1, EntrySource: "daily_open", ExitHorizon: "T+1_close", EntryOpen: 10}}
+	otherRule := base
+	otherRule.Hit.Key = "b_v1"
+	otherVersion := base
+	otherVersion.Hit.Version = 2
+	otherSource := base
+	otherSource.Hit.EntrySource = "realtime_open"
+	stats := aggregateGobRedRuleStats([]gobRedStatSample{base, base, otherRule, otherVersion, otherSource},
+		"2026-09-01", "2026-09-01", "gob-v1", "batch-1")
+	if len(stats) != 4 {
+		t.Fatalf("stats dimensions/dedup=%+v", stats)
+	}
+	for _, stat := range stats {
+		if stat.SampleCount != 1 || stat.PositiveCount != 1 {
+			t.Fatalf("duplicate or mixed stat=%+v", stat)
+		}
+	}
+}
+
+func TestGobRedStatsPersistenceAndPendingDisplay(t *testing.T) {
+	old := db.Dao
+	t.Cleanup(func() { db.Dao = old })
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "red-stat.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Dao = dao
+	if err := dao.AutoMigrate(&models.T0RedRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	hit := T0RedRuleHit{Key: "a_v1", Version: 1, EntrySource: "daily_open", ExitHorizon: "T+1_close", EntryOpen: 10, StatsStatus: "pending"}
+	result := []T0SelectionResult{{StockCode: "600001.XSHG", PatternWinPct: 88, RedRuleHits: []T0RedRuleHit{hit}}}
+	if got := enrichGobRedRuleStats(result); got[0].RedRuleHits[0].Stats != nil || got[0].RedRuleHits[0].StatsStatus != "pending" {
+		t.Fatalf("unbackfilled rule must not inherit T0 stats: %+v", got)
+	}
+	stats := aggregateGobRedRuleStats([]gobRedStatSample{{Date: "2026-09-01", StockCode: "600001", Hit: hit, NextClose: 11}},
+		"2026-09-01", "2026-09-01", "gob-v1", "batch-1")
+	for i := 0; i < 2; i++ {
+		if err := saveGobRedRuleStats(dao, stats); err != nil {
+			t.Fatal(err)
+		}
+	}
+	partial := append([]models.T0RedRuleStat(nil), stats...)
+	partial[0].Status = "partial"
+	if err := saveGobRedRuleStats(dao, partial); err == nil {
+		t.Fatal("partial coverage must not enter the verified stat table")
+	}
+	var count int64
+	if err := dao.Model(&models.T0RedRuleStat{}).Count(&count).Error; err != nil || count != 1 {
+		t.Fatalf("idempotent rows=%d err=%v", count, err)
+	}
+	got := enrichGobRedRuleStats(result)
+	if got[0].RedRuleHits[0].StatsStatus != "verified" || got[0].RedRuleHits[0].Stats == nil ||
+		got[0].RedRuleHits[0].Stats.SampleCount != 1 || got[0].RedRuleHits[0].Stats.ProfitWinRate != 100 ||
+		got[0].RedRuleHits[0].Stats.ExitHorizon != "T+1_close" {
+		t.Fatalf("verified T+1 stats=%+v", got)
+	}
+	preopen := result[0]
+	preopen.RedRuleHits = []T0RedRuleHit{hit}
+	preopen.RedRuleHits[0].StatsStatus = "preopen"
+	if got := enrichGobRedRuleStats([]T0SelectionResult{preopen}); got[0].RedRuleHits[0].Stats != nil ||
+		got[0].RedRuleHits[0].StatsStatus != "preopen" {
+		t.Fatalf("preopen candidate must not show verified purchase stats: %+v", got)
+	}
+}
+
+func TestGobRedReplayReadsOnlyCompleteT0AndImmediateT1(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	day0 := append(gobRedTestBarsA(), dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2})
+	if err := saveT0DailyCache("2026-09-14", stock, map[string][]dailyBar{"600101": day0}); err != nil {
+		t.Fatal(err)
+	}
+	day1 := append(append([]dailyBar(nil), day0...), dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
+	if err := saveT0DailyCache("2026-09-15", stock, map[string][]dailyBar{"600101": day1}); err != nil {
+		t.Fatal(err)
+	}
+	stats, cases, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
+	if err != nil || coverage.CompleteDays != 1 || coverage.Matched != 1 || coverage.Observed != 1 ||
+		len(stats) != 1 || stats[0].SampleCount != 1 || len(cases) != 1 || cases[0].NextDate != "2026-09-15" {
+		t.Fatalf("replay stats=%+v cases=%+v coverage=%+v err=%v", stats, cases, coverage, err)
+	}
+}
+
+func TestGobRedReplayMarksMissingDailyCoveragePartial(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	stocks := []t0Stock{
+		{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"},
+		{Code: "sh.600102", ShortCode: "600102", Name: "缺日线"},
+	}
+	day0 := append(gobRedTestBarsA(), dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2})
+	if err := saveT0DailyCache("2026-09-14", stocks, map[string][]dailyBar{"600101": day0}); err != nil {
+		t.Fatal(err)
+	}
+	day1 := append(append([]dailyBar(nil), day0...), dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
+	if err := saveT0DailyCache("2026-09-15", stocks, map[string][]dailyBar{"600101": day1}); err != nil {
+		t.Fatal(err)
+	}
+	stats, _, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
+	if err != nil || coverage.MissingDailyStocks != 1 || coverage.CompleteDays != 0 || len(stats) != 1 || stats[0].Status != "partial" {
+		t.Fatalf("partial coverage stats=%+v coverage=%+v err=%v", stats, coverage, err)
+	}
+}
+
+func TestGobRedArchivedLegacyCacheShowsMatchButMarksIncomplete(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	bars := append(gobRedTestBarsA(), dailyBar{Date: date, Open: 8, Close: 8.2})
+	if err := saveT0DailyCache(date, stock, map[string][]dailyBar{"600101": bars}); err != nil {
+		t.Fatal(err)
+	}
+	cache, ok := readT0DailyCachePayload(date)
+	if !ok {
+		t.Fatal("cannot read synthetic cache")
+	}
+	cache.DataSchemaVersion = 0
+	cache.StockPoolComplete = false
+	f, err := os.Create(t0DailyCachePath(date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gob.NewEncoder(f).Encode(cache); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	results, _, source, incomplete := archivedGobRedResults(date)
+	if len(results) != 1 || source != "incomplete" || !incomplete ||
+		results[0].RedRuleHits[0].EntrySource != "daily_open" {
+		t.Fatalf("legacy replay results=%+v source=%s incomplete=%v", results, source, incomplete)
 	}
 }
