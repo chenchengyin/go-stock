@@ -217,13 +217,78 @@ func writeContextT0PrewarmReadyHTTP(
 		TradeDate: contextDate,
 		Daily:     contextPayload.Daily,
 	}
+	if moduleCode == redT0StrategyModuleCode {
+		if _, hasCandidates := response["candidates"]; hasCandidates {
+			ctx.Independent = buildGobRedPreopenCandidates(
+				contextDate, contextPayload.Stocks, contextPayload.Daily, approvedGobRedRules())
+		}
+	}
 	writeScopedT0ResponseWithContext(
 		w, moduleCode, response, ctx, "results", "candidates")
 }
 
+// Historical Gob replay never falls back to a live quote for a missing T0 bar.
+func buildGobRedOpeningQuotes(
+	tradeDate string, candidates []t0Stock, daily map[string][]dailyBar,
+) (map[string]t0Realtime, string, *t0DataWarning) {
+	if tradeDate >= time.Now().In(chinaLocation()).Format("2006-01-02") {
+		quotes, _, warning := buildT0AuctionQuotes(tradeDate, candidates, daily)
+		return quotes, "realtime_open", warning
+	}
+	quotes := make(map[string]t0Realtime, len(candidates))
+	for _, stock := range candidates {
+		var prevClose float64
+		for _, bar := range daily[stock.ShortCode] {
+			if bar.Date == tradeDate {
+				if prevClose > 0 && bar.Open > 0 {
+					quotes[stock.ShortCode] = t0Realtime{Open: bar.Open, PrevClose: prevClose}
+				}
+				break
+			}
+			if bar.Date > tradeDate {
+				break
+			}
+			prevClose = bar.Close
+		}
+	}
+	return quotes, "daily_open", nil
+}
+
 type t0ModuleSelectionContext struct {
-	TradeDate string
-	Daily     map[string][]dailyBar
+	TradeDate   string
+	Daily       map[string][]dailyBar
+	Independent []T0SelectionResult
+}
+
+func mergeGobRedResults(legacy, independent []T0SelectionResult) []T0SelectionResult {
+	merged := append([]T0SelectionResult(nil), legacy...)
+	byCode := make(map[string]int, len(merged))
+	for i, result := range merged {
+		byCode[result.StockCode] = i
+	}
+	for _, result := range independent {
+		i, exists := byCode[result.StockCode]
+		if !exists {
+			byCode[result.StockCode] = len(merged)
+			merged = append(merged, result)
+			continue
+		}
+		merged[i].DisplayRuleHits = mergeT0DisplayRuleHits(
+			merged[i].DisplayRuleHits, result.DisplayRuleHits)
+		for _, hit := range result.RedRuleHits {
+			found := false
+			for _, old := range merged[i].RedRuleHits {
+				if old.Key == hit.Key && old.Version == hit.Version {
+					found = true
+					break
+				}
+			}
+			if !found {
+				merged[i].RedRuleHits = append(merged[i].RedRuleHits, hit)
+			}
+		}
+	}
+	return merged
 }
 
 func filterRedT0Results(
@@ -313,7 +378,7 @@ func selectT0ResultsForModule(
 			return nil, newAuthError(http.StatusInternalServerError,
 				"T0_DATA_NOT_READY", "红策日线数据未就绪")
 		}
-		return filterRedT0Results(results, ctx), nil
+		return mergeGobRedResults(filterRedT0Results(results, ctx), ctx.Independent), nil
 	case goldT0StrategyModuleCode:
 		return filterGoldT0Results(results), nil
 	case purpleT0StrategyModuleCode:

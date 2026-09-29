@@ -183,3 +183,46 @@ func matchGobRedRules(
 	}
 	return results, status
 }
+
+func buildGobRedPreopenCandidates(
+	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar, rules []redGobRule,
+) []T0SelectionResult {
+	results := make([]T0SelectionResult, 0)
+	for _, stock := range stocks {
+		bars := daily[stock.ShortCode]
+		end := 0
+		for end < len(bars) && bars[end].Date < tradeDate {
+			end++
+		}
+		hist := bars[:end]
+		if len(hist) < 5 || hist[len(hist)-1].Close <= 0 {
+			continue
+		}
+		var hits []T0RedRuleHit
+		for _, rule := range rules {
+			if rule.MatchHistory(hist) {
+				hits = append(hits, T0RedRuleHit{
+					Key: rule.Key, Version: rule.Version, Name: rule.Name,
+					ExitHorizon: "T+1_close", EntrySource: "pending_open", StatsStatus: "preopen",
+				})
+			}
+		}
+		if len(hits) == 0 {
+			continue
+		}
+		userCode := stock.ShortCode + ".XSHE"
+		if strings.HasPrefix(stock.Code, "sh.") {
+			userCode = stock.ShortCode + ".XSHG"
+		}
+		result := T0SelectionResult{
+			Time: tradeDate, StockCode: userCode, StockName: stock.Name,
+			PrevClose: round2(hist[len(hist)-1].Close),
+			AmountYi:  round2(hist[len(hist)-1].AmountYi), RedRuleHits: hits,
+		}
+		for _, hit := range hits {
+			result.DisplayRuleHits = append(result.DisplayRuleHits, hit.Name)
+		}
+		results = append(results, result)
+	}
+	return results
+}

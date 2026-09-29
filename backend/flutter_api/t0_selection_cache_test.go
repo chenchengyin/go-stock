@@ -307,3 +307,17 @@ func TestIsBeforeT0AuctionCutoff(t *testing.T) {
 		})
 	}
 }
+
+func TestGobRedPreopenCandidateDoesNotBecomeConfirmedHit(t *testing.T) {
+	date := "2026-09-14"
+	got := buildGobRedPreopenCandidates(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "低成交额股"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()}, approvedGobRedRules())
+	if len(got) != 1 || got[0].StockCode != "600101.XSHG" || got[0].OpenGap != 0 {
+		t.Fatalf("preopen candidates=%+v", got)
+	}
+	if len(got[0].RedRuleHits) != 1 || got[0].RedRuleHits[0].StatsStatus != "preopen" ||
+		got[0].RedRuleHits[0].EntryOpen != 0 {
+		t.Fatalf("preopen candidate claimed confirmed entry: %+v", got[0].RedRuleHits)
+	}
+}

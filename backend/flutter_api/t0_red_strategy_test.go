@@ -904,3 +904,95 @@ func TestGobRedRuleChecksDateSpecificRiskWarningLimitDown(t *testing.T) {
 		t.Fatalf("unknown board limit=%q", got)
 	}
 }
+
+func TestGobRedSelectionKeepsIndependentHitWhenMainIsEmpty(t *testing.T) {
+	independent, _ := matchGobRedRules("2026-09-14",
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()},
+		map[string]t0Realtime{"600101": {Open: 8, PrevClose: 8.424}},
+		"daily_open", approvedGobRedRules())
+	ctx := &t0ModuleSelectionContext{TradeDate: "2026-09-14",
+		Daily: map[string][]dailyBar{"600101": gobRedTestBarsA()}, Independent: independent}
+	red, err := selectT0ResultsForModule(redT0StrategyModuleCode, nil, ctx)
+	if err != nil || len(red) != 1 || red[0].StockCode != "600101.XSHG" {
+		t.Fatalf("red=%+v err=%v", red, err)
+	}
+	main, err := selectT0ResultsForModule("radar.main_strategy", nil, ctx)
+	if err != nil || len(main) != 0 {
+		t.Fatalf("main changed: %+v err=%v", main, err)
+	}
+}
+
+func TestGobRedSelectionMergesDuplicateStockWithoutLosingRuleName(t *testing.T) {
+	date := "2026-09-14"
+	code := "600101.XSHG"
+	hist := []dailyBar{
+		{Date: "2026-09-08", Close: 10},
+		{Date: "2026-09-09", Open: 10.1, High: 11, Low: 10.1, Close: 11},
+		{Date: "2026-09-10", Open: 9.9, High: 9.9, Low: 9.9, Close: 9.9},
+	}
+	main := []T0SelectionResult{{Time: date, StockCode: code, StockName: "重复股", OpenGap: 1}}
+	independent := []T0SelectionResult{{Time: date, StockCode: code, StockName: "重复股",
+		DisplayRuleHits: []string{"独立低开"},
+		RedRuleHits:     []T0RedRuleHit{{Key: "gob_test_v1", Version: 1, Name: "独立低开", ExitHorizon: "T+1_close"}},
+	}}
+	ctx := &t0ModuleSelectionContext{TradeDate: date, Daily: map[string][]dailyBar{"600101": hist}, Independent: independent}
+	got, err := selectT0ResultsForModule(redT0StrategyModuleCode, main, ctx)
+	if err != nil || len(got) != 1 || len(got[0].RedRuleHits) != 1 {
+		t.Fatalf("merged=%+v err=%v", got, err)
+	}
+	if len(got[0].DisplayRuleHits) < 2 || got[0].DisplayRuleHits[len(got[0].DisplayRuleHits)-1] != "独立低开" {
+		t.Fatalf("did not preserve both names: %+v", got[0].DisplayRuleHits)
+	}
+}
+
+func TestGobRedLiveSelectionSurvivesEmptyMainFilter(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	bars := append(gobRedTestBarsA(), dailyBar{Date: date, Open: 8, High: 8.4, Low: 7.9, Close: 8.2})
+	if err := saveT0DailyCache(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": bars}); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.red_strategy&date="+date, nil)
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, req)
+	var body struct {
+		Count   int                 `json:"count"`
+		Results []T0SelectionResult `json:"results"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Count != 1 || len(body.Results) != 1 || body.Results[0].StockCode != "600101.XSHG" {
+		t.Fatalf("body=%s", rr.Body.String())
+	}
+}
+
+func TestGobRedPrewarmHTTPIncludesIndependentCandidate(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	if err := saveT0DailyCache(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()}); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	writeRedT0PrewarmReadyHTTP(rr, date, redT0StrategyModuleCode)
+	var body struct {
+		Candidates []T0SelectionResult `json:"candidates"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Candidates) != 1 || body.Candidates[0].StockCode != "600101.XSHG" ||
+		len(body.Candidates[0].RedRuleHits) != 1 || body.Candidates[0].RedRuleHits[0].StatsStatus != "preopen" {
+		t.Fatalf("prewarm body=%s", rr.Body.String())
+	}
+}

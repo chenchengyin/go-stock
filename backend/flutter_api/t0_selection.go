@@ -1875,18 +1875,23 @@ func normalizeT0TradeDate(tradeDate string) (string, error) {
 // RunT0Selection 执行完整 T0 选股链
 // tradeDate: 交易日 "2006-01-02"，空字符串 = 今天
 func RunT0Selection(tradeDate string) ([]T0SelectionResult, error) {
-	results, _, _, err := runT0SelectionWithDaily(tradeDate)
+	results, _, _, _, err := runT0SelectionWithDaily(tradeDate)
 	return results, err
 }
 
+var (
+	errT0NoMainTurnover = fmt.Errorf("成交额过滤后无股票")
+	errT0NoMainOpenGap  = fmt.Errorf("T0开盘过滤后无股票")
+)
+
 func runT0SelectionWithDaily(
 	tradeDate string,
-) ([]T0SelectionResult, map[string][]dailyBar, []t0DataWarning, error) {
+) ([]T0SelectionResult, []t0Stock, map[string][]dailyBar, []t0DataWarning, error) {
 	tStart := time.Now()
 
 	tradeDate, err := normalizeT0TradeDate(tradeDate)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	logger.SugaredLogger.Infof("========== T0 开盘日线选股 | 基准日: %s ==========", tradeDate)
@@ -1895,7 +1900,7 @@ func runT0SelectionWithDaily(
 	t12 := time.Now()
 	allStocks, dailyCache, fromCache, err := loadOrFetchT0Daily(tradeDate)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	logger.SugaredLogger.Infof("[T0选股] [1-2/5] 股票池+日线就绪: 股票%d 日线%d 缓存命中=%v (%.1fs)",
 		len(allStocks), len(dailyCache), fromCache, time.Since(t12).Seconds())
@@ -1923,7 +1928,7 @@ func runT0SelectionWithDaily(
 	}
 	if len(step2) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] 成交额过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
-		return nil, dailyCache, warnings, fmt.Errorf("成交额过滤后无股票")
+		return nil, allStocks, dailyCache, warnings, errT0NoMainTurnover
 	}
 	logger.SugaredLogger.Infof("[T0选股] [3/5] 日线过滤完成: %d -> %d只 (MA20门闸已暂缓) (%.1fs)",
 		len(allStocks), len(step2), time.Since(t3).Seconds())
@@ -1945,7 +1950,7 @@ func runT0SelectionWithDaily(
 
 	if len(step4) == 0 {
 		logger.SugaredLogger.Infof("[T0选股] T0开盘过滤后无股票，总耗时: %.1fs", time.Since(tStart).Seconds())
-		return nil, dailyCache, warnings, fmt.Errorf("T0开盘过滤后无股票")
+		return nil, allStocks, dailyCache, warnings, errT0NoMainOpenGap
 	}
 
 	// ── 6. 组装结果 ──
@@ -2024,7 +2029,7 @@ func runT0SelectionWithDaily(
 		len(results), time.Since(t6).Seconds())
 	logger.SugaredLogger.Infof("[T0选股] 总耗时: %.1fs", time.Since(tStart).Seconds())
 
-	return results, dailyCache, warnings, nil
+	return results, allStocks, dailyCache, warnings, nil
 }
 
 func round2(v float64) float64 {
@@ -2113,6 +2118,9 @@ func scopeT0ResponseResultsWithContext(
 	selected, err := selectT0ResultsForModule(moduleCode, results, ctx)
 	if err != nil {
 		return err
+	}
+	if moduleCode == redT0StrategyModuleCode {
+		selected = sortT0ResultsForClient(selected)
 	}
 	response[field] = selected
 	switch field {
@@ -2469,19 +2477,21 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	forceSave := isTruthyQuery(q.Get("save"))
 	var (
 		results          []T0SelectionResult
+		stocks           []t0Stock
 		warnings         []t0DataWarning
 		daily            map[string][]dailyBar
 		selectionContext *t0ModuleSelectionContext
 		err              error
 	)
-	results, daily, warnings, err = runT0SelectionWithDaily(tradeDate)
-	if err == nil && isT0DailyContextModule(moduleCode) {
+	results, stocks, daily, warnings, err = runT0SelectionWithDaily(tradeDate)
+	mainEmpty := err == errT0NoMainTurnover || err == errT0NoMainOpenGap
+	if (err == nil || (moduleCode == redT0StrategyModuleCode && mainEmpty)) && isT0DailyContextModule(moduleCode) {
 		selectionContext = &t0ModuleSelectionContext{
 			TradeDate: tradeDate,
 			Daily:     daily,
 		}
 	}
-	if err != nil {
+	if err != nil && !(moduleCode == redT0StrategyModuleCode && mainEmpty) {
 		response := map[string]interface{}{
 			"error":   err.Error(),
 			"date":    tradeDate,
@@ -2492,9 +2502,38 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, response)
 		return
 	}
+	if moduleCode == redT0StrategyModuleCode {
+		candidates := buildGobRedPreopenCandidates(tradeDate, stocks, daily, approvedGobRedRules())
+		quotes, source, quoteWarning := buildGobRedOpeningQuotes(
+			tradeDate, resultsToT0Stocks(candidates), daily)
+		if quoteWarning != nil {
+			warnings = append(warnings, *quoteWarning)
+		}
+		var status gobRedMatchStatus
+		selectionContext.Independent, status = matchGobRedRules(
+			tradeDate, resultsToT0Stocks(candidates), daily, quotes, source, approvedGobRedRules())
+		if status.MissingOpen > 0 || status.UnknownLimit > 0 {
+			warnings = append(warnings, t0DataWarning{
+				Code: "RED_GOB_ENTRY_INCOMPLETE", Phase: "red_entry", Source: source,
+				Message: fmt.Sprintf("红策独立形态缺少确认开盘%d只、涨跌停口径不明%d只",
+					status.MissingOpen, status.UnknownLimit),
+				Missing: status.MissingOpen + status.UnknownLimit,
+			})
+		}
+	}
 
-	if saveErr := saveT0SelectionArchive(tradeDate, results, forceSave); saveErr != nil {
-		logger.SugaredLogger.Warnf("[T0选股] 结果归档写入失败: %v", saveErr)
+	if err == nil {
+		if saveErr := saveT0SelectionArchive(tradeDate, results, forceSave); saveErr != nil {
+			logger.SugaredLogger.Warnf("[T0选股] 结果归档写入失败: %v", saveErr)
+		}
+	}
+	if moduleCode == redT0StrategyModuleCode {
+		response := map[string]interface{}{
+			"date": tradeDate, "count": len(results), "results": results,
+		}
+		attachT0DataWarnings(response, warnings)
+		writeScopedT0ResponseWithContext(w, moduleCode, response, selectionContext, "results")
+		return
 	}
 	selected, err := selectT0ResultsForModule(moduleCode, results, selectionContext)
 	if err != nil {
