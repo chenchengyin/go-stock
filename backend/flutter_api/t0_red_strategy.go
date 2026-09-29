@@ -182,6 +182,15 @@ func writeContextT0PrewarmReadyHTTP(
 	tradeDate string,
 	moduleCode string,
 ) {
+	writeContextT0PrewarmReadyHTTPAt(w, tradeDate, moduleCode, time.Now())
+}
+
+func writeContextT0PrewarmReadyHTTPAt(
+	w http.ResponseWriter,
+	tradeDate string,
+	moduleCode string,
+	now time.Time,
+) {
 	cached, ok := loadT0DailyCache(tradeDate)
 	if !ok || cached == nil {
 		WriteJSON(w, map[string]interface{}{
@@ -193,7 +202,22 @@ func writeContextT0PrewarmReadyHTTP(
 	}
 
 	response := buildPrewarmReadyResponseAtWithCache(
-		tradeDate, time.Now(), cached)
+		tradeDate, now, cached)
+	if moduleCode == redT0StrategyModuleCode && isPreopenPrevResultWindow(now, tradeDate) {
+		if _, hasPrevious := response["display_date"]; !hasPrevious {
+			for _, date := range listGobRedAvailableDates() {
+				if date >= tradeDate {
+					continue
+				}
+				response["historical"] = true
+				response["display_date"] = date
+				response["results"] = []T0SelectionResult{}
+				response["source_status"] = map[string]string{"legacy": "unavailable"}
+				response["data_incomplete"] = true
+				break
+			}
+		}
+	}
 	contextDate := tradeDate
 	if displayDate, ok := response["display_date"].(string); ok && displayDate != "" {
 		contextDate = displayDate
@@ -202,6 +226,19 @@ func writeContextT0PrewarmReadyHTTP(
 	if contextDate != tradeDate {
 		var contextOK bool
 		contextPayload, contextOK = loadT0DailyCache(contextDate)
+		if !contextOK && moduleCode == redT0StrategyModuleCode {
+			var err error
+			contextPayload, err = readGobRedReplayCache(t0DailyCachePath(contextDate), contextDate)
+			contextOK = err == nil
+			if !contextOK {
+				if status, ok := response["source_status"].(map[string]string); ok && status["legacy"] == "unavailable" {
+					if _, hasSnapshot := loadGobRedArchive(contextDate); hasSnapshot {
+						contextPayload = &t0DailyCachePayload{Daily: map[string][]dailyBar{}}
+						contextOK = true
+					}
+				}
+			}
+		}
 		if !contextOK || contextPayload == nil {
 			WriteJSON(w, map[string]interface{}{
 				"error":    fmt.Sprintf("%s历史日线缓存未就绪: %s", t0DailyContextModuleName(moduleCode), contextDate),
@@ -218,9 +255,31 @@ func writeContextT0PrewarmReadyHTTP(
 		Daily:     contextPayload.Daily,
 	}
 	if moduleCode == redT0StrategyModuleCode {
-		if _, hasCandidates := response["candidates"]; hasCandidates {
-			ctx.Independent = buildGobRedPreopenCandidates(
-				contextDate, contextPayload.Stocks, contextPayload.Daily, approvedGobRedRules())
+		if _, hasHistorical := response["results"]; hasHistorical && contextDate != tradeDate {
+			var gobState string
+			var incomplete bool
+			ctx.Independent, _, gobState, incomplete = archivedGobRedResults(contextDate)
+			legacyState := "main_archive"
+			if status, ok := response["source_status"].(map[string]string); ok && status["legacy"] == "unavailable" {
+				legacyState = "unavailable"
+			}
+			response["source_status"] = map[string]string{"legacy": legacyState, "gob": gobState}
+			if incomplete {
+				response["data_incomplete"] = true
+			}
+		} else if _, hasCandidates := response["candidates"]; hasCandidates {
+			if prior := gobRedPriorCacheDate(contextDate); prior != "" && prior == latestGobPriorDate(contextDate, contextPayload.Daily) {
+				ctx.Independent = buildGobRedPreopenCandidates(
+					contextDate, contextPayload.Stocks, contextPayload.Daily, approvedGobRedRules())
+			} else {
+				warnings, _ := response["data_warnings"].([]t0DataWarning)
+				warnings = append(warnings, t0DataWarning{
+					Code: "RED_GOB_PRIOR_DATE_UNVERIFIED", Phase: "red_history", Source: "gob",
+					Message: "红策独立形态无法确认前一交易日日线日期，暂不显示候选",
+				})
+				attachT0DataWarnings(response, warnings)
+				response["data_incomplete"] = true
+			}
 		}
 	}
 	writeScopedT0ResponseWithContext(
@@ -259,6 +318,12 @@ var gobRedOpeningQuoteBuilder = buildGobRedOpeningQuotes
 func selectGobRedFromPool(
 	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar,
 ) ([]T0SelectionResult, []t0DataWarning) {
+	if prior := gobRedPriorCacheDate(tradeDate); prior == "" || prior != latestGobPriorDate(tradeDate, daily) {
+		return nil, []t0DataWarning{{
+			Code: "RED_GOB_PRIOR_DATE_UNVERIFIED", Phase: "red_history", Source: "gob",
+			Message: "红策独立形态无法确认前一交易日日线日期，已跳过正式入选",
+		}}
+	}
 	rules := approvedGobRedRules()
 	candidates := buildGobRedPreopenCandidates(tradeDate, stocks, daily, rules)
 	candidateStocks := resultsToT0Stocks(candidates)

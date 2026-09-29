@@ -2,7 +2,10 @@ package flutter_api
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"go-stock/backend/analysis/candlepattern"
 )
@@ -33,6 +36,44 @@ type gobRedMatchStatus struct {
 	MissingHistory int
 	MissingOpen    int
 	UnknownLimit   int
+}
+
+var gobRedPriorCacheDate = verifiedGobPriorCacheDate
+
+// The latest complete preceding Gob is an independent trading-date witness
+// for a preopen cache. Longer gaps may be holidays or missing cache days;
+// without a calendar we conservatively leave the rule unconfirmed.
+func verifiedGobPriorCacheDate(tradeDate string) string {
+	dir := filepath.Join(t0CacheRootPath, "t0", "daily")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	latest := ""
+	const prefix, suffix = "t0_daily_cache_", ".gob"
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		date := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
+		if date < tradeDate && date > latest {
+			latest = date
+		}
+	}
+	if latest == "" {
+		return ""
+	}
+	tradeTime, tradeErr := time.Parse("2006-01-02", tradeDate)
+	priorTime, priorErr := time.Parse("2006-01-02", latest)
+	if tradeErr != nil || priorErr != nil || tradeTime.Sub(priorTime) > 72*time.Hour {
+		return ""
+	}
+	cache, err := readGobRedReplayCache(filepath.Join(dir, prefix+latest+suffix), latest)
+	if err != nil || cache.DataSchemaVersion != t0DailyCacheSchemaVersion || !cache.StockPoolComplete {
+		return ""
+	}
+	return latest
 }
 
 func latestGobPriorDate(tradeDate string, daily map[string][]dailyBar) string {

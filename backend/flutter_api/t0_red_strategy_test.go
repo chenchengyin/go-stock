@@ -952,6 +952,11 @@ func TestGobRedLiveSelectionSurvivesEmptyMainFilter(t *testing.T) {
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = oldRoot })
 	date := "2026-09-14"
+	if err := saveT0DailyCache("2026-09-11",
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()}); err != nil {
+		t.Fatal(err)
+	}
 	bars := append(gobRedTestBarsA(), dailyBar{Date: date, Open: 8, High: 8.4, Low: 7.9, Close: 8.2})
 	if err := saveT0DailyCache(date,
 		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
@@ -980,6 +985,11 @@ func TestGobRedPrewarmHTTPIncludesIndependentCandidate(t *testing.T) {
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = oldRoot })
 	date := "2026-09-14"
+	if err := saveT0DailyCache("2026-09-11",
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()}); err != nil {
+		t.Fatal(err)
+	}
 	if err := saveT0DailyCache(date,
 		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
 		map[string][]dailyBar{"600101": gobRedTestBarsA()}); err != nil {
@@ -996,6 +1006,76 @@ func TestGobRedPrewarmHTTPIncludesIndependentCandidate(t *testing.T) {
 	if len(body.Candidates) != 1 || body.Candidates[0].StockCode != "600101.XSHG" ||
 		len(body.Candidates[0].RedRuleHits) != 1 || body.Candidates[0].RedRuleHits[0].StatsStatus != "preopen" {
 		t.Fatalf("prewarm body=%s", rr.Body.String())
+	}
+}
+
+func TestGobRedPrewarmHistoricalResultsIncludeIndependentSnapshot(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	previous, today := "2026-09-14", "2026-09-15"
+	stocks := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	bars := append(gobRedTestBarsA(), dailyBar{Date: previous, Open: 8, Close: 8.2})
+	for _, date := range []string{previous, today} {
+		if err := saveT0DailyCache(date, stocks, map[string][]dailyBar{"600101": bars}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := saveT0SelectionArchive(previous, []T0SelectionResult{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveGobRedArchive(&gobRedArchive{Date: previous, EntrySource: "realtime_open", Complete: true,
+		Results: []T0SelectionResult{{Time: previous, StockCode: "600101.XSHG", StockName: "独立形态",
+			RedRuleHits: []T0RedRuleHit{{Key: "gob_myin_dt_dt_v1", Version: 1, Name: "中阴→跌停→跌停后低开",
+				EntrySource: "realtime_open", EntryOpen: 8, ExitHorizon: "T+1_close", StatsStatus: "pending"}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	writeContextT0PrewarmReadyHTTPAt(rr, today, redT0StrategyModuleCode,
+		time.Date(2026, 9, 15, 8, 0, 0, 0, chinaLocation()))
+	var body struct {
+		Results      []T0SelectionResult `json:"results"`
+		SourceStatus map[string]string   `json:"source_status"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Results) != 1 || body.Results[0].StockCode != "600101.XSHG" ||
+		len(body.Results[0].RedRuleHits) != 1 || body.SourceStatus["gob"] != "realtime_open" {
+		t.Fatalf("historical prewarm missing independent result: %s", rr.Body.String())
+	}
+}
+
+func TestGobRedPrewarmHistoricalSnapshotWithoutMainArchive(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	previous, today := "2026-09-14", "2026-09-15"
+	stocks := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	bars := append(gobRedTestBarsA(), dailyBar{Date: previous, Open: 8, Close: 8.2})
+	if err := saveT0DailyCache(today, stocks, map[string][]dailyBar{"600101": bars}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveGobRedArchive(&gobRedArchive{Date: previous, EntrySource: "realtime_open", Complete: true,
+		Results: []T0SelectionResult{{Time: previous, StockCode: "600101.XSHG", StockName: "独立形态",
+			RedRuleHits: []T0RedRuleHit{{Key: "gob_myin_dt_dt_v1", Version: 1, Name: "中阴→跌停→跌停后低开",
+				EntrySource: "realtime_open", EntryOpen: 8, ExitHorizon: "T+1_close", StatsStatus: "pending"}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	writeContextT0PrewarmReadyHTTPAt(rr, today, redT0StrategyModuleCode,
+		time.Date(2026, 9, 15, 8, 0, 0, 0, chinaLocation()))
+	var body struct {
+		Results        []T0SelectionResult `json:"results"`
+		DataIncomplete bool                `json:"data_incomplete"`
+		SourceStatus   map[string]string   `json:"source_status"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Results) != 1 || body.Results[0].StockCode != "600101.XSHG" ||
+		body.SourceStatus["legacy"] != "unavailable" || !body.DataIncomplete {
+		t.Fatalf("prewarm without main archive lost independent snapshot: %s", rr.Body.String())
 	}
 }
 
@@ -1113,6 +1193,9 @@ func TestGobRedFormalSelectionArchivesWithoutRedPageDependency(t *testing.T) {
 	oldRoot := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	oldPrior := gobRedPriorCacheDate
+	gobRedPriorCacheDate = func(string) string { return "2026-09-11" }
+	t.Cleanup(func() { gobRedPriorCacheDate = oldPrior })
 	oldQuotes := gobRedOpeningQuoteBuilder
 	gobRedOpeningQuoteBuilder = func(_ string, _ []t0Stock, _ map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning) {
 		return map[string]t0Realtime{"600101": {Open: 8, PrevClose: 8.424}}, "realtime_open", nil
@@ -1149,6 +1232,41 @@ func TestGobRedRuleRejectsStalePreviousBarWhenPoolHasNewerTradingDay(t *testing.
 		"realtime_open", approvedGobRedRules())
 	if len(got) != 0 {
 		t.Fatalf("stale T-1 bar became a current entry: %+v", got)
+	}
+}
+
+func TestGobRedFormalRejectsPoolWideStalePriorDay(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-15"
+	stocks := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "全池旧K线"}}
+	if err := saveT0DailyCache("2026-09-14", stocks,
+		map[string][]dailyBar{"600101": append(gobRedTestBarsA(),
+			dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2})}); err != nil {
+		t.Fatal(err)
+	}
+	oldQuotes := gobRedOpeningQuoteBuilder
+	gobRedOpeningQuoteBuilder = func(_ string, _ []t0Stock, _ map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning) {
+		return map[string]t0Realtime{"600101": {Open: 8, PrevClose: 8.424}}, "realtime_open", nil
+	}
+	t.Cleanup(func() { gobRedOpeningQuoteBuilder = oldQuotes })
+	results, warnings := selectGobRedFromPool(date, stocks,
+		map[string][]dailyBar{"600101": gobRedTestBarsA()})
+	if len(results) != 0 || len(warnings) == 0 || warnings[0].Code != "RED_GOB_PRIOR_DATE_UNVERIFIED" {
+		t.Fatalf("stale whole pool results=%+v warnings=%+v", results, warnings)
+	}
+}
+
+func TestGobRedFormalRejectsMissingPriorCacheWitness(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	results, warnings := selectGobRedFromPool("2026-09-14",
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()})
+	if len(results) != 0 || len(warnings) == 0 || warnings[0].Code != "RED_GOB_PRIOR_DATE_UNVERIFIED" {
+		t.Fatalf("missing prior witness results=%+v warnings=%+v", results, warnings)
 	}
 }
 
@@ -1313,6 +1431,28 @@ func TestGobRedReplayMarksMissingDailyCoveragePartial(t *testing.T) {
 	stats, _, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
 	if err != nil || coverage.MissingDailyStocks != 1 || coverage.CompleteDays != 0 || len(stats) != 1 || stats[0].Status != "partial" {
 		t.Fatalf("partial coverage stats=%+v coverage=%+v err=%v", stats, coverage, err)
+	}
+}
+
+func TestGobRedReplayDoesNotTreatNextAvailableCacheAsNextTradingDay(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	day0 := append(gobRedTestBarsA(), dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2})
+	if err := saveT0DailyCache("2026-09-14", stock, map[string][]dailyBar{"600101": day0}); err != nil {
+		t.Fatal(err)
+	}
+	day2 := append(append([]dailyBar(nil), day0...),
+		dailyBar{Date: "2026-09-15", Open: 8.1, Close: 8.3},
+		dailyBar{Date: "2026-09-16", Open: 8.4, Close: 8.5})
+	if err := saveT0DailyCache("2026-09-16", stock, map[string][]dailyBar{"600101": day2}); err != nil {
+		t.Fatal(err)
+	}
+	stats, cases, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
+	if err != nil || coverage.Matched != 1 || coverage.Observed != 0 ||
+		coverage.MissingNextCacheDays != 1 || len(stats) != 0 || len(cases) != 0 {
+		t.Fatalf("skipped trading day replay stats=%+v cases=%+v coverage=%+v err=%v", stats, cases, coverage, err)
 	}
 }
 

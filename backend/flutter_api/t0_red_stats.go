@@ -122,6 +122,9 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 		if i+1 < len(dates) {
 			nextDate = dates[i+1]
 			next, _ = readGobRedReplayCache(filepath.Join(dir, prefix+nextDate+suffix), nextDate)
+			if next != nil && latestGobPriorDate(nextDate, next.Daily) != date {
+				next = nil
+			}
 		}
 		if next == nil && len(results) > 0 {
 			coverage.MissingNextCacheDays++
