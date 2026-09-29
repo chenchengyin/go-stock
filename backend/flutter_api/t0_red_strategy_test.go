@@ -768,3 +768,139 @@ func TestWriteScopedRedResponseFiltersAndEnrichesFromDaily(t *testing.T) {
 		t.Fatalf("hits=%v", body.Results[0].DisplayRuleHits)
 	}
 }
+
+func gobRedTestBarsA() []dailyBar {
+	return []dailyBar{
+		{Date: "2026-09-07", Open: 10, High: 10.1, Low: 9.9, Close: 10},
+		{Date: "2026-09-08", Open: 10.2, High: 11, Low: 10.2, Close: 11},     // 最近收盘涨停 T-4
+		{Date: "2026-09-09", Open: 10.8, High: 10.9, Low: 10.3, Close: 10.4}, // MYIN
+		{Date: "2026-09-10", Open: 9.5, High: 9.5, Low: 9.36, Close: 9.36},   // DT
+		{Date: "2026-09-11", Open: 8.5, High: 8.5, Low: 8.424, Close: 8.424}, // DT
+	}
+}
+
+func gobRedTestBarsB() []dailyBar {
+	bars := gobRedTestBarsA()
+	bars[3] = dailyBar{Date: "2026-09-10", Open: 10.2, High: 10.3, Low: 9.8, Close: 9.8} // MYIN
+	bars[4] = dailyBar{Date: "2026-09-11", Open: 9.0, High: 9.0, Low: 8.82, Close: 8.82} // DT
+	return bars
+}
+
+func TestGobRedRuleMatchesTwoApprovedShapesOutsideMainPool(t *testing.T) {
+	stocks := []t0Stock{
+		{Code: "sh.600101", ShortCode: "600101", Name: "A股"},
+		{Code: "sh.600102", ShortCode: "600102", Name: "B股"},
+	}
+	daily := map[string][]dailyBar{"600101": gobRedTestBarsA(), "600102": gobRedTestBarsB()}
+	opens := map[string]t0Realtime{
+		"600101": {Open: 8.0, PrevClose: 8.424},
+		"600102": {Open: 8.4, PrevClose: 8.82},
+	}
+	got, status := matchGobRedRules("2026-09-14", stocks, daily, opens, "daily_open", approvedGobRedRules())
+	if status.MissingOpen != 0 || len(got) != 2 {
+		t.Fatalf("matches=%+v status=%+v; want both shapes", got, status)
+	}
+	if got[0].StockCode != "600101.XSHG" || got[1].StockCode != "600102.XSHG" {
+		t.Fatalf("codes=%v", got)
+	}
+	if len(got[0].RedRuleHits) != 1 || got[0].RedRuleHits[0].Key != "gob_myin_dt_dt_v1" ||
+		got[0].RedRuleHits[0].ExitHorizon != "T+1_close" || got[0].RedRuleHits[0].EntrySource != "daily_open" {
+		t.Fatalf("A hit=%+v", got[0].RedRuleHits)
+	}
+	if len(got[1].RedRuleHits) != 1 || got[1].RedRuleHits[0].Key != "gob_myin_myin_dt_v1" {
+		t.Fatalf("B hit=%+v", got[1].RedRuleHits)
+	}
+}
+
+func TestGobRedRuleUsesLatestCloseLimitUpAndRequiresPullback(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "A股"}}
+	base := gobRedTestBarsA()
+	tests := []struct {
+		name string
+		bars []dailyBar
+		want int
+	}{
+		{"valid", base, 1},
+		{"broken-only-anchor", append([]dailyBar(nil), base...), 0},
+		{"no-pullback", append([]dailyBar(nil), base...), 0},
+		{"wrong-pattern", append([]dailyBar(nil), base...), 0},
+	}
+	tests[1].bars[1].Close = 10.5 // 最高涨停、收盘未涨停
+	tests[2].bars[1].Close = 8    // 不是涨停，因此同样不能借更早锚点
+	tests[3].bars[2].Open = 10.41 // T-3 不再是 MYIN
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _ := matchGobRedRules("2026-09-14", stock,
+				map[string][]dailyBar{"600101": tc.bars},
+				map[string]t0Realtime{"600101": {Open: 8, PrevClose: 8.424}},
+				"daily_open", approvedGobRedRules())
+			if len(got) != tc.want {
+				t.Fatalf("matches=%d want=%d", len(got), tc.want)
+			}
+		})
+	}
+}
+
+func TestGobRedRuleUsesStrictRawGapAndConfirmedOpen(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "A股"}}
+	daily := map[string][]dailyBar{"600101": gobRedTestBarsA()}
+	for _, tc := range []struct {
+		gap  float64
+		want int
+	}{
+		{-9.85, 0}, {-9.849, 1}, {-3.001, 1}, {-3, 0}, {-2.999, 0},
+	} {
+		open := 8.424 * (1 + tc.gap/100)
+		got, _ := matchGobRedRules("2026-09-14", stock, daily,
+			map[string]t0Realtime{"600101": {Open: open, PrevClose: 8.424}},
+			"daily_open", approvedGobRedRules())
+		if len(got) != tc.want {
+			t.Fatalf("requested gap=%v actual gap=%.17f open=%.17f matches=%d want=%d",
+				tc.gap, (open/8.424-1)*100, open, len(got), tc.want)
+		}
+	}
+	got, status := matchGobRedRules("2026-09-14", stock, daily, nil,
+		"realtime_open", approvedGobRedRules())
+	if len(got) != 0 || status.MissingOpen != 1 {
+		t.Fatalf("missing open matched: %+v status=%+v", got, status)
+	}
+}
+
+func TestGobRedRuleAllowsPerRulePositiveFivePercentOpen(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "A股"}}
+	rules := []redGobRule{{
+		Key: "test_plus_five_v1", Name: "测试高开", Version: 1,
+		MatchHistory: func([]dailyBar) bool { return true },
+		MatchOpen: func(open, prevClose float64) bool {
+			return open > prevClose*(1+4.9/100) && open < prevClose*(1+5.1/100)
+		},
+	}}
+	got, _ := matchGobRedRules("2026-09-14", stock,
+		map[string][]dailyBar{"600101": gobRedTestBarsA()},
+		map[string]t0Realtime{"600101": {Open: 8.424 * 1.05, PrevClose: 8.424}},
+		"realtime_open", rules)
+	if len(got) != 1 || got[0].RedRuleHits[0].Key != "test_plus_five_v1" {
+		t.Fatalf("custom +5%% rule did not match: %+v", got)
+	}
+}
+
+func TestGobRedRuleChecksDateSpecificRiskWarningLimitDown(t *testing.T) {
+	st := t0Stock{Code: "sh.600101", ShortCode: "600101", Name: "*ST测试"}
+	for _, tc := range []struct {
+		date string
+		open float64
+		want string
+	}{
+		{"2026-07-03", 9.5, "limit_down"},
+		{"2026-07-06", 9.5, "tradable"},
+		{"2026-07-06", 9.0, "limit_down"},
+	} {
+		if got := gobRedOpenLimitState(st, tc.date, 10, tc.open); got != tc.want {
+			t.Fatalf("date=%s open=%v got=%q want=%q", tc.date, tc.open, got, tc.want)
+		}
+	}
+	unknown := t0Stock{Code: "sz.300101", ShortCode: "300101", Name: "测试"}
+	if got := gobRedOpenLimitState(unknown, "2026-07-06", 10, 9.5); got != "unknown" {
+		t.Fatalf("unknown board limit=%q", got)
+	}
+}

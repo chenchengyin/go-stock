@@ -965,6 +965,7 @@ type T0SelectionResult struct {
 	T0ReferenceTier                  string           `json:"T0参考最高等级,omitempty"`
 	T0ReferenceWinPct                float64          `json:"T0参考严格胜率(%),omitempty"`
 	T0ReferenceSamples               int              `json:"T0参考样本数,omitempty"`
+	RedRuleHits                      []T0RedRuleHit   `json:"红策独立形态命中,omitempty"`
 }
 
 // t0CloseRefreshStartHM 收盘后刷新归档收盘涨幅的最早时分（含）：15:05
