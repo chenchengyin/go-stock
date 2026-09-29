@@ -962,13 +962,14 @@ func TestGobRedLiveSelectionSurvivesEmptyMainFilter(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handleT0Selection(rr, req)
 	var body struct {
-		Count   int                 `json:"count"`
-		Results []T0SelectionResult `json:"results"`
+		Count          int                 `json:"count"`
+		DataIncomplete bool                `json:"data_incomplete"`
+		Results        []T0SelectionResult `json:"results"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if body.Count != 1 || len(body.Results) != 1 || body.Results[0].StockCode != "600101.XSHG" {
+	if body.Count != 1 || len(body.Results) != 1 || body.Results[0].StockCode != "600101.XSHG" || !body.DataIncomplete {
 		t.Fatalf("body=%s", rr.Body.String())
 	}
 }
@@ -994,5 +995,193 @@ func TestGobRedPrewarmHTTPIncludesIndependentCandidate(t *testing.T) {
 	if len(body.Candidates) != 1 || body.Candidates[0].StockCode != "600101.XSHG" ||
 		len(body.Candidates[0].RedRuleHits) != 1 || body.Candidates[0].RedRuleHits[0].StatsStatus != "preopen" {
 		t.Fatalf("prewarm body=%s", rr.Body.String())
+	}
+}
+
+func TestGobRedArchiveKeepsConfirmedSnapshotOnIncompleteRefresh(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	first := &gobRedArchive{Date: date, EntrySource: "realtime_open", Complete: true,
+		Results: []T0SelectionResult{{Time: date, StockCode: "600101.XSHG",
+			RedRuleHits: []T0RedRuleHit{{Key: "gob_myin_dt_dt_v1", EntryOpen: 8.1, EntrySource: "realtime_open"}}}}}
+	if err := saveGobRedArchive(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveGobRedArchive(&gobRedArchive{Date: date, EntrySource: "realtime_open", Complete: false}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := loadGobRedArchive(date)
+	if !ok || !got.Complete || len(got.Results) != 1 || got.Results[0].RedRuleHits[0].EntryOpen != 8.1 {
+		t.Fatalf("confirmed snapshot overwritten: %+v ok=%v", got, ok)
+	}
+	if _, err := os.Stat(t0SelectionCachePath(date)); !os.IsNotExist(err) {
+		t.Fatalf("Gob snapshot should not create main archive: %v", err)
+	}
+}
+
+func TestGobRedArchivedReplaysCompleteGobWithoutMainArchive(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	bars := append(gobRedTestBarsA(), dailyBar{Date: date, Open: 8, High: 8.4, Low: 7.9, Close: 8.2})
+	if err := saveT0DailyCache(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": bars}); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.red_strategy&archived=1&date="+date, nil))
+	var body struct {
+		Count          int                 `json:"count"`
+		DataIncomplete bool                `json:"data_incomplete"`
+		SourceStatus   map[string]string   `json:"source_status"`
+		Results        []T0SelectionResult `json:"results"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Count != 1 || len(body.Results) != 1 || body.Results[0].StockCode != "600101.XSHG" ||
+		body.Results[0].RedRuleHits[0].EntrySource != "daily_open" || !body.DataIncomplete ||
+		body.SourceStatus["gob"] != "daily_open" || body.SourceStatus["legacy"] != "unavailable" {
+		t.Fatalf("archived body=%s", rr.Body.String())
+	}
+	if _, ok := loadGobRedArchive(date); ok {
+		t.Fatal("read-only historical replay must not create a realtime snapshot")
+	}
+}
+
+func TestGobRedArchivedPrefersRealtimeSnapshotToDailyReplay(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	bars := append(gobRedTestBarsA(), dailyBar{Date: date, Open: 8, High: 8.4, Low: 7.9, Close: 8.2})
+	if err := saveT0DailyCache(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": bars}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveGobRedArchive(&gobRedArchive{Date: date, EntrySource: "realtime_open", Complete: true,
+		Results: []T0SelectionResult{{Time: date, StockCode: "600101.XSHG", StockName: "独立形态",
+			RedRuleHits: []T0RedRuleHit{{Key: "old_rule_v1", Version: 1, Name: "旧版", EntryOpen: 8.1,
+				EntrySource: "realtime_open", ExitHorizon: "T+1_close"}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.red_strategy&archived=1&date="+date, nil))
+	var body struct {
+		Count        int                 `json:"count"`
+		SourceStatus map[string]string   `json:"source_status"`
+		Results      []T0SelectionResult `json:"results"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Count != 1 || body.Results[0].RedRuleHits[0].Key != "old_rule_v1" ||
+		body.Results[0].RedRuleHits[0].EntryOpen != 8.1 || body.SourceStatus["gob"] != "realtime_open" {
+		t.Fatalf("snapshot not preserved: %s", rr.Body.String())
+	}
+}
+
+func TestGobRedArchivedMarksIncompleteSourceWithoutFakeTotal(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.red_strategy&archived=1&date="+date, nil))
+	var body struct {
+		DataIncomplete bool              `json:"data_incomplete"`
+		SourceStatus   map[string]string `json:"source_status"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !body.DataIncomplete || body.SourceStatus["gob"] != "unavailable" || body.SourceStatus["legacy"] != "unavailable" {
+		t.Fatalf("missing sources looked complete: %s", rr.Body.String())
+	}
+}
+
+func TestGobRedFormalSelectionArchivesWithoutRedPageDependency(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	oldQuotes := gobRedOpeningQuoteBuilder
+	gobRedOpeningQuoteBuilder = func(_ string, _ []t0Stock, _ map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning) {
+		return map[string]t0Realtime{"600101": {Open: 8, PrevClose: 8.424}}, "realtime_open", nil
+	}
+	t.Cleanup(func() { gobRedOpeningQuoteBuilder = oldQuotes })
+	date := time.Now().In(chinaLocation()).Format("2006-01-02")
+	results, warnings := selectGobRedFromPool(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()})
+	if len(results) != 1 || len(warnings) != 0 {
+		t.Fatalf("formal selection results=%+v warnings=%+v", results, warnings)
+	}
+	snapshot, ok := loadGobRedArchive(date)
+	if !ok || !snapshot.Complete || snapshot.EntrySource != "realtime_open" || len(snapshot.Results) != 1 {
+		t.Fatalf("formal selection did not archive independent rule: %+v ok=%v", snapshot, ok)
+	}
+	if _, err := os.Stat(t0SelectionCachePath(date)); !os.IsNotExist(err) {
+		t.Fatalf("formal Gob selection unexpectedly touched main archive: %v", err)
+	}
+}
+
+func TestGobRedRuleRejectsStalePreviousBarWhenPoolHasNewerTradingDay(t *testing.T) {
+	date := "2026-09-29"
+	stocks := []t0Stock{
+		{Code: "sh.600101", ShortCode: "600101", Name: "停牌旧K线"},
+		{Code: "sh.600102", ShortCode: "600102", Name: "正常交易股"},
+	}
+	daily := map[string][]dailyBar{
+		"600101": gobRedTestBarsA(),
+		"600102": {{Date: "2026-09-28", Open: 10, High: 10, Low: 10, Close: 10}},
+	}
+	got, _ := matchGobRedRules(date, stocks, daily,
+		map[string]t0Realtime{"600101": {Open: 8, PrevClose: 8.424}},
+		"realtime_open", approvedGobRedRules())
+	if len(got) != 0 {
+		t.Fatalf("stale T-1 bar became a current entry: %+v", got)
+	}
+}
+
+func TestGobRedDateListIncludesIndependentGobDay(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2024-01-02"
+	if err := saveT0DailyCache(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
+		map[string][]dailyBar{"600101": gobRedTestBarsA()}); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handleT0Selection(rr, httptest.NewRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.red_strategy&list_dates=1", nil))
+	var body struct {
+		Dates []string `json:"dates"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(body.Dates, []string{date}) {
+		t.Fatalf("red available dates=%v, want Gob day %s", body.Dates, date)
+	}
+}
+
+func TestGobRedDateListRequiresRedModulePermission(t *testing.T) {
+	auth := newTestAuthService(t)
+	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
+	rr := httptest.NewRecorder()
+	newHTTPHandler(auth.AuthService).ServeHTTP(rr, authHTTPRequest(http.MethodGet,
+		"/api/t0-selection?module_code=radar.red_strategy&list_dates=1", user.AccessToken, ""))
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("ungranted user read red dates: %d %s", rr.Code, rr.Body.String())
 	}
 }

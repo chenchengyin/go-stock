@@ -254,6 +254,44 @@ func buildGobRedOpeningQuotes(
 	return quotes, "daily_open", nil
 }
 
+var gobRedOpeningQuoteBuilder = buildGobRedOpeningQuotes
+
+func selectGobRedFromPool(
+	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar,
+) ([]T0SelectionResult, []t0DataWarning) {
+	rules := approvedGobRedRules()
+	candidates := buildGobRedPreopenCandidates(tradeDate, stocks, daily, rules)
+	candidateStocks := resultsToT0Stocks(candidates)
+	quotes, source, quoteWarning := gobRedOpeningQuoteBuilder(tradeDate, candidateStocks, daily)
+	results, status := matchGobRedRules(tradeDate, candidateStocks, daily, quotes, source, rules)
+	var warnings []t0DataWarning
+	if dailyWarning := buildT0DailyCacheWarning(stocks, daily); dailyWarning != nil {
+		warnings = append(warnings, *dailyWarning)
+	}
+	if quoteWarning != nil {
+		warnings = append(warnings, *quoteWarning)
+	}
+	if status.MissingOpen > 0 || status.UnknownLimit > 0 {
+		warnings = append(warnings, t0DataWarning{
+			Code: "RED_GOB_ENTRY_INCOMPLETE", Phase: "red_entry", Source: source,
+			Message: fmt.Sprintf("红策独立形态缺少确认开盘%d只、涨跌停口径不明%d只",
+				status.MissingOpen, status.UnknownLimit),
+			Missing: status.MissingOpen + status.UnknownLimit,
+		})
+	}
+	if source == "realtime_open" && tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+		if err := saveGobRedArchive(&gobRedArchive{
+			Date: tradeDate, EntrySource: source, Complete: len(warnings) == 0, Results: results,
+		}); err != nil {
+			warnings = append(warnings, t0DataWarning{
+				Code: "RED_GOB_ARCHIVE_FAILED", Phase: "red_archive", Source: source,
+				Message: "红策独立形态未归档: " + err.Error(),
+			})
+		}
+	}
+	return results, warnings
+}
+
 type t0ModuleSelectionContext struct {
 	TradeDate   string
 	Daily       map[string][]dailyBar

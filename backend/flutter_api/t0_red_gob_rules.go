@@ -34,6 +34,21 @@ type gobRedMatchStatus struct {
 	UnknownLimit   int
 }
 
+func latestGobPriorDate(tradeDate string, daily map[string][]dailyBar) string {
+	latest := ""
+	for _, bars := range daily {
+		for i := len(bars) - 1; i >= 0; i-- {
+			if bars[i].Date < tradeDate {
+				if bars[i].Date > latest {
+					latest = bars[i].Date
+				}
+				break
+			}
+		}
+	}
+	return latest
+}
+
 func approvedGobRedRules() []redGobRule {
 	return []redGobRule{
 		{
@@ -113,6 +128,7 @@ func matchGobRedRules(
 ) ([]T0SelectionResult, gobRedMatchStatus) {
 	results := make([]T0SelectionResult, 0)
 	var status gobRedMatchStatus
+	priorDate := latestGobPriorDate(tradeDate, daily)
 	for _, stock := range stocks {
 		bars := daily[stock.ShortCode]
 		end := 0
@@ -120,7 +136,7 @@ func matchGobRedRules(
 			end++
 		}
 		hist := bars[:end]
-		if len(hist) < 5 {
+		if len(hist) < 5 || hist[len(hist)-1].Date != priorDate {
 			status.MissingHistory++
 			continue
 		}
@@ -188,6 +204,7 @@ func buildGobRedPreopenCandidates(
 	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar, rules []redGobRule,
 ) []T0SelectionResult {
 	results := make([]T0SelectionResult, 0)
+	priorDate := latestGobPriorDate(tradeDate, daily)
 	for _, stock := range stocks {
 		bars := daily[stock.ShortCode]
 		end := 0
@@ -195,7 +212,7 @@ func buildGobRedPreopenCandidates(
 			end++
 		}
 		hist := bars[:end]
-		if len(hist) < 5 || hist[len(hist)-1].Close <= 0 {
+		if len(hist) < 5 || hist[len(hist)-1].Close <= 0 || hist[len(hist)-1].Date != priorDate {
 			continue
 		}
 		var hits []T0RedRuleHit

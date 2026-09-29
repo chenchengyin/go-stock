@@ -2054,12 +2054,12 @@ type t0SelectionModuleCodeContextKey struct{}
 func newT0SelectionHandler(moduleService *ModuleService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		if isTruthyQuery(q.Get("list_dates")) {
+		moduleCode := strings.TrimSpace(q.Get("module_code"))
+		if isTruthyQuery(q.Get("list_dates")) && moduleCode != redT0StrategyModuleCode {
 			handleT0Selection(w, r)
 			return
 		}
 
-		moduleCode := strings.TrimSpace(q.Get("module_code"))
 		if err := validateT0ModuleCode(moduleCode); err != nil {
 			WriteAuthError(w, err)
 			return
@@ -2295,8 +2295,12 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	moduleCode := t0SelectionModuleCode(r)
 	// list_dates：返回所有有效选股归档日期（降序）
 	if isTruthyQuery(q.Get("list_dates")) {
+		dates := listSelectionArchiveDates()
+		if moduleCode == redT0StrategyModuleCode {
+			dates = listGobRedAvailableDates()
+		}
 		WriteJSON(w, map[string]interface{}{
-			"dates": listSelectionArchiveDates(),
+			"dates": dates,
 		})
 		return
 	}
@@ -2336,6 +2340,10 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 
 	// archived 优先
 	if isTruthyQuery(q.Get("archived")) {
+		if moduleCode == redT0StrategyModuleCode {
+			handleArchivedGobRedSelection(w, tradeDate)
+			return
+		}
 		a, ok := loadT0SelectionArchive(tradeDate)
 		if !ok {
 			WriteJSON(w, map[string]interface{}{
@@ -2485,10 +2493,17 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	)
 	results, stocks, daily, warnings, err = runT0SelectionWithDaily(tradeDate)
 	mainEmpty := err == errT0NoMainTurnover || err == errT0NoMainOpenGap
+	var independent []T0SelectionResult
+	var redWarnings []t0DataWarning
+	if len(stocks) > 0 && (moduleCode == redT0StrategyModuleCode ||
+		tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02")) {
+		independent, redWarnings = selectGobRedFromPool(tradeDate, stocks, daily)
+	}
 	if (err == nil || (moduleCode == redT0StrategyModuleCode && mainEmpty)) && isT0DailyContextModule(moduleCode) {
 		selectionContext = &t0ModuleSelectionContext{
-			TradeDate: tradeDate,
-			Daily:     daily,
+			TradeDate:   tradeDate,
+			Daily:       daily,
+			Independent: independent,
 		}
 	}
 	if err != nil && !(moduleCode == redT0StrategyModuleCode && mainEmpty) {
@@ -2502,26 +2517,6 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, response)
 		return
 	}
-	if moduleCode == redT0StrategyModuleCode {
-		candidates := buildGobRedPreopenCandidates(tradeDate, stocks, daily, approvedGobRedRules())
-		quotes, source, quoteWarning := buildGobRedOpeningQuotes(
-			tradeDate, resultsToT0Stocks(candidates), daily)
-		if quoteWarning != nil {
-			warnings = append(warnings, *quoteWarning)
-		}
-		var status gobRedMatchStatus
-		selectionContext.Independent, status = matchGobRedRules(
-			tradeDate, resultsToT0Stocks(candidates), daily, quotes, source, approvedGobRedRules())
-		if status.MissingOpen > 0 || status.UnknownLimit > 0 {
-			warnings = append(warnings, t0DataWarning{
-				Code: "RED_GOB_ENTRY_INCOMPLETE", Phase: "red_entry", Source: source,
-				Message: fmt.Sprintf("红策独立形态缺少确认开盘%d只、涨跌停口径不明%d只",
-					status.MissingOpen, status.UnknownLimit),
-				Missing: status.MissingOpen + status.UnknownLimit,
-			})
-		}
-	}
-
 	if err == nil {
 		if saveErr := saveT0SelectionArchive(tradeDate, results, forceSave); saveErr != nil {
 			logger.SugaredLogger.Warnf("[T0选股] 结果归档写入失败: %v", saveErr)
@@ -2530,6 +2525,10 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	if moduleCode == redT0StrategyModuleCode {
 		response := map[string]interface{}{
 			"date": tradeDate, "count": len(results), "results": results,
+		}
+		warnings = append(warnings, redWarnings...)
+		if len(warnings) > 0 {
+			response["data_incomplete"] = true
 		}
 		attachT0DataWarnings(response, warnings)
 		writeScopedT0ResponseWithContext(w, moduleCode, response, selectionContext, "results")
