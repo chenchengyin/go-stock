@@ -1179,11 +1179,13 @@ func TestGobRedDateListIncludesIndependentGobDay(t *testing.T) {
 func TestGobRedDateListRequiresRedModulePermission(t *testing.T) {
 	auth := newTestAuthService(t)
 	user := authHTTPRegisterUser(t, auth, "13800000000", "Alice", "device-a")
-	rr := httptest.NewRecorder()
-	newHTTPHandler(auth.AuthService).ServeHTTP(rr, authHTTPRequest(http.MethodGet,
-		"/api/t0-selection?module_code=radar.red_strategy&list_dates=1", user.AccessToken, ""))
-	if rr.Code != http.StatusForbidden {
-		t.Fatalf("ungranted user read red dates: %d %s", rr.Code, rr.Body.String())
+	for _, query := range []string{"list_dates=1", "archived=1&date=2026-09-14", "prewarm=1&date=2026-09-14", "date=2026-09-14"} {
+		rr := httptest.NewRecorder()
+		newHTTPHandler(auth.AuthService).ServeHTTP(rr, authHTTPRequest(http.MethodGet,
+			"/api/t0-selection?module_code=radar.red_strategy&"+query, user.AccessToken, ""))
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("ungranted user read red %s: %d %s", query, rr.Code, rr.Body.String())
+		}
 	}
 }
 

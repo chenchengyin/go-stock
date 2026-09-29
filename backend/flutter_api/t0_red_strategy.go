@@ -299,7 +299,7 @@ type t0ModuleSelectionContext struct {
 }
 
 func mergeGobRedResults(legacy, independent []T0SelectionResult) []T0SelectionResult {
-	merged := append([]T0SelectionResult(nil), legacy...)
+	merged := append([]T0SelectionResult{}, legacy...)
 	byCode := make(map[string]int, len(merged))
 	for i, result := range merged {
 		byCode[result.StockCode] = i

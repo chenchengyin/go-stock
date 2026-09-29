@@ -25,14 +25,15 @@ type GobRedReplayCase struct {
 }
 
 type GobRedReplayCoverage struct {
-	Dates              int               `json:"dates"`
-	PoolDays           int               `json:"pool_days"`
-	CompleteDays       int               `json:"complete_days"`
-	MissingDailyStocks int               `json:"missing_daily_stocks"`
-	Matched            int               `json:"matched"`
-	Observed           int               `json:"observed"`
-	MissingT1          int               `json:"missing_t1"`
-	Rejected           map[string]string `json:"rejected,omitempty"`
+	Dates                int               `json:"dates"`
+	PoolDays             int               `json:"pool_days"`
+	CompleteDays         int               `json:"complete_days"`
+	MissingDailyStocks   int               `json:"missing_daily_stocks"`
+	Matched              int               `json:"matched"`
+	Observed             int               `json:"observed"`
+	MissingT1            int               `json:"missing_t1"`
+	MissingNextCacheDays int               `json:"missing_next_cache_days"`
+	Rejected             map[string]string `json:"rejected,omitempty"`
 }
 
 func readGobRedReplayCache(path, date string) (*t0DailyCachePayload, error) {
@@ -122,6 +123,9 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 			nextDate = dates[i+1]
 			next, _ = readGobRedReplayCache(filepath.Join(dir, prefix+nextDate+suffix), nextDate)
 		}
+		if next == nil && len(results) > 0 {
+			coverage.MissingNextCacheDays++
+		}
 		for _, result := range results {
 			code := t0ShortCodeFromResultCode(result.StockCode)
 			var nextClose float64
@@ -151,7 +155,7 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 		}
 	}
 	dataVersion := fmt.Sprintf("gob-schema-%d-red-v1", t0DailyCacheSchemaVersion)
-	if coverage.CompleteDays != coverage.Dates {
+	if coverage.CompleteDays != coverage.Dates || coverage.MissingNextCacheDays > 0 {
 		dataVersion = "gob-mixed-legacy-red-v1"
 	}
 	stats := aggregateGobRedRuleStats(samples, start, end, dataVersion, batchID)
@@ -254,6 +258,8 @@ func saveGobRedRuleStats(dao *gorm.DB, stats []models.T0RedRuleStat) error {
 		if stat.Status != "verified" || stat.SampleCount <= 0 {
 			return fmt.Errorf("红策规则统计未核验，拒绝写入: %s", stat.RuleKey)
 		}
+	}
+	for _, stat := range stats {
 		stat.UpdatedAt = time.Now()
 		if err := dao.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "rule_key"}, {Name: "rule_version"}, {Name: "entry_source"},

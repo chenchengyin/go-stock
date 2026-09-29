@@ -45,6 +45,71 @@ class T0ReferenceHit {
   }
 }
 
+class T0RedRuleStats {
+  final int sampleCount;
+  final double profitWinRate;
+  final double targetRate;
+  final String dateStart;
+  final String dateEnd;
+  final String entrySource;
+  final String exitHorizon;
+
+  const T0RedRuleStats({
+    required this.sampleCount,
+    required this.profitWinRate,
+    required this.targetRate,
+    required this.dateStart,
+    required this.dateEnd,
+    required this.entrySource,
+    required this.exitHorizon,
+  });
+
+  factory T0RedRuleStats.fromJson(Map<String, dynamic> json) => T0RedRuleStats(
+    sampleCount: (json['sample_count'] as num?)?.toInt() ?? 0,
+    profitWinRate: (json['profit_win_rate'] as num?)?.toDouble() ?? 0,
+    targetRate: (json['target_rate'] as num?)?.toDouble() ?? 0,
+    dateStart: json['date_start'] as String? ?? '',
+    dateEnd: json['date_end'] as String? ?? '',
+    entrySource: json['entry_source'] as String? ?? '',
+    exitHorizon: json['exit_horizon'] as String? ?? '',
+  );
+}
+
+class T0RedRuleHit {
+  final String ruleKey;
+  final int ruleVersion;
+  final String name;
+  final String exitHorizon;
+  final String entrySource;
+  final String statsStatus;
+  final T0RedRuleStats? stats;
+
+  const T0RedRuleHit({
+    required this.ruleKey,
+    required this.ruleVersion,
+    required this.name,
+    required this.exitHorizon,
+    required this.entrySource,
+    required this.statsStatus,
+    this.stats,
+  });
+
+  factory T0RedRuleHit.fromJson(Map<String, dynamic> json) {
+    final rawStats = json['stats'];
+    return T0RedRuleHit(
+      ruleKey: json['rule_key'] as String? ?? '',
+      ruleVersion: (json['rule_version'] as num?)?.toInt() ?? 0,
+      name: json['name'] as String? ?? '',
+      exitHorizon: json['exit_horizon'] as String? ?? '',
+      entrySource: json['entry_source'] as String? ?? '',
+      statsStatus: json['stats_status'] as String? ?? 'pending',
+      stats: rawStats is Map
+          ? T0RedRuleStats.fromJson(Map<String, dynamic>.from(rawStats))
+          : null,
+    );
+  }
+}
+
 /// T0 选股结果单条数据
 class T0StrategyStock {
   final String stockCode;
@@ -70,6 +135,7 @@ class T0StrategyStock {
   final bool techBlueDisplayRuleHit; // 科技蓝命中，股票名称显示蓝色
   final bool strongDisplayRuleHit; // 显式深红候选命中（含旧两连涨停条件）
   final List<T0ReferenceHit> t0ReferenceHits;
+  final List<T0RedRuleHit> redRuleHits;
   final String t0ReferenceTier;
   final double t0ReferenceWinPct;
   final int t0ReferenceSamples;
@@ -101,6 +167,7 @@ class T0StrategyStock {
     this.techBlueDisplayRuleHit = false,
     this.strongDisplayRuleHit = false,
     this.t0ReferenceHits = const [],
+    this.redRuleHits = const [],
     this.t0ReferenceTier = '',
     this.t0ReferenceWinPct = 0,
     this.t0ReferenceSamples = 0,
@@ -123,6 +190,14 @@ class T0StrategyStock {
                 .toList(),
           )
         : const <T0ReferenceHit>[];
+    final rawRedRuleHits = json['红策独立形态命中'];
+    final redRuleHits = rawRedRuleHits is List
+        ? List<T0RedRuleHit>.unmodifiable(
+            rawRedRuleHits.whereType<Map>().map(
+              (item) => T0RedRuleHit.fromJson(Map<String, dynamic>.from(item)),
+            ),
+          )
+        : const <T0RedRuleHit>[];
     return T0StrategyStock(
       stockCode: json['股票代码'] as String? ?? '',
       stockName: json['股票名称'] as String? ?? '',
@@ -147,6 +222,7 @@ class T0StrategyStock {
           (json['科技蓝'] as bool?) ?? (json['强势连板'] as bool? ?? false),
       strongDisplayRuleHit: json['重点标红'] as bool? ?? false,
       t0ReferenceHits: referenceHits,
+      redRuleHits: redRuleHits,
       t0ReferenceTier: json['T0参考最高等级'] as String? ?? '',
       t0ReferenceWinPct: (json['T0参考严格胜率(%)'] as num?)?.toDouble() ?? 0.0,
       t0ReferenceSamples: (json['T0参考样本数'] as num?)?.toInt() ?? 0,
@@ -185,6 +261,7 @@ class T0StrategyStock {
       techBlueDisplayRuleHit: techBlueDisplayRuleHit,
       strongDisplayRuleHit: strongDisplayRuleHit,
       t0ReferenceHits: t0ReferenceHits,
+      redRuleHits: redRuleHits,
       t0ReferenceTier: t0ReferenceTier,
       t0ReferenceWinPct: t0ReferenceWinPct,
       t0ReferenceSamples: t0ReferenceSamples,
@@ -254,6 +331,7 @@ class T0ModuleState {
     required this.noData,
     required this.dataWarningMessage,
     required this.dataWarningKey,
+    required this.dataIncomplete,
   });
 
   final List<T0StrategyStock> results;
@@ -270,6 +348,7 @@ class T0ModuleState {
   final bool noData;
   final String? dataWarningMessage;
   final String? dataWarningKey;
+  final bool dataIncomplete;
 
   bool get showingCandidatePreview => phase == T0StrategyPhase.candidatePreview;
 
@@ -296,6 +375,7 @@ class _MutableT0ModuleState {
   bool noData = false;
   String? dataWarningMessage;
   String? dataWarningKey;
+  bool dataIncomplete = false;
   int purpleMinSamples = t0PurpleDefaultMinSamples;
   double purpleMinEarnPct = t0PurpleDefaultMinEarnPct;
   int loadGeneration = 0;
@@ -349,6 +429,7 @@ class T0StrategyViewModel extends ChangeNotifier {
       noData: state.noData,
       dataWarningMessage: state.dataWarningMessage,
       dataWarningKey: state.dataWarningKey,
+      dataIncomplete: state.dataIncomplete,
     );
   }
 
@@ -726,6 +807,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   ) {
     final state = _mutableState(moduleCode);
     state.loaded = true;
+    state.dataIncomplete = data['data_incomplete'] as bool? ?? false;
     _applyDataWarning(state, data, date);
     _applyPurpleFilterConfig(state, data);
     final noData = data['no_data'] as bool? ?? false;

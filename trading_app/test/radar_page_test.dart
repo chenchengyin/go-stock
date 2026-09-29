@@ -363,6 +363,98 @@ void main() {
     disposeVms();
   });
 
+  testWidgets('红策独立形态显示T+1口径且不借用旧T0胜率', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = RadarViewModel(RadarRepositoryImpl());
+    final strategyVm = _NoNetworkT0StrategyViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      radarVm.dispose();
+      strategyVm.dispose();
+      voiceVm.dispose();
+    }
+
+    addTearDown(disposeVms);
+    strategyVm.applyResponseForTest({
+      'date': '2026-09-14',
+      'data_incomplete': true,
+      'results': [
+        {
+          '股票代码': '600101.XSHG',
+          '股票名称': '双命中股',
+          '命中条件': ['中阴→跌停→跌停后低开', '另一形态'],
+          '形态达标率(%)': 88,
+          'T0参考形态命中': [
+            {
+              'rule_key': 'old_t0',
+              'name': '旧T0形态',
+              'research_tier': 'A',
+              'strict_win_rate': 70,
+              'target_rate': 55,
+              'earn_rate': 80,
+              'sample_count': 20,
+              'manual_rank': 1,
+            },
+          ],
+          '红策独立形态命中': [
+            {
+              'rule_key': 'gob_myin_dt_dt_v1',
+              'rule_version': 1,
+              'name': '中阴→跌停→跌停后低开',
+              'entry_source': 'daily_open',
+              'exit_horizon': 'T+1_close',
+              'stats_status': 'pending',
+            },
+            {
+              'rule_key': 'test_second_v1',
+              'rule_version': 1,
+              'name': '另一形态',
+              'entry_source': 'daily_open',
+              'exit_horizon': 'T+1_close',
+              'stats_status': 'verified',
+              'stats': {
+                'sample_count': 12,
+                'profit_win_rate': 75,
+                'target_rate': 50,
+                'date_start': '2024-01-02',
+                'date_end': '2026-09-21',
+                'entry_source': 'daily_open',
+                'exit_horizon': 'T+1_close',
+              },
+            },
+          ],
+        },
+      ],
+    }, moduleCode: t0RedStrategyModuleCode);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('红策(1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('双命中股'), findsOneWidget);
+    expect(find.text('中阴→跌停→跌停后低开 · T+1收盘 统计待核验'), findsOneWidget);
+    expect(find.text('另一形态 · T+1收盘 真赚75.0% · 12例'), findsOneWidget);
+    expect(find.text('旧T0形态 55/80/20'), findsOneWidget);
+    expect(find.text('红策数据不完整，仅显示已确认命中；列表数量不是完整统计'), findsOneWidget);
+    disposeVms();
+  });
+
   testWidgets('紫策可浏览两个月内归档交易日且不影响主板策略', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());

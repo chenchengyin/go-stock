@@ -445,6 +445,61 @@ void main() {
     expect(stock.t0ReferenceHits.single.earnRate, 80);
   });
 
+  test('parses independent red T+1 hits without borrowing legacy T0 rates', () {
+    final stock = T0StrategyStock.fromJson({
+      '股票代码': '600101.XSHG',
+      '形态达标率(%)': 88,
+      '红策独立形态命中': [
+        {
+          'rule_key': 'gob_myin_dt_dt_v1',
+          'rule_version': 1,
+          'name': '中阴→跌停→跌停后低开',
+          'entry_source': 'daily_open',
+          'exit_horizon': 'T+1_close',
+          'stats_status': 'pending',
+        },
+        {
+          'rule_key': 'test_second_v1',
+          'rule_version': 1,
+          'name': '另一形态',
+          'entry_source': 'daily_open',
+          'exit_horizon': 'T+1_close',
+          'stats_status': 'verified',
+          'stats': {
+            'sample_count': 12,
+            'profit_win_rate': 75,
+            'target_rate': 50,
+            'date_start': '2024-01-02',
+            'date_end': '2026-09-21',
+            'entry_source': 'daily_open',
+            'exit_horizon': 'T+1_close',
+          },
+        },
+      ],
+    });
+    expect(stock.redRuleHits.length, 2);
+    expect(stock.redRuleHits.first.stats, isNull);
+    expect(stock.redRuleHits.first.statsStatus, 'pending');
+    expect(stock.redRuleHits.last.stats?.sampleCount, 12);
+    expect(stock.redRuleHits.last.stats?.profitWinRate, 75);
+    expect(stock.t0ReferenceHits, isEmpty);
+    expect(
+      T0StrategyStock.fromJson({'股票代码': '600000.XSHG'}).redRuleHits,
+      isEmpty,
+    );
+  });
+
+  test('red response preserves incomplete-source status', () {
+    final vm = T0StrategyViewModel();
+    addTearDown(vm.dispose);
+    vm.applyResponseForTest({
+      'date': '2024-02-06',
+      'data_incomplete': true,
+      'results': <dynamic>[],
+    }, moduleCode: t0RedStrategyModuleCode);
+    expect(vm.stateFor(t0RedStrategyModuleCode).dataIncomplete, isTrue);
+  });
+
   test('parses display rule hits and exposes the red display state', () {
     final s = T0StrategyStock.fromJson({
       '股票代码': '600001.XSHG',

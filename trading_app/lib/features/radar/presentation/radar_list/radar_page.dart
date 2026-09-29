@@ -1123,6 +1123,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildStrategyDateBar(vm, moduleCode: moduleCode, kind: kind),
+                if (kind == _StrategyListKind.red && state.dataIncomplete)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      '红策数据不完整，仅显示已确认命中；列表数量不是完整统计',
+                      style: TextStyle(fontSize: 12, color: AppColors.warning),
+                    ),
+                  ),
                 Expanded(
                   child: stocks.isEmpty
                       ? Center(
@@ -1305,6 +1316,64 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildRedRuleChips(T0StrategyStock stock) {
+    if (stock.redRuleHits.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: stock.redRuleHits.map((hit) {
+        final stats = hit.stats;
+        final verified =
+            hit.statsStatus == 'verified' &&
+            stats != null &&
+            stats.sampleCount > 0 &&
+            stats.entrySource == hit.entrySource &&
+            stats.exitHorizon == hit.exitHorizon;
+        final horizon = hit.exitHorizon == 'T+1_close'
+            ? 'T+1收盘'
+            : hit.exitHorizon;
+        final source = hit.entrySource == 'daily_open'
+            ? '日线开盘代理'
+            : hit.entrySource == 'realtime_open'
+            ? '实时确认开盘'
+            : '待竞价';
+        final label = hit.statsStatus == 'preopen'
+            ? '${hit.name} · 待竞价'
+            : verified
+            ? '${hit.name} · $horizon 真赚${stats.profitWinRate.toStringAsFixed(1)}% · ${stats.sampleCount}例'
+            : '${hit.name} · $horizon 统计待核验';
+        final message = verified
+            ? '形态：${hit.name}\n评判：$horizon\n入场：$source\n'
+                  '真赚率：${stats.profitWinRate.toStringAsFixed(1)}%\n'
+                  '达标率：${stats.targetRate.toStringAsFixed(1)}%\n'
+                  '样本数：${stats.sampleCount}\n覆盖：${stats.dateStart}～${stats.dateEnd}'
+            : '形态：${hit.name}\n评判：$horizon\n入场：$source\n'
+                  '${hit.statsStatus == 'preopen' ? '待竞价确认' : '统计待核验'}';
+        return Tooltip(
+          message: message,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.tagRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: AppColors.tagRed.withValues(alpha: 0.28),
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: verified ? AppColors.tagRed : AppColors.textTertiary,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildStrategyCard(
     T0StrategyStock stock, {
     bool preview = false,
@@ -1367,6 +1436,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       ),
       _buildBuySignalChip(stock),
       _buildReferenceRuleChips(stock),
+      if (kind == _StrategyListKind.red) _buildRedRuleChips(stock),
       _buildStockRatingChip(stock),
       if (kind == _StrategyListKind.gold)
         Text(
@@ -1424,7 +1494,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           builder: (context, constraints) {
             final leadingItems = buildLeadingItems();
             final trailingItems = buildTrailingItems();
-            if (constraints.maxWidth < 680) {
+            if (constraints.maxWidth < 680 ||
+                (kind == _StrategyListKind.red &&
+                    stock.redRuleHits.isNotEmpty)) {
               return Wrap(
                 spacing: 6,
                 runSpacing: 4,
