@@ -365,6 +365,7 @@ func newUserHTTPHandler(authService *AuthService, moduleService *ModuleService, 
 	mux.HandleFunc("/api/news/domestic", handleGetDomesticNews)
 	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)
 	mux.HandleFunc("/api/kline", handleGetKLine)
+	mux.Handle("/api/t0-red/kline-window", newRedKlineHandler(moduleService))
 	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)

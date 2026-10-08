@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_manager.dart';
+import '../../../core/storage/red_kline_settings.dart';
 import '../../../core/utils/stock_launcher.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
@@ -45,6 +46,24 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('保存失败'),
         content: const Text('同花顺打开方式未能保存，请稍后重试。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('知道了'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setRedKlineEnabled(bool enabled) async {
+    final saved = await context.read<RedKlineSettings>().setEnabled(enabled);
+    if (!mounted || saved) return;
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('保存失败'),
+        content: const Text('红策K线开关未能保存，请稍后重试。'),
         actions: [
           CupertinoDialogAction(
             child: const Text('知道了'),
@@ -131,6 +150,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
     final tm = context.watch<ThemeManager>();
+    final redKline = context.watch<RedKlineSettings>();
     final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
     AppColors.of(context);
 
@@ -168,6 +188,17 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                           title: '数据刷新频率',
                           subtitle: '30秒/60秒/120秒',
                           showDivider: true,
+                        ),
+                        _SettingsItem(
+                          icon: CupertinoIcons.chart_bar,
+                          title: '红策K线图',
+                          subtitle: '在红策股票下展示前60根及后续最多5根日K',
+                          showDivider: true,
+                          onTap: () => _setRedKlineEnabled(!redKline.enabled),
+                          trailing: CupertinoSwitch(
+                            value: redKline.enabled,
+                            onChanged: _setRedKlineEnabled,
+                          ),
                         ),
                         if (isMacOS)
                           _SettingsItem(

@@ -7,6 +7,8 @@ import 'package:dio/dio.dart';
 import 'package:trading_app/core/network/api_client.dart';
 import 'package:trading_app/core/storage/local_cache.dart';
 import 'package:trading_app/core/theme/theme_manager.dart';
+import 'package:trading_app/core/storage/red_kline_settings.dart';
+import 'package:trading_app/features/radar/data/red_kline_repository.dart';
 import 'package:trading_app/features/auth/data/auth_repository.dart';
 import 'package:trading_app/features/auth/data/auth_storage.dart';
 import 'package:trading_app/features/auth/data/session_controller.dart';
@@ -37,6 +39,7 @@ class AppDependencies extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeManager()..restore()),
+        ChangeNotifierProvider(create: (_) => RedKlineSettings()..restore()),
         ChangeNotifierProvider<SessionController>(
           create: (_) => AuthSessionController(authStorage),
         ),
@@ -85,6 +88,9 @@ class AuthenticatedDependencies extends StatelessWidget {
                 ..load(),
         ),
         Provider<RadarRepository>(create: (_) => RadarRepositoryImpl(dio: dio)),
+        Provider<RedKlineRepository>(
+          create: (_) => RedKlineRepository(dio: dio),
+        ),
         ChangeNotifierProvider(
           create: (context) =>
               RadarViewModel(context.read<RadarRepository>())

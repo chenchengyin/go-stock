@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
+import 'package:trading_app/core/storage/red_kline_settings.dart';
+import 'package:trading_app/features/radar/data/red_kline_repository.dart';
 import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/domain/t0_close_target_monitor.dart';
@@ -17,6 +19,7 @@ import 't0_strategy_view_model.dart';
 import 'radar_module_definitions.dart';
 import 'search_results_panel.dart';
 import 'stock_rating_store.dart';
+import 'red_kline_preview.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 
@@ -427,10 +430,14 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         );
       case RadarContentKind.redStrategy:
         return Consumer<T0StrategyViewModel>(
-          builder: (_, vm, __) => _buildStrategyTab(
+          builder: (ctx, vm, __) => _buildStrategyTab(
             vm,
             moduleCode: module.code,
             kind: _StrategyListKind.red,
+            showRedKline:
+                (ctx.watch<RedKlineSettings?>()?.ready ?? false) &&
+                (ctx.read<RedKlineSettings?>()?.enabled ?? false),
+            redKlineRepository: ctx.read<RedKlineRepository?>(),
           ),
         );
       case RadarContentKind.goldStrategy:
@@ -998,6 +1005,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     T0StrategyViewModel vm, {
     required String moduleCode,
     _StrategyListKind kind = _StrategyListKind.main,
+    bool showRedKline = false,
+    RedKlineRepository? redKlineRepository,
   }) {
     final state = vm.stateFor(moduleCode);
     final stocks = switch (kind) {
@@ -1017,6 +1026,20 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             _StrategyListKind.blue => '暂无蓝色灯股票',
           };
     final wp = state.warmProgress;
+    final chartDate = state.displayDate ?? state.selectedDate;
+    final chartFuture =
+        !state.loading &&
+            wp == null &&
+            state.error == null &&
+            showRedKline &&
+            redKlineRepository != null &&
+            chartDate != null &&
+            stocks.isNotEmpty
+        ? redKlineRepository.load(
+            chartDate,
+            stocks.map((stock) => stock.stockCode).toList(),
+          )
+        : null;
 
     // 预热进度 / 等待中
     if (wp != null) {
@@ -1146,19 +1169,30 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                             ),
                           ),
                         )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          itemCount: stocks.length,
-                          itemBuilder: (_, i) => _buildStrategyCard(
-                            stocks[i],
-                            preview:
-                                state.showingCandidatePreview ||
-                                state.showingTailCandidatePreview,
-                            tailPreview: state.showingTailCandidatePreview,
-                            kind: kind,
+                      : FutureBuilder<Map<String, RedKlineWindow>>(
+                          future: chartFuture,
+                          builder: (_, snapshot) => ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            itemCount: stocks.length,
+                            itemBuilder: (_, i) => _buildStrategyCard(
+                              stocks[i],
+                              preview:
+                                  state.showingCandidatePreview ||
+                                  state.showingTailCandidatePreview,
+                              tailPreview: state.showingTailCandidatePreview,
+                              kind: kind,
+                              redKlineEnabled: chartFuture != null,
+                              redKlineLoading:
+                                  chartFuture != null &&
+                                  snapshot.connectionState !=
+                                      ConnectionState.done,
+                              redKlineWindow:
+                                  snapshot.data?[stocks[i].stockCode],
+                              redKlineError: snapshot.hasError,
+                            ),
                           ),
                         ),
                 ),
@@ -1413,6 +1447,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     bool preview = false,
     bool tailPreview = false,
     required _StrategyListKind kind,
+    bool redKlineEnabled = false,
+    bool redKlineLoading = false,
+    bool redKlineError = false,
+    RedKlineWindow? redKlineWindow,
   }) {
     final openUp = stock.openGap >= 0;
     final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
@@ -1537,35 +1575,47 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.border),
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final leadingItems = buildLeadingItems();
-            final trailingItems = buildTrailingItems();
-            if (constraints.maxWidth < 680 ||
-                (kind == _StrategyListKind.red &&
-                    stock.redRuleHits.isNotEmpty)) {
-              return Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [...leadingItems, ...trailingItems],
-              );
-            }
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final leadingItems = buildLeadingItems();
+                final trailingItems = buildTrailingItems();
+                if (constraints.maxWidth < 680 ||
+                    (kind == _StrategyListKind.red &&
+                        stock.redRuleHits.isNotEmpty)) {
+                  return Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [...leadingItems, ...trailingItems],
+                  );
+                }
 
-            return Row(
-              children: [
-                for (var i = 0; i < leadingItems.length; i++) ...[
-                  leadingItems[i],
-                  if (i < leadingItems.length - 1) const SizedBox(width: 6),
-                ],
-                const Spacer(),
-                for (var i = 0; i < trailingItems.length; i++) ...[
-                  trailingItems[i],
-                  if (i < trailingItems.length - 1) const SizedBox(width: 8),
-                ],
-              ],
-            );
-          },
+                return Row(
+                  children: [
+                    for (var i = 0; i < leadingItems.length; i++) ...[
+                      leadingItems[i],
+                      if (i < leadingItems.length - 1) const SizedBox(width: 6),
+                    ],
+                    const Spacer(),
+                    for (var i = 0; i < trailingItems.length; i++) ...[
+                      trailingItems[i],
+                      if (i < trailingItems.length - 1)
+                        const SizedBox(width: 8),
+                    ],
+                  ],
+                );
+              },
+            ),
+            if (kind == _StrategyListKind.red && redKlineEnabled)
+              RedKlinePreview(
+                window: redKlineWindow,
+                loading: redKlineLoading,
+                error: redKlineError,
+              ),
+          ],
         ),
       ),
     );
