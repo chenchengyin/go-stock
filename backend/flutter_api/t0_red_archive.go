@@ -12,11 +12,51 @@ import (
 )
 
 type gobRedArchive struct {
-	Date        string              `json:"date"`
-	SavedAt     string              `json:"saved_at"`
-	EntrySource string              `json:"entry_source"`
-	Complete    bool                `json:"complete"`
-	Results     []T0SelectionResult `json:"results"`
+	Date           string              `json:"date"`
+	SavedAt        string              `json:"saved_at"`
+	EntrySource    string              `json:"entry_source"`
+	RuleSetVersion string              `json:"rule_set_version,omitempty"`
+	Complete       bool                `json:"complete"`
+	Results        []T0SelectionResult `json:"results"`
+}
+
+type gobRedSellMonitor struct {
+	TradeDate   string  `json:"trade_date"`
+	StockCode   string  `json:"stock_code"`
+	StockName   string  `json:"stock_name"`
+	EntryClose  float64 `json:"entry_close"`
+	TargetPrice float64 `json:"target_price"`
+}
+
+func gobRedSellMonitorsForTradeDate(tradeDate string) []gobRedSellMonitor {
+	entryDate := ""
+	for _, date := range listGobRedAvailableDates() {
+		if date < tradeDate {
+			entryDate = date
+			break
+		}
+	}
+	if entryDate == "" {
+		return nil
+	}
+	archive, ok := loadGobRedArchive(entryDate)
+	if !ok || !archive.Complete || archive.RuleSetVersion != currentGobRedRuleSetVersion() {
+		return nil
+	}
+	monitors := make([]gobRedSellMonitor, 0)
+	for _, result := range archive.Results {
+		for _, hit := range result.RedRuleHits {
+			if hit.Key != "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1" ||
+				hit.Version != 1 || hit.EntryClose <= 0 || hit.TargetPrice <= 0 {
+				continue
+			}
+			monitors = append(monitors, gobRedSellMonitor{
+				TradeDate: entryDate, StockCode: result.StockCode, StockName: result.StockName,
+				EntryClose: hit.EntryClose, TargetPrice: hit.TargetPrice,
+			})
+		}
+	}
+	return monitors
 }
 
 func gobRedArchivePath(tradeDate string) string {
@@ -78,14 +118,27 @@ func saveGobRedArchive(archive *gobRedArchive) error {
 		return fmt.Errorf("红策独立归档日期无效: %q", archive.Date)
 	}
 	if old, ok := loadGobRedArchive(archive.Date); ok {
-		if old.Complete || (!archive.Complete && len(old.Results) >= len(archive.Results)) {
-			return nil
+		if old.RuleSetVersion == currentGobRedRuleSetVersion() {
+			if old.Complete {
+				merged, changed := mergeGobRedArchiveResults(old.Results, archive.Results)
+				if !changed {
+					return nil
+				}
+				copyArchive := *old
+				copyArchive.Results = merged
+				archive = &copyArchive
+			} else if !archive.Complete && len(old.Results) >= len(archive.Results) {
+				return nil
+			}
 		}
 	}
 	if err := ensureT0CacheDirs(); err != nil {
 		return err
 	}
 	copyArchive := *archive
+	if copyArchive.RuleSetVersion == "" {
+		copyArchive.RuleSetVersion = currentGobRedRuleSetVersion()
+	}
 	if copyArchive.SavedAt == "" {
 		copyArchive.SavedAt = time.Now().Format(time.RFC3339)
 	}
@@ -110,6 +163,46 @@ func saveGobRedArchive(archive *gobRedArchive) error {
 		return err
 	}
 	return os.Rename(f.Name(), gobRedArchivePath(archive.Date))
+}
+
+func mergeGobRedArchiveResults(oldResults, newResults []T0SelectionResult) ([]T0SelectionResult, bool) {
+	merged := append([]T0SelectionResult(nil), oldResults...)
+	byCode := make(map[string]int, len(merged))
+	for i, result := range merged {
+		byCode[result.StockCode] = i
+	}
+	changed := false
+	for _, result := range newResults {
+		i, found := byCode[result.StockCode]
+		if !found {
+			byCode[result.StockCode] = len(merged)
+			merged = append(merged, result)
+			changed = true
+			continue
+		}
+		for _, hit := range result.RedRuleHits {
+			foundHit := false
+			for j, existing := range merged[i].RedRuleHits {
+				if existing.Key != hit.Key || existing.Version != hit.Version {
+					continue
+				}
+				foundHit = true
+				if hit.EntryClose > 0 && (existing.EntryClose != hit.EntryClose || existing.TargetPrice != hit.TargetPrice) {
+					merged[i].RedRuleHits[j] = hit
+					changed = true
+				}
+				break
+			}
+			if !foundHit {
+				merged[i].RedRuleHits = append(merged[i].RedRuleHits, hit)
+				changed = true
+			}
+		}
+		if changed {
+			merged[i].DisplayRuleHits = mergeT0DisplayRuleHits(merged[i].DisplayRuleHits, result.DisplayRuleHits)
+		}
+	}
+	return merged, changed
 }
 
 func archivedGobRedResults(tradeDate string) (

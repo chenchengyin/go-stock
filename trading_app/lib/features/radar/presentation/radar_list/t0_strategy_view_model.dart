@@ -1,11 +1,19 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/core/network/api_client.dart';
+import 'package:trading_app/features/radar/domain/t0_close_target_monitor.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
 
 /// 主板策略 UI 态
-enum T0StrategyPhase { historical, waiting, candidatePreview, confirmed }
+enum T0StrategyPhase {
+  historical,
+  waiting,
+  candidatePreview,
+  tailCandidatePreview,
+  confirmed,
+}
 
 typedef T0QuoteFetcher =
     Future<Map<String, Map<String, dynamic>>> Function(List<String> codes);
@@ -13,6 +21,7 @@ typedef T0QuoteFetcher =
 class T0ReferenceHit {
   final String ruleKey;
   final String name;
+  final String description;
   final String researchTier;
   final double strictWinRate;
   final double targetRate;
@@ -23,6 +32,7 @@ class T0ReferenceHit {
   const T0ReferenceHit({
     required this.ruleKey,
     required this.name,
+    this.description = '',
     required this.researchTier,
     required this.strictWinRate,
     this.targetRate = 0,
@@ -35,6 +45,7 @@ class T0ReferenceHit {
     return T0ReferenceHit(
       ruleKey: json['rule_key'] as String? ?? '',
       name: json['name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
       researchTier: json['research_tier'] as String? ?? '',
       strictWinRate: (json['strict_win_rate'] as num?)?.toDouble() ?? 0.0,
       targetRate: (json['target_rate'] as num?)?.toDouble() ?? 0.0,
@@ -79,18 +90,24 @@ class T0RedRuleHit {
   final String ruleKey;
   final int ruleVersion;
   final String name;
+  final String description;
   final String exitHorizon;
   final String entrySource;
   final String statsStatus;
+  final double entryClose;
+  final double targetPrice;
   final T0RedRuleStats? stats;
 
   const T0RedRuleHit({
     required this.ruleKey,
     required this.ruleVersion,
     required this.name,
+    this.description = '',
     required this.exitHorizon,
     required this.entrySource,
     required this.statsStatus,
+    this.entryClose = 0,
+    this.targetPrice = 0,
     this.stats,
   });
 
@@ -100,9 +117,12 @@ class T0RedRuleHit {
       ruleKey: json['rule_key'] as String? ?? '',
       ruleVersion: (json['rule_version'] as num?)?.toInt() ?? 0,
       name: json['name'] as String? ?? '',
+      description: json['description'] as String? ?? '',
       exitHorizon: json['exit_horizon'] as String? ?? '',
       entrySource: json['entry_source'] as String? ?? '',
       statsStatus: json['stats_status'] as String? ?? 'pending',
+      entryClose: (json['entry_close'] as num?)?.toDouble() ?? 0,
+      targetPrice: (json['target_price'] as num?)?.toDouble() ?? 0,
       stats: rawStats is Map
           ? T0RedRuleStats.fromJson(Map<String, dynamic>.from(rawStats))
           : null,
@@ -136,6 +156,9 @@ class T0StrategyStock {
   final bool strongDisplayRuleHit; // 显式深红候选命中（含旧两连涨停条件）
   final List<T0ReferenceHit> t0ReferenceHits;
   final List<T0RedRuleHit> redRuleHits;
+  final T0CloseTargetMonitor? sellMonitor;
+  final double? livePrice;
+  final double? liveOpen;
   final String t0ReferenceTier;
   final double t0ReferenceWinPct;
   final int t0ReferenceSamples;
@@ -168,6 +191,9 @@ class T0StrategyStock {
     this.strongDisplayRuleHit = false,
     this.t0ReferenceHits = const [],
     this.redRuleHits = const [],
+    this.sellMonitor,
+    this.livePrice,
+    this.liveOpen,
     this.t0ReferenceTier = '',
     this.t0ReferenceWinPct = 0,
     this.t0ReferenceSamples = 0,
@@ -236,7 +262,12 @@ class T0StrategyStock {
   bool get hasTechBlueDisplayRuleHit => techBlueDisplayRuleHit;
   bool get hasStrongDisplayRuleHit => strongDisplayRuleHit;
 
-  T0StrategyStock copyWith({double? liveChangePercent}) {
+  T0StrategyStock copyWith({
+    double? liveChangePercent,
+    double? livePrice,
+    double? liveOpen,
+    T0CloseTargetMonitor? sellMonitor,
+  }) {
     return T0StrategyStock(
       stockCode: stockCode,
       stockName: stockName,
@@ -262,6 +293,9 @@ class T0StrategyStock {
       strongDisplayRuleHit: strongDisplayRuleHit,
       t0ReferenceHits: t0ReferenceHits,
       redRuleHits: redRuleHits,
+      sellMonitor: sellMonitor ?? this.sellMonitor,
+      livePrice: livePrice ?? this.livePrice,
+      liveOpen: liveOpen ?? this.liveOpen,
       t0ReferenceTier: t0ReferenceTier,
       t0ReferenceWinPct: t0ReferenceWinPct,
       t0ReferenceSamples: t0ReferenceSamples,
@@ -351,6 +385,8 @@ class T0ModuleState {
   final bool dataIncomplete;
 
   bool get showingCandidatePreview => phase == T0StrategyPhase.candidatePreview;
+  bool get showingTailCandidatePreview =>
+      phase == T0StrategyPhase.tailCandidatePreview;
 
   bool get needsPolling =>
       warmProgress != null &&
@@ -360,11 +396,13 @@ class T0ModuleState {
 class _MutableT0ModuleState {
   List<T0StrategyStock> results = [];
   List<T0StrategyStock> candidates = [];
+  List<T0CloseTargetMonitor> sellMonitors = [];
   bool loading = false;
   String? error;
   T0WarmProgress? warmProgress;
   Timer? pollTimer;
   Timer? quoteTimer;
+  Timer? tailPreviewTimer;
   bool warmUpTriggered = false;
   String? displayDate;
   bool showingHistorical = false;
@@ -403,6 +441,7 @@ class T0StrategyViewModel extends ChangeNotifier {
     t0MainStrategyModuleCode: _MutableT0ModuleState(),
     t0BlueStrategyModuleCode: _MutableT0ModuleState(),
   };
+  Timer? _dateBoundaryTimer;
 
   _MutableT0ModuleState _mutableState(String moduleCode) {
     return _states.putIfAbsent(moduleCode, _MutableT0ModuleState.new);
@@ -435,8 +474,30 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   List<T0StrategyStock> resultsFor(String moduleCode) {
     final state = _mutableState(moduleCode);
-    return List.unmodifiable(_sortForDisplay(moduleCode, state, state.results));
+    final results = _sortForDisplay(moduleCode, state, state.results);
+    if (moduleCode == t0RedStrategyModuleCode) {
+      final today = state.selectedDate ?? _shanghaiToday();
+      final monitors = state.sellMonitors
+          .where((item) => item.tradeDate.compareTo(today) < 0)
+          .map(_stockForSellMonitor);
+      return List.unmodifiable([...monitors, ...results]);
+    }
+    return List.unmodifiable(results);
   }
+
+  T0StrategyStock _stockForSellMonitor(T0CloseTargetMonitor monitor) =>
+      T0StrategyStock(
+        stockCode: monitor.stockCode,
+        stockName: monitor.stockName,
+        openGap: 0,
+        closeRet: 0,
+        limitUpDates: '-',
+        ma20: 0,
+        amountYi: 0,
+        prevClose: monitor.entryClose,
+        prevCloseRet: 0,
+        sellMonitor: monitor,
+      );
 
   List<T0StrategyStock> purpleResultsFor(String moduleCode) {
     final state = _mutableState(moduleCode);
@@ -551,6 +612,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   bool showDateSelectorFor(String moduleCode) {
     final state = _mutableState(moduleCode);
     return state.phase != T0StrategyPhase.candidatePreview &&
+        state.phase != T0StrategyPhase.tailCandidatePreview &&
         dropdownDatesFor(moduleCode).isNotEmpty &&
         state.selectedDate != null;
   }
@@ -564,6 +626,7 @@ class T0StrategyViewModel extends ChangeNotifier {
     String moduleCode = t0MainStrategyModuleCode,
   }) {
     _applyResponse(moduleCode, data, null);
+    unawaited(_restoreSellMonitorTriggers(moduleCode));
     notifyListeners();
   }
 
@@ -698,6 +761,8 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.selectedDate = date;
     _stopQuotePolling(moduleCode);
     _stopPolling(moduleCode);
+    state.tailPreviewTimer?.cancel();
+    state.tailPreviewTimer = null;
     notifyListeners();
     final today = _shanghaiToday();
     if (date == today) {
@@ -750,7 +815,12 @@ class T0StrategyViewModel extends ChangeNotifier {
       final data = await _sendRequest(moduleCode, queryParams);
       if (loadGeneration != state.loadGeneration) return;
       _applyResponse(moduleCode, data, date);
-      if (_mutableState(moduleCode).phase != T0StrategyPhase.candidatePreview) {
+      await _restoreSellMonitorTriggers(moduleCode);
+      _scheduleTailCandidateRefresh(moduleCode);
+      _scheduleDateBoundaryRefresh();
+      if (_mutableState(moduleCode).phase != T0StrategyPhase.candidatePreview &&
+          _mutableState(moduleCode).phase !=
+              T0StrategyPhase.tailCandidatePreview) {
         await loadAvailableDates(moduleCode: moduleCode);
       }
     } catch (error) {
@@ -783,6 +853,62 @@ class T0StrategyViewModel extends ChangeNotifier {
     return '$y-$m-$d';
   }
 
+  void _scheduleTailCandidateRefresh(String moduleCode) {
+    final state = _mutableState(moduleCode);
+    state.tailPreviewTimer?.cancel();
+    state.tailPreviewTimer = null;
+    if (moduleCode != t0RedStrategyModuleCode ||
+        state.selectedDate != _shanghaiToday() ||
+        state.phase == T0StrategyPhase.historical) {
+      return;
+    }
+    final now = _shanghaiNow();
+    final minutes = now.hour * 60 + now.minute;
+    if (minutes >= _tailPreviewStartHM || _isWeekendDate(state.selectedDate!)) {
+      return;
+    }
+    final start = DateTime.utc(now.year, now.month, now.day, 14, 30);
+    final delay = start.difference(now);
+    state.tailPreviewTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () =>
+          unawaited(_loadResults(moduleCode: moduleCode, replaceLoading: true)),
+    );
+  }
+
+  void _scheduleDateBoundaryRefresh() {
+    if (!_states.values.any((state) => state.loaded)) return;
+    _dateBoundaryTimer?.cancel();
+    final now = _shanghaiNow();
+    final nextMidnight = DateTime.utc(now.year, now.month, now.day + 1);
+    final delay = nextMidnight.difference(now);
+    _dateBoundaryTimer = Timer(delay.isNegative ? Duration.zero : delay, () {
+      final today = _shanghaiToday();
+      for (final entry in _states.entries) {
+        final state = entry.value;
+        if (!state.loaded || state.selectedDate == today) continue;
+        state.results = [];
+        state.candidates = [];
+        state.error = null;
+        state.warmProgress = null;
+        state.displayDate = null;
+        state.showingHistorical = false;
+        state.selectedDate = today;
+        state.phase = T0StrategyPhase.waiting;
+        state.noData = false;
+        state.dataWarningMessage = null;
+        state.dataWarningKey = null;
+        state.dataIncomplete = false;
+        _stopQuotePolling(entry.key);
+        _stopPolling(entry.key);
+        state.tailPreviewTimer?.cancel();
+        state.tailPreviewTimer = null;
+        unawaited(_loadResults(moduleCode: entry.key, replaceLoading: true));
+      }
+      _scheduleDateBoundaryRefresh();
+    });
+  }
+
   bool _isWeekendDate(String date) {
     final parsed = DateTime.tryParse(date);
     if (parsed == null) return false;
@@ -797,6 +923,8 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   static const _previewStartHM = 9 * 60 + 15;
   static const _confirmedStartHM = 9 * 60 + 25;
+  static const _tailPreviewStartHM = 14 * 60 + 30;
+  static const _tailPreviewEndHM = 15 * 60 + 5;
   static const _quoteBatchSize = 80;
 
   /// 解析一次 /api/t0-selection 响应，更新指定模块的结果与预热/历史状态。
@@ -807,6 +935,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   ) {
     final state = _mutableState(moduleCode);
     state.loaded = true;
+    state.sellMonitors = _parseSellMonitors(data['卖出监控']);
     state.dataIncomplete = data['data_incomplete'] as bool? ?? false;
     _applyDataWarning(state, data, date);
     _applyPurpleFilterConfig(state, data);
@@ -869,6 +998,19 @@ class T0StrategyViewModel extends ChangeNotifier {
             .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))
             .toList();
         final hm = _shanghaiMinutes();
+        if (moduleCode == t0RedStrategyModuleCode &&
+            hm >= _tailPreviewStartHM &&
+            hm < _tailPreviewEndHM) {
+          state.phase = T0StrategyPhase.tailCandidatePreview;
+          state.results = [];
+          state.displayDate = null;
+          state.showingHistorical = false;
+          state.selectedDate = data['date'] as String? ?? date;
+          state.warmProgress = null;
+          _startPollingIfNeeded(moduleCode, date);
+          _startQuotePolling(moduleCode);
+          return;
+        }
         if (hm >= _previewStartHM && hm < _confirmedStartHM) {
           state.phase = T0StrategyPhase.candidatePreview;
           state.results = List<T0StrategyStock>.from(state.candidates);
@@ -910,6 +1052,15 @@ class T0StrategyViewModel extends ChangeNotifier {
       state.results = rawList
           .map((e) => T0StrategyStock.fromJson(e as Map<String, dynamic>))
           .toList();
+      if (moduleCode == t0RedStrategyModuleCode &&
+          !archived &&
+          !(data['historical'] as bool? ?? false)) {
+        state.sellMonitors = _mergeConfirmedCloseTargets(
+          state.sellMonitors,
+          state.results,
+          data['date'] as String? ?? date ?? _shanghaiToday(),
+        );
+      }
       state.candidates = [];
       if (archived || (data['historical'] as bool? ?? false)) {
         state.displayDate =
@@ -926,7 +1077,14 @@ class T0StrategyViewModel extends ChangeNotifier {
         state.phase = T0StrategyPhase.confirmed;
       }
       state.warmProgress = null;
-      _stopQuotePolling(moduleCode);
+      if (moduleCode == t0RedStrategyModuleCode &&
+          state.sellMonitors.any(
+            (item) => item.tradeDate.compareTo(state.selectedDate ?? '') < 0,
+          )) {
+        _startQuotePolling(moduleCode);
+      } else {
+        _stopQuotePolling(moduleCode);
+      }
       _stopPolling(moduleCode);
       return;
     }
@@ -951,6 +1109,86 @@ class T0StrategyViewModel extends ChangeNotifier {
     }
     _stopQuotePolling(moduleCode);
     _stopPolling(moduleCode);
+  }
+
+  List<T0CloseTargetMonitor> _parseSellMonitors(Object? raw) {
+    if (raw is! List) return const <T0CloseTargetMonitor>[];
+    return raw
+        .whereType<Map>()
+        .map(
+          (item) =>
+              T0CloseTargetMonitor.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .where(
+          (item) =>
+              item.tradeDate.isNotEmpty &&
+              item.stockCode.isNotEmpty &&
+              item.entryClose > 0 &&
+              item.targetPrice > 0,
+        )
+        .toList();
+  }
+
+  List<T0CloseTargetMonitor> _mergeConfirmedCloseTargets(
+    List<T0CloseTargetMonitor> existing,
+    List<T0StrategyStock> results,
+    String tradeDate,
+  ) {
+    final byCode = <String, T0CloseTargetMonitor>{
+      for (final item in existing) '${item.tradeDate}:${item.stockCode}': item,
+    };
+    for (final stock in results) {
+      for (final hit in stock.redRuleHits) {
+        if (hit.ruleKey != 'gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1' ||
+            hit.entryClose <= 0 ||
+            hit.targetPrice <= 0) {
+          continue;
+        }
+        final monitor = T0CloseTargetMonitor(
+          tradeDate: tradeDate,
+          stockCode: stock.stockCode,
+          stockName: stock.stockName,
+          entryClose: hit.entryClose,
+          targetPrice: hit.targetPrice,
+        );
+        byCode['$tradeDate:${stock.stockCode}'] = monitor;
+      }
+    }
+    return byCode.values.toList();
+  }
+
+  Future<void> _restoreSellMonitorTriggers(String moduleCode) async {
+    if (moduleCode != t0RedStrategyModuleCode) return;
+    final state = _mutableState(moduleCode);
+    final activeDate = state.selectedDate ?? _shanghaiToday();
+    final prefs = await SharedPreferences.getInstance();
+    final triggeredCodes = prefs
+        .getStringList('t0_close_target_triggered_$activeDate')
+        ?.toSet();
+    if (triggeredCodes == null || triggeredCodes.isEmpty) return;
+    state.sellMonitors = state.sellMonitors.map((item) {
+      final rawCode = item.stockCode.replaceAll(RegExp(r'\..*$'), '');
+      return triggeredCodes.contains(item.stockCode) ||
+              triggeredCodes.contains(rawCode)
+          ? item.copyWith(triggered: true)
+          : item;
+    }).toList();
+  }
+
+  Future<void> _persistSellMonitorTriggers(String moduleCode) async {
+    if (moduleCode != t0RedStrategyModuleCode) return;
+    final state = _mutableState(moduleCode);
+    final activeDate = state.selectedDate ?? _shanghaiToday();
+    final triggered = state.sellMonitors
+        .where((item) => item.triggered)
+        .map((item) => item.stockCode)
+        .toSet()
+        .toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      't0_close_target_triggered_$activeDate',
+      triggered,
+    );
   }
 
   void _applyPurpleFilterConfig(
@@ -994,17 +1232,48 @@ class T0StrategyViewModel extends ChangeNotifier {
     Map<String, Map<String, dynamic>> quotes,
   ) {
     final state = _mutableState(moduleCode);
-    if (state.candidates.isEmpty) return;
     final merged = state.candidates.map((s) {
       final q = quotes[s.rawCode] ?? quotes[s.stockCode];
       final pct = (q?['changePercent'] as num?)?.toDouble();
-      return s.copyWith(liveChangePercent: pct);
+      return s.copyWith(
+        liveChangePercent: pct,
+        livePrice: (q?['price'] as num?)?.toDouble(),
+        liveOpen: (q?['open'] as num?)?.toDouble(),
+      );
     }).toList();
-    state.results = sortStrategyStocksForDisplay(
-      merged,
-      liveChangePercent: (stock) => stock.liveChangePercent,
-      preview: true,
-    );
+    if (state.candidates.isNotEmpty) {
+      state.results = sortStrategyStocksForDisplay(
+        state.phase == T0StrategyPhase.tailCandidatePreview
+            ? merged.where(_isTailBearCandidate).toList()
+            : merged,
+        liveChangePercent: (stock) => stock.liveChangePercent,
+        preview: true,
+      );
+    }
+    final activeDate = state.selectedDate ?? _shanghaiToday();
+    var triggeredChanged = false;
+    state.sellMonitors = state.sellMonitors.map((monitor) {
+      if (monitor.triggered || monitor.tradeDate.compareTo(activeDate) >= 0) {
+        return monitor;
+      }
+      final code = monitor.stockCode.replaceAll(RegExp(r'\..*$'), '');
+      final quote = quotes[code] ?? quotes[monitor.stockCode];
+      final price = (quote?['price'] as num?)?.toDouble() ?? 0;
+      if (!monitor.isReachedBy(price)) return monitor;
+      triggeredChanged = true;
+      return monitor.copyWith(triggered: true);
+    }).toList();
+    if (triggeredChanged) unawaited(_persistSellMonitorTriggers(moduleCode));
+  }
+
+  bool _isTailBearCandidate(T0StrategyStock stock) {
+    final price = stock.livePrice ?? 0;
+    final open = stock.liveOpen ?? 0;
+    if (price <= 0 || open <= 0 || stock.prevClose <= 0 || price >= open) {
+      return false;
+    }
+    final gapPct = (open / stock.prevClose - 1) * 100;
+    return gapPct >= 0.01 && gapPct <= 3;
   }
 
   @visibleForTesting
@@ -1129,9 +1398,7 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.quoteTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _refreshQuotes(moduleCode);
     });
-    if (_fetchRealtimeQuotes != null) {
-      _refreshQuotes(moduleCode);
-    }
+    _refreshQuotes(moduleCode);
   }
 
   void _stopQuotePolling(String moduleCode) {
@@ -1142,14 +1409,24 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   Future<void> _refreshQuotes(String moduleCode) async {
     final state = _mutableState(moduleCode);
-    if (state.phase != T0StrategyPhase.candidatePreview ||
-        state.candidates.isEmpty) {
+    final isPreview =
+        state.phase == T0StrategyPhase.candidatePreview ||
+        state.phase == T0StrategyPhase.tailCandidatePreview;
+    final monitorCodes = moduleCode == t0RedStrategyModuleCode
+        ? state.sellMonitors
+              .where(
+                (item) =>
+                    item.tradeDate.compareTo(state.selectedDate ?? '') < 0,
+              )
+              .map((item) => item.stockCode.replaceAll(RegExp(r'\..*$'), ''))
+        : const <String>[];
+    if ((!isPreview || state.candidates.isEmpty) && monitorCodes.isEmpty) {
       return;
     }
-    final codes = state.candidates
-        .map((e) => e.rawCode)
-        .where((c) => c.isNotEmpty)
-        .toList();
+    final codes = <String>{
+      ...state.candidates.map((e) => e.rawCode).where((c) => c.isNotEmpty),
+      ...monitorCodes.where((c) => c.isNotEmpty),
+    }.toList();
     if (codes.isEmpty) return;
     try {
       final fetcher =
@@ -1228,7 +1505,9 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _dateBoundaryTimer?.cancel();
     for (final moduleCode in _states.keys) {
+      _mutableState(moduleCode).tailPreviewTimer?.cancel();
       _stopQuotePolling(moduleCode);
       _stopPolling(moduleCode);
     }

@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// T0RedRuleStat is a verified T+1-close research aggregate, separate from
-// legacy T0-close reference statistics.
+// T0RedRuleStat stores a verified Gob red-rule aggregate for its declared
+// measurement horizon, separate from legacy stats.
 type T0RedRuleStat struct {
 	ID            uint   `gorm:"primaryKey"`
 	RuleKey       string `gorm:"size:128;uniqueIndex:idx_t0_red_stat_scope"`

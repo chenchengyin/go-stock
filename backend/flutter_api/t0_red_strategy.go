@@ -300,7 +300,9 @@ func buildGobRedOpeningQuotes(
 		for _, bar := range daily[stock.ShortCode] {
 			if bar.Date == tradeDate {
 				if prevClose > 0 && bar.Open > 0 {
-					quotes[stock.ShortCode] = t0Realtime{Open: bar.Open, PrevClose: prevClose}
+					quotes[stock.ShortCode] = t0Realtime{
+						Open: bar.Open, Close: bar.Close, PrevClose: prevClose,
+					}
 				}
 				break
 			}
@@ -315,9 +317,21 @@ func buildGobRedOpeningQuotes(
 
 var gobRedOpeningQuoteBuilder = buildGobRedOpeningQuotes
 
+func isGobRedTailCandidateWindow(now time.Time, tradeDate string) bool {
+	local := now.In(chinaLocation())
+	if local.Format("2006-01-02") != tradeDate || isT0WeekendDate(tradeDate) {
+		return false
+	}
+	minutes := local.Hour()*60 + local.Minute()
+	return minutes >= 14*60+30 && minutes < 15*60+5
+}
+
 func selectGobRedFromPool(
 	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar,
 ) ([]T0SelectionResult, []t0DataWarning) {
+	if isT0WeekendDate(tradeDate) {
+		return nil, nil
+	}
 	if prior := gobRedPriorCacheDate(tradeDate); prior == "" || prior != latestGobPriorDate(tradeDate, daily) {
 		return nil, []t0DataWarning{{
 			Code: "RED_GOB_PRIOR_DATE_UNVERIFIED", Phase: "red_history", Source: "gob",

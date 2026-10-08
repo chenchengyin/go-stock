@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
+import 'package:trading_app/features/radar/domain/t0_close_target_monitor.dart';
 import 'package:trading_app/features/radar/domain/pankou_analyzer.dart';
 import 'package:trading_app/features/radar/domain/voice_announcement_view_model.dart';
 import 'package:trading_app/features/permissions/domain/module_definition.dart';
@@ -1153,7 +1154,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                           itemCount: stocks.length,
                           itemBuilder: (_, i) => _buildStrategyCard(
                             stocks[i],
-                            preview: state.showingCandidatePreview,
+                            preview:
+                                state.showingCandidatePreview ||
+                                state.showingTailCandidatePreview,
+                            tailPreview: state.showingTailCandidatePreview,
                             kind: kind,
                           ),
                         ),
@@ -1285,8 +1289,12 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         final rateText = hasStats
             ? '${hit.targetRate.round()}/${hit.earnRate.round()}/${hit.sampleCount}'
             : '—/—/${hit.sampleCount}';
+        final explanation = hit.description.isEmpty
+            ? ''
+            : '条件说明：${hit.description}\n';
         final message =
             '自定义形态：${hit.name}\n'
+            '$explanation'
             '达标率：${hasStats ? '${hit.targetRate.round()}%' : '—'}\n'
             '真赚率：${hasStats ? '${hit.earnRate.round()}%' : '—'}\n'
             '严格胜率：${hasStats ? '${hit.strictWinRate.round()}%' : '—'}\n'
@@ -1329,26 +1337,52 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             stats.sampleCount > 0 &&
             stats.entrySource == hit.entrySource &&
             stats.exitHorizon == hit.exitHorizon;
-        final horizon = hit.exitHorizon == 'T+1_close'
+        final horizon = hit.exitHorizon == 'T0_high'
+            ? 'T0盘中最高价'
+            : hit.exitHorizon == 'T0_close'
+            ? 'T0收盘'
+            : hit.exitHorizon == 'T+1_close'
             ? 'T+1收盘'
+            : hit.exitHorizon == 'T+1_target_2_5'
+            ? 'T+1目标+2.5%触及'
             : hit.exitHorizon;
+        final measurementNote = hit.exitHorizon == 'T0_high'
+            ? '\n口径：按T0日线最高价计算盘中浮盈触及，不代表实际成交或落袋收益'
+            : hit.exitHorizon == 'T+1_target_2_5'
+            ? '\n口径：目标触及率按T+1日线最高价计算；真赚率按T+1收盘价计算，不代表实际成交'
+            : '';
         final source = hit.entrySource == 'daily_open'
             ? '日线开盘代理'
+            : hit.entrySource == 'daily_close'
+            ? '日线收盘代理'
             : hit.entrySource == 'realtime_open'
             ? '实时确认开盘'
+            : hit.entrySource == 'realtime_close'
+            ? '收盘价'
+            : hit.entrySource == 'pending_close'
+            ? '等待尾盘确认'
             : '待竞价';
-        final label = hit.statsStatus == 'preopen'
+        final label = hit.statsStatus == 'preclose'
+            ? '${hit.name} · 待尾盘确认'
+            : hit.statsStatus == 'preopen'
             ? '${hit.name} · 待竞价'
             : verified
             ? '${hit.name} · $horizon 真赚${stats.profitWinRate.toStringAsFixed(1)}% · ${stats.sampleCount}例'
             : '${hit.name} · $horizon 统计待核验';
+        final explanation = hit.description.isEmpty
+            ? ''
+            : '条件说明：${hit.description}\n';
         final message = verified
-            ? '形态：${hit.name}\n评判：$horizon\n入场：$source\n'
+            ? '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
                   '真赚率：${stats.profitWinRate.toStringAsFixed(1)}%\n'
                   '达标率：${stats.targetRate.toStringAsFixed(1)}%\n'
                   '样本数：${stats.sampleCount}\n覆盖：${stats.dateStart}～${stats.dateEnd}'
-            : '形态：${hit.name}\n评判：$horizon\n入场：$source\n'
-                  '${hit.statsStatus == 'preopen' ? '待竞价确认' : '统计待核验'}';
+            : '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
+                  '${hit.statsStatus == 'preclose'
+                      ? '待T0收阴收盘确认'
+                      : hit.statsStatus == 'preopen'
+                      ? '待竞价确认'
+                      : '统计待核验'}';
         return Tooltip(
           message: message,
           child: Container(
@@ -1377,6 +1411,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   Widget _buildStrategyCard(
     T0StrategyStock stock, {
     bool preview = false,
+    bool tailPreview = false,
     required _StrategyListKind kind,
   }) {
     final openUp = stock.openGap >= 0;
@@ -1421,7 +1456,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             color: stock.tag == '涨停破板' ? AppColors.tagRed : AppColors.tagGreen,
           ),
         ),
-      if (!preview)
+      if (!preview && stock.sellMonitor == null)
         Text(
           '${closeUp ? "+" : ""}${stock.closeRet.toStringAsFixed(2)}%',
           style: TextStyle(
@@ -1435,6 +1470,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
       ),
       _buildBuySignalChip(stock),
+      if (stock.sellMonitor != null) _buildT0SellTargetChip(stock.sellMonitor!),
       _buildReferenceRuleChips(stock),
       if (kind == _StrategyListKind.red) _buildRedRuleChips(stock),
       _buildStockRatingChip(stock),
@@ -1456,7 +1492,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     List<Widget> buildTrailingItems() => <Widget>[
       if (preview) ...[
         Text(
-          '竞价预览（未确认）',
+          tailPreview ? '尾盘候选（待收盘确认）' : '竞价预览（未确认）',
           style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
         Text(
@@ -1467,7 +1503,18 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             color: liveColor,
           ),
         ),
-      ] else
+      ] else if (stock.sellMonitor != null)
+        Text(
+          'T0收盘 ${stock.sellMonitor!.entryClose.toStringAsFixed(2)} · 目标 ${stock.sellMonitor!.targetPrice.toStringAsFixed(2)}',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: stock.sellMonitor!.triggered
+                ? AppColors.errorStrong
+                : AppColors.textSecondary,
+          ),
+        )
+      else
         Text(
           '开盘${openUp ? "+" : ""}${stock.openGap.toStringAsFixed(2)}%',
           style: TextStyle(
@@ -1519,6 +1566,27 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildT0SellTargetChip(T0CloseTargetMonitor monitor) {
+    final reached = monitor.triggered;
+    final color = reached ? AppColors.errorStrong : AppColors.tagRed;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        reached ? '卖出' : '目标 ${monitor.targetPrice.toStringAsFixed(2)}',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
       ),
     );

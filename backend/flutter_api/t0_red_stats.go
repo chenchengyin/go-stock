@@ -17,11 +17,13 @@ import (
 )
 
 type GobRedReplayCase struct {
-	Date      string  `json:"date"`
-	StockCode string  `json:"stock_code"`
-	RuleKey   string  `json:"rule_key"`
-	NextDate  string  `json:"next_date"`
-	PnL       float64 `json:"pnl"`
+	Date        string  `json:"date"`
+	StockCode   string  `json:"stock_code"`
+	RuleKey     string  `json:"rule_key"`
+	NextDate    string  `json:"next_date"`
+	ExitDate    string  `json:"exit_date"`
+	ExitHorizon string  `json:"exit_horizon"`
+	PnL         float64 `json:"pnl"`
 }
 
 type GobRedReplayCoverage struct {
@@ -31,8 +33,9 @@ type GobRedReplayCoverage struct {
 	MissingDailyStocks   int               `json:"missing_daily_stocks"`
 	Matched              int               `json:"matched"`
 	Observed             int               `json:"observed"`
+	MissingT0            int               `json:"missing_t0"`
 	MissingT1            int               `json:"missing_t1"`
-	MissingNextCacheDays int               `json:"missing_next_cache_days"`
+	MissingNextCacheDays int               `json:"missing_next_cache_days"` // 兼容旧字段，现由 T0 Gob 内 T+1 取值
 	Rejected             map[string]string `json:"rejected,omitempty"`
 }
 
@@ -55,8 +58,8 @@ func readGobRedReplayCache(path, date string) (*t0DailyCachePayload, error) {
 	return &payload, nil
 }
 
-// ReplayGobRedRuleStats is read-only. T0 admission uses that day's complete
-// Gob; T+1 close comes only from the immediately following trading-day Gob.
+// ReplayGobRedRuleStats is read-only. T0 and T+1 observations both come from
+// that day's Gob; the first bar after tradeDate is T+1.
 func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 	[]models.T0RedRuleStat, []GobRedReplayCase, GobRedReplayCoverage, error,
 ) {
@@ -83,14 +86,14 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 			continue
 		}
 		date := strings.TrimSuffix(strings.TrimPrefix(name, prefix), suffix)
-		if _, err := normalizeT0TradeDate(date); err == nil {
+		if _, err := normalizeT0TradeDate(date); err == nil && !isT0WeekendDate(date) {
 			dates = append(dates, date)
 		}
 	}
 	sort.Strings(dates)
 	var samples []gobRedStatSample
 	var cases []GobRedReplayCase
-	for i, date := range dates {
+	for _, date := range dates {
 		if date < start || date > end {
 			continue
 		}
@@ -117,49 +120,67 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 		candidateStocks := resultsToT0Stocks(candidates)
 		quotes, _, _ := buildGobRedOpeningQuotes(date, candidateStocks, cache.Daily)
 		results, _ := matchGobRedRules(date, candidateStocks, cache.Daily, quotes, "daily_open", approvedGobRedRules())
-		var next *t0DailyCachePayload
-		var nextDate string
-		if i+1 < len(dates) {
-			nextDate = dates[i+1]
-			next, _ = readGobRedReplayCache(filepath.Join(dir, prefix+nextDate+suffix), nextDate)
-			if next != nil && latestGobPriorDate(nextDate, next.Daily) != date {
-				next = nil
-			}
-		}
-		if next == nil && len(results) > 0 {
-			coverage.MissingNextCacheDays++
-		}
+		nextDate := firstDailyDateAfter(cache.Daily, date)
 		for _, result := range results {
 			code := t0ShortCodeFromResultCode(result.StockCode)
-			var nextClose float64
-			if next != nil {
-				for _, bar := range next.Daily[code] {
-					if bar.Date == nextDate {
-						nextClose = bar.Close
-						break
-					}
+			var t0High, t0Close, nextClose, nextHigh float64
+			for _, bar := range cache.Daily[code] {
+				if bar.Date == date {
+					t0High = bar.High
+					t0Close = bar.Close
+				}
+				if bar.Date == nextDate && nextDate != "" {
+					nextClose = bar.Close
+					nextHigh = bar.High
 				}
 			}
 			for _, hit := range result.RedRuleHits {
 				coverage.Matched++
-				if nextClose <= 0 {
-					coverage.MissingT1++
+				exitPrice, exitDate := 0.0, ""
+				switch hit.ExitHorizon {
+				case "T0_high":
+					exitPrice, exitDate = t0High, date
+					if exitPrice <= 0 {
+						coverage.MissingT0++
+						continue
+					}
+				case "T0_close":
+					exitPrice, exitDate = t0Close, date
+					if exitPrice <= 0 {
+						coverage.MissingT0++
+						continue
+					}
+				case "T+1_close":
+					exitPrice, exitDate = nextClose, nextDate
+					if exitPrice <= 0 {
+						coverage.MissingT1++
+						continue
+					}
+				case "T+1_target_2_5":
+					exitPrice, exitDate = nextClose, nextDate
+					if exitPrice <= 0 || nextHigh <= 0 {
+						coverage.MissingT1++
+						continue
+					}
+				default:
 					continue
 				}
 				coverage.Observed++
 				samples = append(samples, gobRedStatSample{
-					Date: date, StockCode: code, Hit: hit, NextClose: nextClose,
+					Date: date, StockCode: code, Hit: hit, T0High: t0High, T0Close: t0Close,
+					NextClose: nextClose, NextHigh: nextHigh,
 				})
 				cases = append(cases, GobRedReplayCase{
 					Date: date, StockCode: code, RuleKey: hit.Key, NextDate: nextDate,
-					PnL: (nextClose/hit.EntryOpen - 1) * 100,
+					ExitDate: exitDate, ExitHorizon: hit.ExitHorizon,
+					PnL: (exitPrice/gobRedRuleEntryPrice(hit) - 1) * 100,
 				})
 			}
 		}
 	}
-	dataVersion := fmt.Sprintf("gob-schema-%d-red-v1", t0DailyCacheSchemaVersion)
-	if coverage.CompleteDays != coverage.Dates || coverage.MissingNextCacheDays > 0 {
-		dataVersion = "gob-mixed-legacy-red-v1"
+	dataVersion := fmt.Sprintf("gob-schema-%d-t0-close-t1-target-red-v5", t0DailyCacheSchemaVersion)
+	if coverage.CompleteDays != coverage.Dates || coverage.MissingT0 > 0 || coverage.MissingT1 > 0 {
+		dataVersion = "gob-mixed-t0-close-t1-target-red-v5"
 	}
 	stats := aggregateGobRedRuleStats(samples, start, end, dataVersion, batchID)
 	if coverage.CompleteDays != coverage.Dates {
@@ -168,6 +189,18 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 		}
 	}
 	return stats, cases, coverage, nil
+}
+
+func firstDailyDateAfter(daily map[string][]dailyBar, tradeDate string) string {
+	date := ""
+	for _, bars := range daily {
+		for _, bar := range bars {
+			if bar.Date > tradeDate && (date == "" || bar.Date < date) {
+				date = bar.Date
+			}
+		}
+	}
+	return date
 }
 
 type T0RedRuleStatView struct {
@@ -189,7 +222,17 @@ type gobRedStatSample struct {
 	Date      string
 	StockCode string
 	Hit       T0RedRuleHit
+	T0High    float64
+	T0Close   float64
 	NextClose float64
+	NextHigh  float64
+}
+
+func gobRedRuleEntryPrice(hit T0RedRuleHit) float64 {
+	if hit.ExitHorizon == "T+1_target_2_5" {
+		return hit.EntryClose
+	}
+	return hit.EntryOpen
 }
 
 func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersion, batchID string) []models.T0RedRuleStat {
@@ -201,8 +244,22 @@ func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersio
 	seen := make(map[string]struct{})
 	for _, sample := range samples {
 		hit := sample.Hit
-		if sample.Date < start || sample.Date > end || hit.EntryOpen <= 0 || sample.NextClose <= 0 ||
-			hit.ExitHorizon != "T+1_close" || hit.Key == "" || sample.StockCode == "" {
+		exitPrice := 0.0
+		switch hit.ExitHorizon {
+		case "T0_high":
+			exitPrice = sample.T0High
+		case "T0_close":
+			exitPrice = sample.T0Close
+		case "T+1_close":
+			exitPrice = sample.NextClose
+		case "T+1_target_2_5":
+			exitPrice = sample.NextClose
+		default:
+			continue
+		}
+		entryPrice := gobRedRuleEntryPrice(hit)
+		if sample.Date < start || sample.Date > end || isT0WeekendDate(sample.Date) ||
+			entryPrice <= 0 || exitPrice <= 0 || hit.Key == "" || sample.StockCode == "" {
 			continue
 		}
 		identity := sample.Date + ":" + sample.StockCode + ":" + hit.Key + ":" +
@@ -221,13 +278,18 @@ func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersio
 			}
 			grouped[key] = stat
 		}
-		pnl := (sample.NextClose/hit.EntryOpen - 1) * 100
+		pnl := (exitPrice/entryPrice - 1) * 100
 		stat.SampleCount++
 		stat.AvgPnL += pnl
 		if pnl > 0 {
 			stat.PositiveCount++
 		}
-		if sample.NextClose >= hit.EntryOpen*(1+2.5/100) {
+		targetReached := ((hit.ExitHorizon == "T0_close" || hit.ExitHorizon == "T0_high") && pnl > 2.5+1e-9) ||
+			(hit.ExitHorizon == "T+1_close" && pnl+1e-9 >= 2.5)
+		if hit.ExitHorizon == "T+1_target_2_5" {
+			targetReached = gobRedT0CloseTargetReached(sample.NextHigh, gobRedT0CloseTargetPrice(entryPrice))
+		}
+		if targetReached {
 			stat.TargetCount++
 		}
 		if stat.DateStart == "" || sample.Date < stat.DateStart {
@@ -283,17 +345,41 @@ func SaveGobRedRuleStats(dao *gorm.DB, stats []models.T0RedRuleStat) error {
 }
 
 func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
-	if db.Dao == nil || len(results) == 0 {
+	if len(results) == 0 {
 		return results
 	}
+	type scope struct {
+		key, source, horizon string
+		version              int
+	}
+	out := append([]T0SelectionResult(nil), results...)
+	for i := range out {
+		out[i].RedRuleHits = append([]T0RedRuleHit(nil), results[i].RedRuleHits...)
+	}
+	descriptions := make(map[scope]string)
+	descriptions[scope{key: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v1", version: 1}] = legacyGobZTztPbV1Description
+	for _, rule := range approvedGobRedRules() {
+		descriptions[scope{key: rule.Key, version: rule.Version}] = rule.Description
+	}
 	keys := make(map[string]struct{})
-	for _, result := range results {
+	for i := range out {
+		for j := range out[i].RedRuleHits {
+			hit := &out[i].RedRuleHits[j]
+			if hit.Description == "" {
+				hit.Description = descriptions[scope{key: hit.Key, version: hit.Version}]
+			}
+		}
+	}
+	if db.Dao == nil {
+		return out
+	}
+	for _, result := range out {
 		for _, hit := range result.RedRuleHits {
 			keys[hit.Key] = struct{}{}
 		}
 	}
 	if len(keys) == 0 {
-		return results
+		return out
 	}
 	ruleKeys := make([]string, 0, len(keys))
 	for key := range keys {
@@ -302,11 +388,7 @@ func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
 	var rows []models.T0RedRuleStat
 	if err := db.Dao.Where("status = ? AND period_key = ? AND rule_key IN ?", "verified", "all", ruleKeys).
 		Order("updated_at DESC, id DESC").Find(&rows).Error; err != nil {
-		return results
-	}
-	type scope struct {
-		key, source, horizon string
-		version              int
+		return out
 	}
 	latest := make(map[scope]models.T0RedRuleStat)
 	for _, row := range rows {
@@ -315,9 +397,7 @@ func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
 			latest[key] = row
 		}
 	}
-	out := append([]T0SelectionResult(nil), results...)
 	for i := range out {
-		out[i].RedRuleHits = append([]T0RedRuleHit(nil), results[i].RedRuleHits...)
 		for j := range out[i].RedRuleHits {
 			hit := &out[i].RedRuleHits[j]
 			if hit.StatsStatus == "preopen" {

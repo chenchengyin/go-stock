@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -787,6 +788,165 @@ func gobRedTestBarsB() []dailyBar {
 	return bars
 }
 
+func gobRedSmallBearishEntryTestBars() []dailyBar {
+	bars := make([]dailyBar, 60)
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	for i := range bars {
+		bars[i] = dailyBar{Date: start.AddDate(0, 0, i).Format("2006-01-02"), Open: 10, High: 10.1, Low: 9.9, Close: 10}
+	}
+	bars[58] = dailyBar{Date: bars[58].Date, Open: 10, High: 11, Low: 10, Close: 11}
+	bars[59] = dailyBar{Date: bars[59].Date, Open: 10.9, High: 10.95, Low: 10.88, Close: 10.89}
+	return bars
+}
+
+func TestGobRedSmallBearT0CloseEntryRequiresFinalBearAndUsesClose(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "小阴收盘买入"}}
+	date := "2026-09-30"
+	findNewHit := func(current float64) *T0RedRuleHit {
+		got, _ := matchGobRedRules(date, stock,
+			map[string][]dailyBar{"600101": gobRedSmallBearishEntryTestBars()},
+			map[string]t0Realtime{"600101": {Open: 11.2, Close: current, PrevClose: 11}},
+			"daily_open", approvedGobRedRules())
+		for _, result := range got {
+			for _, hit := range result.RedRuleHits {
+				if hit.Key == "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1" {
+					return &hit
+				}
+			}
+		}
+		return nil
+	}
+	hit := findNewHit(11.1)
+	if hit == nil {
+		t.Fatal("final T0 bearish close should confirm the independent rule")
+	}
+	if hit.EntrySource != "daily_close" || hit.EntryClose != 11.1 || hit.EntryOpen != 11.2 ||
+		math.Abs(hit.TargetPrice-11.38) > 1e-9 || hit.ExitHorizon != "T+1_target_2_5" {
+		t.Fatalf("new close-entry hit=%+v", hit)
+	}
+	if hit := findNewHit(11.2); hit != nil {
+		t.Fatalf("flat T0 close must not match the bearish-close rule: %+v", hit)
+	}
+}
+
+func TestGobRedPreopenCandidateMarksCloseEntryRulePendingTail(t *testing.T) {
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "尾盘收阴候选"}}
+	candidates := buildGobRedPreopenCandidates("2026-08-31", stock,
+		map[string][]dailyBar{"600101": gobRedSmallBearishEntryTestBars()}, approvedGobRedRules())
+	for _, candidate := range candidates {
+		for _, hit := range candidate.RedRuleHits {
+			if hit.Key == "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1" {
+				if hit.EntrySource != "pending_close" || hit.StatsStatus != "preclose" {
+					t.Fatalf("close-entry candidate must await T0 close: %+v", hit)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("missing close-entry rule in tail candidate list")
+}
+
+func TestT0CloseTargetTriggerUsesEntryPriceAndIncludesEquality(t *testing.T) {
+	entry := 10.01
+	target := gobRedT0CloseTargetPrice(entry)
+	if target != 10.27 {
+		t.Fatalf("target=%v; want minimum tradable price >= 2.5%% return (10.27)", target)
+	}
+	if !gobRedT0CloseTargetReached(target, target) {
+		t.Fatal("price equal to target must trigger the sell reminder")
+	}
+	if gobRedT0CloseTargetReached(target-0.001, target) {
+		t.Fatal("price below target must not trigger the sell reminder")
+	}
+	if gobRedT0CloseTargetReached(0, target) || gobRedT0CloseTargetReached(target, 0) {
+		t.Fatal("missing price or target must not trigger the sell reminder")
+	}
+}
+
+func TestGobRedTailCandidateWindowStartsAfter1430AndEndsAt1505(t *testing.T) {
+	date := "2026-09-30"
+	loc := chinaLocation()
+	for _, tc := range []struct {
+		clock string
+		want  bool
+	}{
+		{"14:29", false}, {"14:30", true}, {"15:04", true}, {"15:05", false},
+	} {
+		parsed, err := time.Parse("15:04", tc.clock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 9, 30, parsed.Hour(), parsed.Minute(), 0, 0, loc)
+		if got := isGobRedTailCandidateWindow(now, date); got != tc.want {
+			t.Errorf("%s window=%v; want %v", tc.clock, got, tc.want)
+		}
+	}
+}
+
+func TestGobRedArchiveAddsLateCloseRuleWithoutReplacingExistingHits(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-30"
+	oldHit := T0RedRuleHit{Key: "existing_v1", Version: 1, EntryOpen: 10, EntrySource: "realtime_open"}
+	closeHit := T0RedRuleHit{
+		Key: "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1", Version: 1,
+		EntrySource: "realtime_close", ExitHorizon: "T+1_target_2_5", EntryClose: 10, TargetPrice: 10.25,
+	}
+	base := T0SelectionResult{StockCode: "600001.XSHG", StockName: "测试股", RedRuleHits: []T0RedRuleHit{oldHit}}
+	if err := saveGobRedArchive(&gobRedArchive{Date: date, Complete: true, Results: []T0SelectionResult{base}}); err != nil {
+		t.Fatal(err)
+	}
+	updated := base
+	updated.RedRuleHits = append(updated.RedRuleHits, closeHit)
+	if err := saveGobRedArchive(&gobRedArchive{Date: date, Complete: true, Results: []T0SelectionResult{updated}}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, ok := loadGobRedArchive(date)
+	if !ok || len(snapshot.Results) != 1 || len(snapshot.Results[0].RedRuleHits) != 2 {
+		t.Fatalf("late close rule was not merged: %+v", snapshot)
+	}
+}
+
+func TestGobRedSellMonitorsUsePriorTradingDateArchive(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-30"
+	hit := T0RedRuleHit{
+		Key: "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1", Version: 1,
+		EntrySource: "realtime_close", ExitHorizon: "T+1_target_2_5", EntryClose: 10.01,
+		TargetPrice: 10.27,
+	}
+	if err := saveGobRedArchive(&gobRedArchive{
+		Date: date, Complete: true, Results: []T0SelectionResult{{
+			StockCode: "600001.XSHG", StockName: "测试股", RedRuleHits: []T0RedRuleHit{hit},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	monitors := gobRedSellMonitorsForTradeDate("2026-10-01")
+	if len(monitors) != 1 || monitors[0].TradeDate != date ||
+		monitors[0].StockCode != "600001.XSHG" || monitors[0].EntryClose != 10.01 ||
+		monitors[0].TargetPrice != 10.27 {
+		t.Fatalf("sell monitors=%+v", monitors)
+	}
+}
+
+func TestGobRedCloseEntryTargetStatsUseT1HighForTouchRate(t *testing.T) {
+	hit := T0RedRuleHit{
+		Key: "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1", Version: 1,
+		EntrySource: "daily_close", ExitHorizon: "T+1_target_2_5", EntryClose: 10,
+	}
+	stats := aggregateGobRedRuleStats([]gobRedStatSample{
+		{Date: "2026-09-01", StockCode: "600001", Hit: hit, NextClose: 10.1, NextHigh: 10.26},
+		{Date: "2026-09-02", StockCode: "600002", Hit: hit, NextClose: 10.2, NextHigh: 10.24},
+	}, "2026-09-01", "2026-09-30", "test", "test")
+	if len(stats) != 1 || stats[0].SampleCount != 2 || stats[0].TargetCount != 1 || stats[0].TargetRate != 50 {
+		t.Fatalf("target stats=%+v; want 1/2 touched from T+1 high", stats)
+	}
+}
+
 func gobRedDyinMyinMyinTestBars(t1Close float64, amountYi float64, includeLimitUp bool) []dailyBar {
 	anchor := dailyBar{Date: "2026-09-02", Open: 100, High: 110, Low: 100, Close: 110}
 	if !includeLimitUp {
@@ -818,6 +978,91 @@ func TestGobRedRuleMatchesDyinMyinMyinWithA2BodyFilterAndT1Exit(t *testing.T) {
 	if hit.Key != "gob_dyin_myin_myin_t1_body_le_430_v1" || hit.Version != 1 ||
 		hit.ExitHorizon != "T+1_close" || hit.EntrySource != "realtime_open" {
 		t.Fatalf("hit=%+v", hit)
+	}
+}
+
+func gobRedZTztPbTestBars(t1 dailyBar) []dailyBar {
+	return []dailyBar{
+		{Date: "2026-09-07", Open: 8, High: 9, Low: 8, Close: 9},
+		{Date: "2026-09-08", Open: 9, High: 10, Low: 9, Close: 10},
+		{Date: "2026-09-09", Open: 10, High: 11, Low: 10, Close: 11},
+		{Date: "2026-09-10", Open: 11, High: 12.1, Low: 11, Close: 12.1},
+		t1,
+	}
+}
+
+func TestGobRedZTztPbRuleUsesT1AndOpeningGapFiltersAndExplainsRule(t *testing.T) {
+	var rule redGobRule
+	for _, candidate := range approvedGobRedRules() {
+		if candidate.Description == "" {
+			t.Errorf("approved Gob red rule %q has no long-press explanation", candidate.Key)
+		}
+		if candidate.Key == "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2" {
+			rule = candidate
+			break
+		}
+	}
+	if rule.Key == "" {
+		t.Fatal("missing approved ZT→ZT→PB T-1 rule")
+	}
+	if rule.Version != 2 {
+		t.Fatalf("rule version=%d want 2", rule.Version)
+	}
+	for _, tc := range []struct {
+		name     string
+		open     float64
+		wantPass bool
+	}{
+		{"below excluded interval", 97.99, true},
+		{"at minus two percent boundary", 98, false},
+		{"inside excluded interval", 99, false},
+		{"just below zero", 99.999, false},
+		{"at zero boundary", 100, true},
+		{"positive gap", 105, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rule.MatchOpen(tc.open, 100); got != tc.wantPass {
+				t.Fatalf("MatchOpen(%v, 100)=%v want %v", tc.open, got, tc.wantPass)
+			}
+		})
+	}
+	if rule.Description == "" ||
+		!strings.Contains(rule.Description, "−2%≤T0开盘缺口<0%不入选") ||
+		!strings.Contains(rule.Description, "4/10") ||
+		!strings.Contains(rule.Description, "T+1收盘") {
+		t.Fatalf("incomplete rule explanation: %q", rule.Description)
+	}
+	if !rule.MatchHistory(gobRedZTztPbTestBars(dailyBar{
+		Date: "2026-09-11", Open: 12.8, High: 13.31, Low: 12.31, Close: 12.4,
+	})) {
+		t.Fatal("valid ZT→ZT→PB history did not match")
+	}
+	tests := []struct {
+		name string
+		bar  dailyBar
+		want bool
+	}{
+		{"amplitude below 6 percent", dailyBar{Open: 13.1, High: 13.31, Low: 12.68, Close: 12.8}, false},
+		{"lower shadow above 1 percent", dailyBar{Open: 12.8, High: 13.31, Low: 12.2, Close: 12.4}, false},
+		{"deep bearish body with excluded close return", dailyBar{Open: 13.2, High: 13.31, Low: 12.4, Close: 12.45}, false},
+		{"deep bearish body with close return below 1 percent", dailyBar{Open: 13.2, High: 13.3, Low: 12.1, Close: 12.1605}, true},
+		{"deep bearish body with close return from 3 to 4 percent", dailyBar{Open: 13.2, High: 13.31, Low: 12.41, Close: 12.5235}, true},
+		{"deep bearish body with 4 percent close return", dailyBar{Open: 13.25, High: 13.31, Low: 12.47, Close: 12.584}, false},
+		{"amplitude above 10 percent", dailyBar{Open: 12.1, High: 13.31, Low: 11.9, Close: 12}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := rule.MatchHistory(gobRedZTztPbTestBars(dailyBar{
+				Date: "2026-09-11", Open: tc.bar.Open, High: tc.bar.High,
+				Low: tc.bar.Low, Close: tc.bar.Close,
+			}))
+			if got != tc.want {
+				t.Fatalf("MatchHistory()=%v want %v", got, tc.want)
+			}
+		})
+	}
+	if !rule.ExcludeLimitDown {
+		t.Fatal("T0 limit-down opening must be excluded")
 	}
 }
 
@@ -1196,6 +1441,32 @@ func TestGobRedArchivedReplaysCompleteGobWithoutMainArchive(t *testing.T) {
 	}
 }
 
+func TestGobRedArchivedRecalculatesIncompleteSnapshotWithCurrentRules(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	date := "2026-09-14"
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "新规则命中"}}
+	bars := append(gobRedZTztPbTestBars(dailyBar{
+		Date: "2026-09-11", Open: 12.9, High: 13.4, Low: 12.4, Close: 12.5,
+	}), dailyBar{Date: date, Open: 12.1, High: 12.3, Low: 12.0, Close: 12.2})
+	if err := saveT0DailyCache(date, stock, map[string][]dailyBar{"600101": bars}); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveGobRedArchive(&gobRedArchive{
+		Date: date, EntrySource: "daily_open", RuleSetVersion: "previous-rule-set", Complete: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	results, _, source, incomplete := archivedGobRedResults(date)
+	if len(results) != 1 || source != "daily_open" || incomplete ||
+		len(results[0].RedRuleHits) != 1 ||
+		results[0].RedRuleHits[0].Key != "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2" {
+		t.Fatalf("historical replay results=%+v source=%s incomplete=%v", results, source, incomplete)
+	}
+}
+
 func TestGobRedArchivedPrefersRealtimeSnapshotToDailyReplay(t *testing.T) {
 	oldRoot := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
@@ -1263,6 +1534,9 @@ func TestGobRedFormalSelectionArchivesWithoutRedPageDependency(t *testing.T) {
 	}
 	t.Cleanup(func() { gobRedOpeningQuoteBuilder = oldQuotes })
 	date := time.Now().In(chinaLocation()).Format("2006-01-02")
+	if isT0WeekendDate(date) {
+		t.Skip("formal realtime archive is only produced on trading weekdays")
+	}
 	results, warnings := selectGobRedFromPool(date,
 		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}},
 		map[string][]dailyBar{"600101": gobRedTestBarsA()})
@@ -1328,6 +1602,25 @@ func TestGobRedFormalRejectsMissingPriorCacheWitness(t *testing.T) {
 		map[string][]dailyBar{"600101": gobRedTestBarsA()})
 	if len(results) != 0 || len(warnings) == 0 || warnings[0].Code != "RED_GOB_PRIOR_DATE_UNVERIFIED" {
 		t.Fatalf("missing prior witness results=%+v warnings=%+v", results, warnings)
+	}
+}
+
+func TestGobRedFormalSelectionRejectsWeekendDate(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	oldPrior := gobRedPriorCacheDate
+	gobRedPriorCacheDate = func(string) string { return "2026-09-11" }
+	t.Cleanup(func() { gobRedPriorCacheDate = oldPrior })
+	date := "2026-09-12"
+	bars := append(gobRedTestBarsA(), dailyBar{
+		Date: date, Open: 8.0, High: 8.2, Low: 7.9, Close: 8.1,
+	})
+	results, warnings := selectGobRedFromPool(date,
+		[]t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "周末股票"}},
+		map[string][]dailyBar{"600101": bars})
+	if len(results) != 0 || len(warnings) != 0 {
+		t.Fatalf("weekend red selection results=%+v warnings=%+v", results, warnings)
 	}
 }
 
@@ -1453,17 +1746,27 @@ func TestGobRedStatsPersistenceAndPendingDisplay(t *testing.T) {
 	}
 }
 
-func TestGobRedReplayReadsOnlyCompleteT0AndImmediateT1(t *testing.T) {
+func TestGobRedArchivedRuleExplanationIsFilledForOldSnapshot(t *testing.T) {
+	previous := db.Dao
+	db.Dao = nil
+	t.Cleanup(func() { db.Dao = previous })
+	const key = "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v1"
+	results := []T0SelectionResult{{RedRuleHits: []T0RedRuleHit{{Key: key, Version: 1}}}}
+	got := enrichGobRedRuleStats(results)
+	if got[0].RedRuleHits[0].Description == "" || !strings.Contains(got[0].RedRuleHits[0].Description, "18/22") {
+		t.Fatalf("old snapshot explanation = %q", got[0].RedRuleHits[0].Description)
+	}
+}
+
+func TestGobRedReplayReadsT1FromT0Gob(t *testing.T) {
 	oldRoot := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = oldRoot })
 	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
-	day0 := append(gobRedTestBarsA(), dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2})
+	day0 := append(gobRedTestBarsA(),
+		dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2},
+		dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
 	if err := saveT0DailyCache("2026-09-14", stock, map[string][]dailyBar{"600101": day0}); err != nil {
-		t.Fatal(err)
-	}
-	day1 := append(append([]dailyBar(nil), day0...), dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
-	if err := saveT0DailyCache("2026-09-15", stock, map[string][]dailyBar{"600101": day1}); err != nil {
 		t.Fatal(err)
 	}
 	stats, cases, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
@@ -1481,12 +1784,10 @@ func TestGobRedReplayMarksMissingDailyCoveragePartial(t *testing.T) {
 		{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"},
 		{Code: "sh.600102", ShortCode: "600102", Name: "缺日线"},
 	}
-	day0 := append(gobRedTestBarsA(), dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2})
+	day0 := append(gobRedTestBarsA(),
+		dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2},
+		dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
 	if err := saveT0DailyCache("2026-09-14", stocks, map[string][]dailyBar{"600101": day0}); err != nil {
-		t.Fatal(err)
-	}
-	day1 := append(append([]dailyBar(nil), day0...), dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
-	if err := saveT0DailyCache("2026-09-15", stocks, map[string][]dailyBar{"600101": day1}); err != nil {
 		t.Fatal(err)
 	}
 	stats, _, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
@@ -1495,7 +1796,7 @@ func TestGobRedReplayMarksMissingDailyCoveragePartial(t *testing.T) {
 	}
 }
 
-func TestGobRedReplayDoesNotTreatNextAvailableCacheAsNextTradingDay(t *testing.T) {
+func TestGobRedReplayMarksMissingT1InT0Gob(t *testing.T) {
 	oldRoot := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = oldRoot })
@@ -1504,16 +1805,22 @@ func TestGobRedReplayDoesNotTreatNextAvailableCacheAsNextTradingDay(t *testing.T
 	if err := saveT0DailyCache("2026-09-14", stock, map[string][]dailyBar{"600101": day0}); err != nil {
 		t.Fatal(err)
 	}
-	day2 := append(append([]dailyBar(nil), day0...),
-		dailyBar{Date: "2026-09-15", Open: 8.1, Close: 8.3},
-		dailyBar{Date: "2026-09-16", Open: 8.4, Close: 8.5})
-	if err := saveT0DailyCache("2026-09-16", stock, map[string][]dailyBar{"600101": day2}); err != nil {
-		t.Fatal(err)
-	}
 	stats, cases, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
 	if err != nil || coverage.Matched != 1 || coverage.Observed != 0 ||
-		coverage.MissingNextCacheDays != 1 || len(stats) != 0 || len(cases) != 0 {
-		t.Fatalf("skipped trading day replay stats=%+v cases=%+v coverage=%+v err=%v", stats, cases, coverage, err)
+		coverage.MissingT1 != 1 || len(stats) != 0 || len(cases) != 0 {
+		t.Fatalf("missing T1 replay stats=%+v cases=%+v coverage=%+v err=%v", stats, cases, coverage, err)
+	}
+}
+
+func TestHistBarsBeforeTradeDateExcludesT1Bars(t *testing.T) {
+	bars := []dailyBar{
+		{Date: "2026-09-11", Close: 8},
+		{Date: "2026-09-14", Close: 8.2},
+		{Date: "2026-09-15", Close: 8.5},
+	}
+	hist := histBarsBeforeTradeDate(bars, "2026-09-14")
+	if len(hist) != 1 || hist[0].Date != "2026-09-11" {
+		t.Fatalf("history leaked T0/T1 bars: %+v", hist)
 	}
 }
 

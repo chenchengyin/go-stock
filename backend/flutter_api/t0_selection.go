@@ -343,6 +343,12 @@ func saveT0SelectionArchive(tradeDate string, results []T0SelectionResult, force
 
 // saveT0SelectionArchiveFull 写入完整归档（含 CloseUpdatedAt），force=false 且文件已存在时跳过。
 func saveT0SelectionArchiveFull(a *t0SelectionArchive, force bool) error {
+	if a == nil {
+		return fmt.Errorf("选股归档为空")
+	}
+	if isT0WeekendDate(a.Date) {
+		return fmt.Errorf("周末不是交易日，拒绝写入选股归档: %s", a.Date)
+	}
 	if err := ensureT0CacheDirs(); err != nil {
 		return err
 	}
@@ -368,6 +374,9 @@ func saveT0SelectionArchiveFull(a *t0SelectionArchive, force bool) error {
 }
 
 func loadT0SelectionArchive(tradeDate string) (*t0SelectionArchive, bool) {
+	if isT0WeekendDate(tradeDate) {
+		return nil, false
+	}
 	data, err := os.ReadFile(t0SelectionCachePath(tradeDate))
 	if err != nil {
 		return nil, false
@@ -522,6 +531,9 @@ func listSelectionArchiveDates() []string {
 		if _, perr := time.Parse("2006-01-02", d); perr != nil {
 			continue
 		}
+		if isT0WeekendDate(d) {
+			continue
+		}
 		if _, ok := loadT0SelectionArchive(d); !ok {
 			continue
 		}
@@ -591,7 +603,7 @@ func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]
 	logger.SugaredLogger.Infof("[T0选股] 股票池(主板+市值): %d只 (%.1fs)", len(stocks), time.Since(t1).Seconds())
 
 	t2 := time.Now()
-	daily = fetchAllDailyKLine(stocks, tradeDate, nil)
+	daily = fetchAllDailyKLine(stocks, t0DailyFetchEndDate(tradeDate), nil)
 	logger.SugaredLogger.Infof("[T0选股] 日线获取成功: %d只 (%.1fs)", len(daily), time.Since(t2).Seconds())
 	if len(daily) == 0 {
 		return nil, nil, false, fmt.Errorf("日线获取为空")
@@ -605,6 +617,9 @@ func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]
 
 // tryStartT0Prewarm 尝试启动后台预热。已在 warming 或文件已就绪时不重复启动。
 func tryStartT0Prewarm(tradeDate string) (started bool, progress t0WarmProgress) {
+	if isT0WeekendDate(tradeDate) {
+		return false, t0WarmProgress{Status: t0WarmStatusIdle}
+	}
 	t0WarmMu.Lock()
 	if isT0DailyCacheFilePresent(tradeDate) {
 		p := t0WarmByDate[tradeDate]
@@ -638,6 +653,9 @@ func tryStartT0Prewarm(tradeDate string) (started bool, progress t0WarmProgress)
 var t0PrewarmStarter = tryStartT0Prewarm
 
 func runT0PrewarmJob(tradeDate string) {
+	if isT0WeekendDate(tradeDate) {
+		return
+	}
 	logger.SugaredLogger.Infof("========== T0 日线预热(后台) | 基准日: %s ==========", tradeDate)
 	defer func() {
 		if r := recover(); r != nil {
@@ -661,7 +679,7 @@ func runT0PrewarmJob(tradeDate string) {
 		p.DailyTotal = len(stocks)
 		p.DailyFetched = 0
 	})
-	daily := fetchAllDailyKLine(stocks, tradeDate, func() {
+	daily := fetchAllDailyKLine(stocks, t0DailyFetchEndDate(tradeDate), func() {
 		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 			p.DailyFetched++
 		})
@@ -1421,6 +1439,30 @@ func fetchDailyKLine(shortCode string, endDate string) []dailyBar {
 	return fetchDailyKLineWithLimit(shortCode, endDate, limit)
 }
 
+const t0DailyFutureLookaheadDays = 14
+
+// t0DailyFetchEndDate leaves enough calendar room for the next trading day
+// while histBarsBeforeTradeDate keeps all preopen calculations T0-safe.
+func t0DailyFetchEndDate(tradeDate string) string {
+	t, err := time.Parse("2006-01-02", tradeDate)
+	if err != nil {
+		return tradeDate
+	}
+	return t.AddDate(0, 0, t0DailyFutureLookaheadDays).Format("2006-01-02")
+}
+
+func dailyBarOnDate(bars []dailyBar, date string) (dailyBar, int) {
+	for i, bar := range bars {
+		if bar.Date == date {
+			return bar, i
+		}
+		if bar.Date > date {
+			break
+		}
+	}
+	return dailyBar{}, -1
+}
+
 func fetchDailyKLineWithLimit(shortCode string, endDate string, limit int) []dailyBar {
 	if limit <= 0 {
 		limit = 30
@@ -1787,14 +1829,16 @@ func filterOpenGap(stocks []t0Stock, auction map[string]t0Realtime,
 	return result, gapCache
 }
 
-// histBarsBeforeTradeDate 选股用的「开盘前」日线：若缓存已含 tradeDate 当日K线则剔除，
+// histBarsBeforeTradeDate 选股用的「开盘前」日线：剔除 T0 及之后的 K 线，
 // 保证涨停记忆/成交额/MA20 都基于前一交易日及更早数据。
 func histBarsBeforeTradeDate(bars []dailyBar, tradeDate string) []dailyBar {
 	if len(bars) == 0 {
 		return bars
 	}
-	if bars[len(bars)-1].Date == tradeDate {
-		return bars[:len(bars)-1]
+	for i, bar := range bars {
+		if bar.Date >= tradeDate {
+			return bars[:i]
+		}
 	}
 	return bars
 }
@@ -1812,17 +1856,17 @@ func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[str
 
 	for _, s := range stocks {
 		bars := dailyCache[s.ShortCode]
-		if !useLiveOnly && len(bars) >= 2 && bars[len(bars)-1].Date == tradeDate &&
-			bars[len(bars)-1].Open > 0 && bars[len(bars)-2].Close > 0 {
-			last := bars[len(bars)-1]
-			prev := bars[len(bars)-2]
-			out[s.ShortCode] = t0Realtime{
-				Open:      last.Open,
-				Close:     last.Close,
-				PrevClose: prev.Close,
+		if !useLiveOnly {
+			current, currentIndex := dailyBarOnDate(bars, tradeDate)
+			if currentIndex > 0 && current.Open > 0 && bars[currentIndex-1].Close > 0 {
+				out[s.ShortCode] = t0Realtime{
+					Open:      current.Open,
+					Close:     current.Close,
+					PrevClose: bars[currentIndex-1].Close,
+				}
+				fromDaily++
+				continue
 			}
-			fromDaily++
-			continue
 		}
 		needLive = append(needLive, s)
 	}
@@ -1892,6 +1936,9 @@ func runT0SelectionWithDaily(
 	tradeDate, err := normalizeT0TradeDate(tradeDate)
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+	if isT0WeekendDate(tradeDate) {
+		return nil, nil, nil, nil, fmt.Errorf("周末不是交易日: %s", tradeDate)
 	}
 
 	logger.SugaredLogger.Infof("========== T0 开盘日线选股 | 基准日: %s ==========", tradeDate)
@@ -2147,6 +2194,12 @@ func writeScopedT0ResponseWithContext(
 	ctx *t0ModuleSelectionContext,
 	fields ...string,
 ) {
+	if moduleCode == redT0StrategyModuleCode {
+		if responseDate, ok := response["date"].(string); ok &&
+			responseDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+			response["卖出监控"] = gobRedSellMonitorsForTradeDate(responseDate)
+		}
+	}
 	patternConfig := loadPatternConfig()
 	response["purple_filter"] = map[string]interface{}{
 		"min_samples":  patternConfig.EffectivePurpleMinSamples(),
@@ -2159,6 +2212,11 @@ func writeScopedT0ResponseWithContext(
 		}
 		if ctx == nil {
 			enrichT0ResponseFieldForDisplay(response, field)
+			if moduleCode == redT0StrategyModuleCode {
+				if results, ok := response[field].([]T0SelectionResult); ok {
+					response[field] = enrichGobRedRuleStats(results)
+				}
+			}
 			continue
 		}
 		raw, ok := response[field]
@@ -2482,6 +2540,10 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	// 可能耗时几十秒，超出 Flutter 客户端的连接等待时间；统一转入后台预热，
 	// 由客户端根据 warming/ready 状态轮询，避免页面落入连接超时错误。
 	if !isT0DailyCacheFilePresent(tradeDate) {
+		writeT0PrewarmHTTP(w, tradeDate, moduleCode)
+		return
+	}
+	if moduleCode == redT0StrategyModuleCode && isGobRedTailCandidateWindow(time.Now(), tradeDate) {
 		writeT0PrewarmHTTP(w, tradeDate, moduleCode)
 		return
 	}
