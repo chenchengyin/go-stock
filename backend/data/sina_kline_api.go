@@ -6,6 +6,7 @@ import (
 	"go-stock/backend/logger"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -602,6 +603,54 @@ func FetchKLineWithFallback(stockCode, stockName, klt string, limit int, end str
 	return &KLineSourceResult{Data: &[]KLineData{}, Source: ""}
 }
 
+// FetchIntradayKLineForDateWithFallback returns minute bars only when a source
+// contains data for targetDate. Date-aware providers are anchored at the end of
+// that session so archived red-list entries can retrieve their T+1 minutes.
+// Tencent's adapter supports only daily/weekly/monthly periods, so the minute
+// chain proceeds directly from Sina to TongdaXin.
+func FetchIntradayKLineForDateWithFallback(stockCode, targetDate string, limit int) *KLineSourceResult {
+	end := targetDate + " 15:00:00"
+	type sourceFetcher struct {
+		name  string
+		fetch func() *KLineSourceResult
+	}
+	fetchers := []sourceFetcher{
+		{"ths", func() *KLineSourceResult { return fetchFromTHS(stockCode, "1", limit, end) }},
+		{"eastmoney", func() *KLineSourceResult { return fetchFromEastMoney(stockCode, "", "1", limit, end) }},
+		{"sina", func() *KLineSourceResult { return fetchFromSina(stockCode, "1", limit) }},
+		{"tdx", func() *KLineSourceResult { return fetchFromTdx(stockCode, "1", limit) }},
+	}
+	for _, source := range fetchers {
+		result := source.fetch()
+		if result == nil || result.Data == nil {
+			continue
+		}
+		bars := make([]KLineData, 0, len(*result.Data))
+		for _, bar := range *result.Data {
+			if klineDate(bar.Day) == targetDate {
+				bars = append(bars, bar)
+			}
+		}
+		if len(bars) == 0 {
+			continue
+		}
+		sort.SliceStable(bars, func(i, j int) bool { return bars[i].Day < bars[j].Day })
+		result.Data = &bars
+		result.Source = source.name
+		return result
+	}
+	return &KLineSourceResult{Data: &[]KLineData{}, Source: ""}
+}
+
+func klineDate(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) < 10 {
+		return ""
+	}
+	date := strings.NewReplacer("/", "-", ".", "-").Replace(value[:10])
+	return date
+}
+
 // FetchDailyKLineWithTurnoverFallback 获取带有可靠成交额字段的日线。
 // 新浪历史日线的成交额字段为空，不能再用成交量×收盘价反推，否则会把“手/股”单位差异放大成百倍误差。
 // T0 过滤成交额时只接受各数据源直接返回的成交额（元）。
@@ -650,11 +699,16 @@ func fetchFromEastMoney(stockCode, stockName, klt string, limit int, end string)
 	if strings.TrimSpace(end) == "" {
 		data = api.GetKLineDataBefore(stockCode, klt, "", limit, "20500101")
 	} else {
-		// 东财日/周线 end 需 YYYYMMDD；传入 2006-01-02 时规范化，避免被忽略后落到「最新」窗口
-		emEnd := strings.ReplaceAll(strings.TrimSpace(end), "-", "")
+		// 东财日线 end 为 YYYYMMDD，分钟线可用 YYYYMMDDHHmmss 截止；
+		// 统一去掉日期/时间分隔符，避免分钟线历史请求落到最新窗口。
+		emEnd := normalizeEastMoneyEnd(end)
 		data = api.GetKLineDataBefore(stockCode, klt, "", limit, emEnd)
 	}
 	return &KLineSourceResult{Data: data}
+}
+
+func normalizeEastMoneyEnd(end string) string {
+	return strings.NewReplacer("-", "", "/", "", ".", "", " ", "", ":", "").Replace(strings.TrimSpace(end))
 }
 
 func fetchFromSina(stockCode, klt string, limit int) *KLineSourceResult {

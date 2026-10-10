@@ -391,6 +391,7 @@ void main() {
             {
               'rule_key': 'old_t0',
               'name': '旧T0形态',
+              'description': 'T-3、T-2收盘涨停；T0开盘涨幅0.01%～3%',
               'research_tier': 'A',
               'strict_win_rate': 70,
               'target_rate': 55,
@@ -404,6 +405,7 @@ void main() {
               'rule_key': 'gob_myin_dt_dt_v1',
               'rule_version': 1,
               'name': '中阴→跌停→跌停后低开',
+              'description': 'T-3中阴、T-2和T-1跌停；T0低开区间',
               'entry_source': 'daily_open',
               'exit_horizon': 'T+1_close',
               'stats_status': 'pending',
@@ -451,6 +453,27 @@ void main() {
     expect(find.text('中阴→跌停→跌停后低开 · T+1收盘 统计待核验'), findsOneWidget);
     expect(find.text('另一形态 · T+1收盘 真赚75.0% · 12例'), findsOneWidget);
     expect(find.text('旧T0形态 55/80/20'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        '自定义形态：旧T0形态\n'
+        '条件说明：T-3、T-2收盘涨停；T0开盘涨幅0.01%～3%\n'
+        '达标率：55%\n'
+        '真赚率：80%\n'
+        '严格胜率：70%\n'
+        '样本数：20',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip(
+        '形态：中阴→跌停→跌停后低开\n'
+        '条件说明：T-3中阴、T-2和T-1跌停；T0低开区间\n'
+        '评判：T+1收盘\n'
+        '入场：日线开盘代理\n'
+        '统计待核验',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('红策数据不完整，仅显示已确认命中；列表数量不是完整统计'), findsOneWidget);
     disposeVms();
   });

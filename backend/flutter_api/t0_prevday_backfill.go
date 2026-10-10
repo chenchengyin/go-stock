@@ -8,7 +8,7 @@ import (
 	"go-stock/backend/logger"
 )
 
-const t0PrevDayLookbackDays = 5
+const t0PrevDayLookbackDays = 20
 
 func hasDailyBarOnDate(bars []dailyBar, date string) bool {
 	for _, b := range bars {
@@ -46,6 +46,29 @@ func resolvePrevTradingDay(tradeDate string) (string, bool) {
 			return candidate, true
 		}
 		d = d.AddDate(0, 0, -1)
+	}
+	return "", false
+}
+
+func resolveNextTradingDay(tradeDate, throughDate string) (string, bool) {
+	start, err := time.Parse("2006-01-02", tradeDate)
+	if err != nil {
+		return "", false
+	}
+	through, err := time.Parse("2006-01-02", throughDate)
+	if err != nil || !start.Before(through) {
+		return "", false
+	}
+
+	d := start.AddDate(0, 0, 1)
+	for i := 0; i < t0PrevDayLookbackDays && !d.After(through); i++ {
+		if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
+			candidate := d.Format("2006-01-02")
+			if isValidTradingDay(candidate) {
+				return candidate, true
+			}
+		}
+		d = d.AddDate(0, 0, 1)
 	}
 	return "", false
 }

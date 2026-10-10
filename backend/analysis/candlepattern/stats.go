@@ -11,6 +11,9 @@ const (
 )
 
 func CollectObservations(cache *DailyCache, tradeDate string, window int) []Observation {
+	if cache == nil || IsWeekendDate(tradeDate) {
+		return nil
+	}
 	pool := FilterA2Pool(cache, tradeDate)
 	out := make([]Observation, 0, len(pool))
 	for sc, hist := range pool {

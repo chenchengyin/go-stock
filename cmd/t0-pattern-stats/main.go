@@ -70,6 +70,9 @@ func resolveDates(date, dateRange string) ([]string, error) {
 	if date == "" {
 		return nil, fmt.Errorf("--date or --date-range required")
 	}
+	if candlepattern.IsWeekendDate(date) {
+		return nil, fmt.Errorf("周末不是交易日: %s", date)
+	}
 	return []string{date}, nil
 }
 
@@ -90,7 +93,7 @@ func listGobDates(start, end string) ([]string, error) {
 			continue
 		}
 		d := strings.TrimSuffix(strings.TrimPrefix(name, "t0_daily_cache_"), ".gob")
-		if d >= start && d <= end {
+		if d >= start && d <= end && !candlepattern.IsWeekendDate(d) {
 			dates = append(dates, d)
 		}
 	}
@@ -138,6 +141,9 @@ func runDate(
 	tailNs []int,
 	fetcher candlepattern.HourlyFetcher,
 ) error {
+	if candlepattern.IsWeekendDate(tradeDate) {
+		return fmt.Errorf("周末不是交易日: %s", tradeDate)
+	}
 	cache, err := candlepattern.LoadDailyCache(root, tradeDate)
 	if err != nil {
 		return err

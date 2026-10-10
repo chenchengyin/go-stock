@@ -112,6 +112,7 @@ func TestRedReferenceEnrichmentOnlyShowsRedEntryRules(t *testing.T) {
 ]}`
 	redDefinition := t0reference.RuleDefinition{
 		RuleKind: "condition", Name: "RED_PATTERN", DefinitionVersion: "v1",
+		Description:   "T-2 涨停、T-1 涨停；T0开盘涨幅0.01%～3%",
 		ConditionJSON: condition,
 		EntryJSON:     `{"field":"entry_gap","op":"between","min":0.01,"max":3.0,"inclusive":true}`,
 		ManualRank:    1, MinSamples: 10, RedEntry: true,
@@ -142,6 +143,49 @@ func TestRedReferenceEnrichmentOnlyShowsRedEntryRules(t *testing.T) {
 	if len(result.T0ReferenceHits) != 1 || result.T0ReferenceHits[0].Name != "RED_PATTERN" {
 		t.Fatalf("red reference hits = %+v, want only RED_PATTERN", result.T0ReferenceHits)
 	}
+	if result.T0ReferenceHits[0].Description != redDefinition.Description {
+		t.Fatalf("reference explanation = %q, want %q", result.T0ReferenceHits[0].Description, redDefinition.Description)
+	}
+}
+
+func TestLoadT0ReferenceRulesFillsDefaultExplanationForLegacyRow(t *testing.T) {
+	previous := db.Dao
+	t.Cleanup(func() { db.Dao = previous })
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "reference.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Dao = dao
+	if err := dao.AutoMigrate(&models.T0ReferenceRule{}, &models.T0ReferenceRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	var definition t0reference.RuleDefinition
+	for _, candidate := range t0reference.DefaultRuleDefinitions() {
+		if candidate.RedEntry {
+			definition = candidate
+			break
+		}
+	}
+	compiled, err := t0reference.CompileRule(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := dao.Create(&models.T0ReferenceRule{
+		RuleKey: compiled.RuleKey, RuleKind: definition.RuleKind, Name: definition.Name,
+		DefinitionVersion: definition.DefinitionVersion, ConditionJSON: definition.ConditionJSON,
+		EntryJSON: definition.EntryJSON, Enabled: true, RedEntry: true,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, runtime := range loadT0ReferenceRuleRuntimes() {
+		if runtime.rule.RuleKey == compiled.RuleKey {
+			if runtime.rule.Definition.Description == "" {
+				t.Fatal("legacy database row did not inherit the built-in explanation")
+			}
+			return
+		}
+	}
+	t.Fatal("built-in red-entry rule was not loaded")
 }
 
 func TestLoadT0ReferenceRulesIgnoresStaleSameNameDefinition(t *testing.T) {

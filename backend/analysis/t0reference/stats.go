@@ -55,7 +55,7 @@ func NewReferenceStatsAccumulator(rule CompiledRule) *ReferenceStatsAccumulator 
 // Add evaluates the rule against the observation and adds matching outcomes
 // to the all-time and calendar-year buckets.
 func (a *ReferenceStatsAccumulator) Add(observation Observation) {
-	if a == nil || observation.EntryPrice <= 0 || !observationHasThreeBars(observation) {
+	if a == nil || IsWeekendDate(observation.TradeDate) || observation.EntryPrice <= 0 || !observationHasThreeBars(observation) {
 		return
 	}
 	view := BuildPreT0View(observation)
@@ -127,7 +127,7 @@ func AggregateReferenceStats(rule CompiledRule, observations []Observation, peri
 		if periodKey != "" && periodKey != "all" && !strings.HasPrefix(observation.TradeDate, periodKey) {
 			continue
 		}
-		if observation.EntryPrice <= 0 || !observationHasThreeBars(observation) {
+		if IsWeekendDate(observation.TradeDate) || observation.EntryPrice <= 0 || !observationHasThreeBars(observation) {
 			continue
 		}
 		view := BuildPreT0View(observation)

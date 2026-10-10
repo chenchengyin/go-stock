@@ -317,6 +317,17 @@ func Start() {
 		}
 	}()
 
+	// 交易日收盘后增量更新共享红策 GOB，保持日期列表和内存日线同步。
+	go func() {
+		runMainboardSharedGobRefreshTick(time.Now())
+
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for tick := range ticker.C {
+			runMainboardSharedGobRefreshTick(tick)
+		}
+	}()
+
 	addr := fmt.Sprintf(":%d", port)
 	logger.SugaredLogger.Infof("HTTP Server (for Flutter) starting on %s", addr)
 
@@ -366,6 +377,7 @@ func newUserHTTPHandler(authService *AuthService, moduleService *ModuleService, 
 	mux.HandleFunc("/api/news/clean-duplicate", handleCleanDuplicateNews)
 	mux.HandleFunc("/api/kline", handleGetKLine)
 	mux.Handle("/api/t0-red/kline-window", newRedKlineHandler(moduleService))
+	mux.Handle("/api/t0-red/t1-intraday", newRedT1IntradayHandler(moduleService))
 	mux.HandleFunc("/api/global-indexes", handleGlobalIndexes)
 	mux.HandleFunc("/api/industry-ranks", handleIndustryRanks)
 	mux.HandleFunc("/api/hot-topics", handleHotTopics)

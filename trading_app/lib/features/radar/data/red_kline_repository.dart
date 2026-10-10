@@ -103,11 +103,15 @@ class RedKlineRepository {
   final Map<String, Future<Map<String, RedKlineWindow>>> _pending = {};
   final Map<String, DateTime> _cachedAt = {};
 
-  Future<Map<String, RedKlineWindow>> load(String date, List<String> codes) {
+  Future<Map<String, RedKlineWindow>> load(
+    String date,
+    List<String> codes, {
+    String moduleCode = 'radar.red_strategy',
+  }) {
     final unique = codes.where((code) => code.isNotEmpty).toSet().toList()
       ..sort();
     if (date.isEmpty || unique.isEmpty) return Future.value({});
-    final key = '$date:${unique.join(',')}';
+    final key = '$moduleCode:$date:${unique.join(',')}';
     final now = _now();
     final shanghaiToday = now.toUtc().add(const Duration(hours: 8));
     final recentThreshold = DateTime.utc(
@@ -135,7 +139,7 @@ class RedKlineRepository {
           final batch = unique.sublist(start, end);
           final response = _fetchBatch != null
               ? await _fetchBatch(date, batch)
-              : await _request(date, batch);
+              : await _request(date, batch, moduleCode);
           final rawItems = response['items'];
           if (rawItems is! Map) continue;
           for (final entry in rawItems.entries) {
@@ -154,12 +158,20 @@ class RedKlineRepository {
     });
   }
 
-  Future<Map<String, dynamic>> _request(String date, List<String> codes) async {
+  Future<Map<String, dynamic>> _request(
+    String date,
+    List<String> codes,
+    String moduleCode,
+  ) async {
     final dio = _dio;
     if (dio == null) throw StateError('K-line API client is missing');
     final response = await dio.get<dynamic>(
       '/api/t0-red/kline-window',
-      queryParameters: {'date': date, 'codes': codes.join(',')},
+      queryParameters: {
+        'date': date,
+        'codes': codes.join(','),
+        'module_code': moduleCode,
+      },
     );
     if (response.data is! Map) {
       throw const FormatException('Invalid K-line response');

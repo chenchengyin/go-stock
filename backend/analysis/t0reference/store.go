@@ -54,7 +54,7 @@ func PersistObservations(dao *gorm.DB, versions []ObservationVersion) error {
 
 func validateObservationVersion(version ObservationVersion) error {
 	obs := version.Observation
-	if version.SourceBatch == "" || obs.TradeDate == "" || obs.StockCode == "" {
+	if version.SourceBatch == "" || obs.TradeDate == "" || IsWeekendDate(obs.TradeDate) || obs.StockCode == "" {
 		return errors.New("invalid t0 reference persistence input")
 	}
 	if obs.EntryPrice <= 0 || obs.T0.PrevClose <= 0 {

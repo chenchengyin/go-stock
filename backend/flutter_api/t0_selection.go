@@ -26,7 +26,7 @@ import (
 // 数据源：
 //   - 股票池：新浪 Market_Center API（分页获取全量A股，含 nmc/mktcap）
 //   - 日线 K 线：data.FetchKLineWithFallback（同花顺→东财→新浪→腾讯→通达信）
-//   - T0 实时行情：腾讯 qt.gtimg.cn API
+//   - T0 实时行情：2 秒内存缓存→同花顺当日K→腾讯实时行情
 //   - 缓存根目录：/tmp/go-stock-cache/t0/{daily,selection}/
 //
 // 过滤链：
@@ -139,6 +139,8 @@ type t0DailyCachePayload struct {
 
 const t0DailyCacheSchemaVersion = 2
 
+const t0RealtimeQuoteCacheTTL = 2 * time.Second
+
 // t0SelectionArchive 按日选股结果归档
 type t0SelectionArchive struct {
 	Date string `json:"date"`
@@ -180,7 +182,16 @@ var (
 	t0ArchiveDatesDir   string
 	t0ArchiveDates      []string
 	t0ArchiveDatesValid bool
+
+	t0RealtimeQuoteCacheMu sync.Mutex
+	t0RealtimeQuoteCache   = map[string]t0RealtimeQuoteCacheEntry{}
 )
+
+type t0RealtimeQuoteCacheEntry struct {
+	TradeDate string
+	FetchedAt time.Time
+	Quote     t0Realtime
+}
 
 func t0DailyCachePath(tradeDate string) string {
 	return filepath.Join(t0CacheRootPath, "t0", "daily", "t0_daily_cache_"+tradeDate+".gob")
@@ -203,8 +214,19 @@ func ensureT0CacheDirs() error {
 }
 
 func isT0DailyCacheFilePresent(tradeDate string) bool {
-	_, ok := loadT0DailyCache(tradeDate)
-	return ok
+	payload, ok := loadT0DailyCache(tradeDate)
+	if !ok {
+		return false
+	}
+	if len(payload.Daily) > 0 {
+		return true
+	}
+	shared, err := loadMainboardSharedGob()
+	if err != nil {
+		return false
+	}
+	_, missing := sharedGobDailyForStocks(shared, payload.Stocks, t0DailyFetchEndDate(tradeDate), nil)
+	return len(missing) == 0
 }
 
 func getT0WarmProgress(tradeDate string) t0WarmProgress {
@@ -254,7 +276,7 @@ func readT0DailyCachePayload(tradeDate string) (*t0DailyCachePayload, bool) {
 		return nil, false
 	}
 	if payload.DataSchemaVersion != t0DailyCacheSchemaVersion ||
-		payload.TradeDate != tradeDate || len(payload.Stocks) == 0 || len(payload.Daily) == 0 {
+		payload.TradeDate != tradeDate || len(payload.Stocks) == 0 {
 		logger.SugaredLogger.Warnf("[T0选股] 日线缓存版本或内容不可用，等待按新成交额口径重建: %s", path)
 		return nil, false
 	}
@@ -275,22 +297,35 @@ func loadT0DailyCacheForResults(
 	tradeDate string,
 	results []T0SelectionResult,
 ) (map[string][]dailyBar, bool) {
-	payload, ok := readT0DailyCachePayload(tradeDate)
-	if !ok {
-		return nil, false
-	}
-
-	daily := make(map[string][]dailyBar, len(results))
+	payload, _ := readT0DailyCachePayload(tradeDate)
+	stocks := make([]t0Stock, 0, len(results))
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		if shortCode == "" {
 			continue
 		}
-		bars, exists := payload.Daily[shortCode]
-		if !exists || len(bars) < 2 {
+		stocks = append(stocks, t0Stock{ShortCode: shortCode})
+	}
+	if len(stocks) == 0 {
+		return map[string][]dailyBar{}, true
+	}
+	fallback := map[string][]dailyBar(nil)
+	if payload != nil {
+		fallback = payload.Daily
+	}
+	if shared, err := loadMainboardSharedGob(); err == nil {
+		daily, missing := sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), fallback)
+		if len(missing) == 0 {
+			return daily, true
+		}
+	}
+	daily := make(map[string][]dailyBar, len(stocks))
+	for _, stock := range stocks {
+		bars := fallback[stock.ShortCode]
+		if len(bars) < 2 {
 			return nil, false
 		}
-		daily[shortCode] = bars
+		daily[stock.ShortCode] = bars
 	}
 	return daily, true
 }
@@ -589,21 +624,95 @@ func findLatestSelectionArchiveBefore(tradeDate string) (*t0SelectionArchive, bo
 
 // loadOrFetchT0Daily 优先读磁盘缓存；未命中则拉股票池+日线并写入。
 func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]dailyBar, fromCache bool, err error) {
-	if cached, ok := loadT0DailyCache(tradeDate); ok {
-		logger.SugaredLogger.Infof("[T0选股] 日线缓存命中: %s (股票%d只, 日线%d只)",
-			tradeDate, len(cached.Stocks), len(cached.Daily))
-		return cached.Stocks, cached.Daily, true, nil
+	endDate := t0DailyFetchEndDate(tradeDate)
+	cached, hasCache := loadT0DailyCache(tradeDate)
+	shared, sharedErr := loadMainboardSharedGob()
+	if hasCache && sharedErr == nil {
+		stocks = cached.Stocks
+		daily, missing := sharedGobDailyForStocks(shared, stocks, endDate, cached.Daily)
+		fallback := fetchAllDailyKLine(missing, endDate, nil)
+		for code, bars := range fallback {
+			daily[code] = bars
+		}
+		if len(daily) == 0 {
+			return nil, nil, false, fmt.Errorf("共享日线GOB和缺失股票回退都没有可用日线")
+		}
+
+		// Once a date cache is read, keep only bars for codes the shared GOB cannot cover.
+		fallbackCache := make(map[string][]dailyBar)
+		for _, stock := range stocks {
+			if len(dailyBarsOnOrBefore(shared.Daily[stock.ShortCode], endDate)) >= 2 {
+				continue
+			}
+			if bars := fallback[stock.ShortCode]; len(bars) >= 2 {
+				fallbackCache[stock.ShortCode] = bars
+			} else if bars := cached.Daily[stock.ShortCode]; len(bars) >= 2 {
+				fallbackCache[stock.ShortCode] = bars
+			}
+		}
+		if saveErr := saveT0DailyCache(tradeDate, stocks, fallbackCache); saveErr != nil {
+			logger.SugaredLogger.Warnf("[T0选股] 共享日线回退缓存写入失败: %v", saveErr)
+		}
+		logger.SugaredLogger.Infof("[T0选股] 共享日线就绪: %s (股票%d只, 可用日线%d只, 需回退%d只)",
+			tradeDate, len(stocks), len(daily), len(missing))
+		return stocks, daily, true, nil
+	}
+	if hasCache && len(cached.Daily) > 0 {
+		missing := make([]t0Stock, 0)
+		daily := cached.Daily
+		for _, stock := range cached.Stocks {
+			if len(daily[stock.ShortCode]) < 2 {
+				missing = append(missing, stock)
+			}
+		}
+		if len(missing) > 0 {
+			fallback := fetchAllDailyKLine(missing, endDate, nil)
+			daily = make(map[string][]dailyBar, len(cached.Daily)+len(fallback))
+			for code, bars := range cached.Daily {
+				daily[code] = bars
+			}
+			for code, bars := range fallback {
+				daily[code] = bars
+			}
+			if err := saveT0DailyCache(tradeDate, cached.Stocks, daily); err != nil {
+				logger.SugaredLogger.Warnf("[T0选股] 共享GOB不可用时补充日线缓存失败: %v", err)
+			}
+		}
+		logger.SugaredLogger.Infof("[T0选股] 日线缓存命中(共享GOB不可用): %s (股票%d只, 日线%d只)",
+			tradeDate, len(cached.Stocks), len(daily))
+		return cached.Stocks, daily, true, nil
 	}
 
 	t1 := time.Now()
-	stocks, poolErr := fetchStockPoolFromSinaStrict()
-	if poolErr != nil {
-		return nil, nil, false, fmt.Errorf("股票池获取失败: %w", poolErr)
+	if hasCache {
+		stocks = cached.Stocks
+	} else {
+		stocks, err = fetchStockPoolFromSinaStrict()
+		if err != nil {
+			return nil, nil, false, fmt.Errorf("股票池获取失败: %w", err)
+		}
 	}
 	logger.SugaredLogger.Infof("[T0选股] 股票池(主板+市值): %d只 (%.1fs)", len(stocks), time.Since(t1).Seconds())
 
+	if sharedErr == nil {
+		daily, missing := sharedGobDailyForStocks(shared, stocks, endDate, nil)
+		fallback := fetchAllDailyKLine(missing, endDate, nil)
+		for code, bars := range fallback {
+			daily[code] = bars
+		}
+		if len(daily) == 0 {
+			return nil, nil, false, fmt.Errorf("共享日线GOB和缺失股票回退都没有可用日线")
+		}
+		if saveErr := saveT0DailyCache(tradeDate, stocks, fallback); saveErr != nil {
+			logger.SugaredLogger.Warnf("[T0选股] 共享日线回退缓存写入失败: %v", saveErr)
+		}
+		logger.SugaredLogger.Infof("[T0选股] 共享日线就绪: %s (股票%d只, 可用日线%d只, 需回退%d只)",
+			tradeDate, len(stocks), len(daily), len(missing))
+		return stocks, daily, true, nil
+	}
+
 	t2 := time.Now()
-	daily = fetchAllDailyKLine(stocks, t0DailyFetchEndDate(tradeDate), nil)
+	daily = fetchAllDailyKLine(stocks, endDate, nil)
 	logger.SugaredLogger.Infof("[T0选股] 日线获取成功: %d只 (%.1fs)", len(daily), time.Since(t2).Seconds())
 	if len(daily) == 0 {
 		return nil, nil, false, fmt.Errorf("日线获取为空")
@@ -620,8 +729,9 @@ func tryStartT0Prewarm(tradeDate string) (started bool, progress t0WarmProgress)
 	if isT0WeekendDate(tradeDate) {
 		return false, t0WarmProgress{Status: t0WarmStatusIdle}
 	}
+	cacheReady := isT0DailyCacheFilePresent(tradeDate)
 	t0WarmMu.Lock()
-	if isT0DailyCacheFilePresent(tradeDate) {
+	if cacheReady {
 		p := t0WarmByDate[tradeDate]
 		if p == nil {
 			p = &t0WarmProgress{}
@@ -679,11 +789,28 @@ func runT0PrewarmJob(tradeDate string) {
 		p.DailyTotal = len(stocks)
 		p.DailyFetched = 0
 	})
-	daily := fetchAllDailyKLine(stocks, t0DailyFetchEndDate(tradeDate), func() {
+	endDate := t0DailyFetchEndDate(tradeDate)
+	shared, sharedErr := loadMainboardSharedGob()
+	fallbackCache := make(map[string][]dailyBar)
+	daily := make(map[string][]dailyBar, len(stocks))
+	missing := stocks
+	if sharedErr == nil {
+		daily, missing = sharedGobDailyForStocks(shared, stocks, endDate, nil)
+		loaded := len(stocks) - len(missing)
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.DailyFetched = loaded
+		})
+	} else {
+		logger.SugaredLogger.Warnf("[T0选股] 预热无法使用共享日线GOB，回退完整日线拉取: %v", sharedErr)
+	}
+	fallbackCache = fetchAllDailyKLine(missing, endDate, func() {
 		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 			p.DailyFetched++
 		})
 	})
+	for code, bars := range fallbackCache {
+		daily[code] = bars
+	}
 	if len(daily) == 0 {
 		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 			p.Status = t0WarmStatusFailed
@@ -692,7 +819,7 @@ func runT0PrewarmJob(tradeDate string) {
 		return
 	}
 
-	if err := saveT0DailyCache(tradeDate, stocks, daily); err != nil {
+	if err := saveT0DailyCache(tradeDate, stocks, fallbackCache); err != nil {
 		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
 			p.Status = t0WarmStatusFailed
 			p.Err = err.Error()
@@ -739,6 +866,9 @@ func buildPrewarmReadyResponseAtWithCache(
 	stocks, daily, ok := []t0Stock(nil), map[string][]dailyBar(nil), cached != nil
 	if ok {
 		stocks, daily = cached.Stocks, cached.Daily
+		if shared, err := loadMainboardSharedGob(); err == nil {
+			daily, _ = sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), daily)
+		}
 	}
 	hist := make(map[string][]dailyBar, len(daily))
 	if ok {
@@ -905,19 +1035,8 @@ func buildPrewarmProgressResponse(tradeDate string, prog t0WarmProgress) map[str
 
 // ── 数据结构 ─────────────────────────────────────────────────────────────────
 
-// dailyBar 内部使用的日线数据
-type dailyBar struct {
-	Date           string
-	Open           float64
-	Close          float64
-	High           float64
-	Low            float64
-	Volume         float64 // 成交量(源数据原始单位)
-	AmountYi       float64 // 成交额(亿元)
-	AmountSource   string  // 成交额来源：eastmoney/sina/tencent/tdx
-	AmountUnit     string  // 统一为 yuan
-	AmountVerified bool    // 是否由数据源直接提供成交额，禁止用成交量×收盘价反推
-}
+// dailyBar 与共享 GOB 日线共用类型，更新时可保留成交量单位等原始元数据。
+type dailyBar = MainboardFloatCap50Bar
 
 type t0DataWarning struct {
 	Code     string `json:"code"`
@@ -950,6 +1069,29 @@ type t0Realtime struct {
 	Open      float64
 	Close     float64 // 当前价
 	PrevClose float64
+	Source    string
+}
+
+func freshT0RealtimeQuote(code, tradeDate string, now time.Time) (t0Realtime, bool) {
+	t0RealtimeQuoteCacheMu.Lock()
+	defer t0RealtimeQuoteCacheMu.Unlock()
+	entry, ok := t0RealtimeQuoteCache[code]
+	if !ok {
+		return t0Realtime{}, false
+	}
+	if entry.TradeDate != tradeDate || now.Before(entry.FetchedAt) || !now.Before(entry.FetchedAt.Add(t0RealtimeQuoteCacheTTL)) {
+		delete(t0RealtimeQuoteCache, code)
+		return t0Realtime{}, false
+	}
+	return entry.Quote, true
+}
+
+func cacheT0RealtimeQuote(code, tradeDate string, quote t0Realtime, fetchedAt time.Time) {
+	t0RealtimeQuoteCacheMu.Lock()
+	t0RealtimeQuoteCache[code] = t0RealtimeQuoteCacheEntry{
+		TradeDate: tradeDate, FetchedAt: fetchedAt, Quote: quote,
+	}
+	t0RealtimeQuoteCacheMu.Unlock()
 }
 
 // T0SelectionResult 最终选股结果
@@ -1530,9 +1672,122 @@ func fetchAllDailyKLine(stocks []t0Stock, endDate string, onOneDone func()) map[
 	return cache
 }
 
-// ── T0 实时行情（腾讯 API） ─────────────────────────────────────────────────
-
+// fetchT0Realtime reuses fresh quotes, tries THS daily bars first, then falls back to Tencent.
 func fetchT0Realtime(stocks []t0Stock) map[string]t0Realtime {
+	if len(stocks) == 0 {
+		return nil
+	}
+	now := time.Now().In(chinaLocation())
+	tradeDate := now.Format("2006-01-02")
+	quotes := make(map[string]t0Realtime, len(stocks))
+	needFetch := make([]t0Stock, 0, len(stocks))
+	for _, stock := range stocks {
+		if quote, ok := freshT0RealtimeQuote(stock.ShortCode, tradeDate, now); ok {
+			quotes[stock.ShortCode] = quote
+			continue
+		}
+		needFetch = append(needFetch, stock)
+	}
+	if len(needFetch) == 0 {
+		return quotes
+	}
+
+	thsQuotes := fetchT0RealtimeTHS(needFetch, now)
+	for code, quote := range thsQuotes {
+		quotes[code] = quote
+	}
+	needTencent := make([]t0Stock, 0, len(needFetch)-len(thsQuotes))
+	for _, stock := range needFetch {
+		if _, ok := thsQuotes[stock.ShortCode]; !ok {
+			needTencent = append(needTencent, stock)
+		}
+	}
+	fetchedAt := time.Now().In(chinaLocation())
+	tradeDate = fetchedAt.Format("2006-01-02")
+	for code, quote := range fetchT0RealtimeTencent(needTencent) {
+		quotes[code] = quote
+		if quote.Open > 0 && quote.PrevClose > 0 {
+			cacheT0RealtimeQuote(code, tradeDate, quote, fetchedAt)
+		}
+	}
+	return quotes
+}
+
+func fetchT0RealtimeTHS(stocks []t0Stock, now time.Time) map[string]t0Realtime {
+	quotes := make(map[string]t0Realtime)
+	// The THS endpoint is per symbol. Probe liquid mainboard symbols first so an
+	// unavailable same-day feed does not delay every candidate before Tencent fallback.
+	probeCodes := []string{"600000", "000001", "600519"}
+	probeQuotes := make(map[string]data.THSRealtimeDailyQuote)
+	var probeMu sync.Mutex
+	var probeWG sync.WaitGroup
+	for _, code := range probeCodes {
+		probeWG.Add(1)
+		go func(code string) {
+			defer probeWG.Done()
+			quote, ok := data.FetchTHSRealtimeDailyQuote(code, now)
+			if !ok {
+				return
+			}
+			probeMu.Lock()
+			probeQuotes[code] = quote
+			probeMu.Unlock()
+		}(code)
+	}
+	probeWG.Wait()
+	if len(probeQuotes) == 0 {
+		return quotes
+	}
+	stockByCode := make(map[string]t0Stock, len(stocks))
+	for _, stock := range stocks {
+		stockByCode[stock.ShortCode] = stock
+	}
+	for code, quote := range probeQuotes {
+		if _, ok := stockByCode[code]; ok {
+			realtime := t0Realtime{
+				Open: quote.Open, Close: quote.Price, PrevClose: quote.PrevClose, Source: "ths",
+			}
+			quotes[code] = realtime
+			fetchedAt := time.Now().In(chinaLocation())
+			cacheT0RealtimeQuote(code, fetchedAt.Format("2006-01-02"), realtime, fetchedAt)
+		}
+	}
+	remaining := make([]t0Stock, 0, len(stocks)-len(quotes))
+	for _, stock := range stocks {
+		if _, ok := quotes[stock.ShortCode]; !ok {
+			remaining = append(remaining, stock)
+		}
+	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 20)
+	for _, stock := range remaining {
+		wg.Add(1)
+		go func(stock t0Stock) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			quote, ok := data.FetchTHSRealtimeDailyQuote(stock.ShortCode, now)
+			if !ok {
+				return
+			}
+			mu.Lock()
+			realtime := t0Realtime{
+				Open: quote.Open, Close: quote.Price, PrevClose: quote.PrevClose, Source: "ths",
+			}
+			quotes[stock.ShortCode] = realtime
+			mu.Unlock()
+			fetchedAt := time.Now().In(chinaLocation())
+			cacheT0RealtimeQuote(stock.ShortCode, fetchedAt.Format("2006-01-02"), realtime, fetchedAt)
+		}(stock)
+	}
+	wg.Wait()
+	return quotes
+}
+
+// ── Tencent realtime fallback ────────────────────────────────────────────────
+
+func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
 	if len(stocks) == 0 {
 		return nil
 	}
@@ -1601,6 +1856,7 @@ func fetchT0Realtime(stocks []t0Stock) map[string]t0Realtime {
 				Close:     parse(parts[3]),
 				PrevClose: parse(parts[4]),
 				Open:      parse(parts[5]),
+				Source:    "tencent",
 			}
 			// 腾讯API：当前价=0时使用开盘价
 			if rt.Close == 0 && rt.Open > 0 {
@@ -1845,7 +2101,7 @@ func histBarsBeforeTradeDate(bars []dailyBar, tradeDate string) []dailyBar {
 
 // buildT0AuctionQuotes 构建竞价开盘价口径：
 //   - 历史回测（tradeDate < 今天）：日线含当日 K → 用当日 Open 作竞价开盘
-//   - 当天实盘（tradeDate == 今天）：一律腾讯 Open（09:25 后即竞价价），避免未收盘日线 Open 干扰
+//   - 当天实盘（tradeDate == 今天）：只用当日实时源，避免未收盘日线 Open 干扰
 func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning) {
 	today := time.Now().In(chinaLocation()).Format("2006-01-02")
 	useLiveOnly := tradeDate == today || tradeDate > today
@@ -1877,10 +2133,30 @@ func buildT0AuctionQuotes(tradeDate string, stocks []t0Stock, dailyCache map[str
 		for sc, rt := range live {
 			out[sc] = rt
 		}
+		thsCount, tencentCount := 0, 0
+		for _, quote := range live {
+			switch quote.Source {
+			case "ths":
+				thsCount++
+			case "tencent":
+				tencentCount++
+			}
+		}
+		liveSource := ""
+		switch {
+		case thsCount > 0 && tencentCount > 0:
+			liveSource = fmt.Sprintf("同花顺%d/腾讯%d", thsCount, tencentCount)
+		case thsCount > 0:
+			liveSource = fmt.Sprintf("同花顺%d", thsCount)
+		case tencentCount > 0:
+			liveSource = fmt.Sprintf("腾讯%d", tencentCount)
+		default:
+			liveSource = "无可用实时源"
+		}
 		if fromDaily == 0 {
-			source = "腾讯竞价开盘"
+			source = liveSource + "竞价开盘"
 		} else {
-			source = fmt.Sprintf("混合(日线%d/腾讯%d)", fromDaily, len(live))
+			source = fmt.Sprintf("混合(日线%d/%s)", fromDaily, liveSource)
 		}
 	}
 	missing := len(stocks) - len(out)
@@ -2102,7 +2378,8 @@ func newT0SelectionHandler(moduleService *ModuleService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		moduleCode := strings.TrimSpace(q.Get("module_code"))
-		if isTruthyQuery(q.Get("list_dates")) && moduleCode != redT0StrategyModuleCode {
+		if isTruthyQuery(q.Get("list_dates")) && moduleCode != redT0StrategyModuleCode &&
+			moduleCode != sharedGobRedStrategyModuleCode {
 			handleT0Selection(w, r)
 			return
 		}
@@ -2166,7 +2443,7 @@ func scopeT0ResponseResultsWithContext(
 	if err != nil {
 		return err
 	}
-	if moduleCode == redT0StrategyModuleCode {
+	if isRedT0StrategyModule(moduleCode) {
 		selected = sortT0ResultsForClient(selected)
 	}
 	response[field] = selected
@@ -2212,7 +2489,7 @@ func writeScopedT0ResponseWithContext(
 		}
 		if ctx == nil {
 			enrichT0ResponseFieldForDisplay(response, field)
-			if moduleCode == redT0StrategyModuleCode {
+			if isRedT0StrategyModule(moduleCode) {
 				if results, ok := response[field].([]T0SelectionResult); ok {
 					response[field] = enrichGobRedRuleStats(results)
 				}
@@ -2229,7 +2506,7 @@ func writeScopedT0ResponseWithContext(
 		}
 		displayed := enrichT0ResultsForDisplayWithDailyForModule(
 			results, ctx.Daily, ctx.TradeDate, moduleCode)
-		if moduleCode == redT0StrategyModuleCode {
+		if isRedT0StrategyModule(moduleCode) {
 			displayed = enrichGobRedRuleStats(displayed)
 		}
 		response[field] = displayed
@@ -2358,17 +2635,30 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 	// list_dates：返回所有有效选股归档日期（降序）
 	if isTruthyQuery(q.Get("list_dates")) {
 		dates := listSelectionArchiveDates()
+		response := map[string]interface{}{"dates": dates}
 		if moduleCode == redT0StrategyModuleCode {
 			dates = listGobRedAvailableDates()
+			response["dates"] = dates
+		} else if moduleCode == sharedGobRedStrategyModuleCode {
+			shared, err := loadMainboardSharedGob()
+			if err != nil {
+				WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
+				return
+			}
+			dates = sharedGobRedDatesDescending(shared)
+			response["dates"] = dates
+			response["generated_at"] = shared.Snapshot.GeneratedAt
 		}
-		WriteJSON(w, map[string]interface{}{
-			"dates": dates,
-		})
+		WriteJSON(w, response)
 		return
 	}
 
 	if err := validateT0ModuleCode(moduleCode); err != nil {
 		WriteAuthError(w, err)
+		return
+	}
+	if moduleCode == sharedGobRedStrategyModuleCode {
+		handleSharedGobRedSelection(w, q.Get("date"))
 		return
 	}
 

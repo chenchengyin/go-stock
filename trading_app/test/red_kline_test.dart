@@ -20,7 +20,7 @@ import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_v
 import 'package:trading_app/features/radar/presentation/radar_list/red_kline_preview.dart';
 
 void main() {
-  testWidgets('红策蜡烛实体在卡片和放大图均增加2像素', (tester) async {
+  testWidgets('红策蜡烛实体保持可辨识宽度且列表没有放大按钮', (tester) async {
     for (final candleCount in [66, 10]) {
       final date = '2026-09-16';
       final window = RedKlineWindow.fromJson({
@@ -66,11 +66,8 @@ void main() {
       }
 
       expect(bodyWidth(), candleCount < 20 ? 9 : 4.8);
-      await tester.tap(find.byTooltip('放大K线'));
-      await tester.pumpAndSettle();
-      expect(bodyWidth(), candleCount < 20 ? 11 : 7);
-      await tester.tap(find.byTooltip('关闭K线'));
-      await tester.pumpAndSettle();
+      expect(find.byTooltip('放大K线'), findsNothing);
+      expect(find.byType(IconButton), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     }
   });
@@ -121,6 +118,101 @@ void main() {
     expect(chart.data.candlestickPainter, isA<RedMovingAveragePainter>());
   });
 
+  testWidgets('共享红策卡片日K长按显示十字与相对昨收的开收高低涨跌幅，松手恢复', (tester) async {
+    final window = RedKlineWindow.fromJson({
+      'code': '000823.XSHE',
+      'date': '2026-09-16',
+      'anchor_index': 1,
+      'before_count': 1,
+      'after_count': 0,
+      'source': 'fixture',
+      'status': 'ok',
+      'partial': true,
+      'bars': [
+        {'date': '2026-09-15', 'open': 10, 'high': 12, 'low': 9, 'close': 11},
+        {
+          'date': '2026-09-16',
+          'open': 11.5,
+          'high': 13,
+          'low': 10,
+          'close': 12,
+        },
+      ],
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(width: 390, child: RedKlinePreview(window: window)),
+        ),
+      ),
+    );
+    final chartFinder = find.byType(CandlestickChart);
+    final chart = tester.widget<CandlestickChart>(chartFinder);
+    expect(chart.data.candlestickTouchData.enabled, isTrue);
+    expect(chart.data.candlestickTouchData.handleBuiltInTouches, isFalse);
+    final rect = tester.getRect(chartFinder);
+    final gesture = await tester.startGesture(
+      Offset(rect.left + rect.width * .75, rect.center.dy),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(find.textContaining('2026-09-16  开 11.50 (+4.55%)'), findsOneWidget);
+    expect(find.textContaining('收 12.00 (+9.09%)'), findsOneWidget);
+    expect(find.textContaining('高 13.00 (+18.18%)'), findsOneWidget);
+    expect(find.textContaining('低 10.00 (-9.09%)'), findsOneWidget);
+    final selected = tester.widget<CandlestickChart>(chartFinder);
+    expect(selected.data.touchedPointIndicator?.x, 1);
+    expect(selected.data.touchedPointIndicator?.y, 12);
+    await gesture.moveTo(Offset(rect.left + rect.width * .25, rect.center.dy));
+    await tester.pump();
+    expect(find.textContaining('2026-09-15  开 10.00 (--%)'), findsOneWidget);
+    await gesture.up();
+    await tester.pump();
+    expect(
+      tester.widget<CandlestickChart>(chartFinder).data.touchedPointIndicator,
+      isNull,
+    );
+  });
+
+  testWidgets('窄屏长按日K详情不会溢出卡片', (tester) async {
+    final window = RedKlineWindow.fromJson({
+      'code': '000823.XSHE',
+      'date': '2026-09-16',
+      'anchor_index': 1,
+      'before_count': 1,
+      'after_count': 0,
+      'source': 'fixture',
+      'status': 'ok',
+      'partial': true,
+      'bars': [
+        {'date': '2026-09-15', 'open': 10, 'high': 12, 'low': 9, 'close': 11},
+        {
+          'date': '2026-09-16',
+          'open': 11.5,
+          'high': 13,
+          'low': 10,
+          'close': 12,
+        },
+      ],
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(width: 280, child: RedKlinePreview(window: window)),
+        ),
+      ),
+    );
+    final rect = tester.getRect(find.byType(CandlestickChart));
+    final gesture = await tester.startGesture(
+      Offset(rect.left + rect.width * .75, rect.center.dy),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(find.textContaining('高 13.00 (+18.18%)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await gesture.up();
+  });
+
   testWidgets('系统设置红策K线开关默认打开且关闭后持久化', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final setting = RedKlineSettings();
@@ -144,8 +236,8 @@ void main() {
     );
     expect(find.text('红策K线图'), findsOneWidget);
     final switchFinder = find.byType(CupertinoSwitch);
-    expect(tester.widget<CupertinoSwitch>(switchFinder.last).value, isTrue);
-    await tester.tap(switchFinder.last);
+    expect(tester.widget<CupertinoSwitch>(switchFinder.first).value, isTrue);
+    await tester.tap(switchFinder.first);
     await tester.pumpAndSettle();
     expect(setting.enabled, isFalse);
     expect(
@@ -366,7 +458,7 @@ void main() {
     expect(find.text('暂无可用日K线'), findsOneWidget);
   });
 
-  testWidgets('红策K线显示日线和放大入口', (tester) async {
+  testWidgets('红策K线显示日线但不提供放大入口', (tester) async {
     final window = RedKlineWindow.fromJson({
       'code': '000823.XSHE',
       'date': '2026-09-16',
@@ -391,9 +483,8 @@ void main() {
     );
     expect(find.byType(CandlestickChart), findsOneWidget);
     expect(find.textContaining('前1根'), findsOneWidget);
-    await tester.tap(find.byTooltip('放大K线'));
-    await tester.pumpAndSettle();
-    expect(find.byType(CandlestickChart), findsNWidgets(2));
+    expect(find.byTooltip('放大K线'), findsNothing);
+    expect(find.byType(CandlestickChart), findsOneWidget);
   });
 
   test('K线开关默认开启，关闭后可恢复', () async {

@@ -352,13 +352,21 @@ func newRedKlineHandler(moduleService *ModuleService) http.HandlerFunc {
 			WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
 			return
 		}
-		allowed, err := moduleService.HasModuleAccess(r.Context(), principal.UserID, redT0StrategyModuleCode)
+		moduleCode := strings.TrimSpace(r.URL.Query().Get("module_code"))
+		if moduleCode == "" {
+			moduleCode = redT0StrategyModuleCode
+		}
+		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode {
+			WriteAuthError(w, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "模块不存在"))
+			return
+		}
+		allowed, err := moduleService.HasModuleAccess(r.Context(), principal.UserID, moduleCode)
 		if err != nil {
 			WriteAuthError(w, err)
 			return
 		}
 		if !allowed {
-			WriteAuthError(w, newAuthError(http.StatusForbidden, "MODULE_FORBIDDEN", "暂无红策访问权限"))
+			WriteAuthError(w, newAuthError(http.StatusForbidden, "MODULE_FORBIDDEN", "暂无该红策模块访问权限"))
 			return
 		}
 		date := strings.TrimSpace(r.URL.Query().Get("date"))
@@ -384,6 +392,18 @@ func newRedKlineHandler(moduleService *ModuleService) http.HandlerFunc {
 				codes = append(codes, code)
 				seen[code] = true
 			}
+		}
+		if moduleCode == sharedGobRedStrategyModuleCode {
+			shared, err := loadMainboardSharedGob()
+			if err != nil {
+				WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
+				return
+			}
+			WriteJSON(w, map[string]interface{}{
+				"date":  date,
+				"items": sharedGobRedKlineWindows(date, codes, shared.Daily),
+			})
+			return
 		}
 		daily := loadRedKlineDaily(date)
 		if date < time.Now().In(chinaLocation()).Format("2006-01-02") {

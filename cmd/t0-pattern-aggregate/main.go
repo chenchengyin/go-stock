@@ -44,14 +44,14 @@ type report struct {
 	FlatRate      float64            `json:"flat_rate"`
 	FailCloseDown float64            `json:"fail_close_down_pct"`
 	FailPullback  float64            `json:"fail_pullback_pct"`
-	LastBar       map[string]lastRow  `json:"last_bar"`
+	LastBar       map[string]lastRow `json:"last_bar"`
 	Patterns      []aggRow           `json:"patterns"`
 }
 
 type lastRow struct {
-	Sample   int     `json:"sample"`
-	Success  float64 `json:"success_pct"`
-	Fail     float64 `json:"fail_pct"`
+	Sample  int     `json:"sample"`
+	Success float64 `json:"success_pct"`
+	Fail    float64 `json:"fail_pct"`
 }
 
 func main() {
@@ -125,7 +125,7 @@ func listGobDates(root, start, end string) ([]string, error) {
 			continue
 		}
 		d := strings.TrimSuffix(strings.TrimPrefix(name, "t0_daily_cache_"), ".gob")
-		if d >= start && d <= end {
+		if d >= start && d <= end && !candlepattern.IsWeekendDate(d) {
 			dates = append(dates, d)
 		}
 	}

@@ -47,6 +47,14 @@ func TestDefaultRedEntryDefinitionsIncludeAllSixRedPatterns(t *testing.T) {
 	}
 }
 
+func TestDefaultRedEntryDefinitionsHaveExplanations(t *testing.T) {
+	for _, definition := range DefaultRuleDefinitions() {
+		if definition.RedEntry && definition.Description == "" {
+			t.Errorf("red-entry rule %q has no explanation", definition.Name)
+		}
+	}
+}
+
 func TestDefaultRulesIncludeBuiltInRedPatternsWithoutDeepRed(t *testing.T) {
 	want := map[string]bool{
 		RuleNameAnyLimitUpLimitDown: true,

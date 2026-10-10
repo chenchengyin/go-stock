@@ -222,6 +222,13 @@ func enrichT0ResultsForDisplayWithDailyForModule(
 	copy(out, results)
 	referenceRules := loadT0ReferenceRuleRuntimes()
 	for i := range out {
+		if isRedT0StrategyModule(moduleCode) {
+			bars := daily[t0ShortCodeFromResultCode(out[i].StockCode)]
+			bar, index := dailyBarOnDate(bars, tradeDate)
+			if index > 0 && bar.Close > 0 && bars[index-1].Close > 0 {
+				out[i].CloseRet = round2((bar.Close - bars[index-1].Close) / bars[index-1].Close * 100)
+			}
+		}
 		hist := histBarsBeforeTradeDate(
 			daily[t0ShortCodeFromResultCode(out[i].StockCode)], tradeDate)
 		out[i].DisplayRuleHits = mergeT0DisplayRuleHits(
@@ -231,7 +238,7 @@ func enrichT0ResultsForDisplayWithDailyForModule(
 			matchesBullishZtZtPb(hist)
 		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
 		enrichT0ReferenceResult(
-			&out[i], hist, referenceRules, moduleCode == redT0StrategyModuleCode)
+			&out[i], hist, referenceRules, isRedT0StrategyModule(moduleCode))
 	}
 	return out
 }

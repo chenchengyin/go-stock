@@ -335,6 +335,7 @@ class T0WarmProgress {
 
 /// T0 策略（开盘日线选股）ViewModel
 const t0RedStrategyModuleCode = 'radar.red_strategy';
+const t0SharedGobRedStrategyModuleCode = 'radar.red_shared_gob_strategy';
 const t0GoldStrategyModuleCode = 'radar.gold_strategy';
 const t0PurpleStrategyModuleCode = 'radar.purple_strategy';
 const t0MainStrategyModuleCode = 'radar.main_strategy';
@@ -408,6 +409,7 @@ class _MutableT0ModuleState {
   bool showingHistorical = false;
   List<String> availableDates = [];
   String? selectedDate;
+  String? sharedGobGeneratedAt;
   T0StrategyPhase phase = T0StrategyPhase.waiting;
   bool loaded = false;
   bool noData = false;
@@ -442,6 +444,7 @@ class T0StrategyViewModel extends ChangeNotifier {
     t0BlueStrategyModuleCode: _MutableT0ModuleState(),
   };
   Timer? _dateBoundaryTimer;
+  Timer? _sharedGobDateRefreshTimer;
 
   _MutableT0ModuleState _mutableState(String moduleCode) {
     return _states.putIfAbsent(moduleCode, _MutableT0ModuleState.new);
@@ -655,6 +658,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   Future<void> warmUpIfNeeded({
     String moduleCode = t0MainStrategyModuleCode,
   }) async {
+    if (moduleCode == t0SharedGobRedStrategyModuleCode) return;
     final state = _mutableState(moduleCode);
     if (state.warmUpTriggered) return;
     state.warmUpTriggered = true;
@@ -669,11 +673,31 @@ class T0StrategyViewModel extends ChangeNotifier {
   Future<void> loadAvailableDates({
     String moduleCode = t0MainStrategyModuleCode,
   }) async {
+    if (moduleCode == t0SharedGobRedStrategyModuleCode) {
+      _sharedGobDateRefreshTimer ??= Timer.periodic(
+        const Duration(minutes: 5),
+        (_) => unawaited(loadAvailableDates(moduleCode: moduleCode)),
+      );
+    }
     try {
       final data = await _sendRequest(moduleCode, {'list_dates': '1'});
       final raw = data['dates'] as List<dynamic>? ?? [];
       final state = _mutableState(moduleCode);
-      state.availableDates = raw.map((e) => e.toString()).toList();
+      final previousDates = state.availableDates;
+      final previousGeneratedAt = state.sharedGobGeneratedAt;
+      final nextGeneratedAt = data['generated_at']?.toString();
+      final nextDates = raw.map((e) => e.toString()).toList();
+      final wasFollowingLatest =
+          moduleCode == t0SharedGobRedStrategyModuleCode &&
+          previousDates.isNotEmpty &&
+          state.selectedDate == previousDates.first;
+      final snapshotChanged =
+          moduleCode == t0SharedGobRedStrategyModuleCode &&
+          previousGeneratedAt != null &&
+          nextGeneratedAt != null &&
+          previousGeneratedAt != nextGeneratedAt;
+      state.sharedGobGeneratedAt = nextGeneratedAt;
+      state.availableDates = nextDates;
       if (state.selectedDate == null && state.availableDates.isNotEmpty) {
         if (moduleCode == t0PurpleStrategyModuleCode) {
           final purpleDates = _purpleDropdownDates(state.availableDates);
@@ -687,9 +711,45 @@ class T0StrategyViewModel extends ChangeNotifier {
                     : state.availableDates.first);
         }
       }
-      notifyListeners();
+      final newLatestDate =
+          wasFollowingLatest &&
+              nextDates.isNotEmpty &&
+              nextDates.first != previousDates.first
+          ? nextDates.first
+          : null;
+      if (newLatestDate != null) {
+        state.selectedDate = newLatestDate;
+      }
+      final refreshedLatestDate =
+          newLatestDate == null &&
+              snapshotChanged &&
+              nextDates.isNotEmpty &&
+              state.selectedDate == nextDates.first
+          ? nextDates.first
+          : null;
+      if (!listEquals(previousDates, nextDates) ||
+          (newLatestDate != null) ||
+          (state.selectedDate == null && nextDates.isNotEmpty)) {
+        notifyListeners();
+      }
+      final dateToReload = newLatestDate ?? refreshedLatestDate;
+      if (dateToReload != null) {
+        unawaited(
+          _loadResults(
+            moduleCode: moduleCode,
+            date: dateToReload,
+            replaceLoading: true,
+          ),
+        );
+      }
     } catch (error) {
-      if (_isModuleForbidden(error)) _forbidModule(moduleCode);
+      if (_isModuleForbidden(error)) {
+        _forbidModule(moduleCode);
+        if (moduleCode == t0SharedGobRedStrategyModuleCode) {
+          _sharedGobDateRefreshTimer?.cancel();
+          _sharedGobDateRefreshTimer = null;
+        }
+      }
       // 列表失败不影响主列表展示
     }
   }
@@ -852,6 +912,21 @@ class T0StrategyViewModel extends ChangeNotifier {
     final d = now.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+
+  bool isTodayDate(String? date) => date != null && date == _shanghaiToday();
+
+  bool _isRedModule(String moduleCode) =>
+      moduleCode == t0RedStrategyModuleCode ||
+      moduleCode == t0SharedGobRedStrategyModuleCode;
+
+  bool _hasTodayConfirmedResults(
+    String moduleCode,
+    _MutableT0ModuleState state,
+  ) =>
+      _isRedModule(moduleCode) &&
+      state.phase == T0StrategyPhase.confirmed &&
+      isTodayDate(state.selectedDate) &&
+      state.results.isNotEmpty;
 
   void _scheduleTailCandidateRefresh(String moduleCode) {
     final state = _mutableState(moduleCode);
@@ -1077,10 +1152,12 @@ class T0StrategyViewModel extends ChangeNotifier {
         state.phase = T0StrategyPhase.confirmed;
       }
       state.warmProgress = null;
-      if (moduleCode == t0RedStrategyModuleCode &&
-          state.sellMonitors.any(
-            (item) => item.tradeDate.compareTo(state.selectedDate ?? '') < 0,
-          )) {
+      if (_hasTodayConfirmedResults(moduleCode, state) ||
+          (moduleCode == t0RedStrategyModuleCode &&
+              state.sellMonitors.any(
+                (item) =>
+                    item.tradeDate.compareTo(state.selectedDate ?? '') < 0,
+              ))) {
         _startQuotePolling(moduleCode);
       } else {
         _stopQuotePolling(moduleCode);
@@ -1232,6 +1309,16 @@ class T0StrategyViewModel extends ChangeNotifier {
     Map<String, Map<String, dynamic>> quotes,
   ) {
     final state = _mutableState(moduleCode);
+    if (_hasTodayConfirmedResults(moduleCode, state)) {
+      state.results = state.results.map((stock) {
+        final quote = quotes[stock.rawCode] ?? quotes[stock.stockCode];
+        return stock.copyWith(
+          liveChangePercent: (quote?['changePercent'] as num?)?.toDouble(),
+          livePrice: (quote?['price'] as num?)?.toDouble(),
+          liveOpen: (quote?['open'] as num?)?.toDouble(),
+        );
+      }).toList();
+    }
     final merged = state.candidates.map((s) {
       final q = quotes[s.rawCode] ?? quotes[s.stockCode];
       final pct = (q?['changePercent'] as num?)?.toDouble();
@@ -1420,11 +1507,16 @@ class T0StrategyViewModel extends ChangeNotifier {
               )
               .map((item) => item.stockCode.replaceAll(RegExp(r'\..*$'), ''))
         : const <String>[];
-    if ((!isPreview || state.candidates.isEmpty) && monitorCodes.isEmpty) {
+    final hasTodayResults = _hasTodayConfirmedResults(moduleCode, state);
+    if ((!isPreview || state.candidates.isEmpty) &&
+        !hasTodayResults &&
+        monitorCodes.isEmpty) {
       return;
     }
     final codes = <String>{
       ...state.candidates.map((e) => e.rawCode).where((c) => c.isNotEmpty),
+      if (hasTodayResults)
+        ...state.results.map((e) => e.rawCode).where((c) => c.isNotEmpty),
       ...monitorCodes.where((c) => c.isNotEmpty),
     }.toList();
     if (codes.isEmpty) return;
@@ -1485,6 +1577,10 @@ class T0StrategyViewModel extends ChangeNotifier {
     state.dataWarningKey = null;
     state.warmProgress = null;
     state.phase = T0StrategyPhase.waiting;
+    if (moduleCode == t0SharedGobRedStrategyModuleCode) {
+      _sharedGobDateRefreshTimer?.cancel();
+      _sharedGobDateRefreshTimer = null;
+    }
     _stopQuotePolling(moduleCode);
     _stopPolling(moduleCode);
     _onModuleForbidden?.call(moduleCode);
@@ -1506,6 +1602,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _dateBoundaryTimer?.cancel();
+    _sharedGobDateRefreshTimer?.cancel();
     for (final moduleCode in _states.keys) {
       _mutableState(moduleCode).tailPreviewTimer?.cancel();
       _stopQuotePolling(moduleCode);

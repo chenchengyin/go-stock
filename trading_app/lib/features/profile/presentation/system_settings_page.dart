@@ -74,6 +74,26 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     );
   }
 
+  Future<void> _setRedT1IntradayEnabled(bool enabled) async {
+    final saved = await context.read<RedKlineSettings>().setT1IntradayEnabled(
+      enabled,
+    );
+    if (!mounted || saved) return;
+    showCupertinoDialog<void>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('保存失败'),
+        content: const Text('红策T+1分时图开关未能保存，请稍后重试。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('知道了'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openInFlush(BuildContext context) async {
     final opened = await StockLauncher.openTongHuaShun(code: '601318');
     if (!opened && context.mounted) {
@@ -198,6 +218,19 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                           trailing: CupertinoSwitch(
                             value: redKline.enabled,
                             onChanged: _setRedKlineEnabled,
+                          ),
+                        ),
+                        _SettingsItem(
+                          icon: CupertinoIcons.chart_bar,
+                          title: '红策T+1分时图',
+                          subtitle: '取下一交易日分钟线，不缓存；未来日期不显示',
+                          showDivider: true,
+                          onTap: () => _setRedT1IntradayEnabled(
+                            !redKline.t1IntradayEnabled,
+                          ),
+                          trailing: CupertinoSwitch(
+                            value: redKline.t1IntradayEnabled,
+                            onChanged: _setRedT1IntradayEnabled,
                           ),
                         ),
                         if (isMacOS)

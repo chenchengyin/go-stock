@@ -47,6 +47,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 		{
 			RuleKind:          "condition",
 			Name:              RuleNameStrongContinuation,
+			Description:       "T-2、T-1均收盘涨停，且都不是一字板；T-1开盘涨幅≥7%；T0开盘涨幅0.01%～3%（含边界）。",
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-2.close_type","op":"eq","value":"ZT"},
@@ -61,6 +62,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 		{
 			RuleKind:          "condition",
 			Name:              RuleNameLimitUpLimitDownReversal,
+			Description:       "T-2收盘涨停、非一字板，且实体涨幅=(收盘-开盘)/昨收≥5%；T-1收盘跌停；T0开盘涨幅0.01%～3%（含边界）。",
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-2.close_type","op":"eq","value":"ZT"},
@@ -74,6 +76,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 		{
 			RuleKind:          "condition",
 			Name:              RuleNameAnyLimitUpLimitDown,
+			Description:       "T-2收盘涨停、T-1收盘跌停，T-3不限；T0开盘涨幅0.01%～3%（含边界）。",
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-2.close_type","op":"eq","value":"ZT"},
@@ -85,6 +88,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 		{
 			RuleKind:          "condition",
 			Name:              RuleNameMediumYangLimitDown,
+			Description:       "T-2为中阳或大阳线，T-1收盘跌停；T0开盘涨幅0.01%～0.75%（含边界）。",
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"any":[
@@ -99,6 +103,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 		{
 			RuleKind:          "condition",
 			Name:              RuleNameBullishZtZtPb,
+			Description:       "T-3、T-2收盘涨停；T-1破板且收盘高于开盘；T0开盘涨幅0.01%～3%（含边界）。",
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-3.close_type","op":"eq","value":"ZT"},
@@ -112,6 +117,7 @@ func DefaultRuleDefinitions() []RuleDefinition {
 		{
 			RuleKind:          "condition",
 			Name:              RuleNameZtZtBearish,
+			Description:       "T-3、T-2收盘涨停；T-1收阴，收盘相对T-2收盘涨幅-2%～3%（含边界），实体跌幅相对T-2收盘严格大于0%、小于8%；T0开盘涨幅0.01%～3%（含边界）。",
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-3.close_type","op":"eq","value":"ZT"},

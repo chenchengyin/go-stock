@@ -39,6 +39,13 @@ const radarModuleDefinitions = <RadarModuleDefinition>[
     contentKind: RadarContentKind.monitored,
   ),
   RadarModuleDefinition(
+    code: 'radar.red_shared_gob_strategy',
+    name: '红策（共享GOB）',
+    sort: 14,
+    accessMode: ModuleAccessMode.userAllowlist,
+    contentKind: RadarContentKind.redStrategy,
+  ),
+  RadarModuleDefinition(
     code: 'radar.red_strategy',
     name: '红策',
     sort: 15,

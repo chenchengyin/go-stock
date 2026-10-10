@@ -62,7 +62,7 @@ class RedMovingAveragePainter extends DefaultCandlestickPainter {
   List<Object?> get props => [...super.props, bars];
 }
 
-/// A compact, non-interactive 60 + anchor + up-to-5 daily candle overview.
+/// A compact 60 + anchor + up-to-5 daily candle overview.
 class RedKlinePreview extends StatelessWidget {
   const RedKlinePreview({
     super.key,
@@ -107,21 +107,9 @@ class RedKlinePreview extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Text(
-              '日K · 前${data.beforeCount}根 / 后${data.afterCount}根',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
-            const Spacer(),
-            IconButton(
-              tooltip: '放大K线',
-              onPressed: () => _showExpanded(context, data),
-              icon: const Icon(Icons.open_in_full, size: 17),
-              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-              padding: EdgeInsets.zero,
-            ),
-          ],
+        Text(
+          '日K · 前${data.beforeCount}根 / 后${data.afterCount}根',
+          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
         if (data.bars.any((bar) => bar.ma.isNotEmpty))
           Wrap(
@@ -135,10 +123,7 @@ class RedKlinePreview extends StatelessWidget {
                   ),
             ],
           ),
-        SizedBox(
-          height: 112,
-          child: _RedCandleChart(window: data, expanded: false),
-        ),
+        SizedBox(height: 112, child: _RedCandleChart(window: data)),
         if (data.anchorIndex < 0)
           Text(
             '所选日K线尚未形成或不可用',
@@ -152,133 +137,192 @@ class RedKlinePreview extends StatelessWidget {
       ],
     );
   }
+}
 
-  void _showExpanded(BuildContext context, RedKlineWindow data) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 980, maxHeight: 490),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${data.code} · ${data.date} 前${data.beforeCount}根 / 后${data.afterCount}根',
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '关闭K线',
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(dialogContext),
-                    ),
-                  ],
-                ),
-                SizedBox(
-                  height: 365,
-                  child: _RedCandleChart(window: data, expanded: true),
-                ),
-                const Text(
-                  '左右拖动、双指缩放；选中日右侧仅为事后走势',
-                  style: TextStyle(fontSize: 11),
-                ),
-              ],
+class _RedCandleChart extends StatefulWidget {
+  const _RedCandleChart({required this.window});
+  final RedKlineWindow window;
+
+  @override
+  State<_RedCandleChart> createState() => _RedCandleChartState();
+}
+
+class _RedCandleChartState extends State<_RedCandleChart> {
+  int? _selectedIndex;
+
+  @override
+  void didUpdateWidget(covariant _RedCandleChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.window != widget.window) _selectedIndex = null;
+  }
+
+  void _handleTouch(FlTouchEvent event, CandlestickTouchResponse? response) {
+    if (event is FlLongPressEnd || event is FlPanCancelEvent) {
+      if (_selectedIndex != null) setState(() => _selectedIndex = null);
+      return;
+    }
+    if (event is! FlLongPressStart && event is! FlLongPressMoveUpdate) return;
+    final bars = widget.window.bars;
+    final coordinate = response?.touchChartCoordinate.dx;
+    final index =
+        response?.touchedSpot?.spotIndex ??
+        (coordinate != null && coordinate.isFinite
+            ? coordinate.round().clamp(0, bars.length - 1)
+            : null);
+    if (index != null && index != _selectedIndex) {
+      setState(() => _selectedIndex = index);
+    }
+  }
+
+  String _change(double value, double? previousClose) {
+    if (previousClose == null || previousClose <= 0) return '--%';
+    final change = (value / previousClose - 1) * 100;
+    return '${change > 0 ? '+' : ''}${change.toStringAsFixed(2)}%';
+  }
+
+  Widget _selectionDetails(List<RedKlineBar> bars, int index) {
+    final bar = bars[index];
+    final previousClose = index > 0 ? bars[index - 1].close : null;
+    final style = const TextStyle(
+      fontSize: 10,
+      color: Colors.white,
+      height: 1.2,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${bar.date}  开 ${bar.open.toStringAsFixed(2)} (${_change(bar.open, previousClose)})',
+              style: style,
             ),
-          ),
+            Text(
+              '收 ${bar.close.toStringAsFixed(2)} (${_change(bar.close, previousClose)})  高 ${bar.high.toStringAsFixed(2)} (${_change(bar.high, previousClose)})',
+              style: style,
+            ),
+            Text(
+              '低 ${bar.low.toStringAsFixed(2)} (${_change(bar.low, previousClose)})',
+              style: style,
+            ),
+          ],
         ),
       ),
     );
   }
-}
-
-class _RedCandleChart extends StatelessWidget {
-  const _RedCandleChart({required this.window, required this.expanded});
-  final RedKlineWindow window;
-  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
-    final bars = window.bars;
+    final bars = widget.window.bars;
     if (bars.isEmpty) return const SizedBox.shrink();
     final minPrice = bars.map((b) => b.low).reduce(math.min);
     final maxPrice = bars.map((b) => b.high).reduce(math.max);
     final padding = math.max((maxPrice - minPrice) * 0.08, 0.01);
-    final anchor = window.anchorIndex;
+    final anchor = widget.window.anchorIndex;
     final rise = AppColors.textPriceUp;
     final fall = AppColors.textPriceDown;
 
-    return CandlestickChart(
-      CandlestickChartData(
-        candlestickSpots: [
-          for (var i = 0; i < bars.length; i++)
-            CandlestickSpot(
-              x: i.toDouble(),
-              open: bars[i].open,
-              high: bars[i].high,
-              low: bars[i].low,
-              close: bars[i].close,
-            ),
-        ],
-        minX: -0.5,
-        maxX: bars.length - 0.5,
-        minY: minPrice - padding,
-        maxY: maxPrice + padding,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: const FlTitlesData(show: false),
-        rangeAnnotations: RangeAnnotations(
-          verticalRangeAnnotations: anchor < 0
-              ? []
-              : [
-                  VerticalRangeAnnotation(
-                    x1: anchor - 0.48,
-                    x2: anchor + 0.48,
-                    color: AppColors.tagOrange.withValues(alpha: 0.24),
+    final selected = _selectedIndex != null && _selectedIndex! < bars.length
+        ? _selectedIndex
+        : null;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: CandlestickChart(
+            CandlestickChartData(
+              candlestickSpots: [
+                for (var i = 0; i < bars.length; i++)
+                  CandlestickSpot(
+                    x: i.toDouble(),
+                    open: bars[i].open,
+                    high: bars[i].high,
+                    low: bars[i].low,
+                    close: bars[i].close,
                   ),
-                ],
-        ),
-        candlestickPainter: RedMovingAveragePainter(
-          bars: bars,
-          candlestickStyleProvider: (spot, index) {
-            final color = spot.close >= spot.open ? rise : fall;
-            return CandlestickStyle(
-              lineColor: color,
-              lineWidth: bars.length < 20 ? 1.5 : 1,
-              bodyFillColor: color,
-              bodyStrokeColor: color,
-              bodyStrokeWidth: 0,
-              bodyWidth: bars.length < 20
-                  ? (expanded ? 11 : 9)
-                  : (expanded ? 7 : 4.8),
-              bodyRadius: 0,
-            );
-          },
-        ),
-        candlestickTouchData: CandlestickTouchData(
-          enabled: expanded,
-          touchTooltipData: CandlestickTouchTooltipData(
-            fitInsideHorizontally: true,
-            fitInsideVertically: true,
-            maxContentWidth: 190,
-            getTooltipItems: (_, spot, index) => CandlestickTooltipItem(
-              '${bars[index].date}\n开 ${spot.open.toStringAsFixed(2)}  高 ${spot.high.toStringAsFixed(2)}\n低 ${spot.low.toStringAsFixed(2)}  收 ${spot.close.toStringAsFixed(2)}${bars[index].ma.isEmpty ? '' : '\n${[for (final period in _maColors.keys)
-                      if (bars[index].ma[period] != null) 'MA$period ${bars[index].ma[period]!.toStringAsFixed(2)}'].join('  ')}'}',
-              textStyle: const TextStyle(color: Colors.white, fontSize: 11),
+              ],
+              minX: -0.5,
+              maxX: bars.length - 0.5,
+              minY: minPrice - padding,
+              maxY: maxPrice + padding,
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              titlesData: const FlTitlesData(show: false),
+              rangeAnnotations: RangeAnnotations(
+                verticalRangeAnnotations: anchor < 0
+                    ? []
+                    : [
+                        VerticalRangeAnnotation(
+                          x1: anchor - 0.48,
+                          x2: anchor + 0.48,
+                          color: AppColors.tagOrange.withValues(alpha: 0.24),
+                        ),
+                      ],
+              ),
+              touchedPointIndicator: selected == null
+                  ? null
+                  : AxisSpotIndicator(
+                      x: selected.toDouble(),
+                      y: bars[selected].close,
+                      painter: AxisLinesIndicatorPainter(
+                        verticalLineProvider: (_) => VerticalLine(
+                          x: selected.toDouble(),
+                          color: AppColors.textSecondary,
+                          strokeWidth: 0.8,
+                          dashArray: const [3, 3],
+                        ),
+                        horizontalLineProvider: (_) => HorizontalLine(
+                          y: bars[selected].close,
+                          color: AppColors.textSecondary,
+                          strokeWidth: 0.8,
+                          dashArray: const [3, 3],
+                        ),
+                      ),
+                    ),
+              candlestickPainter: RedMovingAveragePainter(
+                bars: bars,
+                candlestickStyleProvider: (spot, index) {
+                  final color = spot.close >= spot.open ? rise : fall;
+                  return CandlestickStyle(
+                    lineColor: color,
+                    lineWidth: bars.length < 20 ? 1.5 : 1,
+                    bodyFillColor: color,
+                    bodyStrokeColor: color,
+                    bodyStrokeWidth: 0,
+                    bodyWidth: bars.length < 20 ? 9 : 4.8,
+                    bodyRadius: 0,
+                  );
+                },
+              ),
+              candlestickTouchData: CandlestickTouchData(
+                enabled: true,
+                handleBuiltInTouches: false,
+                touchSpotThreshold: 24,
+                touchCallback: _handleTouch,
+              ),
             ),
+            duration: Duration.zero,
+            transformationConfig: const FlTransformationConfig(),
           ),
         ),
-      ),
-      duration: Duration.zero,
-      transformationConfig: expanded
-          ? const FlTransformationConfig(
-              scaleAxis: FlScaleAxis.horizontal,
-              maxScale: 4,
-            )
-          : const FlTransformationConfig(),
+        if (selected != null)
+          Positioned(
+            top: 2,
+            left: 2,
+            right: 2,
+            child: IgnorePointer(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: _selectionDetails(bars, selected),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

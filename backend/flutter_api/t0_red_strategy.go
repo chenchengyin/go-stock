@@ -25,7 +25,7 @@ const (
 var redT0DailyKLineFetcher = fetchDailyKLineWithLimit
 
 func isRedT0StrategyModule(moduleCode string) bool {
-	return moduleCode == redT0StrategyModuleCode
+	return moduleCode == redT0StrategyModuleCode || moduleCode == sharedGobRedStrategyModuleCode
 }
 
 func isT0DailyContextModule(moduleCode string) bool {
@@ -36,6 +36,9 @@ func isT0DailyContextModule(moduleCode string) bool {
 func t0DailyContextModuleName(moduleCode string) string {
 	if moduleCode == purpleT0StrategyModuleCode {
 		return "紫策"
+	}
+	if moduleCode == sharedGobRedStrategyModuleCode {
+		return "红策（共享GOB）"
 	}
 	return "红策"
 }
@@ -159,7 +162,7 @@ func fetchRedT0DailyKLineSafely(shortCode, tradeDate string) (bars []dailyBar) {
 
 func validateT0ModuleCode(moduleCode string) error {
 	switch moduleCode {
-	case "radar.main_strategy", redT0StrategyModuleCode,
+	case "radar.main_strategy", redT0StrategyModuleCode, sharedGobRedStrategyModuleCode,
 		goldT0StrategyModuleCode, purpleT0StrategyModuleCode,
 		"radar.blue_strategy":
 		return nil
@@ -329,10 +332,31 @@ func isGobRedTailCandidateWindow(now time.Time, tradeDate string) bool {
 func selectGobRedFromPool(
 	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar,
 ) ([]T0SelectionResult, []t0DataWarning) {
+	return selectGobRedFromPoolWithPriorDate(
+		tradeDate, stocks, daily, gobRedPriorCacheDate(tradeDate), gobRedOpeningQuoteBuilder)
+}
+
+func selectGobRedFromSharedPool(
+	tradeDate string,
+	stocks []t0Stock,
+	daily map[string][]dailyBar,
+	priorDate string,
+) ([]T0SelectionResult, []t0DataWarning) {
+	return selectGobRedFromPoolWithPriorDate(
+		tradeDate, stocks, daily, priorDate, buildSharedGobRedAuctionQuotes)
+}
+
+func selectGobRedFromPoolWithPriorDate(
+	tradeDate string,
+	stocks []t0Stock,
+	daily map[string][]dailyBar,
+	priorDate string,
+	quoteBuilder func(string, []t0Stock, map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning),
+) ([]T0SelectionResult, []t0DataWarning) {
 	if isT0WeekendDate(tradeDate) {
 		return nil, nil
 	}
-	if prior := gobRedPriorCacheDate(tradeDate); prior == "" || prior != latestGobPriorDate(tradeDate, daily) {
+	if priorDate == "" || priorDate != latestGobPriorDate(tradeDate, daily) {
 		return nil, []t0DataWarning{{
 			Code: "RED_GOB_PRIOR_DATE_UNVERIFIED", Phase: "red_history", Source: "gob",
 			Message: "红策独立形态无法确认前一交易日日线日期，已跳过正式入选",
@@ -341,7 +365,7 @@ func selectGobRedFromPool(
 	rules := approvedGobRedRules()
 	candidates := buildGobRedPreopenCandidates(tradeDate, stocks, daily, rules)
 	candidateStocks := resultsToT0Stocks(candidates)
-	quotes, source, quoteWarning := gobRedOpeningQuoteBuilder(tradeDate, candidateStocks, daily)
+	quotes, source, quoteWarning := quoteBuilder(tradeDate, candidateStocks, daily)
 	results, status := matchGobRedRules(tradeDate, candidateStocks, daily, quotes, source, rules)
 	var warnings []t0DataWarning
 	if dailyWarning := buildT0DailyCacheWarning(stocks, daily); dailyWarning != nil {
@@ -490,7 +514,7 @@ func selectT0ResultsForModule(
 	switch moduleCode {
 	case "radar.main_strategy":
 		return results, nil
-	case redT0StrategyModuleCode:
+	case redT0StrategyModuleCode, sharedGobRedStrategyModuleCode:
 		if ctx == nil {
 			return nil, newAuthError(http.StatusInternalServerError,
 				"T0_DATA_NOT_READY", "红策日线数据未就绪")

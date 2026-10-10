@@ -14,6 +14,7 @@ import (
 type T0ReferenceHit struct {
 	RuleKey       string  `json:"rule_key"`
 	Name          string  `json:"name"`
+	Description   string  `json:"description,omitempty"`
 	ResearchTier  string  `json:"research_tier"`
 	StrictWinRate float64 `json:"strict_win_rate"`
 	TargetRate    float64 `json:"target_rate"`
@@ -88,6 +89,9 @@ func loadT0ReferenceRuleRuntimes() []t0ReferenceRuleRuntime {
 		})
 		if err != nil || compiled.RuleKey != row.RuleKey {
 			continue
+		}
+		if definition, ok := defaultDefinitionsByKey[row.RuleKey]; ok {
+			compiled.Definition.Description = definition.Description
 		}
 		var stat models.T0ReferenceRuleStat
 		statErr := db.Dao.Where("rule_id = ? AND period_key = ?", row.ID, "all").
@@ -223,7 +227,8 @@ func enrichT0ReferenceResult(
 	result.T0ReferenceHits = make([]T0ReferenceHit, 0, len(matched))
 	for _, runtime := range matched {
 		result.T0ReferenceHits = append(result.T0ReferenceHits, T0ReferenceHit{
-			RuleKey: runtime.rule.RuleKey, Name: runtime.rule.Definition.Name, ResearchTier: runtime.researchTier,
+			RuleKey: runtime.rule.RuleKey, Name: runtime.rule.Definition.Name,
+			Description: runtime.rule.Definition.Description, ResearchTier: runtime.researchTier,
 			StrictWinRate: runtime.strictWinRate, SampleCount: runtime.sampleCount,
 			TargetRate: runtime.targetRate, EarnRate: runtime.earnRate,
 			ManualRank: runtime.rule.Definition.ManualRank, DeepRed: runtime.deepRed,

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -40,10 +41,52 @@ type thsKLineResponse struct {
 	} `json:"data"`
 }
 
+type THSRealtimeDailyQuote struct {
+	Date      string
+	Open      float64
+	Price     float64
+	PrevClose float64
+}
+
+func FetchTHSRealtimeDailyQuote(stockCode string, now time.Time) (THSRealtimeDailyQuote, bool) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now = now.In(loc)
+	result := fetchFromTHSWithTimeout(stockCode, "101", 3, now.Format("2006-01-02 15:04:05"), 2*time.Second)
+	if result == nil || result.Data == nil {
+		return THSRealtimeDailyQuote{}, false
+	}
+	return parseTHSRealtimeDailyQuote(*result.Data, now.Format("2006-01-02"))
+}
+
+func parseTHSRealtimeDailyQuote(rows []KLineData, tradeDate string) (THSRealtimeDailyQuote, bool) {
+	rows = append([]KLineData(nil), rows...)
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Day < rows[j].Day })
+	for i, row := range rows {
+		if row.Day != tradeDate || i == 0 || rows[i-1].Day >= tradeDate {
+			continue
+		}
+		open, openErr := strconv.ParseFloat(row.Open, 64)
+		price, priceErr := strconv.ParseFloat(row.Close, 64)
+		prevClose, prevCloseErr := strconv.ParseFloat(rows[i-1].Close, 64)
+		if openErr != nil || prevCloseErr != nil || open <= 0 || prevClose <= 0 {
+			return THSRealtimeDailyQuote{}, false
+		}
+		if priceErr != nil || price <= 0 {
+			price = open
+		}
+		return THSRealtimeDailyQuote{Date: tradeDate, Open: open, Price: price, PrevClose: prevClose}, true
+	}
+	return THSRealtimeDailyQuote{}, false
+}
+
 // fetchFromTHS reads unadjusted K-lines from the same backend endpoint used by
 // the 10jqka stock page. Unsupported markets/periods return an empty result so
 // callers can continue through the existing provider fallback chain.
 func fetchFromTHS(stockCode, klt string, limit int, end string) *KLineSourceResult {
+	return fetchFromTHSWithTimeout(stockCode, klt, limit, end, 12*time.Second)
+}
+
+func fetchFromTHSWithTimeout(stockCode, klt string, limit int, end string, timeout time.Duration) *KLineSourceResult {
 	empty := &KLineSourceResult{Data: &[]KLineData{}}
 	code, market, ok := thsCodeAndMarket(stockCode)
 	if !ok || limit <= 0 {
@@ -69,9 +112,12 @@ func fetchFromTHS(stockCode, klt string, limit int, end string) *KLineSourceResu
 		GPID:       1,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	if timeout <= 0 {
+		timeout = 12 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	client := CreateHTTPClientWithTimeout(12 * time.Second)
+	client := CreateHTTPClientWithTimeout(timeout)
 	// The page's static business headers work without session-bound X-Fuyao-Auth/sw8.
 	resp, err := client.R().
 		SetContext(ctx).

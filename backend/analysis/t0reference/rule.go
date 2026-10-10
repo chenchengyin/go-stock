@@ -14,6 +14,7 @@ import (
 type RuleDefinition struct {
 	RuleKind          string
 	Name              string
+	Description       string
 	DefinitionVersion string
 	ConditionJSON     string
 	EntryJSON         string

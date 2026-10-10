@@ -428,6 +428,7 @@ void main() {
         {
           'rule_key': 'v1:test',
           'name': 'test',
+          'description': 'T-3、T-2收盘涨停；T0开盘涨幅0.01%～3%',
           'research_tier': 'A',
           'strict_win_rate': 70,
           'target_rate': 55,
@@ -441,6 +442,10 @@ void main() {
     expect(stock.t0ReferenceWinPct, 70);
     expect(stock.t0ReferenceSamples, 20);
     expect(stock.t0ReferenceHits.single.name, 'test');
+    expect(
+      stock.t0ReferenceHits.single.description,
+      'T-3、T-2收盘涨停；T0开盘涨幅0.01%～3%',
+    );
     expect(stock.t0ReferenceHits.single.targetRate, 55);
     expect(stock.t0ReferenceHits.single.earnRate, 80);
   });
@@ -454,6 +459,7 @@ void main() {
           'rule_key': 'gob_myin_dt_dt_v1',
           'rule_version': 1,
           'name': '中阴→跌停→跌停后低开',
+          'description': 'T-3至T-1条件；T0低开区间',
           'entry_source': 'daily_open',
           'exit_horizon': 'T+1_close',
           'stats_status': 'pending',
@@ -480,6 +486,7 @@ void main() {
     expect(stock.redRuleHits.length, 2);
     expect(stock.redRuleHits.first.stats, isNull);
     expect(stock.redRuleHits.first.statsStatus, 'pending');
+    expect(stock.redRuleHits.first.description, 'T-3至T-1条件；T0低开区间');
     expect(stock.redRuleHits.last.stats?.sampleCount, 12);
     expect(stock.redRuleHits.last.stats?.profitWinRate, 75);
     expect(stock.t0ReferenceHits, isEmpty);

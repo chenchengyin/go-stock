@@ -8,7 +8,7 @@ import (
 // bars. The input must contain the T0 bar and at least the three preceding
 // trading-day bars; calendar gaps are intentionally ignored.
 func BuildObservation(stockCode, tradeDate string, input []BarSnapshot, entry Entry) (Observation, error) {
-	if stockCode == "" || tradeDate == "" || entry.Price <= 0 || entry.Source == "" {
+	if stockCode == "" || tradeDate == "" || IsWeekendDate(tradeDate) || entry.Price <= 0 || entry.Source == "" {
 		return Observation{}, ErrIncompleteObservation
 	}
 	if len(input) < 4 {

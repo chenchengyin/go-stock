@@ -283,6 +283,9 @@ func listCacheDates(cacheRoot, from, to string) ([]string, error) {
 		if len(date) != len("2006-01-02") {
 			continue
 		}
+		if t0reference.IsWeekendDate(date) {
+			continue
+		}
 		if from != "" && date < from {
 			continue
 		}

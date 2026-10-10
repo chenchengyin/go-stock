@@ -84,6 +84,8 @@ dist
 
 # Gatsby files
 .cache/
+# Locally generated standalone mainboard K-line snapshot (about 120 MiB).
+/backend/data/cache/mainboard_floatcap50_2024/
 # Comment in the public line in if your project uses Gatsby and *not* Next.js
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public
@@ -153,4 +155,3 @@ chat_log_*.md
 # 本地实验与分析报告
 .codex_work/
 reports/
-
