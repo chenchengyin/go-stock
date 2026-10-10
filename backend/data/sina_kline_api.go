@@ -560,6 +560,13 @@ type KLineSourceResult struct {
 }
 
 func FetchKLineWithFallback(stockCode, stockName, klt string, limit int, end string) *KLineSourceResult {
+	thsResult := fetchFromTHS(stockCode, klt, limit, end)
+	if thsResult != nil && thsResult.Data != nil && len(*thsResult.Data) > 0 {
+		thsResult.Source = "ths"
+		return thsResult
+	}
+	logger.SugaredLogger.Warnf("同花顺 K 线数据为空或失败，尝试东方财富数据源: code=%s klt=%s", stockCode, klt)
+
 	eastMoneyResult := fetchFromEastMoney(stockCode, stockName, klt, limit, end)
 	if eastMoneyResult != nil && eastMoneyResult.Data != nil && len(*eastMoneyResult.Data) > 0 {
 		eastMoneyResult.Source = "eastmoney"
@@ -601,12 +608,13 @@ func FetchKLineWithFallback(stockCode, stockName, klt string, limit int, end str
 func FetchDailyKLineWithTurnoverFallback(stockCode, stockName string, limit int, end string) *KLineSourceResult {
 	type fetcher func() *KLineSourceResult
 	fetchers := []fetcher{
+		func() *KLineSourceResult { return fetchFromTHS(stockCode, "101", limit, end) },
 		func() *KLineSourceResult { return fetchFromEastMoney(stockCode, stockName, "101", limit, end) },
 		func() *KLineSourceResult { return fetchFromSina(stockCode, "101", limit) },
 		func() *KLineSourceResult { return fetchFromTencent(stockCode, "101", limit) },
 		func() *KLineSourceResult { return fetchFromTdx(stockCode, "101", limit) },
 	}
-	sources := []string{"eastmoney", "sina", "tencent", "tdx"}
+	sources := []string{"ths", "eastmoney", "sina", "tencent", "tdx"}
 	for i, fetch := range fetchers {
 		result := fetch()
 		if result == nil || result.Data == nil || len(*result.Data) == 0 {
