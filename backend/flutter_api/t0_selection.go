@@ -25,7 +25,7 @@ import (
 //
 // 数据源：
 //   - 股票池：新浪 Market_Center API（分页获取全量A股，含 nmc/mktcap）
-//   - 日线 K 线：data.FetchKLineWithFallback（东财→新浪→腾讯→通达信）
+//   - 日线 K 线：data.FetchKLineWithFallback（同花顺→东财→新浪→腾讯→通达信）
 //   - T0 实时行情：腾讯 qt.gtimg.cn API
 //   - 缓存根目录：/tmp/go-stock-cache/t0/{daily,selection}/
 //
