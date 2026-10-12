@@ -26,6 +26,15 @@ final _allRadarModules = <ModuleDefinition>[
     accessMode: ModuleAccessMode.userAllowlist,
   ),
   const ModuleDefinition(
+    code: 'radar.red_shared_gob_strategy',
+    name: '红策',
+    client: 'flutter_web',
+    placement: 'radar_tab',
+    parentCode: null,
+    sort: 14,
+    accessMode: ModuleAccessMode.userAllowlist,
+  ),
+  const ModuleDefinition(
     code: 'radar.purple_strategy',
     name: '紫策',
     client: 'flutter_web',
@@ -363,7 +372,7 @@ void main() {
     disposeVms();
   });
 
-  testWidgets('红策独立形态显示T+1口径且不借用旧T0胜率', (tester) async {
+  testWidgets('红策T+1统计支持实时开盘复用日线开盘统计且不借用旧T0胜率', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
     final strategyVm = _NoNetworkT0StrategyViewModel();
@@ -414,7 +423,7 @@ void main() {
               'rule_key': 'test_second_v1',
               'rule_version': 1,
               'name': '另一形态',
-              'entry_source': 'daily_open',
+              'entry_source': 'realtime_open',
               'exit_horizon': 'T+1_close',
               'stats_status': 'verified',
               'stats': {
@@ -430,7 +439,7 @@ void main() {
           ],
         },
       ],
-    }, moduleCode: t0RedStrategyModuleCode);
+    }, moduleCode: t0SharedGobRedStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -451,7 +460,10 @@ void main() {
 
     expect(find.text('双命中股'), findsOneWidget);
     expect(find.text('中阴→跌停→跌停后低开 · T+1收盘 统计待核验'), findsOneWidget);
-    expect(find.text('另一形态 · T+1收盘 真赚75.0% · 12例'), findsOneWidget);
+    expect(
+      find.text('另一形态 · T+1收盘 真赚75.0% · 达标50.0% · 样本12'),
+      findsOneWidget,
+    );
     expect(find.text('旧T0形态 55/80/20'), findsOneWidget);
     expect(
       find.byTooltip(

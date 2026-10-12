@@ -1480,7 +1480,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             hit.statsStatus == 'verified' &&
             stats != null &&
             stats.sampleCount > 0 &&
-            stats.entrySource == hit.entrySource &&
+            (stats.entrySource == hit.entrySource ||
+                (hit.entrySource == 'realtime_open' &&
+                    stats.entrySource == 'daily_open') ||
+                (hit.entrySource == 'realtime_close' &&
+                    stats.entrySource == 'daily_close')) &&
             stats.exitHorizon == hit.exitHorizon;
         final horizon = hit.exitHorizon == 'T0_high'
             ? 'T0盘中最高价'
