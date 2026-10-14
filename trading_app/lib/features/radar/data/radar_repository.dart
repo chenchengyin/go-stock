@@ -119,20 +119,61 @@ class RadarRepositoryImpl implements RadarRepository {
     List<String> codes,
   ) async {
     if (codes.isEmpty) return {};
+    final aliasesByApiCode = <String, Set<String>>{};
+    for (final rawCode in codes) {
+      final apiCode = _stockRealtimeApiCode(rawCode);
+      if (apiCode.isEmpty) continue;
+      aliasesByApiCode.putIfAbsent(apiCode, () => <String>{}).add(rawCode);
+    }
     final response = await _dio.get(
       '/api/stock-realtime',
-      queryParameters: {'codes': codes.join(',')},
+      queryParameters: {'codes': aliasesByApiCode.keys.join(',')},
     );
     if (response.statusCode != 200) return {};
     final list = response.data as List<dynamic>? ?? [];
     final map = <String, Map<String, dynamic>>{};
     for (final item in list) {
       final m = Map<String, dynamic>.from(item as Map<dynamic, dynamic>);
-      final code = m['code'] as String? ?? '';
-      if (code.isNotEmpty) {
-        map[code] = m;
+      final code = _stockRealtimeApiCode(m['code'] as String? ?? '');
+      if (code.isEmpty) continue;
+      map[code] = m;
+      // Strategy results can contain bare codes (for example 603328.XSHG is
+      // exposed as 603328 by T0StrategyStock.rawCode), while the quote API
+      // returns market-prefixed codes such as sh603328.
+      final shortCode = code.replaceFirst(RegExp(r'^(sh|sz|bj)'), '');
+      map[shortCode] = m;
+      for (final alias in aliasesByApiCode[code] ?? const <String>{}) {
+        map[alias] = m;
       }
     }
     return map;
   }
+}
+
+String _stockRealtimeApiCode(String rawCode) {
+  final code = rawCode.trim().toLowerCase();
+  if (code.isEmpty || RegExp(r'^(sh|sz|bj|hk|us|gb_)').hasMatch(code)) {
+    return code;
+  }
+
+  final suffixed = RegExp(r'^(\d+)\.(xshg|xshe|sh|sz|ss)$').firstMatch(code);
+  if (suffixed != null) {
+    final market = switch (suffixed.group(2)) {
+      'xshg' || 'sh' || 'ss' => 'sh',
+      'xshe' || 'sz' => 'sz',
+      _ => '',
+    };
+    return '$market${suffixed.group(1)}';
+  }
+
+  if (RegExp(r'^\d{6}$').hasMatch(code)) {
+    final market = switch (code[0]) {
+      '6' || '9' => 'sh',
+      '0' || '3' => 'sz',
+      '4' || '8' => 'bj',
+      _ => '',
+    };
+    if (market.isNotEmpty) return '$market$code';
+  }
+  return code;
 }

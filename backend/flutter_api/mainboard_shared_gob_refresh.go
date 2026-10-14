@@ -67,16 +67,21 @@ func runMainboardSharedGobRefreshTick(now time.Time) {
 		mainboardSharedGobRefreshState.Unlock()
 	}()
 
+	mainboardSharedGobUpdate.Lock()
+	defer mainboardSharedGobUpdate.Unlock()
+
 	current, err := loadMainboardSharedGob()
 	if err != nil {
 		logger.SugaredLogger.Warnf("[共享GOB] 加载日线失败，稍后重试: %v", err)
 		return
 	}
 	pending := mainboardSharedGobPendingIndices(current, today)
-	if len(pending) == 0 {
+	selectionPoolPending := mainboardSharedGobPendingSelectionPool(current, today)
+	if len(pending) == 0 && len(selectionPoolPending) == 0 {
 		return
 	}
-	if !mainboardSharedGobSnapshotHasDate(current, today) && !mainboardSharedGobProviderHasDate(current, today) {
+	if len(selectionPoolPending) == 0 && !mainboardSharedGobSnapshotHasDate(current, today) &&
+		!mainboardSharedGobProviderHasDate(current, today) {
 		return
 	}
 
@@ -193,6 +198,28 @@ func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate strin
 		}
 		updated++
 	}
+	for _, stock := range mainboardSharedGobPendingSelectionPool(current, targetDate) {
+		candidate := mainboardFloatCap50Candidate{
+			code: stock.Code, name: stock.Name, floatMarketCapYi: stock.MarketCapYi,
+		}
+		latestDate := ""
+		if bars := next.Daily[stock.Code]; len(bars) > 0 {
+			latestDate = bars[len(bars)-1].Date
+		}
+		limit := mainboardSharedGobRefreshFetchLimit(latestDate, targetDate)
+		bars, _, err := fetchMainboardFloatCap50Bars(candidate, limit, next.StartDate, targetDate)
+		if err != nil {
+			missing++
+			continue
+		}
+		if containsSharedGobBarDate(bars, targetDate) {
+			targetBars++
+		} else {
+			missing++
+		}
+		next.Daily[stock.Code] = mergeMainboardSharedGobBars(next.Daily[stock.Code], bars)
+		updated++
+	}
 	if targetBars == 0 && !mainboardSharedGobSnapshotHasDate(current, targetDate) {
 		return 0, missing, fmt.Errorf("no stock returned a valid %s bar; keeping the previous snapshot", targetDate)
 	}
@@ -224,6 +251,21 @@ func mainboardSharedGobPendingIndices(current *mainboardSharedGobData, targetDat
 		}
 	}
 	return indices
+}
+
+func mainboardSharedGobPendingSelectionPool(current *mainboardSharedGobData, targetDate string) []MainboardT0PoolStock {
+	baseCodes := make(map[string]struct{}, len(current.Snapshot.Stocks))
+	for _, stock := range current.Snapshot.Stocks {
+		baseCodes[stock.Code] = struct{}{}
+	}
+	pending := make([]MainboardT0PoolStock, 0)
+	for _, stock := range current.Snapshot.SelectionPools[targetDate] {
+		if _, exists := baseCodes[stock.Code]; exists || containsSharedGobBarDate(current.Daily[stock.Code], targetDate) {
+			continue
+		}
+		pending = append(pending, stock)
+	}
+	return pending
 }
 
 func mainboardSharedGobSnapshotHasDate(current *mainboardSharedGobData, targetDate string) bool {

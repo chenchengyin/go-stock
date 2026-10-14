@@ -38,7 +38,7 @@ func t0DailyContextModuleName(moduleCode string) string {
 		return "紫策"
 	}
 	if moduleCode == sharedGobRedStrategyModuleCode {
-		return "红策（共享GOB）"
+		return "红策"
 	}
 	return "红策"
 }
@@ -53,7 +53,7 @@ func loadT0ModuleSelectionContext(
 	if !isT0DailyContextModule(moduleCode) {
 		return nil, nil
 	}
-	cached, ok := loadT0DailyCache(tradeDate)
+	cached, ok := loadT0DailyPayloadForTradeDate(tradeDate)
 	if !ok || cached == nil {
 		return nil, fmt.Errorf("%s日线缓存未就绪: %s",
 			t0DailyContextModuleName(moduleCode), tradeDate)
@@ -194,7 +194,7 @@ func writeContextT0PrewarmReadyHTTPAt(
 	moduleCode string,
 	now time.Time,
 ) {
-	cached, ok := loadT0DailyCache(tradeDate)
+	cached, ok := loadT0DailyPayloadForTradeDate(tradeDate)
 	if !ok || cached == nil {
 		WriteJSON(w, map[string]interface{}{
 			"error":  fmt.Sprintf("%s日线缓存未就绪", t0DailyContextModuleName(moduleCode)),
@@ -332,8 +332,12 @@ func isGobRedTailCandidateWindow(now time.Time, tradeDate string) bool {
 func selectGobRedFromPool(
 	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar,
 ) ([]T0SelectionResult, []t0DataWarning) {
+	priorDate := gobRedPriorCacheDate(tradeDate)
+	if tradeDate >= time.Now().In(chinaLocation()).Format("2006-01-02") {
+		priorDate = latestGobPriorDate(tradeDate, daily)
+	}
 	return selectGobRedFromPoolWithPriorDate(
-		tradeDate, stocks, daily, gobRedPriorCacheDate(tradeDate), gobRedOpeningQuoteBuilder)
+		tradeDate, stocks, daily, priorDate, gobRedOpeningQuoteBuilder)
 }
 
 func selectGobRedFromSharedPool(

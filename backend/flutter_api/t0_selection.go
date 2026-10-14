@@ -214,6 +214,15 @@ func ensureT0CacheDirs() error {
 }
 
 func isT0DailyCacheFilePresent(tradeDate string) bool {
+	if shared, err := loadMainboardSharedGob(); err == nil {
+		if stocks := sharedGobT0SelectionPool(shared, tradeDate); len(stocks) > 0 {
+			daily, _ := sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), nil)
+			return len(daily) > 0
+		}
+	}
+	if tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+		return false
+	}
 	payload, ok := loadT0DailyCache(tradeDate)
 	if !ok {
 		return false
@@ -262,6 +271,28 @@ func shouldReturnWarmingForSelection(tradeDate string) bool {
 }
 
 func readT0DailyCachePayload(tradeDate string) (*t0DailyCachePayload, bool) {
+	if shared, err := loadMainboardSharedGob(); err == nil {
+		if stocks := sharedGobT0SelectionPool(shared, tradeDate); len(stocks) > 0 {
+			daily, _ := sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), nil)
+			if len(daily) == 0 {
+				return nil, false
+			}
+			return &t0DailyCachePayload{
+				DataSchemaVersion: t0DailyCacheSchemaVersion,
+				TradeDate:         tradeDate,
+				Stocks:            stocks,
+				Daily:             daily,
+				StockPoolComplete: true,
+			}, true
+		}
+	}
+	if tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+		return nil, false
+	}
+	return readT0DailyCachePayloadFromDisk(tradeDate)
+}
+
+func readT0DailyCachePayloadFromDisk(tradeDate string) (*t0DailyCachePayload, bool) {
 	_ = ensureT0CacheDirs()
 	path := t0DailyCachePath(tradeDate)
 	f, err := os.Open(path)
@@ -289,6 +320,10 @@ func loadT0DailyCache(tradeDate string) (*t0DailyCachePayload, bool) {
 		return nil, false
 	}
 	return payload, true
+}
+
+func loadT0DailyPayloadForTradeDate(tradeDate string) (*t0DailyCachePayload, bool) {
+	return loadT0DailyCache(tradeDate)
 }
 
 // loadT0DailyCacheForResults 只为历史归档中的结果股读取日线。
@@ -624,6 +659,14 @@ func findLatestSelectionArchiveBefore(tradeDate string) (*t0SelectionArchive, bo
 
 // loadOrFetchT0Daily 优先读磁盘缓存；未命中则拉股票池+日线并写入。
 func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]dailyBar, fromCache bool, err error) {
+	if tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+		return loadOrFetchSharedGobT0Daily(tradeDate)
+	}
+	if shared, err := loadMainboardSharedGob(); err == nil {
+		if len(shared.SelectionPools[tradeDate]) > 0 {
+			return loadOrFetchSharedGobT0Daily(tradeDate)
+		}
+	}
 	endDate := t0DailyFetchEndDate(tradeDate)
 	cached, hasCache := loadT0DailyCache(tradeDate)
 	shared, sharedErr := loadMainboardSharedGob()
@@ -775,6 +818,33 @@ func runT0PrewarmJob(tradeDate string) {
 			})
 		}
 	}()
+	if tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+		stocks, daily, _, err := loadOrFetchSharedGobT0Daily(tradeDate)
+		if err != nil {
+			updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+				p.Status = t0WarmStatusFailed
+				p.Err = err.Error()
+			})
+			return
+		}
+		hist := make(map[string][]dailyBar, len(daily))
+		for code, bars := range daily {
+			hist[code] = histBarsBeforeTradeDate(bars, tradeDate)
+		}
+		step1 := filterLimitUpRecent(stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
+		step2 := filterTurnover(step1, hist, 5.0)
+		updateT0WarmProgress(tradeDate, func(p *t0WarmProgress) {
+			p.Status = t0WarmStatusReady
+			p.StockCount = len(stocks)
+			p.DailyFetched = len(daily)
+			p.DailyTotal = len(stocks)
+			p.CandidateCount = len(step2)
+			p.Err = ""
+		})
+		logger.SugaredLogger.Infof("[T0选股] 共享GOB预热完成: 股票%d 日线%d 候选%d",
+			len(stocks), len(daily), len(step2))
+		return
+	}
 
 	stocks, poolErr := fetchStockPoolFromSinaStrict()
 	if poolErr != nil {
@@ -850,10 +920,7 @@ func buildPrewarmReadyResponse(tradeDate string) map[string]interface{} {
 }
 
 func buildPrewarmReadyResponseAt(tradeDate string, now time.Time) map[string]interface{} {
-	var cached *t0DailyCachePayload
-	if payload, ok := loadT0DailyCache(tradeDate); ok {
-		cached = payload
-	}
+	cached, _ := loadT0DailyPayloadForTradeDate(tradeDate)
 	return buildPrewarmReadyResponseAtWithCache(tradeDate, now, cached)
 }
 
@@ -936,7 +1003,7 @@ func buildPrewarmReadyResponseAtWithCache(
 
 // buildT0CandidateList 从当日日线缓存构建竞价前候选（涨停记忆+成交额），不含开盘涨幅过滤。
 func buildT0CandidateList(tradeDate string) ([]T0SelectionResult, bool) {
-	cached, ok := loadT0DailyCache(tradeDate)
+	cached, ok := loadT0DailyPayloadForTradeDate(tradeDate)
 	if !ok || cached == nil {
 		return nil, false
 	}
@@ -1439,6 +1506,7 @@ func fetchStockPoolPageFromSina(page int) ([]sinaStockPoolItem, error) {
 func fetchStockPoolWithPageFetcher(fetchPage func(page int) ([]sinaStockPoolItem, error)) ([]t0Stock, error) {
 	var allStocks []t0Stock
 	mainBoardCount := 0
+	shortPage, shortPageCount := 0, 0
 
 	for page := 1; page <= t0StockPoolMaxPages; page++ {
 		var items []sinaStockPoolItem
@@ -1464,6 +1532,10 @@ func fetchStockPoolWithPageFetcher(fetchPage func(page int) ([]sinaStockPoolItem
 				return nil, fmt.Errorf("股票池为空")
 			}
 			break
+		}
+		if shortPage > 0 {
+			return nil, fmt.Errorf("股票池第%d页仅返回%d条，但第%d页仍有数据，分页不完整",
+				shortPage, shortPageCount, page)
 		}
 
 		for _, item := range items {
@@ -1491,11 +1563,11 @@ func fetchStockPoolWithPageFetcher(fetchPage func(page int) ([]sinaStockPoolItem
 			})
 		}
 
-		if len(items) < t0StockPoolPageSize {
-			break
-		}
 		if page == t0StockPoolMaxPages {
 			return nil, fmt.Errorf("股票池超过最大分页数%d，未确认已完整获取", t0StockPoolMaxPages)
+		}
+		if len(items) < t0StockPoolPageSize {
+			shortPage, shortPageCount = page, len(items)
 		}
 	}
 
@@ -2645,7 +2717,7 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 				WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
 				return
 			}
-			dates = sharedGobRedDatesDescending(shared)
+			dates = sharedGobRedDatesDescendingAt(shared, time.Now())
 			response["dates"] = dates
 			response["generated_at"] = shared.Snapshot.GeneratedAt
 		}
@@ -2655,6 +2727,17 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 
 	if err := validateT0ModuleCode(moduleCode); err != nil {
 		WriteAuthError(w, err)
+		return
+	}
+	if isTruthyQuery(q.Get("red_rule_history")) {
+		if !isRedT0StrategyModule(moduleCode) {
+			WriteJSONStatus(w, http.StatusBadRequest, map[string]interface{}{"error": "仅红策支持历史条件查询"})
+			return
+		}
+		handleGobRedRuleHistory(
+			w, strings.TrimSpace(q.Get("rule_source")),
+			strings.TrimSpace(q.Get("rule_key")), q.Get("rule_version"),
+		)
 		return
 	}
 	if moduleCode == sharedGobRedStrategyModuleCode {

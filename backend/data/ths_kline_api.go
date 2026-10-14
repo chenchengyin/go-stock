@@ -9,9 +9,20 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go-stock/backend/logger"
 )
 
-const thsKLineAPIURL = "https://quota-h.10jqka.com.cn/fuyao/common_hq_aggr/quote/v1/single_kline"
+var thsKLineAPIURL = "https://quota-h.10jqka.com.cn/fuyao/common_hq_aggr/quote/v1/single_kline"
+
+const (
+	thsKLineMaxAttempts = 2
+	thsKLineRetryDelay  = 250 * time.Millisecond
+)
+
+// Exposure-triggered cards can start together. Share this gate across all
+// callers so concurrent HTTP handlers cannot create an unbounded THS burst.
+var thsKLineRequestSlots = make(chan struct{}, 2)
 
 type thsKLineRequest struct {
 	CodeList   []thsKLineCode `json:"code_list"`
@@ -117,6 +128,85 @@ func fetchFromTHSWithTimeout(stockCode, klt string, limit int, end string, timeo
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	for attempt := 1; attempt <= thsKLineMaxAttempts; attempt++ {
+		startedAt := time.Now()
+		body, httpStatus, err := postTHSKLineRequest(ctx, timeout, requestBody)
+		if err != nil {
+			logger.SugaredLogger.Warnf(
+				"THS K线请求失败: code=%s end=%s attempt=%d/%d http=%d elapsed=%s err=%v",
+				code, end, attempt, thsKLineMaxAttempts, httpStatus, time.Since(startedAt), err,
+			)
+			if ctx.Err() != nil || attempt == thsKLineMaxAttempts || !waitTHSKLineRetry(ctx, attempt) {
+				break
+			}
+			continue
+		}
+		if httpStatus != http.StatusOK {
+			logger.SugaredLogger.Warnf(
+				"THS K线 HTTP状态异常: code=%s end=%s attempt=%d/%d http=%d elapsed=%s",
+				code, end, attempt, thsKLineMaxAttempts, httpStatus, time.Since(startedAt),
+			)
+			if (httpStatus != http.StatusTooManyRequests && httpStatus < http.StatusInternalServerError) ||
+				attempt == thsKLineMaxAttempts || !waitTHSKLineRetry(ctx, attempt) {
+				break
+			}
+			continue
+		}
+
+		var response thsKLineResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			logger.SugaredLogger.Warnf(
+				"THS K线响应解析失败: code=%s end=%s attempt=%d/%d http=%d bytes=%d elapsed=%s err=%v",
+				code, end, attempt, thsKLineMaxAttempts, httpStatus, len(body), time.Since(startedAt), err,
+			)
+			if attempt == thsKLineMaxAttempts || !waitTHSKLineRetry(ctx, attempt) {
+				break
+			}
+			continue
+		}
+		if response.StatusCode != 0 {
+			logger.SugaredLogger.Warnf(
+				"THS K线业务状态异常: code=%s end=%s attempt=%d/%d http=%d api_status=%d api_msg=%q elapsed=%s",
+				code, end, attempt, thsKLineMaxAttempts, httpStatus, response.StatusCode, response.StatusMsg, time.Since(startedAt),
+			)
+			if attempt == thsKLineMaxAttempts || !waitTHSKLineRetry(ctx, attempt) {
+				break
+			}
+			continue
+		}
+
+		for _, quote := range response.Data.QuoteData {
+			if quote.Code != code {
+				continue
+			}
+			rows := parseTHSKLineValues(quote.DataFields, quote.Value, period, endTime)
+			if len(rows) > 0 {
+				if attempt > 1 {
+					logger.SugaredLogger.Infof("THS K线重试后恢复: code=%s end=%s attempt=%d rows=%d", code, end, attempt, len(rows))
+				}
+				return &KLineSourceResult{Data: &rows}
+			}
+		}
+		logger.SugaredLogger.Warnf(
+			"THS K线未返回目标数据: code=%s end=%s attempt=%d/%d http=%d api_status=%d api_msg=%q quote_count=%d elapsed=%s",
+			code, end, attempt, thsKLineMaxAttempts, httpStatus, response.StatusCode, response.StatusMsg,
+			len(response.Data.QuoteData), time.Since(startedAt),
+		)
+		if attempt == thsKLineMaxAttempts || !waitTHSKLineRetry(ctx, attempt) {
+			break
+		}
+	}
+	return empty
+}
+
+func postTHSKLineRequest(ctx context.Context, timeout time.Duration, body thsKLineRequest) ([]byte, int, error) {
+	select {
+	case thsKLineRequestSlots <- struct{}{}:
+		defer func() { <-thsKLineRequestSlots }()
+	case <-ctx.Done():
+		return nil, 0, ctx.Err()
+	}
+
 	client := CreateHTTPClientWithTimeout(timeout)
 	// The page's static business headers work without session-bound X-Fuyao-Auth/sw8.
 	resp, err := client.R().
@@ -131,24 +221,23 @@ func fetchFromTHSWithTimeout(stockCode, klt string, limit int, end string, timeo
 		SetHeader("X-Auth-AppName", "AINVEST").
 		SetHeader("Source-Id", "hxkline-NEWS_appNewsFlowHome_Page").
 		SetHeader("Platform", "hxkline").
-		SetBody(requestBody).
+		SetBody(body).
 		Post(thsKLineAPIURL)
-	if err != nil || resp == nil || resp.StatusCode() != http.StatusOK {
-		return empty
+	if resp == nil {
+		return nil, 0, err
 	}
+	return resp.Body(), resp.StatusCode(), err
+}
 
-	var response thsKLineResponse
-	if err := json.Unmarshal(resp.Body(), &response); err != nil || response.StatusCode != 0 {
-		return empty
+func waitTHSKLineRetry(ctx context.Context, attempt int) bool {
+	timer := time.NewTimer(time.Duration(attempt) * thsKLineRetryDelay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return ctx.Err() == nil
+	case <-ctx.Done():
+		return false
 	}
-	for _, quote := range response.Data.QuoteData {
-		if quote.Code != code {
-			continue
-		}
-		rows := parseTHSKLineValues(quote.DataFields, quote.Value, period, endTime)
-		return &KLineSourceResult{Data: &rows}
-	}
-	return empty
 }
 
 func thsCodeAndMarket(stockCode string) (code, market string, ok bool) {

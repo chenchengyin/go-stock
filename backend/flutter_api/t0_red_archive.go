@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -87,12 +89,303 @@ func listGobRedAvailableDates() []string {
 			}
 		}
 	}
+	addSharedGobRedSelectionDates(seen)
 	dates := make([]string, 0, len(seen))
 	for date := range seen {
 		dates = append(dates, date)
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 	return dates
+}
+
+type gobRedRuleHistoryOption struct {
+	RuleSource  string `json:"rule_source"`
+	RuleKey     string `json:"rule_key"`
+	RuleVersion int    `json:"rule_version"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MatchCount  int    `json:"match_count"`
+}
+
+type gobRedRuleHistoryIndex struct {
+	rules         map[redHistoryIdentity]*gobRedRuleHistoryOption
+	matchesByRule map[redHistoryIdentity]map[string]T0SelectionResult
+	options       []gobRedRuleHistoryOption
+	incomplete    bool
+}
+
+var gobRedRuleHistoryIndexCache struct {
+	sync.Mutex
+	key   string
+	value *gobRedRuleHistoryIndex
+}
+
+func listGobRedHistoryDatesDescending() []string {
+	seen := make(map[string]struct{})
+	for _, source := range []struct{ dir, prefix, suffix string }{
+		{filepath.Join(t0CacheRootPath, "t0", "daily"), "t0_daily_cache_", ".gob"},
+		{filepath.Dir(gobRedArchivePath("")), "t0_red_gob_", ".json"},
+	} {
+		entries, err := os.ReadDir(source.dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasPrefix(name, source.prefix) || !strings.HasSuffix(name, source.suffix) {
+				continue
+			}
+			date := strings.TrimSuffix(strings.TrimPrefix(name, source.prefix), source.suffix)
+			if normalized, err := normalizeT0TradeDate(date); err == nil && normalized == date && !isT0WeekendDate(date) {
+				seen[date] = struct{}{}
+			}
+		}
+	}
+	addSharedGobRedSelectionDates(seen)
+	dates := make([]string, 0, len(seen))
+	for date := range seen {
+		dates = append(dates, date)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	return dates
+}
+
+func addSharedGobRedSelectionDates(seen map[string]struct{}) {
+	shared, err := loadMainboardSharedGob()
+	if err != nil {
+		return
+	}
+	for date, stocks := range shared.SelectionPools {
+		if len(stocks) == 0 || isT0WeekendDate(date) {
+			continue
+		}
+		if normalized, err := normalizeT0TradeDate(date); err == nil && normalized == date {
+			seen[date] = struct{}{}
+		}
+	}
+}
+
+func handleGobRedRuleHistory(w http.ResponseWriter, ruleSource, ruleKey, rawRuleVersion string) {
+	ruleVersion := 0
+	if ruleKey != "" {
+		ruleSource = strings.TrimSpace(ruleSource)
+		if ruleSource == "" {
+			// Keep older clients compatible; they historically queried only GOB rules.
+			ruleSource = redHistorySourceGob
+		}
+		if ruleSource != redHistorySourceGob && ruleSource != redHistorySourceReference {
+			WriteJSONStatus(w, http.StatusBadRequest, map[string]interface{}{"error": "rule_source无效"})
+			return
+		}
+		parsed, err := strconv.Atoi(rawRuleVersion)
+		if err != nil || parsed < 1 {
+			WriteJSONStatus(w, http.StatusBadRequest, map[string]interface{}{"error": "rule_version无效"})
+			return
+		}
+		ruleVersion = parsed
+	}
+
+	runtimes := loadT0ReferenceRuleRuntimes()
+	replay, err := redHistoryReplayForRuntimes(runtimes)
+	if err != nil {
+		WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
+		return
+	}
+	index := gobRedRuleHistoryIndexFor(runtimes, replay)
+
+	if ruleKey != "" {
+		identity := redHistoryIdentity{source: ruleSource, key: ruleKey, version: ruleVersion}
+		if _, exists := index.rules[identity]; !exists {
+			WriteJSONStatus(w, http.StatusNotFound, map[string]interface{}{"error": "红策规则不存在或已停用"})
+			return
+		}
+		results := redHistoryResults(index.matchesByRule[identity])
+		if ruleSource == redHistorySourceGob {
+			results = enrichGobRedRuleStats(results)
+		}
+		WriteJSON(w, map[string]interface{}{
+			"rule_source": ruleSource, "rule_key": ruleKey, "rule_version": ruleVersion,
+			"count": len(results), "results": results, "data_incomplete": index.incomplete,
+		})
+		return
+	}
+
+	WriteJSON(w, map[string]interface{}{"rules": index.options, "data_incomplete": index.incomplete})
+}
+
+func gobRedRuleHistoryIndexFor(
+	runtimes []t0ReferenceRuleRuntime,
+	replay *redHistoryReplay,
+) *gobRedRuleHistoryIndex {
+	dates := listGobRedHistoryDatesDescending()
+	key := gobRedRuleHistoryIndexKey(dates, replay, runtimes)
+
+	gobRedRuleHistoryIndexCache.Lock()
+	defer gobRedRuleHistoryIndexCache.Unlock()
+	if gobRedRuleHistoryIndexCache.key == key && gobRedRuleHistoryIndexCache.value != nil {
+		return gobRedRuleHistoryIndexCache.value
+	}
+
+	index := buildGobRedRuleHistoryIndex(dates, replay, runtimes)
+	gobRedRuleHistoryIndexCache.key = key
+	gobRedRuleHistoryIndexCache.value = index
+	return index
+}
+
+func gobRedRuleHistoryIndexKey(
+	dates []string,
+	replay *redHistoryReplay,
+	runtimes []t0ReferenceRuleRuntime,
+) string {
+	parts := []string{currentGobRedRuleSetVersion(), fmt.Sprintf("replay:%p", replay)}
+	for _, rule := range approvedGobRedRules() {
+		parts = append(parts, fmt.Sprintf("rule:%s@%d:%s:%s", rule.Key, rule.Version, rule.Name, rule.Description))
+	}
+	for _, runtime := range runtimes {
+		if runtime.rule.RuleKey == "" || !runtime.redEntry {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("reference:%s/%s/%s/%d/%.4f/%.4f/%.4f/%d/%s",
+			runtime.rule.RuleKey, runtime.rule.Definition.Name, runtime.researchTier, runtime.sampleCount,
+			runtime.strictWinRate, runtime.targetRate, runtime.earnRate,
+			runtime.rule.Definition.ManualRank, runtime.rule.Definition.Description))
+	}
+	for _, date := range dates {
+		parts = append(parts, date)
+		for _, path := range []string{
+			gobRedArchivePath(date),
+			filepath.Join(t0CacheRootPath, "t0", "daily", "t0_daily_cache_"+date+".gob"),
+		} {
+			info, err := os.Stat(path)
+			if err != nil {
+				parts = append(parts, path+":missing")
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s:%d:%d", path, info.Size(), info.ModTime().UnixNano()))
+		}
+	}
+	if info, err := os.Stat(mainboardSharedGobPath()); err == nil {
+		parts = append(parts, fmt.Sprintf("shared:%d:%d", info.Size(), info.ModTime().UnixNano()))
+	}
+	return strings.Join(parts, "|")
+}
+
+func buildGobRedRuleHistoryIndex(
+	dates []string,
+	replay *redHistoryReplay,
+	runtimes []t0ReferenceRuleRuntime,
+) *gobRedRuleHistoryIndex {
+	rules := make(map[redHistoryIdentity]*gobRedRuleHistoryOption)
+	matchesByRule := make(map[redHistoryIdentity]map[string]T0SelectionResult)
+	for _, rule := range approvedGobRedRules() {
+		identity := redHistoryIdentity{source: redHistorySourceGob, key: rule.Key, version: rule.Version}
+		rules[identity] = &gobRedRuleHistoryOption{
+			RuleSource: redHistorySourceGob, RuleKey: rule.Key, RuleVersion: rule.Version,
+			Name: rule.Name, Description: rule.Description,
+		}
+		matchesByRule[identity] = make(map[string]T0SelectionResult)
+	}
+	for _, runtime := range runtimes {
+		if runtime.rule.RuleKey == "" || !runtime.redEntry {
+			continue
+		}
+		identity := redHistoryIdentity{source: redHistorySourceReference, key: runtime.rule.RuleKey, version: 1}
+		rules[identity] = &gobRedRuleHistoryOption{
+			RuleSource: redHistorySourceReference, RuleKey: runtime.rule.RuleKey,
+			RuleVersion: 1, Name: runtime.rule.Definition.Name,
+			Description: runtime.rule.Definition.Description,
+		}
+		matchesByRule[identity] = make(map[string]T0SelectionResult)
+	}
+	incomplete := replay.incomplete
+	if len(dates) == 0 {
+		incomplete = true
+	}
+	for _, date := range dates {
+		archive, ok := loadGobRedArchive(date)
+		dateResults := []T0SelectionResult(nil)
+		dateIncomplete := true
+		if ok {
+			// 历史归档即使因日线覆盖或开盘价来源被标为不完整，也已经包含
+			// 当时可确认的红策命中。直接使用快照并标记覆盖不完整，避免每次
+			// 打开条件列表都重新解码该日期的大型 GOB 日线缓存。
+			dateResults = archive.Results
+			dateIncomplete = !archive.Complete || archive.RuleSetVersion != currentGobRedRuleSetVersion()
+		} else {
+			var sourceStatus string
+			dateResults, _, sourceStatus, dateIncomplete = archivedGobRedResults(date)
+			if sourceStatus == "unavailable" {
+				incomplete = true
+				continue
+			}
+		}
+		if dateIncomplete {
+			incomplete = true
+		}
+		for _, result := range dateResults {
+			for _, hit := range result.RedRuleHits {
+				identity := redHistoryIdentity{source: redHistorySourceGob, key: hit.Key, version: hit.Version}
+				if _, isCurrentRule := rules[identity]; !isCurrentRule {
+					continue
+				}
+				matched := result
+				matched.RedRuleHits = []T0RedRuleHit{hit}
+				matched.DisplayRuleHits = []string{hit.Name}
+				key := matched.Time + ":" + matched.StockCode
+				if _, exists := matchesByRule[identity][key]; !exists {
+					matchesByRule[identity][key] = matched
+				}
+			}
+		}
+	}
+	for identity, byDate := range replay.results {
+		if _, isCurrentRule := rules[identity]; !isCurrentRule {
+			continue
+		}
+		for key, result := range byDate {
+			if _, exists := matchesByRule[identity][key]; !exists {
+				matchesByRule[identity][key] = result
+			}
+		}
+	}
+
+	options := make([]gobRedRuleHistoryOption, 0, len(rules))
+	for identity, option := range rules {
+		option.MatchCount = len(matchesByRule[identity])
+		options = append(options, *option)
+	}
+	sort.Slice(options, func(i, j int) bool {
+		if options[i].MatchCount != options[j].MatchCount {
+			return options[i].MatchCount > options[j].MatchCount
+		}
+		if options[i].Name != options[j].Name {
+			return options[i].Name < options[j].Name
+		}
+		if options[i].RuleVersion != options[j].RuleVersion {
+			return options[i].RuleVersion < options[j].RuleVersion
+		}
+		if options[i].RuleSource != options[j].RuleSource {
+			return options[i].RuleSource < options[j].RuleSource
+		}
+		return options[i].RuleKey < options[j].RuleKey
+	})
+	return &gobRedRuleHistoryIndex{
+		rules: rules, matchesByRule: matchesByRule, options: options, incomplete: incomplete,
+	}
+}
+
+func redHistoryResults(byDate map[string]T0SelectionResult) []T0SelectionResult {
+	results := make([]T0SelectionResult, 0, len(byDate))
+	for _, result := range byDate {
+		results = append(results, result)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Time != results[j].Time {
+			return results[i].Time > results[j].Time
+		}
+		return results[i].StockCode < results[j].StockCode
+	})
+	return results
 }
 
 func loadGobRedArchive(tradeDate string) (*gobRedArchive, bool) {

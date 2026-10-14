@@ -86,6 +86,37 @@ class T0RedRuleStats {
   );
 }
 
+@immutable
+class T0RedRuleHistoryOption {
+  final String ruleSource;
+  final String ruleKey;
+  final int ruleVersion;
+  final String name;
+  final String description;
+  final int matchCount;
+
+  const T0RedRuleHistoryOption({
+    required this.ruleSource,
+    required this.ruleKey,
+    required this.ruleVersion,
+    required this.name,
+    required this.description,
+    required this.matchCount,
+  });
+
+  String get id => '$ruleSource:$ruleKey@$ruleVersion';
+
+  factory T0RedRuleHistoryOption.fromJson(Map<String, dynamic> json) =>
+      T0RedRuleHistoryOption(
+        ruleSource: json['rule_source'] as String? ?? 'gob',
+        ruleKey: json['rule_key'] as String? ?? '',
+        ruleVersion: (json['rule_version'] as num?)?.toInt() ?? 0,
+        name: json['name'] as String? ?? '',
+        description: json['description'] as String? ?? '',
+        matchCount: (json['match_count'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class T0RedRuleHit {
   final String ruleKey;
   final int ruleVersion;
@@ -96,6 +127,7 @@ class T0RedRuleHit {
   final String statsStatus;
   final double entryClose;
   final double targetPrice;
+  final double targetReturnPct;
   final T0RedRuleStats? stats;
 
   const T0RedRuleHit({
@@ -108,6 +140,7 @@ class T0RedRuleHit {
     required this.statsStatus,
     this.entryClose = 0,
     this.targetPrice = 0,
+    this.targetReturnPct = 0,
     this.stats,
   });
 
@@ -123,6 +156,7 @@ class T0RedRuleHit {
       statsStatus: json['stats_status'] as String? ?? 'pending',
       entryClose: (json['entry_close'] as num?)?.toDouble() ?? 0,
       targetPrice: (json['target_price'] as num?)?.toDouble() ?? 0,
+      targetReturnPct: (json['target_return_pct'] as num?)?.toDouble() ?? 0,
       stats: rawStats is Map
           ? T0RedRuleStats.fromJson(Map<String, dynamic>.from(rawStats))
           : null,
@@ -132,6 +166,7 @@ class T0RedRuleHit {
 
 /// T0 选股结果单条数据
 class T0StrategyStock {
+  final String tradeDate;
   final String stockCode;
   final String stockName;
   final double openGap; // T0开盘涨幅(%)
@@ -167,6 +202,7 @@ class T0StrategyStock {
   double get patternEarnPct => 100 - patternFailPct;
 
   const T0StrategyStock({
+    this.tradeDate = '',
     required this.stockCode,
     required this.stockName,
     required this.openGap,
@@ -225,6 +261,7 @@ class T0StrategyStock {
           )
         : const <T0RedRuleHit>[];
     return T0StrategyStock(
+      tradeDate: json['时间'] as String? ?? '',
       stockCode: json['股票代码'] as String? ?? '',
       stockName: json['股票名称'] as String? ?? '',
       openGap: (json['T0开盘涨幅(%)'] as num?)?.toDouble() ?? 0.0,
@@ -269,6 +306,7 @@ class T0StrategyStock {
     T0CloseTargetMonitor? sellMonitor,
   }) {
     return T0StrategyStock(
+      tradeDate: tradeDate,
       stockCode: stockCode,
       stockName: stockName,
       openGap: openGap,
@@ -445,6 +483,116 @@ class T0StrategyViewModel extends ChangeNotifier {
   };
   Timer? _dateBoundaryTimer;
   Timer? _sharedGobDateRefreshTimer;
+  List<T0RedRuleHistoryOption> _redRuleHistoryOptions = [];
+  List<T0StrategyStock> _redRuleHistoryStocks = [];
+  bool _redRuleHistoryOptionsLoading = false;
+  bool _redRuleHistoryResultsLoading = false;
+  bool _redRuleHistoryOptionsLoaded = false;
+  bool _redRuleHistoryIncomplete = false;
+  String? _redRuleHistoryError;
+  String? _selectedRedRuleHistoryId;
+  int _redRuleHistoryRequestGeneration = 0;
+
+  List<T0RedRuleHistoryOption> get redRuleHistoryOptions =>
+      List.unmodifiable(_redRuleHistoryOptions);
+  List<T0StrategyStock> get redRuleHistoryStocks =>
+      List.unmodifiable(_redRuleHistoryStocks);
+  bool get redRuleHistoryOptionsLoading => _redRuleHistoryOptionsLoading;
+  bool get redRuleHistoryResultsLoading => _redRuleHistoryResultsLoading;
+  bool get redRuleHistoryIncomplete => _redRuleHistoryIncomplete;
+  String? get redRuleHistoryError => _redRuleHistoryError;
+  String? get selectedRedRuleHistoryId => _selectedRedRuleHistoryId;
+
+  Future<void> loadRedRuleHistoryOptions({bool force = false}) async {
+    if (_redRuleHistoryOptionsLoading ||
+        (_redRuleHistoryOptionsLoaded && !force)) {
+      return;
+    }
+    _redRuleHistoryOptionsLoading = true;
+    _redRuleHistoryError = null;
+    notifyListeners();
+    try {
+      final data = await _sendRequest(t0SharedGobRedStrategyModuleCode, {
+        'red_rule_history': '1',
+      }, connectTimeout: const Duration(seconds: 90));
+      final responseError = data['error'] as String?;
+      if (responseError != null && responseError.isNotEmpty) {
+        throw FormatException(responseError);
+      }
+      final rawRules = data['rules'] as List<dynamic>? ?? const [];
+      _redRuleHistoryOptions = rawRules
+          .whereType<Map>()
+          .map(
+            (item) => T0RedRuleHistoryOption.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .where((item) => item.ruleKey.isNotEmpty && item.ruleVersion > 0)
+          .toList();
+      _redRuleHistoryIncomplete = data['data_incomplete'] as bool? ?? false;
+      _redRuleHistoryOptionsLoaded = true;
+      if (_selectedRedRuleHistoryId != null &&
+          !_redRuleHistoryOptions.any(
+            (option) => option.id == _selectedRedRuleHistoryId,
+          )) {
+        _selectedRedRuleHistoryId = null;
+        _redRuleHistoryStocks = [];
+      }
+    } catch (error) {
+      _redRuleHistoryError = error.toString();
+      if (_isModuleForbidden(error)) {
+        _forbidModule(t0SharedGobRedStrategyModuleCode);
+      }
+    } finally {
+      _redRuleHistoryOptionsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadRedRuleHistoryStocks(T0RedRuleHistoryOption option) async {
+    final generation = ++_redRuleHistoryRequestGeneration;
+    _selectedRedRuleHistoryId = option.id;
+    _redRuleHistoryStocks = [];
+    _redRuleHistoryError = null;
+    _redRuleHistoryResultsLoading = true;
+    notifyListeners();
+    try {
+      final data = await _sendRequest(t0SharedGobRedStrategyModuleCode, {
+        'red_rule_history': '1',
+        'rule_source': option.ruleSource,
+        'rule_key': option.ruleKey,
+        'rule_version': '${option.ruleVersion}',
+      }, connectTimeout: const Duration(seconds: 90));
+      final responseError = data['error'] as String?;
+      if (responseError != null && responseError.isNotEmpty) {
+        throw FormatException(responseError);
+      }
+      if (generation != _redRuleHistoryRequestGeneration) return;
+      final rawResults = data['results'] as List<dynamic>? ?? const [];
+      final stocks =
+          rawResults
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    T0StrategyStock.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+            ..sort((a, b) => b.tradeDate.compareTo(a.tradeDate));
+      _redRuleHistoryStocks = stocks;
+      _redRuleHistoryIncomplete = data['data_incomplete'] as bool? ?? false;
+    } catch (error) {
+      if (generation != _redRuleHistoryRequestGeneration) return;
+      _redRuleHistoryError = error.toString();
+      if (_isModuleForbidden(error)) {
+        _forbidModule(t0SharedGobRedStrategyModuleCode);
+      }
+    } finally {
+      if (generation == _redRuleHistoryRequestGeneration) {
+        _redRuleHistoryResultsLoading = false;
+        notifyListeners();
+      }
+    }
+  }
 
   _MutableT0ModuleState _mutableState(String moduleCode) {
     return _states.putIfAbsent(moduleCode, _MutableT0ModuleState.new);
@@ -1541,8 +1689,9 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   Future<Map<String, dynamic>> _sendRequest(
     String moduleCode,
-    Map<String, dynamic> query,
-  ) async {
+    Map<String, dynamic> query, {
+    Duration? connectTimeout,
+  }) async {
     final normalizedQuery = <String, dynamic>{
       ...query,
       'module_code': moduleCode,
@@ -1552,6 +1701,9 @@ class T0StrategyViewModel extends ChangeNotifier {
     final response = await createApiClient().get<dynamic>(
       '/api/t0-selection',
       queryParameters: normalizedQuery,
+      options: connectTimeout == null
+          ? null
+          : Options(connectTimeout: connectTimeout),
     );
     final data = response.data;
     if (data is! Map) {

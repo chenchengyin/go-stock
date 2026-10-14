@@ -15,17 +15,18 @@ import (
 // T0RedRuleHit belongs to an independently admitted Gob rule. Legacy T0
 // reference statistics use a different (T0-close) exit and stay separate.
 type T0RedRuleHit struct {
-	Key         string             `json:"rule_key"`
-	Version     int                `json:"rule_version"`
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	ExitHorizon string             `json:"exit_horizon"`
-	EntrySource string             `json:"entry_source"`
-	EntryOpen   float64            `json:"entry_open"`
-	EntryClose  float64            `json:"entry_close,omitempty"`
-	TargetPrice float64            `json:"target_price,omitempty"`
-	StatsStatus string             `json:"stats_status"`
-	Stats       *T0RedRuleStatView `json:"stats,omitempty"`
+	Key             string             `json:"rule_key"`
+	Version         int                `json:"rule_version"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description,omitempty"`
+	ExitHorizon     string             `json:"exit_horizon"`
+	EntrySource     string             `json:"entry_source"`
+	EntryOpen       float64            `json:"entry_open"`
+	EntryClose      float64            `json:"entry_close,omitempty"`
+	TargetPrice     float64            `json:"target_price,omitempty"`
+	TargetReturnPct float64            `json:"target_return_pct,omitempty"`
+	StatsStatus     string             `json:"stats_status"`
+	Stats           *T0RedRuleStatView `json:"stats,omitempty"`
 }
 
 func gobRedT0CloseTargetPrice(entryClose float64) float64 {
@@ -49,6 +50,7 @@ type redGobRule struct {
 	ExcludeLimitDown   bool
 	HistoryWindowDays  int
 	ExitHorizon        string
+	TargetReturnPct    float64
 	RequireT0BearClose bool
 }
 
@@ -217,6 +219,35 @@ func approvedGobRedRules() []redGobRule {
 			HistoryWindowDays: 3,
 		},
 		{
+			Key: "gob_zt_t1_bear_open_close_body_4combos_v1", Version: 1,
+			Name:         "中阴线组合",
+			Description:  "T-2收盘涨停；T-1收阴并命中四组之一：开盘2%～4%、收盘-5%～-2%、实体5%～8%；开盘4%～6%、收盘-2%～0%、实体5%～8%；开盘2%～4%、收盘-2%～0%、实体(0%,3%)；开盘6%～10%、收盘0%～2%、实体5%～8%。T-1开盘涨幅、收盘涨幅和实体均相对T-2收盘计算，区间左闭右开；T0开盘缺口0.01%～3%，T+1收盘评估。",
+			MatchHistory: matchGobZTBearOpenCloseBodyCombinations,
+			MatchOpen: func(open, prevClose float64) bool {
+				if open <= 0 || prevClose <= 0 {
+					return false
+				}
+				gap := (open/prevClose - 1) * 100
+				return gap >= 0.01 && gap <= 3
+			},
+			HistoryWindowDays: 3, ExitHorizon: "T+1_close",
+		},
+		{
+			Key: "gob_zt_t1_long_bear_low_open_boll_rebound_v1", Version: 1,
+			Name:         "涨停→高开长阴→低开修复",
+			Description:  "T-2非一字收盘涨停，收盘布林20日Z值≥1.5且<3；T-1开盘相对T-2收盘≥2%，阴线实体跌幅=(开盘-收盘)/开盘≥6%；T0开盘较昨收低开2%～8%（含-8%，不含-2%）。历史达标定义为T0收盘较T0开盘上涨≥4%，日线开盘只作入场代理。",
+			MatchHistory: matchGobZTLongBearLowOpenBollRebound,
+			MatchOpen: func(open, prevClose float64) bool {
+				if open <= 0 || prevClose <= 0 {
+					return false
+				}
+				gap := (open/prevClose - 1) * 100
+				// OHLC is cent-priced; avoid admitting an exact -2% gap from float noise.
+				return gap >= -8-1e-9 && gap < -2-1e-9
+			},
+			HistoryWindowDays: 3, ExitHorizon: "T0_close", TargetReturnPct: 4,
+		},
+		{
 			Key: "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1", Version: 1,
 			Name:         "涨停→小阴→T0收阴收盘买入",
 			Description:  "沿用涨停→小阴线前置条件：T-2收盘涨停；T-1为阴线，收盘相对T-2收盘涨幅-2%～0%（含边界），下影线≤实体；T-2、T-1收盘分别高于MA5，T-1收盘高于MA60；T0开盘缺口0.01%～3%。T0最终收阴后以T0收盘价为入场参考，目标价为入场价上方2.5%并向上取到分；T+1现价达到目标时提示卖出。回测目标触及按T+1最高价评估，不代表实际成交。",
@@ -265,6 +296,59 @@ func matchGobZTSmallBearishT1Filters(hist []dailyBar) bool {
 	return gobCloseAboveSMA(hist, n-2, 5) &&
 		gobCloseAboveSMA(hist, n-1, 5) &&
 		gobCloseAboveSMA(hist, n-1, 60)
+}
+
+func matchGobZTBearOpenCloseBodyCombinations(hist []dailyBar) bool {
+	n := len(hist)
+	if n < 3 {
+		return false
+	}
+	t2, t1 := hist[n-2], hist[n-1]
+	if !isCloseLimitUpDay(hist[n-3].Close, t2, t0LimitUpCloseRet) ||
+		t2.Close <= 0 || t1.Open <= 0 || t1.High <= 0 || t1.Low <= 0 || t1.Close <= 0 ||
+		t1.Open <= t1.Close || t1.Low > t1.Close || t1.High < t1.Open {
+		return false
+	}
+
+	openRet := (t1.Open/t2.Close - 1) * 100
+	closeRet := (t1.Close/t2.Close - 1) * 100
+	body := (t1.Open - t1.Close) / t2.Close * 100
+	return (openRet >= 2 && openRet < 4 && closeRet >= -5 && closeRet < -2 && body >= 5 && body < 8) ||
+		(openRet >= 4 && openRet < 6 && closeRet >= -2 && closeRet < 0 && body >= 5 && body < 8) ||
+		(openRet >= 2 && openRet < 4 && closeRet >= -2 && closeRet < 0 && body > 0 && body < 3) ||
+		(openRet >= 6 && openRet < 10 && closeRet >= 0 && closeRet < 2 && body >= 5 && body < 8)
+}
+
+func matchGobZTLongBearLowOpenBollRebound(hist []dailyBar) bool {
+	n := len(hist)
+	if n < 21 {
+		return false
+	}
+	t2, t1 := hist[n-2], hist[n-1]
+	if !isCloseLimitUpDay(hist[n-3].Close, t2, t0LimitUpCloseRet) ||
+		t2.High <= t2.Low || t2.Close <= 0 || t1.Open <= 0 || t1.Close <= 0 ||
+		(t1.Open/t2.Close-1)*100 < 2 || (t1.Open-t1.Close)/t1.Open*100 < 6 {
+		return false
+	}
+	mean := 0.0
+	for _, bar := range hist[n-21 : n-1] {
+		if bar.Close <= 0 {
+			return false
+		}
+		mean += bar.Close
+	}
+	mean /= 20
+	variance := 0.0
+	for _, bar := range hist[n-21 : n-1] {
+		diff := bar.Close - mean
+		variance += diff * diff
+	}
+	std := math.Sqrt(variance / 20)
+	if std <= 0 {
+		return false
+	}
+	z := (t2.Close - mean) / std
+	return z >= 1.5 && z < 3
 }
 
 func gobCloseAboveSMA(hist []dailyBar, end, period int) bool {
@@ -483,7 +567,8 @@ func matchGobRedRules(
 				Key: rule.Key, Version: rule.Version, Name: rule.Name, Description: rule.Description,
 				ExitHorizon: gobRedRuleExitHorizon(rule), EntrySource: hitEntrySource,
 				EntryOpen: quote.Open, EntryClose: entryClose,
-				TargetPrice: gobRedT0CloseTargetPrice(entryClose), StatsStatus: "pending",
+				TargetPrice: gobRedT0CloseTargetPrice(entryClose), TargetReturnPct: rule.TargetReturnPct,
+				StatsStatus: "pending",
 			})
 		}
 		if len(hits) == 0 {
@@ -531,7 +616,8 @@ func buildGobRedPreopenCandidates(
 				}
 				hits = append(hits, T0RedRuleHit{
 					Key: rule.Key, Version: rule.Version, Name: rule.Name, Description: rule.Description,
-					ExitHorizon: gobRedRuleExitHorizon(rule), EntrySource: entrySource, StatsStatus: statsStatus,
+					ExitHorizon: gobRedRuleExitHorizon(rule), EntrySource: entrySource,
+					TargetReturnPct: rule.TargetReturnPct, StatsStatus: statsStatus,
 				})
 			}
 		}

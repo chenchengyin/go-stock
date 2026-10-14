@@ -1746,6 +1746,64 @@ func TestGobRedStatsPersistenceAndPendingDisplay(t *testing.T) {
 	}
 }
 
+func TestGobRedStatsMatchesLiveEntryToEquivalentDailyStats(t *testing.T) {
+	old := db.Dao
+	t.Cleanup(func() { db.Dao = old })
+	dao, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "red-live-stat.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Dao = dao
+	if err := dao.AutoMigrate(&models.T0RedRuleStat{}); err != nil {
+		t.Fatal(err)
+	}
+	dailyOpenHit := T0RedRuleHit{
+		Key: "gob_dyin_myin_myin_t1_body_le_430_v1", Version: 1,
+		EntrySource: "daily_open", ExitHorizon: "T+1_close", EntryOpen: 10,
+	}
+	dailyT0CloseHit := T0RedRuleHit{
+		Key: "gob_zt_t1_long_bear_low_open_boll_rebound_v1", Version: 1,
+		EntrySource: "daily_open", ExitHorizon: "T0_close", EntryOpen: 10, TargetReturnPct: 4,
+	}
+	dailyCloseHit := T0RedRuleHit{
+		Key: "close_v1", Version: 1, EntrySource: "daily_close", ExitHorizon: "T+1_target_2_5",
+		EntryClose: 10, TargetReturnPct: 2.5,
+	}
+	stats := aggregateGobRedRuleStats([]gobRedStatSample{
+		{Date: "2026-09-01", StockCode: "600001", Hit: dailyOpenHit, NextClose: 11},
+		{Date: "2026-09-01", StockCode: "600002", Hit: dailyT0CloseHit, T0Close: 10.5},
+	}, "2026-09-01", "2026-09-01", "gob-v1", "batch-open")
+	stats = append(stats, aggregateGobRedRuleStats([]gobRedStatSample{{
+		Date: "2026-09-01", StockCode: "600003", Hit: dailyCloseHit, NextClose: 10.3, NextHigh: 10.3,
+	}}, "2026-09-01", "2026-09-01", "gob-v1", "batch-close")...)
+	if err := saveGobRedRuleStats(dao, stats); err != nil {
+		t.Fatal(err)
+	}
+	for _, testCase := range []struct {
+		hit        T0RedRuleHit
+		statSource string
+	}{
+		{
+			hit: T0RedRuleHit{Key: "gob_dyin_myin_myin_t1_body_le_430_v1", Version: 1,
+				EntrySource: "realtime_open", ExitHorizon: "T+1_close"}, statSource: "daily_open",
+		},
+		{
+			hit: T0RedRuleHit{Key: "gob_zt_t1_long_bear_low_open_boll_rebound_v1", Version: 1,
+				EntrySource: "realtime_open", ExitHorizon: "T0_close"}, statSource: "daily_open",
+		},
+		{
+			hit: T0RedRuleHit{Key: "close_v1", Version: 1, EntrySource: "realtime_close",
+				ExitHorizon: "T+1_target_2_5"}, statSource: "daily_close",
+		},
+	} {
+		got := enrichGobRedRuleStats([]T0SelectionResult{{RedRuleHits: []T0RedRuleHit{testCase.hit}}})[0].RedRuleHits[0]
+		if got.StatsStatus != "verified" || got.Stats == nil || got.Stats.EntrySource != testCase.statSource {
+			t.Fatalf("live %s %s should reuse equivalent daily stats: %+v",
+				testCase.hit.EntrySource, testCase.hit.ExitHorizon, got)
+		}
+	}
+}
+
 func TestGobRedArchivedRuleExplanationIsFilledForOldSnapshot(t *testing.T) {
 	previous := db.Dao
 	db.Dao = nil
@@ -1776,6 +1834,24 @@ func TestGobRedReplayReadsT1FromT0Gob(t *testing.T) {
 	}
 }
 
+func TestGobRedReplayUsesNextTradingBarAcross20260925Holiday(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	day0 := append(gobRedTestBarsA(),
+		dailyBar{Date: "2026-09-24", Open: 8, Close: 8.2},
+		dailyBar{Date: "2026-09-28", Open: 8.3, Close: 8.5})
+	if err := saveT0DailyCache("2026-09-24", stock, map[string][]dailyBar{"600101": day0}); err != nil {
+		t.Fatal(err)
+	}
+	_, cases, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-24", "2026-09-24", "synthetic")
+	if err != nil || coverage.Observed != 1 || len(cases) != 1 ||
+		cases[0].NextDate != "2026-09-28" || cases[0].ExitDate != "2026-09-28" {
+		t.Fatalf("replay cases=%+v coverage=%+v err=%v", cases, coverage, err)
+	}
+}
+
 func TestGobRedReplayMarksMissingDailyCoveragePartial(t *testing.T) {
 	oldRoot := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
@@ -1787,7 +1863,10 @@ func TestGobRedReplayMarksMissingDailyCoveragePartial(t *testing.T) {
 	day0 := append(gobRedTestBarsA(),
 		dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2},
 		dailyBar{Date: "2026-09-15", Open: 8.3, Close: 8.5})
-	if err := saveT0DailyCache("2026-09-14", stocks, map[string][]dailyBar{"600101": day0}); err != nil {
+	if err := saveT0DailyCache("2026-09-14", stocks, map[string][]dailyBar{
+		"600101": day0,
+		"600999": day0,
+	}); err != nil {
 		t.Fatal(err)
 	}
 	stats, _, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
@@ -1809,6 +1888,35 @@ func TestGobRedReplayMarksMissingT1InT0Gob(t *testing.T) {
 	if err != nil || coverage.Matched != 1 || coverage.Observed != 0 ||
 		coverage.MissingT1 != 1 || len(stats) != 0 || len(cases) != 0 {
 		t.Fatalf("missing T1 replay stats=%+v cases=%+v coverage=%+v err=%v", stats, cases, coverage, err)
+	}
+}
+
+func TestGobRedReplayRejectsNextCacheWithWrongDailyCode(t *testing.T) {
+	oldRoot := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	t.Cleanup(func() { t0CacheRootPath = oldRoot })
+	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"}}
+	day0 := append(gobRedTestBarsA(),
+		dailyBar{Date: "2026-09-14", Open: 8, Close: 8.2},
+		dailyBar{Date: "2026-09-15", Open: 8.3})
+	if err := saveT0DailyCache("2026-09-14", stock, map[string][]dailyBar{"600101": day0}); err != nil {
+		t.Fatal(err)
+	}
+	nextStocks := []t0Stock{
+		{Code: "sh.600101", ShortCode: "600101", Name: "独立形态"},
+		{Code: "sh.600102", ShortCode: "600102", Name: "另一只"},
+	}
+	nextDay := []dailyBar{{Date: "2026-09-15", Open: 8.3, Close: 8.5, High: 8.6}}
+	if err := saveT0DailyCache("2026-09-15", nextStocks, map[string][]dailyBar{
+		"600102": nextDay,
+		"600999": nextDay,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stats, _, coverage, err := ReplayGobRedRuleStats(t0CacheRootPath, "2026-09-14", "2026-09-14", "synthetic")
+	if err != nil || coverage.MissingNextCacheDays != 1 || coverage.MissingT1 != 1 ||
+		len(stats) != 1 || stats[0].Status != "partial" {
+		t.Fatalf("replay stats=%+v coverage=%+v err=%v", stats, coverage, err)
 	}
 }
 

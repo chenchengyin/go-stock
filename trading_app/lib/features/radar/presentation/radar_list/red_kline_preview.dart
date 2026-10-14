@@ -18,11 +18,20 @@ const _maColors = <int, Color>{
 class RedMovingAveragePainter extends DefaultCandlestickPainter {
   RedMovingAveragePainter({
     required this.bars,
+    required this.bodyWidth,
+    required this.riseColor,
+    required this.fallColor,
     required super.candlestickStyleProvider,
   });
 
   final List<RedKlineBar> bars;
+  final double bodyWidth;
+  final Color riseColor;
+  final Color fallColor;
   final Paint _maPaint = Paint()..style = PaintingStyle.stroke;
+  final Paint _dojiBodyPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.butt;
 
   @override
   void paint(
@@ -33,20 +42,38 @@ class RedMovingAveragePainter extends DefaultCandlestickPainter {
     int spotIndex,
   ) {
     super.paint(canvas, xInCanvasProvider, yInCanvasProvider, spot, spotIndex);
-    if (spotIndex <= 0 || spotIndex >= bars.length) return;
-    for (final entry in _maColors.entries) {
-      final previous = bars[spotIndex - 1].ma[entry.key];
-      final current = bars[spotIndex].ma[entry.key];
-      if (previous == null || current == null) continue;
+    if (spotIndex >= bars.length) return;
+    if (spotIndex > 0) {
+      for (final entry in _maColors.entries) {
+        final previous = bars[spotIndex - 1].ma[entry.key];
+        final current = bars[spotIndex].ma[entry.key];
+        if (previous == null || current == null) continue;
+        canvas.drawLine(
+          Offset(
+            xInCanvasProvider((spotIndex - 1).toDouble()),
+            yInCanvasProvider(previous),
+          ),
+          Offset(xInCanvasProvider(spot.x), yInCanvasProvider(current)),
+          _maPaint
+            ..color = entry.value
+            ..strokeWidth = entry.key == 60 ? 1.5 : 1.2,
+        );
+      }
+    }
+
+    final bar = bars[spotIndex];
+    if (bar.open == bar.close) {
+      final color = spotIndex == 0 || bar.close >= bars[spotIndex - 1].close
+          ? riseColor
+          : fallColor;
+      final x = xInCanvasProvider(spot.x);
+      final y = yInCanvasProvider(bar.close);
       canvas.drawLine(
-        Offset(
-          xInCanvasProvider((spotIndex - 1).toDouble()),
-          yInCanvasProvider(previous),
-        ),
-        Offset(xInCanvasProvider(spot.x), yInCanvasProvider(current)),
-        _maPaint
-          ..color = entry.value
-          ..strokeWidth = entry.key == 60 ? 1.5 : 1.2,
+        Offset(x - bodyWidth / 2, y),
+        Offset(x + bodyWidth / 2, y),
+        _dojiBodyPaint
+          ..color = color
+          ..strokeWidth = 1.5,
       );
     }
   }
@@ -59,7 +86,13 @@ class RedMovingAveragePainter extends DefaultCandlestickPainter {
   ) => b;
 
   @override
-  List<Object?> get props => [...super.props, bars];
+  List<Object?> get props => [
+    ...super.props,
+    bars,
+    bodyWidth,
+    riseColor,
+    fallColor,
+  ];
 }
 
 /// A compact 60 + anchor + up-to-5 daily candle overview.
@@ -69,11 +102,15 @@ class RedKlinePreview extends StatelessWidget {
     this.window,
     this.loading = false,
     this.error = false,
+    this.selectedDate,
   });
 
   final RedKlineWindow? window;
   final bool loading;
   final bool error;
+
+  /// Date selected by the neighbouring intraday chart; long press is temporary.
+  final String? selectedDate;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +160,16 @@ class RedKlinePreview extends StatelessWidget {
                   ),
             ],
           ),
-        SizedBox(height: 112, child: _RedCandleChart(window: data)),
+        SizedBox(
+          height: 112,
+          child: _RedCandleChart(window: data, selectedDate: selectedDate),
+        ),
+        if (selectedDate != null &&
+            !data.bars.any((bar) => bar.date == selectedDate))
+          Text(
+            '$selectedDate 日K线暂无可用数据',
+            style: TextStyle(fontSize: 11, color: AppColors.warning),
+          ),
         if (data.anchorIndex < 0)
           Text(
             '所选日K线尚未形成或不可用',
@@ -140,8 +186,9 @@ class RedKlinePreview extends StatelessWidget {
 }
 
 class _RedCandleChart extends StatefulWidget {
-  const _RedCandleChart({required this.window});
+  const _RedCandleChart({required this.window, this.selectedDate});
   final RedKlineWindow window;
+  final String? selectedDate;
 
   @override
   State<_RedCandleChart> createState() => _RedCandleChartState();
@@ -227,9 +274,16 @@ class _RedCandleChartState extends State<_RedCandleChart> {
     final anchor = widget.window.anchorIndex;
     final rise = AppColors.textPriceUp;
     final fall = AppColors.textPriceDown;
+    final bodyWidth = bars.length < 20 ? 9.0 : 4.8;
 
+    // Do not pick a nearby candle when a trading day is absent in this window.
+    final externalIndex = widget.selectedDate == null
+        ? -1
+        : bars.indexWhere((bar) => bar.date == widget.selectedDate);
     final selected = _selectedIndex != null && _selectedIndex! < bars.length
         ? _selectedIndex
+        : externalIndex >= 0
+        ? externalIndex
         : null;
     return Stack(
       children: [
@@ -286,6 +340,9 @@ class _RedCandleChartState extends State<_RedCandleChart> {
                     ),
               candlestickPainter: RedMovingAveragePainter(
                 bars: bars,
+                bodyWidth: bodyWidth,
+                riseColor: rise,
+                fallColor: fall,
                 candlestickStyleProvider: (spot, index) {
                   final color = spot.close >= spot.open ? rise : fall;
                   return CandlestickStyle(
@@ -294,7 +351,7 @@ class _RedCandleChartState extends State<_RedCandleChart> {
                     bodyFillColor: color,
                     bodyStrokeColor: color,
                     bodyStrokeWidth: 0,
-                    bodyWidth: bars.length < 20 ? 9 : 4.8,
+                    bodyWidth: bodyWidth,
                     bodyRadius: 0,
                   );
                 },

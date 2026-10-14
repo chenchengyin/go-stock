@@ -35,8 +35,24 @@ type GobRedReplayCoverage struct {
 	Observed             int               `json:"observed"`
 	MissingT0            int               `json:"missing_t0"`
 	MissingT1            int               `json:"missing_t1"`
-	MissingNextCacheDays int               `json:"missing_next_cache_days"` // 兼容旧字段，现由 T0 Gob 内 T+1 取值
+	MissingNextCacheDays int               `json:"missing_next_cache_days"`
 	Rejected             map[string]string `json:"rejected,omitempty"`
+}
+
+type gobRedRuleStatScope struct {
+	ruleKey, entrySource, exitHorizon string
+	ruleVersion                       int
+}
+
+func gobRedRuleStatLookupScopes(hit T0RedRuleHit) []gobRedRuleStatScope {
+	scopes := []gobRedRuleStatScope{{hit.Key, hit.EntrySource, hit.ExitHorizon, hit.Version}}
+	switch hit.EntrySource {
+	case "realtime_open":
+		scopes = append(scopes, gobRedRuleStatScope{hit.Key, "daily_open", hit.ExitHorizon, hit.Version})
+	case "realtime_close":
+		scopes = append(scopes, gobRedRuleStatScope{hit.Key, "daily_close", hit.ExitHorizon, hit.Version})
+	}
+	return scopes
 }
 
 func readGobRedReplayCache(path, date string) (*t0DailyCachePayload, error) {
@@ -58,8 +74,9 @@ func readGobRedReplayCache(path, date string) (*t0DailyCachePayload, error) {
 	return &payload, nil
 }
 
-// ReplayGobRedRuleStats is read-only. T0 and T+1 observations both come from
-// that day's Gob; the first bar after tradeDate is T+1.
+// ReplayGobRedRuleStats is read-only. T0 observations come from that day's
+// Gob. T+1 observations use the next session date present in the cached bars,
+// falling back to its dated Gob snapshot when the T0 cache lacks that bar.
 func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 	[]models.T0RedRuleStat, []GobRedReplayCase, GobRedReplayCoverage, error,
 ) {
@@ -93,6 +110,7 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 	sort.Strings(dates)
 	var samples []gobRedStatSample
 	var cases []GobRedReplayCase
+	missingByScope := make(map[gobRedRuleStatScope]int)
 	for _, date := range dates {
 		if date < start || date > end {
 			continue
@@ -109,11 +127,10 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 		if cache.StockPoolComplete {
 			coverage.PoolDays++
 		}
-		if missing := len(cache.Stocks) - len(cache.Daily); missing > 0 {
-			coverage.MissingDailyStocks += missing
-		}
+		missingDailyStocks := missingGobRedDailyStocks(cache.Stocks, cache.Daily)
+		coverage.MissingDailyStocks += missingDailyStocks
 		if cache.StockPoolComplete && cache.DataSchemaVersion == t0DailyCacheSchemaVersion &&
-			len(cache.Daily) >= len(cache.Stocks) {
+			missingDailyStocks == 0 {
 			coverage.CompleteDays++
 		}
 		candidates := buildGobRedPreopenCandidates(date, cache.Stocks, cache.Daily, approvedGobRedRules())
@@ -121,6 +138,26 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 		quotes, _, _ := buildGobRedOpeningQuotes(date, candidateStocks, cache.Daily)
 		results, _ := matchGobRedRules(date, candidateStocks, cache.Daily, quotes, "daily_open", approvedGobRedRules())
 		nextDate := firstDailyDateAfter(cache.Daily, date)
+		var nextCache *t0DailyCachePayload
+		nextCacheChecked := false
+		loadNextCache := func() *t0DailyCachePayload {
+			if nextCacheChecked {
+				return nextCache
+			}
+			nextCacheChecked = true
+			if nextDate == "" {
+				coverage.MissingNextCacheDays++
+				return nil
+			}
+			loaded, err := readGobRedReplayCache(filepath.Join(dir, prefix+nextDate+suffix), nextDate)
+			if err != nil || loaded.DataSchemaVersion != t0DailyCacheSchemaVersion ||
+				!loaded.StockPoolComplete || missingGobRedDailyStocks(loaded.Stocks, loaded.Daily) > 0 {
+				coverage.MissingNextCacheDays++
+				return nil
+			}
+			nextCache = loaded
+			return nextCache
+		}
 		for _, result := range results {
 			code := t0ShortCodeFromResultCode(result.StockCode)
 			var t0High, t0Close, nextClose, nextHigh float64
@@ -129,37 +166,58 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 					t0High = bar.High
 					t0Close = bar.Close
 				}
-				if bar.Date == nextDate && nextDate != "" {
+				if bar.Date == nextDate {
 					nextClose = bar.Close
 					nextHigh = bar.High
 				}
 			}
 			for _, hit := range result.RedRuleHits {
 				coverage.Matched++
+				scope := gobRedRuleStatScope{hit.Key, hit.EntrySource, hit.ExitHorizon, hit.Version}
+				if (hit.ExitHorizon == "T+1_close" && nextClose <= 0) ||
+					(hit.ExitHorizon == "T+1_target_2_5" && (nextClose <= 0 || nextHigh <= 0)) {
+					if nextCache := loadNextCache(); nextCache != nil {
+						for _, bar := range nextCache.Daily[code] {
+							if bar.Date == nextDate {
+								if nextClose <= 0 {
+									nextClose = bar.Close
+								}
+								if nextHigh <= 0 {
+									nextHigh = bar.High
+								}
+								break
+							}
+						}
+					}
+				}
 				exitPrice, exitDate := 0.0, ""
 				switch hit.ExitHorizon {
 				case "T0_high":
 					exitPrice, exitDate = t0High, date
 					if exitPrice <= 0 {
 						coverage.MissingT0++
+						missingByScope[scope]++
 						continue
 					}
 				case "T0_close":
 					exitPrice, exitDate = t0Close, date
 					if exitPrice <= 0 {
 						coverage.MissingT0++
+						missingByScope[scope]++
 						continue
 					}
 				case "T+1_close":
 					exitPrice, exitDate = nextClose, nextDate
 					if exitPrice <= 0 {
 						coverage.MissingT1++
+						missingByScope[scope]++
 						continue
 					}
 				case "T+1_target_2_5":
 					exitPrice, exitDate = nextClose, nextDate
 					if exitPrice <= 0 || nextHigh <= 0 {
 						coverage.MissingT1++
+						missingByScope[scope]++
 						continue
 					}
 				default:
@@ -178,17 +236,47 @@ func ReplayGobRedRuleStats(cacheRoot, start, end, batchID string) (
 			}
 		}
 	}
-	dataVersion := fmt.Sprintf("gob-schema-%d-t0-close-t1-target-red-v5", t0DailyCacheSchemaVersion)
-	if coverage.CompleteDays != coverage.Dates || coverage.MissingT0 > 0 || coverage.MissingT1 > 0 {
-		dataVersion = "gob-mixed-t0-close-t1-target-red-v5"
+	dataVersion := fmt.Sprintf("gob-schema-%d-t0-close-next-session-red-v7", t0DailyCacheSchemaVersion)
+	if coverage.CompleteDays != coverage.Dates || coverage.MissingT0 > 0 || coverage.MissingT1 > 0 || coverage.MissingNextCacheDays > 0 {
+		dataVersion = "gob-mixed-t0-close-next-session-red-v7"
 	}
 	stats := aggregateGobRedRuleStats(samples, start, end, dataVersion, batchID)
+	statIndexes := make(map[gobRedRuleStatScope]int, len(stats))
+	for i := range stats {
+		scope := gobRedRuleStatScope{
+			stats[i].RuleKey, stats[i].EntrySource, stats[i].ExitHorizon, stats[i].RuleVersion,
+		}
+		statIndexes[scope] = i
+		if missingByScope[scope] > 0 {
+			stats[i].Status = "partial"
+		}
+	}
+	for scope := range missingByScope {
+		if _, exists := statIndexes[scope]; exists {
+			continue
+		}
+		stats = append(stats, models.T0RedRuleStat{
+			RuleKey: scope.ruleKey, RuleVersion: scope.ruleVersion,
+			EntrySource: scope.entrySource, ExitHorizon: scope.exitHorizon,
+			PeriodKey: "all", DataVersion: dataVersion, BatchID: batchID, Status: "partial",
+		})
+	}
 	if coverage.CompleteDays != coverage.Dates {
 		for i := range stats {
 			stats[i].Status = "partial"
 		}
 	}
 	return stats, cases, coverage, nil
+}
+
+func missingGobRedDailyStocks(stocks []t0Stock, daily map[string][]dailyBar) int {
+	missing := 0
+	for _, stock := range stocks {
+		if code := strings.TrimSpace(stock.ShortCode); code == "" || len(daily[code]) == 0 {
+			missing++
+		}
+	}
+	return missing
 }
 
 func firstDailyDateAfter(daily map[string][]dailyBar, tradeDate string) string {
@@ -236,11 +324,7 @@ func gobRedRuleEntryPrice(hit T0RedRuleHit) float64 {
 }
 
 func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersion, batchID string) []models.T0RedRuleStat {
-	type scope struct {
-		key, source, horizon string
-		version              int
-	}
-	grouped := make(map[scope]*models.T0RedRuleStat)
+	grouped := make(map[gobRedRuleStatScope]*models.T0RedRuleStat)
 	seen := make(map[string]struct{})
 	for _, sample := range samples {
 		hit := sample.Hit
@@ -268,7 +352,7 @@ func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersio
 			continue
 		}
 		seen[identity] = struct{}{}
-		key := scope{hit.Key, hit.EntrySource, hit.ExitHorizon, hit.Version}
+		key := gobRedRuleStatScope{hit.Key, hit.EntrySource, hit.ExitHorizon, hit.Version}
 		stat := grouped[key]
 		if stat == nil {
 			stat = &models.T0RedRuleStat{
@@ -286,6 +370,9 @@ func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersio
 		}
 		targetReached := ((hit.ExitHorizon == "T0_close" || hit.ExitHorizon == "T0_high") && pnl > 2.5+1e-9) ||
 			(hit.ExitHorizon == "T+1_close" && pnl+1e-9 >= 2.5)
+		if hit.TargetReturnPct > 0 {
+			targetReached = pnl+1e-9 >= hit.TargetReturnPct
+		}
 		if hit.ExitHorizon == "T+1_target_2_5" {
 			targetReached = gobRedT0CloseTargetReached(sample.NextHigh, gobRedT0CloseTargetPrice(entryPrice))
 		}
@@ -320,22 +407,25 @@ func aggregateGobRedRuleStats(samples []gobRedStatSample, start, end, dataVersio
 
 func saveGobRedRuleStats(dao *gorm.DB, stats []models.T0RedRuleStat) error {
 	for _, stat := range stats {
-		if stat.Status != "verified" || stat.SampleCount <= 0 {
+		if (stat.Status != "verified" && stat.Status != "partial") ||
+			stat.SampleCount < 0 || (stat.Status == "verified" && stat.SampleCount == 0) {
 			return fmt.Errorf("红策规则统计未核验，拒绝写入: %s", stat.RuleKey)
 		}
 	}
-	for _, stat := range stats {
-		stat.UpdatedAt = time.Now()
-		if err := dao.Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "rule_key"}, {Name: "rule_version"}, {Name: "entry_source"},
-				{Name: "exit_horizon"}, {Name: "period_key"}, {Name: "data_version"}, {Name: "batch_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"date_start", "date_end", "sample_count", "positive_count",
-				"target_count", "profit_win_rate", "target_rate", "avg_pnl", "status", "updated_at"}),
-		}).Create(&stat).Error; err != nil {
-			return err
+	return dao.Transaction(func(tx *gorm.DB) error {
+		for _, stat := range stats {
+			stat.UpdatedAt = time.Now()
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "rule_key"}, {Name: "rule_version"}, {Name: "entry_source"},
+					{Name: "exit_horizon"}, {Name: "period_key"}, {Name: "data_version"}, {Name: "batch_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"date_start", "date_end", "sample_count", "positive_count",
+					"target_count", "profit_win_rate", "target_rate", "avg_pnl", "status", "updated_at"}),
+			}).Create(&stat).Error; err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // SaveGobRedRuleStats writes only the supplied aggregate table in the caller's
@@ -348,25 +438,21 @@ func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
 	if len(results) == 0 {
 		return results
 	}
-	type scope struct {
-		key, source, horizon string
-		version              int
-	}
 	out := append([]T0SelectionResult(nil), results...)
 	for i := range out {
 		out[i].RedRuleHits = append([]T0RedRuleHit(nil), results[i].RedRuleHits...)
 	}
-	descriptions := make(map[scope]string)
-	descriptions[scope{key: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v1", version: 1}] = legacyGobZTztPbV1Description
+	descriptions := make(map[gobRedRuleStatScope]string)
+	descriptions[gobRedRuleStatScope{ruleKey: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v1", ruleVersion: 1}] = legacyGobZTztPbV1Description
 	for _, rule := range approvedGobRedRules() {
-		descriptions[scope{key: rule.Key, version: rule.Version}] = rule.Description
+		descriptions[gobRedRuleStatScope{ruleKey: rule.Key, ruleVersion: rule.Version}] = rule.Description
 	}
 	keys := make(map[string]struct{})
 	for i := range out {
 		for j := range out[i].RedRuleHits {
 			hit := &out[i].RedRuleHits[j]
 			if hit.Description == "" {
-				hit.Description = descriptions[scope{key: hit.Key, version: hit.Version}]
+				hit.Description = descriptions[gobRedRuleStatScope{ruleKey: hit.Key, ruleVersion: hit.Version}]
 			}
 		}
 	}
@@ -386,14 +472,14 @@ func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
 		ruleKeys = append(ruleKeys, key)
 	}
 	var rows []models.T0RedRuleStat
-	if err := db.Dao.Where("status = ? AND period_key = ? AND rule_key IN ?", "verified", "all", ruleKeys).
+	if err := db.Dao.Where("status IN ? AND period_key = ? AND rule_key IN ?", []string{"verified", "partial"}, "all", ruleKeys).
 		Order("updated_at DESC, id DESC").Find(&rows).Error; err != nil {
 		return out
 	}
-	latest := make(map[scope]models.T0RedRuleStat)
+	latest := make(map[gobRedRuleStatScope]models.T0RedRuleStat)
 	for _, row := range rows {
-		key := scope{row.RuleKey, row.EntrySource, row.ExitHorizon, row.RuleVersion}
-		if _, exists := latest[key]; !exists && row.SampleCount > 0 {
+		key := gobRedRuleStatScope{row.RuleKey, row.EntrySource, row.ExitHorizon, row.RuleVersion}
+		if _, exists := latest[key]; !exists {
 			latest[key] = row
 		}
 	}
@@ -403,8 +489,14 @@ func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
 			if hit.StatsStatus == "preopen" {
 				continue
 			}
-			row, ok := latest[scope{hit.Key, hit.EntrySource, hit.ExitHorizon, hit.Version}]
-			if !ok {
+			var row models.T0RedRuleStat
+			var ok bool
+			for _, scope := range gobRedRuleStatLookupScopes(*hit) {
+				if row, ok = latest[scope]; ok {
+					break
+				}
+			}
+			if !ok || row.Status != "verified" || row.SampleCount <= 0 {
 				continue
 			}
 			hit.StatsStatus = "verified"

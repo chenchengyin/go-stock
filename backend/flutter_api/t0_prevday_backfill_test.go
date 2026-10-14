@@ -39,6 +39,23 @@ func TestResolvePrevTradingDay_MondayToFriday(t *testing.T) {
 	}
 }
 
+func TestResolveNextTradingDay_FridayToMonday(t *testing.T) {
+	orig := t0CacheRootPath
+	t0CacheRootPath = t.TempDir()
+	defer func() { t0CacheRootPath = orig }()
+
+	if err := saveT0DailyCache("2026-08-24",
+		[]t0Stock{{Code: "sh600000", ShortCode: "600000", Name: "浦发银行"}},
+		map[string][]dailyBar{"600000": {{Date: "2026-08-24", Close: 10}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok := resolveNextTradingDay("2026-08-21", "2026-08-24")
+	if !ok || got != "2026-08-24" {
+		t.Fatalf("Friday should skip weekend and reach Monday: got %q ok=%v", got, ok)
+	}
+}
+
 func TestNeedsPrevDayBackfill_RequiresPreopenWindow(t *testing.T) {
 	orig := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()

@@ -10,9 +10,13 @@ import (
 type authPrincipalContextKey struct{}
 
 var publicPaths = map[string]bool{
-	"/api/auth/register": true,
-	"/api/auth/login":    true,
-	"/api/health":        true,
+	"/api/auth/register":       true,
+	"/api/auth/login":          true,
+	"/api/health":              true,
+	"/api/kline":               true,
+	"/api/stock-realtime":      true,
+	"/api/t0-red/kline-window": true,
+	"/api/t0-red/t1-intraday":  true,
 }
 
 func PrincipalFromContext(ctx context.Context) (AuthPrincipal, bool) {

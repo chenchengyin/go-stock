@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/storage/red_kline_settings.dart';
 import 'package:trading_app/features/radar/data/red_kline_repository.dart';
@@ -20,8 +21,8 @@ import 't0_strategy_view_model.dart';
 import 'radar_module_definitions.dart';
 import 'search_results_panel.dart';
 import 'stock_rating_store.dart';
-import 'red_kline_preview.dart';
-import 'red_t1_intraday_preview.dart';
+import 'red_strategy_charts.dart';
+import 'red_t1_intraday_exposure.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
 
@@ -99,8 +100,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
   final Set<String> _shownT0WarningKeys = {};
-  String? _redT1IntradayFutureKey;
-  Future<Map<String, RedT1IntradaySeries>>? _redT1IntradayFuture;
+  int _redT1IntradayRefreshRevision = 0;
+  final Map<String, Future<Map<String, RedKlineWindow>>>
+  _redRegressionKlineFutures = {};
 
   bool get _permissionLoadFailed =>
       _permissionController.state == ModulePermissionState.failure;
@@ -108,6 +110,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    VisibilityDetectorController.instance.updateInterval = const Duration(
+      milliseconds: 100,
+    );
     _permissionController = context.read<ModulePermissionController>();
     _t0StrategyViewModel = context.read<T0StrategyViewModel>();
     _visibleModules = _resolveVisibleModules();
@@ -126,7 +131,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       final strategy = _visibleModules
           .cast<RadarModuleDefinition?>()
           .firstWhere(
-            (module) => module!.accessMode == ModuleAccessMode.userAllowlist,
+            (module) =>
+                module != null &&
+                module.accessMode == ModuleAccessMode.userAllowlist &&
+                module.contentKind != RadarContentKind.redStrategyRegression,
             orElse: () => null,
           );
       if (strategy != null) {
@@ -144,9 +152,12 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     if (allowedCodes.isEmpty) {
       allowedCodes.addAll(publicModuleDefinitions.map((module) => module.code));
     }
-    return radarModuleDefinitions
-        .where((module) => allowedCodes.contains(module.code))
-        .toList();
+    return radarModuleDefinitions.where((module) {
+      if (module.contentKind == RadarContentKind.redStrategyRegression) {
+        return allowedCodes.contains(t0SharedGobRedStrategyModuleCode);
+      }
+      return allowedCodes.contains(module.code);
+    }).toList();
   }
 
   void _onPermissionsChanged() {
@@ -188,7 +199,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     if (index < 0 || index >= _visibleModules.length) return;
     final module = _visibleModules[index];
     final vm = context.read<RadarViewModel>();
-    if (module.accessMode == ModuleAccessMode.userAllowlist &&
+    if (module.contentKind == RadarContentKind.redStrategyRegression &&
+        !_loadedModuleCodes.contains(module.code)) {
+      _loadedModuleCodes.add(module.code);
+      context.read<T0StrategyViewModel>().loadRedRuleHistoryOptions();
+    } else if (module.accessMode == ModuleAccessMode.userAllowlist &&
         !_loadedModuleCodes.contains(module.code)) {
       _loadedModuleCodes.add(module.code);
       final t0Vm = context.read<T0StrategyViewModel>();
@@ -208,7 +223,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   void _onT0DataWarning() {
     if (!mounted) return;
     for (final module in _visibleModules) {
-      if (module.accessMode != ModuleAccessMode.userAllowlist) continue;
+      if (module.accessMode != ModuleAccessMode.userAllowlist ||
+          module.contentKind == RadarContentKind.redStrategyRegression) {
+        continue;
+      }
       final state = _t0StrategyViewModel.stateFor(module.code);
       final message = state.dataWarningMessage;
       final key = state.dataWarningKey;
@@ -416,6 +434,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
   String _tabLabel(RadarModuleDefinition module, T0StrategyViewModel t0Vm) {
     final count = switch (module.contentKind) {
       RadarContentKind.redStrategy => t0Vm.resultsFor(module.code).length,
+      RadarContentKind.redStrategyRegression => 0,
       RadarContentKind.goldStrategy => t0Vm.resultsFor(module.code).length,
       RadarContentKind.purpleStrategy =>
         t0Vm.purpleResultsFor(module.code).length,
@@ -438,6 +457,20 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             vm,
             moduleCode: module.code,
             kind: _StrategyListKind.red,
+            showRedKline:
+                (ctx.watch<RedKlineSettings?>()?.ready ?? false) &&
+                (ctx.read<RedKlineSettings?>()?.enabled ?? false),
+            redKlineRepository: ctx.read<RedKlineRepository?>(),
+            showRedT1Intraday:
+                (ctx.watch<RedKlineSettings?>()?.ready ?? false) &&
+                (ctx.read<RedKlineSettings?>()?.t1IntradayEnabled ?? false),
+            redT1IntradayRepository: ctx.read<RedT1IntradayRepository?>(),
+          ),
+        );
+      case RadarContentKind.redStrategyRegression:
+        return Consumer<T0StrategyViewModel>(
+          builder: (ctx, vm, __) => _buildRedStrategyRegressionTab(
+            vm,
             showRedKline:
                 (ctx.watch<RedKlineSettings?>()?.ready ?? false) &&
                 (ctx.read<RedKlineSettings?>()?.enabled ?? false),
@@ -512,6 +545,291 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             emptyText: '暂无全市场异动',
           ),
         );
+    }
+  }
+
+  Widget _buildRedStrategyRegressionTab(
+    T0StrategyViewModel vm, {
+    required bool showRedKline,
+    required RedKlineRepository? redKlineRepository,
+    required bool showRedT1Intraday,
+    required RedT1IntradayRepository? redT1IntradayRepository,
+  }) {
+    final options = vm.redRuleHistoryOptions;
+    final selectedId = vm.selectedRedRuleHistoryId;
+    T0RedRuleHistoryOption? selectedOption;
+    for (final option in options) {
+      if (option.id == selectedId) {
+        selectedOption = option;
+        break;
+      }
+    }
+    final stocks = vm.redRuleHistoryStocks;
+
+    return SafeArea(
+      top: false,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: DropdownButtonFormField<String>(
+              initialValue: selectedId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: '红策条件组合',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              hint: const Text('请选择条件组合'),
+              items: options
+                  .map(
+                    (option) => DropdownMenuItem<String>(
+                      value: option.id,
+                      child: Text(
+                        '${option.name} · ${option.matchCount}次',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: vm.redRuleHistoryOptionsLoading
+                  ? null
+                  : (id) {
+                      for (final option in options) {
+                        if (option.id == id) {
+                          vm.loadRedRuleHistoryStocks(option);
+                          break;
+                        }
+                      }
+                    },
+            ),
+          ),
+          if (vm.redRuleHistoryIncomplete)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              child: Text(
+                '历史覆盖不完整；已列出当前全部红策规则，次数按可用数据统计',
+                style: TextStyle(fontSize: 12, color: AppColors.warning),
+              ),
+            ),
+          Expanded(
+            child: vm.redRuleHistoryOptionsLoading && options.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        Text(
+                          '正在汇总历史归档，首次加载可能需要几秒',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : vm.redRuleHistoryError != null && options.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            '加载红策条件失败：${vm.redRuleHistoryError}',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              vm.loadRedRuleHistoryOptions(force: true),
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  )
+                : selectedOption == null
+                ? Center(
+                    child: Text(
+                      options.isEmpty ? '暂无红策条件组合' : '请选择红策条件组合',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  )
+                : vm.redRuleHistoryResultsLoading
+                ? const Center(child: CircularProgressIndicator())
+                : vm.redRuleHistoryError != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            '加载历史命中失败：${vm.redRuleHistoryError}',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              vm.loadRedRuleHistoryStocks(selectedOption!),
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  )
+                : stocks.isEmpty
+                ? Center(
+                    child: Text(
+                      '暂无符合该条件的历史股票',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    itemCount: stocks.length,
+                    itemBuilder: (_, index) => _buildRedRegressionCard(
+                      stocks[index],
+                      showRedKline: showRedKline,
+                      redKlineRepository: redKlineRepository,
+                      showRedT1Intraday: showRedT1Intraday,
+                      redT1IntradayRepository: redT1IntradayRepository,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRedRegressionCard(
+    T0StrategyStock stock, {
+    required bool showRedKline,
+    required RedKlineRepository? redKlineRepository,
+    required bool showRedT1Intraday,
+    required RedT1IntradayRepository? redT1IntradayRepository,
+  }) {
+    final date = stock.tradeDate;
+    const moduleCode = t0SharedGobRedStrategyModuleCode;
+    final klineFuture = showRedKline && redKlineRepository != null
+        ? _redRegressionKlineFor(redKlineRepository, date, stock.stockCode)
+        : null;
+    final loadIntraday = showRedT1Intraday && redT1IntradayRepository != null;
+
+    Widget buildCard(
+      RedT1IntradaySeries? series,
+      bool intradayLoading,
+      String? intradayError,
+      bool waitingForExposure,
+    ) => FutureBuilder<Map<String, RedKlineWindow>>(
+      future: klineFuture,
+      builder: (_, klineSnapshot) => _buildStrategyCard(
+        stock,
+        kind: _StrategyListKind.red,
+        selectedDate: date,
+        historyDate: date,
+        redKlineEnabled: klineFuture != null,
+        redKlineLoading:
+            klineFuture != null &&
+            klineSnapshot.connectionState != ConnectionState.done,
+        redKlineError: klineSnapshot.hasError,
+        redKlineWindow: klineSnapshot.data?[stock.stockCode],
+        redT1IntradayEnabled: loadIntraday,
+        redT1IntradayLoading: intradayLoading,
+        redT1IntradayError: intradayError,
+        redT1IntradayIdleMessage: waitingForExposure ? '滚动到卡片后自动加载分时' : null,
+        redT1IntradaySeries: series,
+        loadRedT1Session: loadIntraday && redT1IntradayRepository != null
+            ? (sessionDate) => redT1IntradayRepository.loadSession(
+                date,
+                stock.stockCode,
+                sessionDate,
+                moduleCode: moduleCode,
+              )
+            : null,
+        loadRedKlineDate: klineFuture != null && redKlineRepository != null
+            ? (klineDate) async => (await redKlineRepository.load(klineDate, [
+                stock.stockCode,
+              ], moduleCode: moduleCode))[stock.stockCode]
+            : null,
+      ),
+    );
+
+    if (!loadIntraday) return buildCard(null, false, null, false);
+    final detectorId =
+        'regression:$moduleCode:$date:${stock.stockCode}:$_redT1IntradayRefreshRevision';
+    return RedT1IntradayExposure(
+      key: ValueKey(detectorId),
+      detectorId: detectorId,
+      load: () async {
+        final items = await redT1IntradayRepository!.load(date, [
+          stock.stockCode,
+        ], moduleCode: moduleCode);
+        return items[stock.stockCode] ??
+            RedT1IntradaySeries(
+              code: stock.stockCode,
+              date: date,
+              bars: const [],
+              prevClose: 0,
+              source: '',
+              status: 'missing_series',
+              message: '分时接口未返回该股票的数据条目',
+            );
+      },
+      builder: (_, series, loading, error, waiting) =>
+          buildCard(series, loading, error, waiting),
+    );
+  }
+
+  Future<Map<String, RedKlineWindow>> _redRegressionKlineFor(
+    RedKlineRepository repository,
+    String date,
+    String code,
+  ) {
+    const moduleCode = t0SharedGobRedStrategyModuleCode;
+    final key = '$moduleCode:$date:$code';
+    if (!_redRegressionKlineFutures.containsKey(key)) {
+      _trimRegressionChartFutures(_redRegressionKlineFutures);
+    }
+    return _redRegressionKlineFutures.putIfAbsent(
+      key,
+      () => _loadRegressionKline(repository, date, code, key),
+    );
+  }
+
+  Future<Map<String, RedKlineWindow>> _loadRegressionKline(
+    RedKlineRepository repository,
+    String date,
+    String code,
+    String key,
+  ) async {
+    try {
+      return await repository.load(date, [
+        code,
+      ], moduleCode: t0SharedGobRedStrategyModuleCode);
+    } catch (_) {
+      _redRegressionKlineFutures.remove(key);
+      rethrow;
+    }
+  }
+
+  void _trimRegressionChartFutures<T>(Map<String, Future<T>> futures) {
+    while (futures.length >= 100) {
+      futures.remove(futures.keys.first);
     }
   }
 
@@ -1060,18 +1378,6 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         redT1IntradayRepository != null &&
         chartDate != null &&
         stocks.isNotEmpty;
-    final intradayFuture = canLoadIntraday
-        ? _redT1IntradayFor(
-            redT1IntradayRepository,
-            chartDate,
-            stocks.map((stock) => stock.stockCode).toList(),
-            moduleCode,
-          )
-        : null;
-    if (!canLoadIntraday) {
-      _redT1IntradayFutureKey = null;
-      _redT1IntradayFuture = null;
-    }
 
     // 预热进度 / 等待中
     if (wp != null) {
@@ -1203,113 +1509,130 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         )
                       : FutureBuilder<Map<String, RedKlineWindow>>(
                           future: chartFuture,
-                          builder: (_, snapshot) =>
-                              FutureBuilder<Map<String, RedT1IntradaySeries>>(
-                                future: intradayFuture,
-                                builder: (_, intradaySnapshot) {
-                                  final listView = ListView.builder(
-                                    physics:
-                                        kind == _StrategyListKind.red &&
-                                            showRedT1Intraday
-                                        ? const AlwaysScrollableScrollPhysics()
-                                        : null,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    itemCount: stocks.length,
-                                    itemBuilder: (_, i) => _buildStrategyCard(
-                                      stocks[i],
-                                      preview:
-                                          state.showingCandidatePreview ||
-                                          state.showingTailCandidatePreview,
-                                      tailPreview:
-                                          state.showingTailCandidatePreview,
-                                      kind: kind,
-                                      selectedDate: chartDate,
-                                      selectedDateIsToday: vm.isTodayDate(
-                                        chartDate,
-                                      ),
-                                      redKlineEnabled: chartFuture != null,
-                                      redKlineLoading:
-                                          chartFuture != null &&
-                                          snapshot.connectionState !=
-                                              ConnectionState.done,
-                                      redKlineWindow:
-                                          snapshot.data?[stocks[i].stockCode],
-                                      redKlineError: snapshot.hasError,
-                                      redT1IntradayEnabled:
-                                          intradayFuture != null,
-                                      redT1IntradaySeries: intradaySnapshot
-                                          .data?[stocks[i].stockCode],
-                                    ),
-                                  );
-                                  if (kind == _StrategyListKind.red &&
-                                      showRedT1Intraday &&
-                                      redT1IntradayRepository != null &&
-                                      chartDate != null) {
-                                    return RefreshIndicator(
-                                      onRefresh: () => _refreshRedT1Intraday(
-                                        redT1IntradayRepository,
-                                        chartDate,
-                                        stocks
-                                            .map((stock) => stock.stockCode)
-                                            .toList(),
-                                        moduleCode,
-                                      ),
-                                      child: listView,
-                                    );
-                                  }
-                                  return listView;
-                                },
+                          builder: (_, snapshot) {
+                            final listView = ListView.builder(
+                              physics: canLoadIntraday
+                                  ? const AlwaysScrollableScrollPhysics()
+                                  : null,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
                               ),
+                              itemCount: stocks.length,
+                              itemBuilder: (_, i) {
+                                final stock = stocks[i];
+                                Widget buildCard(
+                                  RedT1IntradaySeries? series,
+                                  bool intradayLoading,
+                                  String? intradayError,
+                                  bool waitingForExposure,
+                                ) => _buildStrategyCard(
+                                  stock,
+                                  preview:
+                                      state.showingCandidatePreview ||
+                                      state.showingTailCandidatePreview,
+                                  tailPreview:
+                                      state.showingTailCandidatePreview,
+                                  kind: kind,
+                                  selectedDate: chartDate,
+                                  selectedDateIsToday: vm.isTodayDate(
+                                    chartDate,
+                                  ),
+                                  redKlineEnabled: chartFuture != null,
+                                  redKlineLoading:
+                                      chartFuture != null &&
+                                      snapshot.connectionState !=
+                                          ConnectionState.done,
+                                  redKlineWindow:
+                                      snapshot.data?[stock.stockCode],
+                                  redKlineError: snapshot.hasError,
+                                  redT1IntradayEnabled: canLoadIntraday,
+                                  redT1IntradayLoading: intradayLoading,
+                                  redT1IntradayError: intradayError,
+                                  redT1IntradayIdleMessage: waitingForExposure
+                                      ? '滚动到卡片后自动加载分时'
+                                      : null,
+                                  redT1IntradaySeries: series,
+                                  loadRedT1Session:
+                                      canLoadIntraday &&
+                                          redT1IntradayRepository != null &&
+                                          chartDate != null
+                                      ? (sessionDate) =>
+                                            redT1IntradayRepository.loadSession(
+                                              chartDate,
+                                              stock.stockCode,
+                                              sessionDate,
+                                              moduleCode: moduleCode,
+                                            )
+                                      : null,
+                                  loadRedKlineDate:
+                                      chartFuture != null &&
+                                          redKlineRepository != null
+                                      ? (date) async =>
+                                            (await redKlineRepository.load(
+                                              date,
+                                              [stock.stockCode],
+                                              moduleCode: moduleCode,
+                                            ))[stock.stockCode]
+                                      : null,
+                                );
+
+                                if (!canLoadIntraday) {
+                                  return buildCard(null, false, null, false);
+                                }
+                                final detectorId =
+                                    'list:$moduleCode:$chartDate:${stock.stockCode}:$_redT1IntradayRefreshRevision';
+                                return RedT1IntradayExposure(
+                                  key: ValueKey(detectorId),
+                                  detectorId: detectorId,
+                                  load: () async {
+                                    final items = await redT1IntradayRepository!
+                                        .load(chartDate!, [
+                                          stock.stockCode,
+                                        ], moduleCode: moduleCode);
+                                    return items[stock.stockCode] ??
+                                        RedT1IntradaySeries(
+                                          code: stock.stockCode,
+                                          date: chartDate!,
+                                          bars: const [],
+                                          prevClose: 0,
+                                          source: '',
+                                          status: 'missing_series',
+                                          message: '分时接口未返回该股票的数据条目',
+                                        );
+                                  },
+                                  builder:
+                                      (_, series, loading, error, waiting) =>
+                                          buildCard(
+                                            series,
+                                            loading,
+                                            error,
+                                            waiting,
+                                          ),
+                                );
+                              },
+                            );
+                            if (canLoadIntraday) {
+                              return RefreshIndicator(
+                                onRefresh: () async {
+                                  redT1IntradayRepository!.clearCache();
+                                  setState(() {
+                                    _redT1IntradayRefreshRevision++;
+                                  });
+                                  await Future<void>.delayed(
+                                    const Duration(milliseconds: 400),
+                                  );
+                                },
+                                child: listView,
+                              );
+                            }
+                            return listView;
+                          },
                         ),
                 ),
               ],
             ),
     );
-  }
-
-  Future<Map<String, RedT1IntradaySeries>>? _redT1IntradayFor(
-    RedT1IntradayRepository repository,
-    String t0Date,
-    List<String> codes,
-    String moduleCode,
-  ) {
-    final unique = codes.toSet().toList()..sort();
-    final today = DateTime.now()
-        .toUtc()
-        .add(const Duration(hours: 8))
-        .toIso8601String()
-        .substring(0, 10);
-    final key = '$moduleCode:$t0Date:$today:${unique.join(',')}';
-    if (_redT1IntradayFutureKey != key) {
-      _redT1IntradayFutureKey = key;
-      _redT1IntradayFuture = repository.load(
-        t0Date,
-        unique,
-        moduleCode: moduleCode,
-      );
-    }
-    return _redT1IntradayFuture;
-  }
-
-  Future<void> _refreshRedT1Intraday(
-    RedT1IntradayRepository repository,
-    String t0Date,
-    List<String> codes,
-    String moduleCode,
-  ) async {
-    _redT1IntradayFutureKey = null;
-    _redT1IntradayFuture = null;
-    final future = _redT1IntradayFor(repository, t0Date, codes, moduleCode);
-    if (future == null || !mounted) return;
-    setState(() {});
-    try {
-      await future;
-    } on Object {
-      // Failed requests are intentionally hidden; pulling again can retry.
-    }
   }
 
   Widget _buildBuySignalChip(T0StrategyStock stock) {
@@ -1469,7 +1792,83 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildRedRuleChips(T0StrategyStock stock) {
+  String? _redRuleHitConditionSummary(
+    T0StrategyStock stock,
+    T0RedRuleHit hit, {
+    RedKlineWindow? window,
+    String? selectedDate,
+  }) {
+    if (hit.ruleKey != 'gob_zt_t1_bear_open_close_body_4combos_v1') {
+      return null;
+    }
+    if (window == null ||
+        window.date != stock.tradeDate ||
+        (selectedDate != null && selectedDate != stock.tradeDate) ||
+        window.anchorIndex < 2 ||
+        window.anchorIndex >= window.bars.length ||
+        window.bars[window.anchorIndex].date != stock.tradeDate) {
+      return '命中分组：待日线数据确认';
+    }
+
+    final t2 = window.bars[window.anchorIndex - 2];
+    final t1 = window.bars[window.anchorIndex - 1];
+    if (t2.close <= 0 || t1.open <= 0 || t1.close <= 0) {
+      return '命中分组：待日线数据确认';
+    }
+
+    final openRet = (t1.open / t2.close - 1) * 100;
+    final closeRet = (t1.close / t2.close - 1) * 100;
+    final body = (t1.open - t1.close) / t2.close * 100;
+    final bodyRet = body.abs();
+    final group =
+        openRet >= 2 &&
+            openRet < 4 &&
+            closeRet >= -5 &&
+            closeRet < -2 &&
+            bodyRet >= 5 &&
+            bodyRet < 8
+        ? 1
+        : openRet >= 4 &&
+              openRet < 6 &&
+              closeRet >= -2 &&
+              closeRet < 0 &&
+              bodyRet >= 5 &&
+              bodyRet < 8
+        ? 2
+        : openRet >= 2 &&
+              openRet < 4 &&
+              closeRet >= -2 &&
+              closeRet < 0 &&
+              bodyRet > 0 &&
+              bodyRet < 3
+        ? 3
+        : openRet >= 6 &&
+              openRet < 10 &&
+              closeRet >= 0 &&
+              closeRet < 2 &&
+              bodyRet >= 5 &&
+              bodyRet < 8
+        ? 4
+        : null;
+    if (group == null) return '命中分组：当前日线未能匹配';
+
+    final groupRule = switch (group) {
+      1 => '开盘2%～4%、收盘-5%～-2%、实体5%～8%',
+      2 => '开盘4%～6%、收盘-2%～0%、实体5%～8%',
+      3 => '开盘2%～4%、收盘-2%～0%、实体0%～3%',
+      _ => '开盘6%～10%、收盘0%～2%、实体5%～8%',
+    };
+    String formatPct(double value) =>
+        '${value >= 0 ? "+" : ""}${value.toStringAsFixed(2)}%';
+    return '第$group组（$groupRule）；本次T-1：开盘${formatPct(openRet)}、'
+        '收盘${formatPct(closeRet)}、实体${bodyRet.toStringAsFixed(2)}%';
+  }
+
+  Widget _buildRedRuleChips(
+    T0StrategyStock stock, {
+    RedKlineWindow? redKlineWindow,
+    String? selectedDate,
+  }) {
     if (stock.redRuleHits.isEmpty) return const SizedBox.shrink();
     return Wrap(
       spacing: 4,
@@ -1497,9 +1896,15 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             : hit.exitHorizon;
         final measurementNote = hit.exitHorizon == 'T0_high'
             ? '\n口径：按T0日线最高价计算盘中浮盈触及，不代表实际成交或落袋收益'
+            : hit.exitHorizon == 'T0_close'
+            ? '\n口径：按T0开盘到收盘计算；T0买入的A股不能当日卖出'
             : hit.exitHorizon == 'T+1_target_2_5'
             ? '\n口径：目标触及率按T+1日线最高价计算；真赚率按T+1收盘价计算，不代表实际成交'
             : '';
+        final profitLabel = hit.exitHorizon == 'T0_close' ? '收盘高于开盘' : '真赚';
+        final targetLabel = hit.targetReturnPct > 0
+            ? '达标(≥${hit.targetReturnPct.toStringAsFixed(0)}%)'
+            : '达标';
         final source = hit.entrySource == 'daily_open'
             ? '日线开盘代理'
             : hit.entrySource == 'daily_close'
@@ -1516,15 +1921,23 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             : hit.statsStatus == 'preopen'
             ? '${hit.name} · 待竞价'
             : verified
-            ? '${hit.name} · $horizon 真赚${stats.profitWinRate.toStringAsFixed(1)}% · 达标${stats.targetRate.toStringAsFixed(1)}% · 样本${stats.sampleCount}'
+            ? '${hit.name} · $horizon $profitLabel${stats.profitWinRate.toStringAsFixed(1)}% · $targetLabel${stats.targetRate.toStringAsFixed(1)}% · 样本${stats.sampleCount}'
             : '${hit.name} · $horizon 统计待核验';
-        final explanation = hit.description.isEmpty
+        final hitSummary = _redRuleHitConditionSummary(
+          stock,
+          hit,
+          window: redKlineWindow,
+          selectedDate: selectedDate,
+        );
+        final explanation = hitSummary != null
+            ? '命中情况：$hitSummary\n'
+            : hit.description.isEmpty
             ? ''
             : '条件说明：${hit.description}\n';
         final message = verified
             ? '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
-                  '真赚率：${stats.profitWinRate.toStringAsFixed(1)}%\n'
-                  '达标率：${stats.targetRate.toStringAsFixed(1)}%\n'
+                  '$profitLabel率：${stats.profitWinRate.toStringAsFixed(1)}%\n'
+                  '$targetLabel率：${stats.targetRate.toStringAsFixed(1)}%\n'
                   '样本数：${stats.sampleCount}\n覆盖：${stats.dateStart}～${stats.dateEnd}'
             : '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
                   '${hit.statsStatus == 'preclose'
@@ -1569,7 +1982,13 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     bool redKlineError = false,
     RedKlineWindow? redKlineWindow,
     bool redT1IntradayEnabled = false,
+    bool redT1IntradayLoading = false,
+    String? redT1IntradayError,
+    String? redT1IntradayIdleMessage,
     RedT1IntradaySeries? redT1IntradaySeries,
+    Future<RedT1IntradaySeries> Function(String date)? loadRedT1Session,
+    Future<RedKlineWindow?> Function(String date)? loadRedKlineDate,
+    String? historyDate,
   }) {
     final openUp = stock.openGap >= 0;
     final openColor = openUp ? AppColors.textPriceUp : AppColors.textPriceDown;
@@ -1612,7 +2031,21 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     );
 
     List<Widget> buildLeadingItems() => <Widget>[
+      if (historyDate != null && historyDate.isNotEmpty)
+        Text(
+          historyDate,
+          style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+        ),
       buildStockName(),
+      if (historyDate != null && historyDate.isNotEmpty)
+        Text(
+          '${displayPercent >= 0 ? "+" : ""}${displayPercent.toStringAsFixed(2)}%',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: displayPercentColor,
+          ),
+        ),
       if (stock.tag.isNotEmpty)
         Text(
           '[$tagLabel]',
@@ -1622,7 +2055,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             color: stock.tag == '涨停破板' ? AppColors.tagRed : AppColors.tagGreen,
           ),
         ),
-      if (!preview && stock.sellMonitor == null)
+      if (!preview && stock.sellMonitor == null && historyDate == null)
         Text(
           '${displayPercent >= 0 ? "+" : ""}${displayPercent.toStringAsFixed(2)}%',
           style: TextStyle(
@@ -1638,7 +2071,12 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       _buildBuySignalChip(stock),
       if (stock.sellMonitor != null) _buildT0SellTargetChip(stock.sellMonitor!),
       _buildReferenceRuleChips(stock),
-      if (kind == _StrategyListKind.red) _buildRedRuleChips(stock),
+      if (kind == _StrategyListKind.red)
+        _buildRedRuleChips(
+          stock,
+          redKlineWindow: redKlineWindow,
+          selectedDate: selectedDate,
+        ),
       if (kind != _StrategyListKind.red) _buildStockRatingChip(stock),
       if (kind == _StrategyListKind.gold)
         Text(
@@ -1737,14 +2175,24 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 );
               },
             ),
-            if (kind == _StrategyListKind.red && redKlineEnabled)
-              RedKlinePreview(
+            if (kind == _StrategyListKind.red &&
+                (redKlineEnabled || redT1IntradayEnabled))
+              RedStrategyCharts(
+                key: ValueKey('red-charts:${stock.stockCode}:$selectedDate'),
+                code: stock.stockCode,
+                t0Date: selectedDate ?? '',
+                showKline: redKlineEnabled,
                 window: redKlineWindow,
-                loading: redKlineLoading,
-                error: redKlineError,
+                klineLoading: redKlineLoading,
+                klineError: redKlineError,
+                showIntraday: redT1IntradayEnabled,
+                series: redT1IntradaySeries,
+                intradayLoading: redT1IntradayLoading,
+                intradayErrorMessage: redT1IntradayError,
+                intradayIdleMessage: redT1IntradayIdleMessage,
+                loadSession: loadRedT1Session,
+                loadKlineWindow: loadRedKlineDate,
               ),
-            if (kind == _StrategyListKind.red && redT1IntradayEnabled)
-              RedT1IntradayPreview(series: redT1IntradaySeries),
           ],
         ),
       ),

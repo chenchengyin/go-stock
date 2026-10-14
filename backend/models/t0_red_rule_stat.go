@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// T0RedRuleStat stores a verified Gob red-rule aggregate for its declared
-// measurement horizon, separate from legacy stats.
+// T0RedRuleStat stores a Gob red-rule aggregate for its declared measurement
+// horizon. Partial rows suppress older verified rows for the same scope.
 type T0RedRuleStat struct {
 	ID            uint   `gorm:"primaryKey"`
 	RuleKey       string `gorm:"size:128;uniqueIndex:idx_t0_red_stat_scope"`

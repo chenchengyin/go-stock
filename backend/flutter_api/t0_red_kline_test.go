@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -147,33 +146,37 @@ func TestRedKlineWindowsRequestsHistoricalWarmupWhenLatestWindowMissesArchive(t 
 	}
 }
 
-func TestRedKlineRouteRequiresModuleAccessAndRejectsInvalidCodes(t *testing.T) {
+func TestRedKlineRouteDoesNotRequireLoginOrModuleAccess(t *testing.T) {
 	auth := newTestAuthService(t)
-	user := authHTTPRegisterUser(t, auth, "13877776666", "Chart", "device-chart")
 	handler := newHTTPHandler(auth.AuthService)
-	request := func(path string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
-		req.Header.Set("Authorization", "Bearer "+user.AccessToken)
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, req)
-		return rec
-	}
-	path := "/api/t0-red/kline-window?date=2026-09-24&codes=600000.XSHG"
-	denied := request(path)
-	if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), "MODULE_FORBIDDEN") {
-		t.Fatalf("missing access: %d %s", denied.Code, denied.Body.String())
-	}
-	modules := NewModuleService(auth.dao)
-	if err := modules.ReplaceUserAccess(context.Background(), "admin-chart", []string{user.User.ID}, []string{redT0StrategyModuleCode}); err != nil {
-		t.Fatal(err)
-	}
-	invalid := request("/api/t0-red/kline-window?date=2026-09-24&codes=not-a-stock")
-	if invalid.Code != http.StatusBadRequest {
-		t.Fatalf("invalid code: %d %s", invalid.Code, invalid.Body.String())
+	invalid := httptest.NewRequest(http.MethodGet,
+		"/api/t0-red/kline-window?date=2026-09-24&codes=not-a-stock", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, invalid)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unauthenticated request did not reach code validation: %d %s", rec.Code, rec.Body.String())
 	}
 	var decoded map[string]string
-	if err := json.Unmarshal(invalid.Body.Bytes(), &decoded); err != nil || decoded["error"] == "" {
+	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil || decoded["error"] == "" {
 		t.Fatalf("invalid response: %v %v", decoded, err)
+	}
+}
+
+func TestMarketQuoteRoutesDoNotRequireLogin(t *testing.T) {
+	auth := newTestAuthService(t)
+	handler := newHTTPHandler(auth.AuthService)
+	for _, path := range []string{
+		"/api/kline",
+		"/api/stock-realtime",
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code == http.StatusUnauthorized {
+				t.Fatalf("market quote route requires login: %d %s", rec.Code, rec.Body.String())
+			}
+		})
 	}
 }
 

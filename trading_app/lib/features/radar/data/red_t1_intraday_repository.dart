@@ -19,6 +19,10 @@ class RedT1IntradaySeries {
     required this.bars,
     required this.prevClose,
     required this.source,
+    this.status = '',
+    this.message = '',
+    this.previousDate,
+    this.nextDate,
   });
 
   final String code;
@@ -26,8 +30,16 @@ class RedT1IntradaySeries {
   final List<RedT1IntradayBar> bars;
   final double prevClose;
   final String source;
+  final String status;
+  final String message;
+  final String? previousDate;
+  final String? nextDate;
 
-  factory RedT1IntradaySeries.fromJson(Map<String, dynamic> json) {
+  factory RedT1IntradaySeries.fromJson(
+    Map<String, dynamic> json, {
+    String? previousDate,
+    String? nextDate,
+  }) {
     final rawBars = json['bars'];
     final bars = <RedT1IntradayBar>[];
     if (rawBars is List) {
@@ -60,6 +72,10 @@ class RedT1IntradaySeries {
       bars: List.unmodifiable(bars),
       prevClose: (json['prevClose'] as num?)?.toDouble() ?? 0,
       source: json['source'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      message: json['message'] as String? ?? '',
+      previousDate: previousDate,
+      nextDate: nextDate,
     );
   }
 }
@@ -71,7 +87,7 @@ typedef RedT1IntradayBatchFetcher =
       String moduleCode,
     );
 
-/// Fetches current T+1 minute series without retaining completed responses.
+/// Fetches T+1 minute series and coalesces each date/code batch in memory.
 class RedT1IntradayRepository {
   RedT1IntradayRepository({Dio? dio, RedT1IntradayBatchFetcher? fetchBatch})
     : _dio = dio,
@@ -79,39 +95,117 @@ class RedT1IntradayRepository {
 
   final Dio? _dio;
   final RedT1IntradayBatchFetcher? _fetchBatch;
+  final Map<String, Future<Map<String, RedT1IntradaySeries>>> _pending = {};
+  final Map<String, Map<String, RedT1IntradaySeries>> _successfulCache = {};
 
   Future<Map<String, RedT1IntradaySeries>> load(
     String t0Date,
     List<String> codes, {
     String moduleCode = 'radar.red_strategy',
-  }) async {
+  }) {
     final unique = codes.where((code) => code.isNotEmpty).toSet().toList()
       ..sort();
-    if (t0Date.isEmpty || unique.isEmpty) return {};
-    final items = <String, RedT1IntradaySeries>{};
-    for (var start = 0; start < unique.length; start += 25) {
-      final end = (start + 25).clamp(0, unique.length);
-      final batch = unique.sublist(start, end);
-      final response = _fetchBatch != null
-          ? await _fetchBatch(t0Date, batch, moduleCode)
-          : await _request(t0Date, batch, moduleCode);
-      final rawItems = response['items'];
-      if (rawItems is! Map) continue;
-      for (final entry in rawItems.entries) {
-        if (entry.value is! Map) continue;
-        items[entry.key.toString()] = RedT1IntradaySeries.fromJson(
-          Map<String, dynamic>.from(entry.value as Map),
-        );
-      }
+    if (t0Date.isEmpty || unique.isEmpty) {
+      return Future.value(<String, RedT1IntradaySeries>{});
     }
-    return items;
+    final key = '$moduleCode:$t0Date:${unique.join(',')}';
+    final cached = _successfulCache[key];
+    if (cached != null) return Future.value(cached);
+    final pending = _pending[key];
+    if (pending != null) return pending;
+
+    late final Future<Map<String, RedT1IntradaySeries>> request;
+    request =
+        (() async {
+              final items = <String, RedT1IntradaySeries>{};
+              for (var start = 0; start < unique.length; start += 25) {
+                final end = (start + 25).clamp(0, unique.length);
+                final batch = unique.sublist(start, end);
+                final response = _fetchBatch != null
+                    ? await _fetchBatch(t0Date, batch, moduleCode)
+                    : await _request(t0Date, batch, moduleCode);
+                final rawItems = response['items'];
+                if (rawItems is! Map) {
+                  throw const FormatException('分时接口响应缺少 items');
+                }
+                for (final code in batch) {
+                  final raw = rawItems[code];
+                  items[code] = RedT1IntradaySeries.fromJson(
+                    raw is Map
+                        ? Map<String, dynamic>.from(raw)
+                        : {
+                            'code': code,
+                            'date': response['date'] as String? ?? '',
+                            'status': 'missing_series',
+                            'message': '分时接口未返回该股票的数据条目',
+                          },
+                    previousDate: response['previous_date'] as String?,
+                    nextDate: response['next_date'] as String?,
+                  );
+                }
+              }
+              return items;
+            })()
+            .then((items) {
+              if (items.values.every(_isCacheable)) {
+                final stableItems =
+                    Map<String, RedT1IntradaySeries>.unmodifiable(items);
+                _successfulCache[key] = stableItems;
+                return stableItems;
+              }
+              return items;
+            })
+            .whenComplete(() {
+              if (identical(_pending[key], request)) _pending.remove(key);
+            });
+    _pending[key] = request;
+    return request;
+  }
+
+  bool _isCacheable(RedT1IntradaySeries series) =>
+      series.bars.length >= 2 && series.prevClose > 0;
+
+  void clearCache() {
+    _pending.clear();
+    _successfulCache.clear();
+  }
+
+  /// Fetch one requested trading session for one card, without retaining it.
+  Future<RedT1IntradaySeries> loadSession(
+    String t0Date,
+    String code,
+    String sessionDate, {
+    String moduleCode = 'radar.red_strategy',
+  }) async {
+    final response = await _request(
+      t0Date,
+      [code],
+      moduleCode,
+      sessionDate: sessionDate,
+    );
+    final raw = response['items'] is Map
+        ? (response['items'] as Map)[code]
+        : null;
+    return RedT1IntradaySeries.fromJson(
+      raw is Map
+          ? Map<String, dynamic>.from(raw)
+          : {
+              'code': code,
+              'date': response['date'] ?? sessionDate,
+              'status': 'missing_series',
+              'message': '分时接口未返回该股票的数据条目',
+            },
+      previousDate: response['previous_date'] as String?,
+      nextDate: response['next_date'] as String?,
+    );
   }
 
   Future<Map<String, dynamic>> _request(
     String date,
     List<String> codes,
-    String moduleCode,
-  ) async {
+    String moduleCode, {
+    String? sessionDate,
+  }) async {
     final dio = _dio;
     if (dio == null) throw StateError('Intraday API client is missing');
     final response = await dio.get<dynamic>(
@@ -120,6 +214,7 @@ class RedT1IntradayRepository {
         'date': date,
         'codes': codes.join(','),
         'module_code': moduleCode,
+        if (sessionDate != null) 'session_date': sessionDate,
       },
     );
     if (response.data is! Map) {
@@ -127,4 +222,29 @@ class RedT1IntradayRepository {
     }
     return Map<String, dynamic>.from(response.data as Map);
   }
+}
+
+String redT1IntradayErrorMessage(Object error) {
+  if (error is DioException) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final message = data['message'] ?? data['error'];
+      if (message is String && message.trim().isNotEmpty) {
+        return message.trim();
+      }
+    }
+    final statusCode = error.response?.statusCode;
+    if (statusCode != null) return '分时接口请求失败（HTTP $statusCode）';
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout) {
+      return '分时接口请求超时';
+    }
+    if (error.type == DioExceptionType.connectionError) {
+      return '无法连接分时数据服务';
+    }
+    return '分时接口请求失败';
+  }
+  if (error is FormatException) return error.message;
+  return '分时加载失败（${error.runtimeType}）';
 }

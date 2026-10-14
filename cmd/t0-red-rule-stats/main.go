@@ -29,15 +29,24 @@ func main() {
 		os.Exit(1)
 	}
 	if *database != "" {
-		if coverage.CompleteDays != coverage.Dates {
-			fmt.Fprintln(os.Stderr, "Gob 回放覆盖不完整，拒绝写入统计库")
+		if coverage.CompleteDays != coverage.Dates || coverage.MissingT0 > 0 || coverage.MissingNextCacheDays > 0 {
+			fmt.Fprintln(os.Stderr, "Gob 日期或 T0 覆盖不完整，拒绝写入统计库")
 			os.Exit(1)
 		}
+		partialStats := 0
 		for _, stat := range stats {
+			if stat.Status == "partial" {
+				partialStats++
+				continue
+			}
 			if stat.Status != "verified" {
-				fmt.Fprintln(os.Stderr, "Gob 回放覆盖不完整，拒绝写入统计库")
+				fmt.Fprintln(os.Stderr, "Gob 统计状态无效，拒绝写入统计库")
 				os.Exit(1)
 			}
+		}
+		if (coverage.MissingT1 > 0) != (partialStats > 0) {
+			fmt.Fprintln(os.Stderr, "T+1 缺失未逐规则标记，拒绝写入统计库")
+			os.Exit(1)
 		}
 		dao, err := gorm.Open(sqlite.Open(*database), &gorm.Config{})
 		if err == nil {

@@ -32,6 +32,15 @@ type MainboardFloatCap50Gob struct {
 	EligibleStockCount  int
 	Stocks              []MainboardFloatCap50Stock
 	Daily               map[string][]MainboardFloatCap50Bar
+	// SelectionPools preserves each T0 universe captured after cutover.
+	SelectionPools map[string][]MainboardT0PoolStock
+}
+
+// MainboardT0PoolStock stores the exact market-cap-filtered pool used for a T0 day.
+type MainboardT0PoolStock struct {
+	Code        string
+	Name        string
+	MarketCapYi float64
 }
 
 // MainboardFloatCap50Stock keeps the snapshot metadata and explains missing
@@ -123,7 +132,7 @@ func ExportMainboardFloatCap50DailyGob(outputPath, startDate, endDate string, wo
 	}
 
 	snapshot := MainboardFloatCap50Gob{
-		SchemaVersion:       1,
+		SchemaVersion:       2,
 		GeneratedAt:         time.Now().In(poolSnapshotAt.Location()).Format(time.RFC3339),
 		MarketCapSnapshotAt: poolSnapshotAt.Format(time.RFC3339),
 		MarketCapSource:     "Sina hs_a nmc (万元 converted to 亿元)",
@@ -205,6 +214,7 @@ func ExportMainboardFloatCap50DailyGob(outputPath, startDate, endDate string, wo
 func fetchMainboardFloatCap50Candidates() ([]mainboardFloatCap50Candidate, int, error) {
 	candidates := make([]mainboardFloatCap50Candidate, 0, 2000)
 	mainboardCount := 0
+	shortPage, shortPageCount := 0, 0
 	for page := 1; page <= t0StockPoolMaxPages; page++ {
 		var items []sinaStockPoolItem
 		var err error
@@ -226,6 +236,9 @@ func fetchMainboardFloatCap50Candidates() ([]mainboardFloatCap50Candidate, int, 
 			}
 			break
 		}
+		if shortPage > 0 {
+			return nil, mainboardCount, fmt.Errorf("Sina stock-pool page %d returned only %d rows, but page %d still has data; pagination is incomplete", shortPage, shortPageCount, page)
+		}
 
 		for _, item := range items {
 			if !(strings.HasPrefix(item.Code, "60") || strings.HasPrefix(item.Code, "00")) {
@@ -245,11 +258,11 @@ func fetchMainboardFloatCap50Candidates() ([]mainboardFloatCap50Candidate, int, 
 			})
 		}
 
-		if len(items) < t0StockPoolPageSize {
-			break
-		}
 		if page == t0StockPoolMaxPages {
 			return nil, mainboardCount, fmt.Errorf("Sina stock pool exceeded %d pages; completeness is unknown", t0StockPoolMaxPages)
+		}
+		if len(items) < t0StockPoolPageSize {
+			shortPage, shortPageCount = page, len(items)
 		}
 	}
 

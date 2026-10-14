@@ -62,6 +62,7 @@ func sinaHTTPResponse(status int, body []byte) *http.Response {
 
 func TestFetchStockPoolFromSinaRetriesTransientPageFailure(t *testing.T) {
 	page2Attempts := 0
+	page3Attempts := 0
 	withSinaTestHTTPClient(t, func(r *http.Request) (*http.Response, error) {
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		switch page {
@@ -73,6 +74,9 @@ func TestFetchStockPoolFromSinaRetriesTransientPageFailure(t *testing.T) {
 				return nil, fmt.Errorf("temporary upstream failure")
 			}
 			return sinaHTTPResponse(http.StatusOK, sinaStockPageJSON(t, 100, 1)), nil
+		case 3:
+			page3Attempts++
+			return sinaHTTPResponse(http.StatusOK, sinaStockPageJSON(t, 0, 0)), nil
 		default:
 			t.Fatalf("unexpected page request: %d", page)
 			return nil, nil
@@ -85,6 +89,30 @@ func TestFetchStockPoolFromSinaRetriesTransientPageFailure(t *testing.T) {
 	}
 	if page2Attempts != 2 {
 		t.Fatalf("page 2 attempts=%d, want 2", page2Attempts)
+	}
+	if page3Attempts != 1 {
+		t.Fatalf("page 3 attempts=%d, want 1 empty-page completeness check", page3Attempts)
+	}
+}
+
+func TestFetchStockPoolFromSinaRejectsShortPageFollowedByData(t *testing.T) {
+	withSinaTestHTTPClient(t, func(r *http.Request) (*http.Response, error) {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		switch page {
+		case 1:
+			return sinaHTTPResponse(http.StatusOK, sinaStockPageJSON(t, 0, 100)), nil
+		case 2:
+			return sinaHTTPResponse(http.StatusOK, sinaStockPageJSON(t, 100, 1)), nil
+		case 3:
+			return sinaHTTPResponse(http.StatusOK, sinaStockPageJSON(t, 101, 1)), nil
+		default:
+			t.Fatalf("unexpected page request: %d", page)
+			return nil, nil
+		}
+	})
+
+	if stocks := fetchStockPoolFromSina(); len(stocks) != 0 {
+		t.Fatalf("short page followed by more data must not return a partial pool: got %d stocks", len(stocks))
 	}
 }
 

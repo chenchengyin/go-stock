@@ -341,15 +341,10 @@ func redKlineWindows(date string, codes []string, daily map[string][]dailyBar, f
 	return out
 }
 
-func newRedKlineHandler(moduleService *ModuleService) http.HandlerFunc {
+func newRedKlineHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		principal, ok := PrincipalFromContext(r.Context())
-		if !ok {
-			WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
 			return
 		}
 		moduleCode := strings.TrimSpace(r.URL.Query().Get("module_code"))
@@ -358,15 +353,6 @@ func newRedKlineHandler(moduleService *ModuleService) http.HandlerFunc {
 		}
 		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode {
 			WriteAuthError(w, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "模块不存在"))
-			return
-		}
-		allowed, err := moduleService.HasModuleAccess(r.Context(), principal.UserID, moduleCode)
-		if err != nil {
-			WriteAuthError(w, err)
-			return
-		}
-		if !allowed {
-			WriteAuthError(w, newAuthError(http.StatusForbidden, "MODULE_FORBIDDEN", "暂无该红策模块访问权限"))
 			return
 		}
 		date := strings.TrimSpace(r.URL.Query().Get("date"))
@@ -399,9 +385,21 @@ func newRedKlineHandler(moduleService *ModuleService) http.HandlerFunc {
 				WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
 				return
 			}
+			daily := make(map[string][]dailyBar, len(codes))
+			archived := loadRedKlineDaily(date)
+			for _, code := range codes {
+				shortCode := t0ShortCodeFromResultCode(code)
+				bars := shared.Daily[shortCode]
+				if _, index := dailyBarOnDate(bars, date); index < 0 {
+					if archivedBars := archived[shortCode]; len(archivedBars) > 0 {
+						bars = archivedBars
+					}
+				}
+				daily[shortCode] = bars
+			}
 			WriteJSON(w, map[string]interface{}{
 				"date":  date,
-				"items": sharedGobRedKlineWindows(date, codes, shared.Daily),
+				"items": redKlineWindows(date, codes, daily, fetchRedKlineSeries),
 			})
 			return
 		}

@@ -12,20 +12,11 @@ var registeredModules = []ModuleDefinition{
 	},
 	{
 		Code:       sharedGobRedStrategyModuleCode,
-		Name:       "红策（共享GOB）",
-		Client:     "flutter_web",
-		Placement:  "radar_tab",
-		ParentCode: nil,
-		Sort:       14,
-		AccessMode: ModuleAccessAllowlist,
-	},
-	{
-		Code:       "radar.red_strategy",
 		Name:       "红策",
 		Client:     "flutter_web",
 		Placement:  "radar_tab",
 		ParentCode: nil,
-		Sort:       15,
+		Sort:       14,
 		AccessMode: ModuleAccessAllowlist,
 	},
 	{

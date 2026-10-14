@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/core/storage/red_kline_settings.dart';
@@ -9,6 +10,7 @@ import 'package:trading_app/features/auth/data/auth_repository.dart';
 import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/features/profile/presentation/system_settings_page.dart';
 import 'package:trading_app/features/radar/data/red_kline_repository.dart';
+import 'package:trading_app/features/radar/data/red_t1_intraday_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:trading_app/features/permissions/domain/module_definition.dart';
 import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
@@ -213,6 +215,65 @@ void main() {
     await gesture.up();
   });
 
+  testWidgets('分时选中日期让日K持续显示对应十字和涨跌幅，长按别日松手后恢复', (tester) async {
+    final window = RedKlineWindow.fromJson({
+      'code': '000823.XSHE',
+      'date': '2026-09-16',
+      'anchor_index': 1,
+      'before_count': 1,
+      'after_count': 1,
+      'source': 'fixture',
+      'status': 'ok',
+      'partial': true,
+      'bars': [
+        {'date': '2026-09-15', 'open': 10, 'high': 12, 'low': 9, 'close': 11},
+        {'date': '2026-09-16', 'open': 11, 'high': 13, 'low': 10, 'close': 12},
+        {'date': '2026-09-17', 'open': 12, 'high': 14, 'low': 11, 'close': 13},
+      ],
+    });
+    Widget chart(String? date) => MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 390,
+          child: RedKlinePreview(window: window, selectedDate: date),
+        ),
+      ),
+    );
+    await tester.pumpWidget(chart('2026-09-17'));
+    final finder = find.byType(CandlestickChart);
+    expect(
+      tester.widget<CandlestickChart>(finder).data.touchedPointIndicator?.x,
+      2,
+    );
+    expect(
+      tester.widget<CandlestickChart>(finder).data.touchedPointIndicator?.y,
+      13,
+    );
+    expect(find.textContaining('2026-09-17  开 12.00 (0.00%)'), findsOneWidget);
+    expect(find.textContaining('收 13.00 (+8.33%)'), findsOneWidget);
+    final rect = tester.getRect(finder);
+    final gesture = await tester.startGesture(
+      Offset(rect.left + rect.width * .5, rect.center.dy),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+    expect(
+      tester.widget<CandlestickChart>(finder).data.touchedPointIndicator?.x,
+      1,
+    );
+    await gesture.up();
+    await tester.pump();
+    expect(
+      tester.widget<CandlestickChart>(finder).data.touchedPointIndicator?.x,
+      2,
+    );
+    await tester.pumpWidget(chart(null));
+    expect(
+      tester.widget<CandlestickChart>(finder).data.touchedPointIndicator,
+      isNull,
+    );
+  });
+
   testWidgets('系统设置红策K线开关默认打开且关闭后持久化', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final setting = RedKlineSettings();
@@ -404,6 +465,185 @@ void main() {
     expect(find.byType(CandlestickChart).evaluate().length, lessThan(12));
     expect(tester.takeException(), isNull);
 
+    await tester.pumpWidget(const SizedBox.shrink());
+    disposeVms();
+  });
+
+  testWidgets('共享GOB红策列表点击分时切日同步当前股票的日K十字与详情', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final setting = RedKlineSettings();
+    await setting.restore();
+    const stockCode = '000823.XSHE';
+    const t0Date = '2026-09-16';
+    final charts = RedKlineRepository(
+      fetchBatch: (date, codes) async => {
+        'items': {
+          stockCode: {
+            'code': stockCode,
+            'date': date,
+            'anchor_index': 1,
+            'before_count': 1,
+            'after_count': 2,
+            'source': 'fixture',
+            'status': 'ok',
+            'partial': true,
+            'bars': [
+              {
+                'date': '2026-09-15',
+                'open': 10,
+                'high': 12,
+                'low': 9,
+                'close': 11,
+              },
+              {'date': t0Date, 'open': 11, 'high': 13, 'low': 10, 'close': 12},
+              {
+                'date': '2026-09-17',
+                'open': 12,
+                'high': 14,
+                'low': 11,
+                'close': 13,
+              },
+              {
+                'date': '2026-09-18',
+                'open': 13,
+                'high': 15,
+                'low': 12,
+                'close': 14,
+              },
+            ],
+          },
+        },
+      },
+    );
+    final requests = <String>[];
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final date = options.queryParameters['session_date'] as String;
+          requests.add('${options.queryParameters['module_code']}:$date');
+          handler.resolve(
+            Response(
+              requestOptions: options,
+              data: {
+                'date': date,
+                'previous_date': '2026-09-17',
+                'next_date': '',
+                'items': {
+                  stockCode: {
+                    'code': stockCode,
+                    'date': date,
+                    'prevClose': 13,
+                    'bars': [
+                      {'time': '09:30', 'price': 13},
+                      {'time': '15:00', 'price': 14},
+                    ],
+                  },
+                },
+              },
+            ),
+          );
+        },
+      ),
+    );
+    final intraday = RedT1IntradayRepository(
+      dio: dio,
+      fetchBatch: (date, codes, moduleCode) async => {
+        'date': '2026-09-17',
+        'previous_date': t0Date,
+        'next_date': '2026-09-18',
+        'items': {
+          stockCode: {
+            'code': stockCode,
+            'date': '2026-09-17',
+            'prevClose': 12,
+            'bars': [
+              {'time': '09:30', 'price': 12},
+              {'time': '15:00', 'price': 13},
+            ],
+          },
+        },
+      },
+    );
+    final strategy = _NoNetworkRedViewModel();
+    final radar = RadarViewModel(RadarRepositoryImpl());
+    final voice = _SilentVoiceViewModel();
+    final permissions = ModulePermissionController.forTesting([
+      ...publicModuleDefinitions,
+      const ModuleDefinition(
+        code: t0SharedGobRedStrategyModuleCode,
+        name: '红策（共享GOB）',
+        client: 'flutter_web',
+        placement: 'radar_tab',
+        parentCode: null,
+        sort: 14,
+        accessMode: ModuleAccessMode.userAllowlist,
+      ),
+    ]);
+    var disposed = false;
+    void disposeVms() {
+      if (disposed) return;
+      disposed = true;
+      setting.dispose();
+      strategy.dispose();
+      radar.dispose();
+      voice.dispose();
+      permissions.dispose();
+    }
+
+    addTearDown(disposeVms);
+    strategy.applyResponseForTest({
+      'date': t0Date,
+      'display_date': t0Date,
+      'archived': true,
+      'results': [
+        {'股票代码': stockCode, '股票名称': '联动股'},
+      ],
+    }, moduleCode: t0SharedGobRedStrategyModuleCode);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<RedKlineSettings>.value(value: setting),
+          Provider<RedKlineRepository>.value(value: charts),
+          Provider<RedT1IntradayRepository>.value(value: intraday),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategy),
+          ChangeNotifierProvider<RadarViewModel>.value(value: radar),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voice,
+          ),
+          ChangeNotifierProvider<ModulePermissionController>.value(
+            value: permissions,
+          ),
+        ],
+        child: const MaterialApp(home: RadarPage()),
+      ),
+    );
+    await tester.tap(find.text('红策（共享GOB）(1)'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<CandlestickChart>(find.byType(CandlestickChart))
+          .data
+          .touchedPointIndicator,
+      isNull,
+    );
+    await tester.ensureVisible(find.byTooltip('后一交易日分时'));
+    await tester.tap(find.byTooltip('后一交易日分时'));
+    await tester.pumpAndSettle();
+    expect(requests, ['radar.red_shared_gob_strategy:2026-09-18']);
+    final indicator = tester
+        .widget<CandlestickChart>(find.byType(CandlestickChart))
+        .data
+        .touchedPointIndicator;
+    expect(indicator?.x, 3);
+    expect(indicator?.y, 14);
+    expect(find.textContaining('2026-09-18  开 13.00 (0.00%)'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     disposeVms();
   });

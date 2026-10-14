@@ -1,15 +1,19 @@
 package flutter_api
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"go-stock/backend/data"
+	"go-stock/backend/logger"
 )
 
 const redT1IntradayFetchLimit = 500
@@ -24,19 +28,77 @@ type redT1IntradaySeries struct {
 	Code      string             `json:"code"`
 	Date      string             `json:"date"`
 	Source    string             `json:"source"`
+	Status    string             `json:"status"`
+	Message   string             `json:"message,omitempty"`
 	PrevClose float64            `json:"prevClose"`
 	Bars      []redT1IntradayBar `json:"bars"`
 }
 
-func newRedT1IntradayHandler(moduleService *ModuleService) http.HandlerFunc {
+type redT1IntradayCacheRecord struct {
+	Version int                 `json:"version"`
+	Series  redT1IntradaySeries `json:"series"`
+}
+
+func redT1IntradayCachePath(code, date string) string {
+	return filepath.Join(t0CacheRootPath, "t0", "intraday", date,
+		t0ShortCodeFromResultCode(code)+".json")
+}
+
+func loadRedT1IntradayCache(code, date string) (*redT1IntradaySeries, bool) {
+	contents, err := os.ReadFile(redT1IntradayCachePath(code, date))
+	if err != nil {
+		return nil, false
+	}
+	var record redT1IntradayCacheRecord
+	if err := json.Unmarshal(contents, &record); err != nil || record.Version != 1 ||
+		record.Series.Date != date || len(record.Series.Bars) < 2 {
+		return nil, false
+	}
+	record.Series.Code = code
+	return &record.Series, true
+}
+
+func saveRedT1IntradayCache(series redT1IntradaySeries) error {
+	if series.Date == "" || len(series.Bars) < 2 || series.Source == "" {
+		return nil
+	}
+	path := redT1IntradayCachePath(series.Code, series.Date)
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	contents, err := json.Marshal(redT1IntradayCacheRecord{Version: 1, Series: series})
+	if err != nil {
+		return err
+	}
+	temp, err := os.CreateTemp(dir, ".intraday-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temp.Name())
+	if _, err := temp.Write(contents); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temp.Name(), path)
+}
+
+func redT1SessionIsComplete(date string, now time.Time) bool {
+	local := now.In(chinaLocation())
+	today := local.Format("2006-01-02")
+	if date < today {
+		return true
+	}
+	return date == today && local.Hour()*60+local.Minute() >= 15*60+5
+}
+
+func newRedT1IntradayHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		principal, ok := PrincipalFromContext(r.Context())
-		if !ok {
-			WriteAuthError(w, newAuthError(http.StatusUnauthorized, "UNAUTHENTICATED", "未认证"))
 			return
 		}
 		moduleCode := strings.TrimSpace(r.URL.Query().Get("module_code"))
@@ -45,15 +107,6 @@ func newRedT1IntradayHandler(moduleService *ModuleService) http.HandlerFunc {
 		}
 		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode {
 			WriteAuthError(w, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "模块不存在"))
-			return
-		}
-		allowed, err := moduleService.HasModuleAccess(r.Context(), principal.UserID, moduleCode)
-		if err != nil {
-			WriteAuthError(w, err)
-			return
-		}
-		if !allowed {
-			WriteAuthError(w, newAuthError(http.StatusForbidden, "MODULE_FORBIDDEN", "暂无该红策模块访问权限"))
 			return
 		}
 
@@ -83,24 +136,77 @@ func newRedT1IntradayHandler(moduleService *ModuleService) http.HandlerFunc {
 			}
 		}
 
-		// Resolve from the selected T0 date so archived list entries can show
-		// their historical T+1 session. Do not request a session later than today.
-		t1Date, ok := resolveNextTradingDay(t0Date, today)
-		if !ok {
-			writeEmptyRedT1Intraday(w, "")
+		// The default is the selected T0's next trading session. Explicit
+		// sessions let the chart move in either direction without guessing
+		// holidays in the client or borrowing a different day's previous close.
+		sessionDate, previousDate, nextDate, valid := resolveRedT1Session(
+			t0Date, strings.TrimSpace(r.URL.Query().Get("session_date")), today,
+			isValidTradingDay, resolveNextTradingDay, resolvePrevTradingDay,
+		)
+		if !valid {
+			WriteJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "session_date must be an existing trading day not later than today"})
 			return
 		}
-
-		items := redT1IntradayItems(t0Date, t1Date, codes)
-		WriteJSON(w, map[string]interface{}{"date": t1Date, "items": items})
+		if sessionDate == "" {
+			writeEmptyRedT1Intraday(w, codes)
+			return
+		}
+		items := redT1IntradayItems(previousDate, sessionDate, codes)
+		WriteJSON(w, map[string]interface{}{
+			"date": sessionDate, "previous_date": previousDate,
+			"next_date": nextDate, "items": items,
+		})
 	}
 }
 
-func writeEmptyRedT1Intraday(w http.ResponseWriter, date string) {
-	WriteJSON(w, map[string]interface{}{"date": date, "items": map[string]redT1IntradaySeries{}})
+// Resolve chart navigation from actual exchange sessions. Keep the previous
+// session separate: its daily close is the only valid percentage baseline.
+func resolveRedT1Session(
+	t0Date, requestedDate, today string,
+	isTradingDay func(string) bool,
+	next func(string, string) (string, bool),
+	prev func(string) (string, bool),
+) (sessionDate, previousDate, nextDate string, valid bool) {
+	if requestedDate == "" {
+		sessionDate, _ = next(t0Date, today)
+		if sessionDate == "" {
+			return "", "", "", true
+		}
+	} else {
+		day, err := time.Parse("2006-01-02", requestedDate)
+		if err != nil || day.Format("2006-01-02") != requestedDate || requestedDate > today || !isTradingDay(requestedDate) {
+			return "", "", "", false
+		}
+		sessionDate = requestedDate
+	}
+	// The T+1 baseline is exactly the selected T0's close, regardless of
+	// another stock's daily-calendar lookup being temporarily unavailable.
+	if requestedDate == "" {
+		previousDate = t0Date
+	} else if t1, found := next(t0Date, today); found && t1 == sessionDate {
+		previousDate = t0Date
+	} else {
+		previousDate, _ = prev(sessionDate)
+	}
+	nextDate, _ = next(sessionDate, today)
+	return sessionDate, previousDate, nextDate, true
 }
 
-func redT1IntradayItems(t0Date, date string, codes []string) map[string]redT1IntradaySeries {
+func writeEmptyRedT1Intraday(w http.ResponseWriter, codes []string) {
+	items := make(map[string]redT1IntradaySeries, len(codes))
+	for _, code := range codes {
+		items[code] = redT1IntradaySeries{
+			Code: code, Status: "no_session",
+			Message: "所选日期之后暂无已发生的交易日，暂时没有 T+1 分时",
+			Bars:    []redT1IntradayBar{},
+		}
+	}
+	WriteJSON(w, map[string]interface{}{
+		"date": "", "previous_date": "", "next_date": "", "items": items,
+	})
+}
+
+func redT1IntradayItems(previousDate, date string, codes []string) map[string]redT1IntradaySeries {
 	items := make(map[string]redT1IntradaySeries, len(codes))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -113,6 +219,17 @@ func redT1IntradayItems(t0Date, date string, codes []string) map[string]redT1Int
 			defer func() { <-sem }()
 
 			shortCode := t0ShortCodeFromResultCode(code)
+			if cached, ok := loadRedT1IntradayCache(code, date); ok {
+				if cached.PrevClose <= 0 && previousDate != "" {
+					cached.PrevClose = redT1PreviousClose(shortCode, previousDate)
+				}
+				setRedT1IntradayStatus(cached)
+				mu.Lock()
+				items[code] = *cached
+				mu.Unlock()
+				return
+			}
+
 			var result *data.KLineSourceResult
 			var prevClose float64
 			var fetchWg sync.WaitGroup
@@ -125,16 +242,18 @@ func redT1IntradayItems(t0Date, date string, codes []string) map[string]redT1Int
 			}()
 			go func() {
 				defer fetchWg.Done()
-				prevClose = redT1PreviousClose(shortCode, t0Date)
+				if previousDate != "" {
+					prevClose = redT1PreviousClose(shortCode, previousDate)
+				}
 			}()
 			fetchWg.Wait()
 			series := parseRedT1IntradaySeries(code, date, result)
-			if len(series.Bars) == 0 {
-				return
-			}
 			series.PrevClose = prevClose
-			if series.PrevClose <= 0 {
-				return
+			setRedT1IntradayStatus(&series)
+			if redT1SessionIsComplete(date, time.Now()) && len(series.Bars) >= 2 {
+				if err := saveRedT1IntradayCache(series); err != nil {
+					logger.SugaredLogger.Warnf("保存分时缓存失败: code=%s date=%s err=%v", code, date, err)
+				}
 			}
 			mu.Lock()
 			items[code] = series
@@ -143,6 +262,23 @@ func redT1IntradayItems(t0Date, date string, codes []string) map[string]redT1Int
 	}
 	wg.Wait()
 	return items
+}
+
+func setRedT1IntradayStatus(series *redT1IntradaySeries) {
+	switch {
+	case len(series.Bars) == 0:
+		series.Status = "no_intraday_data"
+		series.Message = "同花顺、东方财富、新浪、通达信均未返回该交易日的有效分钟线"
+	case series.PrevClose <= 0:
+		series.Status = "missing_previous_close"
+		series.Message = "已取得分钟线，但未取得上一交易日收盘价，无法计算涨跌幅"
+	case len(series.Bars) < 2:
+		series.Status = "insufficient_data"
+		series.Message = "有效分钟线不足 2 个点，无法绘制分时"
+	default:
+		series.Status = "ok"
+		series.Message = ""
+	}
 }
 
 func parseRedT1IntradaySeries(code, date string, result *data.KLineSourceResult) redT1IntradaySeries {
@@ -181,9 +317,9 @@ func parseRedT1IntradaySeries(code, date string, result *data.KLineSourceResult)
 	return series
 }
 
-func redT1PreviousClose(shortCode, t0Date string) float64 {
-	bars := fetchDailyKLineWithLimit(shortCode, t0Date, 5)
-	bar, _ := dailyBarOnDate(bars, t0Date)
+func redT1PreviousClose(shortCode, previousDate string) float64 {
+	bars := fetchDailyKLineWithLimit(shortCode, previousDate, 5)
+	bar, _ := dailyBarOnDate(bars, previousDate)
 	if bar.Close <= 0 || math.IsNaN(bar.Close) || math.IsInf(bar.Close, 0) {
 		return 0
 	}
