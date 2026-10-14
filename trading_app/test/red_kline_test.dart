@@ -12,6 +12,7 @@ import 'package:trading_app/features/profile/presentation/system_settings_page.d
 import 'package:trading_app/features/radar/data/red_kline_repository.dart';
 import 'package:trading_app/features/radar/data/red_t1_intraday_repository.dart';
 import 'package:provider/provider.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:trading_app/features/permissions/domain/module_definition.dart';
 import 'package:trading_app/features/permissions/presentation/module_permission_controller.dart';
 import 'package:trading_app/features/radar/data/radar_repository.dart';
@@ -371,7 +372,7 @@ void main() {
     final permissions = ModulePermissionController.forTesting([
       ...publicModuleDefinitions,
       const ModuleDefinition(
-        code: 'radar.red_strategy',
+        code: t0SharedGobRedStrategyModuleCode,
         name: '红策',
         client: 'flutter_web',
         placement: 'radar_tab',
@@ -400,14 +401,14 @@ void main() {
         'results': [
           {'股票代码': '000823.XSHE', '股票名称': '验收股'},
         ],
-      }, moduleCode: t0RedStrategyModuleCode);
+      }, moduleCode: t0SharedGobRedStrategyModuleCode);
     }
 
     showDate('2026-09-16');
     strategy.applyAvailableDatesForTest([
       '2026-09-16',
       '2026-09-17',
-    ], moduleCode: t0RedStrategyModuleCode);
+    ], moduleCode: t0SharedGobRedStrategyModuleCode);
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -453,7 +454,7 @@ void main() {
             '股票名称': '压力股 $i',
           },
       ],
-    }, moduleCode: t0RedStrategyModuleCode);
+    }, moduleCode: t0SharedGobRedStrategyModuleCode);
     await tester.pumpAndSettle();
     expect(find.text('红策(12)'), findsOneWidget);
     expect(calls.last.split(',').length, 12);
@@ -624,15 +625,17 @@ void main() {
         child: const MaterialApp(home: RadarPage()),
       ),
     );
-    await tester.tap(find.text('红策（共享GOB）(1)'));
+    await tester.tap(find.text('红策(1)'));
     await tester.pumpAndSettle();
     expect(
       tester
           .widget<CandlestickChart>(find.byType(CandlestickChart))
           .data
-          .touchedPointIndicator,
-      isNull,
+          .touchedPointIndicator
+          ?.x,
+      2,
     );
+    expect(find.textContaining('2026-09-17  开 12.00 (0.00%)'), findsOneWidget);
     await tester.ensureVisible(find.byTooltip('后一交易日分时'));
     await tester.tap(find.byTooltip('后一交易日分时'));
     await tester.pumpAndSettle();
@@ -645,6 +648,7 @@ void main() {
     expect(indicator?.y, 14);
     expect(find.textContaining('2026-09-18  开 13.00 (0.00%)'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
+    VisibilityDetectorController.instance.notifyNow();
     disposeVms();
   });
 

@@ -230,36 +230,30 @@ class _RedCandleChartState extends State<_RedCandleChart> {
   Widget _selectionDetails(List<RedKlineBar> bars, int index) {
     final bar = bars[index];
     final previousClose = index > 0 ? bars[index - 1].close : null;
-    final style = const TextStyle(
+    final style = TextStyle(
       fontSize: 10,
-      color: Colors.white,
+      color: AppColors.textPrimary,
       height: 1.2,
     );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${bar.date}  开 ${bar.open.toStringAsFixed(2)} (${_change(bar.open, previousClose)})',
-              style: style,
-            ),
-            Text(
-              '收 ${bar.close.toStringAsFixed(2)} (${_change(bar.close, previousClose)})  高 ${bar.high.toStringAsFixed(2)} (${_change(bar.high, previousClose)})',
-              style: style,
-            ),
-            Text(
-              '低 ${bar.low.toStringAsFixed(2)} (${_change(bar.low, previousClose)})',
-              style: style,
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${bar.date}  开 ${bar.open.toStringAsFixed(2)} (${_change(bar.open, previousClose)})',
+            style: style,
+          ),
+          Text(
+            '收 ${bar.close.toStringAsFixed(2)} (${_change(bar.close, previousClose)})  高 ${bar.high.toStringAsFixed(2)} (${_change(bar.high, previousClose)})',
+            style: style,
+          ),
+          Text(
+            '低 ${bar.low.toStringAsFixed(2)} (${_change(bar.low, previousClose)})',
+            style: style,
+          ),
+        ],
       ),
     );
   }
