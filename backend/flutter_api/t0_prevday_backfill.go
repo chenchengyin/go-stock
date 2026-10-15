@@ -10,6 +10,8 @@ import (
 
 const t0PrevDayLookbackDays = 20
 
+var tradingDayDailyFetcher = fetchDailyKLine
+
 func hasDailyBarOnDate(bars []dailyBar, date string) bool {
 	for _, b := range bars {
 		if b.Date == date {
@@ -20,10 +22,21 @@ func hasDailyBarOnDate(bars []dailyBar, date string) bool {
 }
 
 func isValidTradingDay(date string) bool {
-	if isT0DailyCacheFilePresent(date) {
-		return true
+	// A pool/cache can exist on a holiday and contain only older daily bars.
+	if shared, err := loadMainboardSharedGob(); err == nil && len(shared.Dates) > 0 &&
+		date >= shared.Dates[0] && date <= shared.Dates[len(shared.Dates)-1] {
+		return sharedGobHasDate(shared, date)
 	}
-	bars := fetchDailyKLine("600000", date)
+	if cached, ok := readT0DailyCachePayloadFromDisk(date); ok {
+		for _, bars := range cached.Daily {
+			if bar, _ := dailyBarOnDate(bars, date); bar.Close > 0 {
+				return true
+			}
+		}
+	}
+	// Outside the shared calendar, missing/empty fallback bars are not proof
+	// of a closed session (today's prewarm cache can contain only yesterday).
+	bars := tradingDayDailyFetcher("600000", date)
 	return hasDailyBarOnDate(bars, date)
 }
 

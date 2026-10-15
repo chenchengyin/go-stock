@@ -18,6 +18,8 @@ import (
 
 const redT1IntradayFetchLimit = 500
 
+var redT1IntradayFetcher = data.FetchIntradayKLineForDateWithFallback
+
 type redT1IntradayBar struct {
 	Time         string  `json:"time"`
 	Price        float64 `json:"price"`
@@ -50,7 +52,7 @@ func loadRedT1IntradayCache(code, date string) (*redT1IntradaySeries, bool) {
 		return nil, false
 	}
 	var record redT1IntradayCacheRecord
-	if err := json.Unmarshal(contents, &record); err != nil || record.Version != 1 ||
+	if err := json.Unmarshal(contents, &record); err != nil || record.Version != 2 ||
 		record.Series.Date != date || len(record.Series.Bars) < 2 {
 		return nil, false
 	}
@@ -67,7 +69,7 @@ func saveRedT1IntradayCache(series redT1IntradaySeries) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	contents, err := json.Marshal(redT1IntradayCacheRecord{Version: 1, Series: series})
+	contents, err := json.Marshal(redT1IntradayCacheRecord{Version: 2, Series: series})
 	if err != nil {
 		return err
 	}
@@ -231,24 +233,11 @@ func redT1IntradayItems(previousDate, date string, codes []string) map[string]re
 			}
 
 			var result *data.KLineSourceResult
-			var prevClose float64
-			var fetchWg sync.WaitGroup
-			fetchWg.Add(2)
-			go func() {
-				defer fetchWg.Done()
-				result = data.FetchIntradayKLineForDateWithFallback(
-					shortCode, date, redT1IntradayFetchLimit,
-				)
-			}()
-			go func() {
-				defer fetchWg.Done()
-				if previousDate != "" {
-					prevClose = redT1PreviousClose(shortCode, previousDate)
-				}
-			}()
-			fetchWg.Wait()
+			result = redT1IntradayFetcher(shortCode, date, redT1IntradayFetchLimit)
 			series := parseRedT1IntradaySeries(code, date, result)
-			series.PrevClose = prevClose
+			if series.PrevClose <= 0 && len(series.Bars) >= 2 && previousDate != "" {
+				series.PrevClose = redT1PreviousClose(shortCode, previousDate)
+			}
 			setRedT1IntradayStatus(&series)
 			if redT1SessionIsComplete(date, time.Now()) && len(series.Bars) >= 2 {
 				if err := saveRedT1IntradayCache(series); err != nil {
@@ -287,6 +276,10 @@ func parseRedT1IntradaySeries(code, date string, result *data.KLineSourceResult)
 		return series
 	}
 	series.Source = result.Source
+	series.PrevClose = result.PrevClose
+	if math.IsNaN(series.PrevClose) || math.IsInf(series.PrevClose, 0) {
+		series.PrevClose = 0
+	}
 	useTurnoverAverage := result.Source == "ths" || result.Source == "eastmoney"
 	var cumulativeVolumeShares, cumulativeAmount float64
 	for _, bar := range *result.Data {
@@ -318,6 +311,16 @@ func parseRedT1IntradaySeries(code, date string, result *data.KLineSourceResult)
 }
 
 func redT1PreviousClose(shortCode, previousDate string) float64 {
+	if shared, err := loadMainboardSharedGob(); err == nil {
+		if bar, _ := dailyBarOnDate(shared.Daily[shortCode], previousDate); bar.Close > 0 {
+			return bar.Close
+		}
+	}
+	if cached, ok := readT0DailyCachePayloadFromDisk(previousDate); ok {
+		if bar, _ := dailyBarOnDate(cached.Daily[shortCode], previousDate); bar.Close > 0 {
+			return bar.Close
+		}
+	}
 	bars := fetchDailyKLineWithLimit(shortCode, previousDate, 5)
 	bar, _ := dailyBarOnDate(bars, previousDate)
 	if bar.Close <= 0 || math.IsNaN(bar.Close) || math.IsInf(bar.Close, 0) {

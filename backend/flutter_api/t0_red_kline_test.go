@@ -211,11 +211,13 @@ func TestRedKlineRouteReturnsScopedWindow(t *testing.T) {
 	auth := newTestAuthService(t)
 	user := authHTTPRegisterUser(t, auth, "13877775555", "Chart User", "device-chart-2")
 	modules := NewModuleService(auth.dao)
-	if err := modules.ReplaceUserAccess(context.Background(), "admin-chart", []string{user.User.ID}, []string{redT0StrategyModuleCode}); err != nil {
+	if err := modules.ReplaceUserAccess(context.Background(), "admin-chart", []string{user.User.ID}, []string{sharedGobRedStrategyModuleCode}); err != nil {
 		t.Fatal(err)
 	}
 	oldRoot := t0CacheRootPath
 	oldFetcher := fetchRedKlineSeries
+	oldShared := mainboardSharedGob
+	mainboardSharedGob = &mainboardSharedGobData{Daily: map[string][]dailyBar{}}
 	t0CacheRootPath = t.TempDir()
 	fetchRedKlineSeries = func(code string, limit int, end string) *data.KLineSourceResult {
 		rows := []data.KLineData{
@@ -225,9 +227,9 @@ func TestRedKlineRouteReturnsScopedWindow(t *testing.T) {
 		}
 		return &data.KLineSourceResult{Data: &rows, Source: "stub"}
 	}
-	defer func() { t0CacheRootPath = oldRoot; fetchRedKlineSeries = oldFetcher }()
+	defer func() { t0CacheRootPath = oldRoot; fetchRedKlineSeries = oldFetcher; mainboardSharedGob = oldShared }()
 	req := httptest.NewRequest(http.MethodGet,
-		"/api/t0-red/kline-window?date=2026-09-24&codes=600000.XSHG", nil)
+		"/api/t0-red/kline-window?date=2026-09-24&codes=600000.XSHG&module_code=radar.red_shared_gob_strategy", nil)
 	req.Header.Set("Authorization", "Bearer "+user.AccessToken)
 	rec := httptest.NewRecorder()
 	newHTTPHandler(auth.AuthService).ServeHTTP(rec, req)

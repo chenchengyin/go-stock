@@ -556,8 +556,9 @@ func (t *TencentKLineApi) convertRowsToKLineData(rows [][]string) []KLineData {
 }
 
 type KLineSourceResult struct {
-	Data   *[]KLineData `json:"data"`
-	Source string       `json:"source"`
+	Data      *[]KLineData `json:"data"`
+	Source    string       `json:"source"`
+	PrevClose float64      `json:"prev_close,omitempty"`
 }
 
 func FetchKLineWithFallback(stockCode, stockName, klt string, limit int, end string) *KLineSourceResult {
@@ -615,7 +616,7 @@ func FetchIntradayKLineForDateWithFallback(stockCode, targetDate string, limit i
 		fetch func() *KLineSourceResult
 	}
 	fetchers := []sourceFetcher{
-		{"ths", func() *KLineSourceResult { return fetchFromTHS(stockCode, "1", limit, end) }},
+		{"ths", func() *KLineSourceResult { return fetchTHSTrend(stockCode, targetDate) }},
 		{"eastmoney", func() *KLineSourceResult { return fetchFromEastMoney(stockCode, "", "1", limit, end) }},
 		{"sina", func() *KLineSourceResult { return fetchFromSina(stockCode, "1", limit) }},
 		{"tdx", func() *KLineSourceResult { return fetchFromTdx(stockCode, "1", limit) }},
