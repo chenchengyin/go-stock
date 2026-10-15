@@ -94,6 +94,7 @@ class T0RedRuleHistoryOption {
   final String name;
   final String description;
   final int matchCount;
+  final bool matchCountKnown;
 
   const T0RedRuleHistoryOption({
     required this.ruleSource,
@@ -102,7 +103,19 @@ class T0RedRuleHistoryOption {
     required this.name,
     required this.description,
     required this.matchCount,
+    this.matchCountKnown = true,
   });
+
+  T0RedRuleHistoryOption copyWith({int? matchCount, bool? matchCountKnown}) =>
+      T0RedRuleHistoryOption(
+        ruleSource: ruleSource,
+        ruleKey: ruleKey,
+        ruleVersion: ruleVersion,
+        name: name,
+        description: description,
+        matchCount: matchCount ?? this.matchCount,
+        matchCountKnown: matchCountKnown ?? this.matchCountKnown,
+      );
 
   String get id => '$ruleSource:$ruleKey@$ruleVersion';
 
@@ -114,6 +127,7 @@ class T0RedRuleHistoryOption {
         name: json['name'] as String? ?? '',
         description: json['description'] as String? ?? '',
         matchCount: (json['match_count'] as num?)?.toInt() ?? 0,
+        matchCountKnown: json['match_count_known'] as bool? ?? true,
       );
 }
 
@@ -579,6 +593,16 @@ class T0StrategyViewModel extends ChangeNotifier {
               .toList()
             ..sort((a, b) => b.tradeDate.compareTo(a.tradeDate));
       _redRuleHistoryStocks = stocks;
+      _redRuleHistoryOptions = _redRuleHistoryOptions
+          .map(
+            (current) => current.id == option.id
+                ? current.copyWith(
+                    matchCount: stocks.length,
+                    matchCountKnown: true,
+                  )
+                : current,
+          )
+          .toList();
       _redRuleHistoryIncomplete = data['data_incomplete'] as bool? ?? false;
     } catch (error) {
       if (generation != _redRuleHistoryRequestGeneration) return;

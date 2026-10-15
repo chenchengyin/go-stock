@@ -217,20 +217,28 @@ func enrichT0ResultsForDisplayWithDailyForModule(
 	daily map[string][]dailyBar,
 	tradeDate string,
 	moduleCode string,
+	openGaps ...map[string]float64,
 ) []T0SelectionResult {
 	out := make([]T0SelectionResult, len(results))
 	copy(out, results)
 	referenceRules := loadT0ReferenceRuleRuntimes()
 	for i := range out {
+		shortCode := t0ShortCodeFromResultCode(out[i].StockCode)
+		displayGap := out[i].OpenGap
+		if len(openGaps) > 0 {
+			if exactGap, ok := openGaps[0][shortCode]; ok {
+				out[i].OpenGap = exactGap
+			}
+		}
 		if isRedT0StrategyModule(moduleCode) {
-			bars := daily[t0ShortCodeFromResultCode(out[i].StockCode)]
+			bars := daily[shortCode]
 			bar, index := dailyBarOnDate(bars, tradeDate)
 			if index > 0 && bar.Close > 0 && bars[index-1].Close > 0 {
 				out[i].CloseRet = round2((bar.Close - bars[index-1].Close) / bars[index-1].Close * 100)
 			}
 		}
 		hist := histBarsBeforeTradeDate(
-			daily[t0ShortCodeFromResultCode(out[i].StockCode)], tradeDate)
+			daily[shortCode], tradeDate)
 		out[i].DisplayRuleHits = mergeT0DisplayRuleHits(
 			out[i].DisplayRuleHits, displayRuleHitsForResult(hist, out[i]))
 		out[i].StrongContinuationDisplayRuleHit = false
@@ -239,6 +247,7 @@ func enrichT0ResultsForDisplayWithDailyForModule(
 		out[i].StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, out[i])
 		enrichT0ReferenceResult(
 			&out[i], hist, referenceRules, isRedT0StrategyModule(moduleCode))
+		out[i].OpenGap = displayGap
 	}
 	return out
 }

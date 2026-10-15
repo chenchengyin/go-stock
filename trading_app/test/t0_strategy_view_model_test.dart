@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trading_app/features/radar/presentation/radar_list/t0_strategy_view_model.dart';
 
 Map<String, dynamic> _candidateReady({
@@ -42,6 +43,8 @@ T0StrategyStock _stock({
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
   test(
     'red strategy request carries its module code and exposes server results',
     () async {

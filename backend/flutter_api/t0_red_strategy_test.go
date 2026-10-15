@@ -997,7 +997,7 @@ func TestGobRedZTztPbRuleUsesT1AndOpeningGapFiltersAndExplainsRule(t *testing.T)
 		if candidate.Description == "" {
 			t.Errorf("approved Gob red rule %q has no long-press explanation", candidate.Key)
 		}
-		if candidate.Key == "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2" {
+		if candidate.Key == "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3" {
 			rule = candidate
 			break
 		}
@@ -1005,20 +1005,25 @@ func TestGobRedZTztPbRuleUsesT1AndOpeningGapFiltersAndExplainsRule(t *testing.T)
 	if rule.Key == "" {
 		t.Fatal("missing approved ZT→ZT→PB T-1 rule")
 	}
-	if rule.Version != 2 {
-		t.Fatalf("rule version=%d want 2", rule.Version)
+	if rule.Version != 3 {
+		t.Fatalf("rule version=%d want 3", rule.Version)
 	}
 	for _, tc := range []struct {
 		name     string
 		open     float64
 		wantPass bool
 	}{
-		{"below excluded interval", 97.99, true},
+		{"deep low opening", 95, false},
+		{"below minus two percent", 97.99, false},
 		{"at minus two percent boundary", 98, false},
 		{"inside excluded interval", 99, false},
 		{"just below zero", 99.999, false},
 		{"at zero boundary", 100, true},
-		{"positive gap", 105, true},
+		{"inside allowed interval", 101, true},
+		{"at three percent boundary", 103, true},
+		{"just above three percent", 103.000001, false},
+		{"high opening above interval", 105, false},
+		{"invalid opening", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := rule.MatchOpen(tc.open, 100); got != tc.wantPass {
@@ -1027,8 +1032,7 @@ func TestGobRedZTztPbRuleUsesT1AndOpeningGapFiltersAndExplainsRule(t *testing.T)
 		})
 	}
 	if rule.Description == "" ||
-		!strings.Contains(rule.Description, "−2%≤T0开盘缺口<0%不入选") ||
-		!strings.Contains(rule.Description, "4/10") ||
+		!strings.Contains(rule.Description, "0%～3%，包含两端") ||
 		!strings.Contains(rule.Description, "T+1收盘") {
 		t.Fatalf("incomplete rule explanation: %q", rule.Description)
 	}
@@ -1449,7 +1453,7 @@ func TestGobRedArchivedRecalculatesIncompleteSnapshotWithCurrentRules(t *testing
 	stock := []t0Stock{{Code: "sh.600101", ShortCode: "600101", Name: "新规则命中"}}
 	bars := append(gobRedZTztPbTestBars(dailyBar{
 		Date: "2026-09-11", Open: 12.9, High: 13.4, Low: 12.4, Close: 12.5,
-	}), dailyBar{Date: date, Open: 12.1, High: 12.3, Low: 12.0, Close: 12.2})
+	}), dailyBar{Date: date, Open: 12.75, High: 13, Low: 12.6, Close: 12.8})
 	if err := saveT0DailyCache(date, stock, map[string][]dailyBar{"600101": bars}); err != nil {
 		t.Fatal(err)
 	}
@@ -1462,7 +1466,7 @@ func TestGobRedArchivedRecalculatesIncompleteSnapshotWithCurrentRules(t *testing
 	results, _, source, incomplete := archivedGobRedResults(date)
 	if len(results) != 1 || source != "daily_open" || incomplete ||
 		len(results[0].RedRuleHits) != 1 ||
-		results[0].RedRuleHits[0].Key != "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2" {
+		results[0].RedRuleHits[0].Key != "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3" {
 		t.Fatalf("historical replay results=%+v source=%s incomplete=%v", results, source, incomplete)
 	}
 }
@@ -1813,6 +1817,27 @@ func TestGobRedArchivedRuleExplanationIsFilledForOldSnapshot(t *testing.T) {
 	got := enrichGobRedRuleStats(results)
 	if got[0].RedRuleHits[0].Description == "" || !strings.Contains(got[0].RedRuleHits[0].Description, "18/22") {
 		t.Fatalf("old snapshot explanation = %q", got[0].RedRuleHits[0].Description)
+	}
+}
+
+func TestGobRedRuleExplanationRefreshesCurrentCopyAndPreservesHistoricalVersion(t *testing.T) {
+	previous := db.Dao
+	db.Dao = nil
+	t.Cleanup(func() { db.Dao = previous })
+	rule, ok := gobRedRuleByKey("gob_zt_t1_bear_open_close_body_4combos_v1")
+	if !ok {
+		t.Fatal("missing four-group rule")
+	}
+	results := []T0SelectionResult{{RedRuleHits: []T0RedRuleHit{
+		{Key: rule.Key, Version: rule.Version, Name: "中阴线组合", Description: "旧说明"},
+		{Key: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2", Version: 2, Description: "历史版本原说明"},
+	}}}
+	got := enrichGobRedRuleStats(results)
+	if got[0].RedRuleHits[0].Name != rule.Name || got[0].RedRuleHits[0].Description != rule.Description {
+		t.Fatalf("current archived wording not refreshed: %+v", got[0].RedRuleHits[0])
+	}
+	if got[0].RedRuleHits[1].Description != "历史版本原说明" || results[0].RedRuleHits[0].Description != "旧说明" {
+		t.Fatal("historical wording or input archive was overwritten")
 	}
 }
 

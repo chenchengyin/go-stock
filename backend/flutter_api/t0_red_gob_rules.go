@@ -56,6 +56,14 @@ type redGobRule struct {
 
 const legacyGobZTztPbV1Description = "T-3、T-2收盘涨停，T-1为破板；T-1振幅=(最高-最低)/T-2收盘为6%～10%（含边界），下影=(min(开盘,收盘)-最低)/T-2收盘≤1%。若T-1实体跌幅≤-5%，仅保留T-1收盘相对T-2收盘涨幅<1%或3%～4%（含3%、不含4%）。建议T0开盘涨幅0%≤T0开盘涨幅<5%作为买入参考，不是筛选门槛：历史日线开盘代理样本中T0收盘高于开盘18/22=81.8%，样本较少，不代表实时竞价效果，也不是红策T+1真赚率；红策真赚率按T+1收盘计算。"
 
+const legacyGobZTztPbV2Description = "历史v2规则：T-3、T-2收盘涨停，T-1破板；T-1振幅6%～10%、下影≤1%。若T-1按开盘价计算的实体跌幅≥5%，仅保留收盘较T-2收盘涨幅<1%或≥3%且<4%的样本。T0开盘缺口<−2%或≥0%，排除跌停开盘；以T0开盘为入场参考，按T+1收盘评判。本版本允许深度低开，与当前0%～3%的v3规则不同。"
+
+const gobRedT1StatsDescription = "\n\n统计口径\n以T0开盘价为入场参考，按下一交易日（T+1）收盘评判。收益=(T+1收盘/T0开盘−1)×100%；真赚率指收益>0%，达标率指收益≥2.5%（包含2.5%）。历史日线开盘为入场代理，样本统计不代表实际成交。"
+
+const gobRedBearClassificationDescription = "\n\n阴线分类\n实体跌幅按(开盘−收盘)/前收盘×100%计算：中阴>2.5%且≤6%，大阴>6%。K线先按涨停、跌停或破板判断，其余再按实体大小划分。"
+
+const gobRedSmallBearHistoryDescription = "形态条件\nT-2收盘涨停；T-1收盘低于开盘，且较T-2收盘下跌0%～2%（包含两端，可与昨收持平）。下影长度=收盘−最低，不能超过阴线实体长度=开盘−收盘。\nT-2、T-1收盘分别严格高于各自5日均价（MA5），T-1收盘严格高于60日均价（MA60）；等于均线不算。这里按收盘跌幅筛选，阴线实体大小不限。"
+
 type gobRedMatchStatus struct {
 	MissingHistory int
 	MissingOpen    int
@@ -167,7 +175,8 @@ func approvedGobRedRules() []redGobRule {
 	return []redGobRule{
 		{
 			Key: "gob_myin_dt_dt_v1", Version: 1, Name: "中阴→跌停→跌停后低开",
-			Description:  "T-3中阴、T-2和T-1收盘跌停；近10个交易日内存在一次距T0至少2个交易日的收盘涨停，且T-1收盘低于该涨停锚点；T0开盘低于昨收3%～9.85%（不含边界），排除跌停开盘。红策真赚率按T+1收盘计算。",
+			Description: "形态条件\nT-3为中阴，T-2、T-1连续收盘跌停。最近一次收盘涨停位于T-2～T-10（包含两端），且T-1收盘严格低于该涨停日收盘；不能跳过最近涨停去借用更早的锚点。" +
+				gobRedBearClassificationDescription + "\n\nT0开盘\n较T-1收盘低开，−9.85%<开盘涨幅<−3%，两端均不包含；跌停开盘不入选。盘前只展示候选，竞价确认后才入选。" + gobRedT1StatsDescription,
 			MatchHistory: func(hist []dailyBar) bool { return matchGobPullbackHistory(hist, candlepattern.BarDT) },
 			MatchOpen: func(open, prevClose float64) bool {
 				return open > prevClose*(1-9.85/100) && open < prevClose*(1-3.0/100)
@@ -176,7 +185,8 @@ func approvedGobRedRules() []redGobRule {
 		},
 		{
 			Key: "gob_myin_myin_dt_v1", Version: 1, Name: "中阴→中阴→跌停后低开",
-			Description:  "T-3中阴、T-2中阴、T-1收盘跌停；近10个交易日内存在一次距T0至少2个交易日的收盘涨停，且T-1收盘低于该涨停锚点；T0开盘低于昨收3%～9.85%（不含边界），排除跌停开盘。红策真赚率按T+1收盘计算。",
+			Description: "形态条件\nT-3、T-2均为中阴，T-1收盘跌停。最近一次收盘涨停位于T-2～T-10（包含两端），且T-1收盘严格低于该涨停日收盘；不能跳过最近涨停去借用更早的锚点。" +
+				gobRedBearClassificationDescription + "\n\nT0开盘\n较T-1收盘低开，−9.85%<开盘涨幅<−3%，两端均不包含；跌停开盘不入选。盘前只展示候选，竞价确认后才入选。" + gobRedT1StatsDescription,
 			MatchHistory: func(hist []dailyBar) bool { return matchGobPullbackHistory(hist, candlepattern.BarMYIN) },
 			MatchOpen: func(open, prevClose float64) bool {
 				return open > prevClose*(1-9.85/100) && open < prevClose*(1-3.0/100)
@@ -185,29 +195,32 @@ func approvedGobRedRules() []redGobRule {
 		},
 		{
 			Key: "gob_dyin_myin_myin_t1_body_le_430_v1", Version: 1,
-			Name:             "大阴→中阴→中阴（T-1实体≤-4.3%，A2）",
-			Description:      "T-3大阴、T-2中阴、T-1中阴且T-1实体跌幅≥4.3%；近7日有涨停记忆、T-1成交额≥5亿元（A2）；T0允许任意开盘涨幅但排除跌停开盘。红策真赚率按T+1收盘计算。",
+			Name: "大阴→中阴→中阴（T-1实体≤-4.3%，A2）",
+			Description: "形态条件\nT-3为大阴，T-2、T-1均为中阴。另要求T-1实体跌幅=(T-1开盘−T-1收盘)/T-1开盘×100%至少4.3%（包含4.3%）；此处以开盘为分母，与阴线分类不同。\n属于A2池：近7个交易日有收盘涨停记忆，T-1成交额至少5亿元（包含5亿）。" +
+				gobRedBearClassificationDescription + "\n\nT0开盘\n允许低开、平开或高开，不设涨幅区间；跌停开盘不入选。盘前只展示候选，竞价确认后才入选。" + gobRedT1StatsDescription,
 			MatchHistory:     matchGobDyinMyinMyinA2BodyCutoff,
 			MatchOpen:        func(open, prevClose float64) bool { return true },
 			ExcludeLimitDown: true,
 		},
 		{
-			Key: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2", Version: 2,
-			Name:         "涨停→涨停→破板（T-1振幅6%～10%、下影≤1%）",
-			Description:  "T-3、T-2收盘涨停，T-1破板；T-1振幅6%～10%、下影≤1%；若T-1实体跌幅≤-5%，仅保留T-1收盘相对T-2涨幅<1%或3%～4%（含3%、不含4%）。T0开盘缺口=(T0开盘/昨收−1)×100%，−2%≤T0开盘缺口<0%不入选（含−2%、不含0%）；盘前候选待竞价确认，开盘后应用此过滤。历史日线开盘代理回看：T0收盘相对开盘≤−4%在该缺口区间为4/10，其余区间8/49；样本较少，仅作风险提示。红策真赚率按T+1收盘计算。",
+			Key: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3", Version: 3,
+			Name: "涨停→涨停→破板（T-1振幅6%～10%、下影≤1%）",
+			Description: "形态条件\nT-3、T-2连续收盘涨停；T-1涨停破板，收阳或收阴均可。\nT-1振幅=(最高−最低)/T-2收盘×100%，须在6%～10%内（包含两端）；下影比例=(开盘与收盘中较低者−最低)/T-2收盘×100%，须≤1%（包含1%）。\n若T-1实体跌幅=(开盘−收盘)/开盘×100%≥5%，还要求T-1收盘较T-2收盘涨幅<1%，或≥3%且<4%（包含3%、不含4%）。" +
+				"\n\nT0开盘\n较T-1收盘涨幅为0%～3%，包含两端：允许平开，低开或高开超过3%不入选。盘前只展示候选，竞价确认后才入选。" + gobRedT1StatsDescription,
 			MatchHistory: matchGobZTztPbT1Filters,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {
 					return false
 				}
-				return open < prevClose*0.98 || open >= prevClose
+				return open >= prevClose && open <= prevClose*1.03+1e-9
 			},
 			ExcludeLimitDown: true,
 		},
 		{
 			Key: "gob_zt_t1_bear_close_m2_0_shadow_le_body_ma5_ma60_gap_001_3_v1", Version: 1,
-			Name:         "涨停→小阴线（收跌0%～2%、下影≤实体）",
-			Description:  "T-2收盘涨停；T-1为阴线，收盘相对T-2收盘涨幅-2%～0%（含边界），下影线（收盘-最低）≤实体（开盘-收盘）；T-2、T-1收盘分别高于各自MA5，T-1收盘高于MA60；T0开盘缺口0.01%～3%（含边界）。红策真赚率按T+1收盘计算。",
+			Name: "涨停→收跌0%～2%的阴线（下影≤实体）",
+			Description: gobRedSmallBearHistoryDescription +
+				"\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。盘前只展示候选，竞价确认后才入选。" + gobRedT1StatsDescription,
 			MatchHistory: matchGobZTSmallBearishT1Filters,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {
@@ -220,8 +233,9 @@ func approvedGobRedRules() []redGobRule {
 		},
 		{
 			Key: "gob_zt_t1_bear_open_close_body_4combos_v1", Version: 1,
-			Name:         "中阴线组合",
-			Description:  "T-2收盘涨停；T-1收阴并命中四组之一：开盘2%～4%、收盘-5%～-2%、实体5%～8%；开盘4%～6%、收盘-2%～0%、实体5%～8%；开盘2%～4%、收盘-2%～0%、实体(0%,3%)；开盘6%～10%、收盘0%～2%、实体5%～8%。T-1开盘涨幅、收盘涨幅和实体均相对T-2收盘计算，区间左闭右开；T0开盘缺口0.01%～3%，T+1收盘评估。",
+			Name: "涨停→阴线四组组合",
+			Description: "形态条件\nT-2收盘涨停，T-1收盘低于开盘，并满足下面任意一组。这里不要求分类为中阴线。\nT-1开盘涨幅、收盘涨幅均相对T-2收盘计算；实体跌幅=(T-1开盘−T-1收盘)/T-2收盘×100%。\n第1组：开盘≥2%且<4%；收盘≥−5%且<−2%；实体≥5%且<8%。\n第2组：开盘≥4%且<6%；收盘≥−2%且<0%；实体≥5%且<8%。\n第3组：开盘≥2%且<4%；收盘≥−2%且<0%；实体>0%且<3%。\n第4组：开盘≥6%且<10%；收盘≥0%且<2%；实体≥5%且<8%。\n各组下限包含、上限不包含；第3组实体的0%也不包含。" +
+				"\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。盘前只展示候选，竞价确认后才入选。" + gobRedT1StatsDescription,
 			MatchHistory: matchGobZTBearOpenCloseBodyCombinations,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {
@@ -234,8 +248,10 @@ func approvedGobRedRules() []redGobRule {
 		},
 		{
 			Key: "gob_zt_t1_long_bear_low_open_boll_rebound_v1", Version: 1,
-			Name:         "涨停→高开长阴→低开修复",
-			Description:  "T-2非一字收盘涨停，收盘布林20日Z值≥1.5且<3；T-1开盘相对T-2收盘≥2%，阴线实体跌幅=(开盘-收盘)/开盘≥6%；T0开盘较昨收低开2%～8%（含-8%，不含-2%）。历史达标定义为T0收盘较T0开盘上涨≥4%，日线开盘只作入场代理。",
+			Name: "涨停→高开长阴→低开修复",
+			Description: "形态条件\nT-2收盘涨停且不是一字板；布林20日Z值≥1.5且<3（包含1.5、不含3）。Z值=(T-2收盘−20日收盘均价)/20日收盘标准差，20日窗口截至T-2。\nT-1开盘较T-2收盘上涨至少2%，阴线实体跌幅=(开盘−收盘)/开盘×100%至少6%；两个下限均包含。" +
+				"\n\nT0开盘\n较T-1收盘低开，−8%≤开盘涨幅<−2%（包含−8%、不含−2%）。盘前只展示候选，竞价确认后才入选。" +
+				"\n\n统计口径\n以T0开盘价为入场参考，观察T0收盘：收盘高于开盘率指收益>0%，达标率指收益≥4%（包含4%）。这是当日价格表现，T0买入的A股不能当日卖出，也不是T+1收盘收益。历史日线开盘为入场代理，样本统计不代表实际成交。",
 			MatchHistory: matchGobZTLongBearLowOpenBollRebound,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {
@@ -249,8 +265,10 @@ func approvedGobRedRules() []redGobRule {
 		},
 		{
 			Key: "gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1", Version: 1,
-			Name:         "涨停→小阴→T0收阴收盘买入",
-			Description:  "沿用涨停→小阴线前置条件：T-2收盘涨停；T-1为阴线，收盘相对T-2收盘涨幅-2%～0%（含边界），下影线≤实体；T-2、T-1收盘分别高于MA5，T-1收盘高于MA60；T0开盘缺口0.01%～3%。T0最终收阴后以T0收盘价为入场参考，目标价为入场价上方2.5%并向上取到分；T+1现价达到目标时提示卖出。回测目标触及按T+1最高价评估，不代表实际成交。",
+			Name: "涨停→收跌0%～2%的阴线→T0收阴收盘入场",
+			Description: gobRedSmallBearHistoryDescription +
+				"\n\nT0开盘与入场\n开盘较T-1收盘上涨0.01%～3%（包含两端，平开不入选）。还须T0最终收盘严格低于开盘，以T0收盘价为入场参考；盘前、尾盘候选均不代表已确认收阴。本组合需收盘确认，当前当日竞价名单不包含它。" +
+				"\n\n统计口径\n目标价为T0收盘价×1.025，向上取整到分。目标触及率按T+1最高价≥目标价计算；T+1现价达到目标时提示卖出，不自动下单。真赚率另按T0收盘到T+1收盘收益>0%计算。触及目标不代表实际成交，也不代表T+1收盘仍盈利。",
 			MatchHistory: matchGobZTSmallBearishT1Filters,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {
@@ -263,8 +281,10 @@ func approvedGobRedRules() []redGobRule {
 		},
 		{
 			Key: "gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_t0_high_v2", Version: 2,
-			Name:         "七日深跌后低开（T−1振幅≥7.1%）",
-			Description:  "T−1收盘相对T−7收盘累计跌幅≤−22.25%；T0开盘缺口=(T0日线开盘/T−1收盘−1)×100%，−4%≤缺口<−2%；T−1振幅=(T−1最高−最低)/T−2收盘≥7.1%。盘前仅作候选，开盘后确认低开范围。历史日线开盘代理按T0最高价评估：真赚为T0盘中浮盈>0%，达标为盘中最高价相对入场价>2.5%；这表示盘中最大浮盈触及，不代表实际成交或落袋收益。",
+			Name: "七日深跌后低开（T−1振幅≥7.1%）",
+			Description: "形态条件\nT-1收盘较T-7收盘累计下跌至少22.25%（包含22.25%），按(T-1收盘/T-7收盘−1)×100%≤−22.25%判断；七个交易日日线须逐日对齐。\nT-1振幅=(T-1最高−T-1最低)/T-2收盘×100%至少7.1%（包含7.1%）。" +
+				"\n\nT0开盘\n较T-1收盘低开，−4%≤开盘涨幅<−2%（包含−4%、不含−2%）。盘前只展示候选，竞价确认后才入选。" +
+				"\n\n统计口径\n以T0开盘价为入场参考，观察T0盘中最高价。浮盈触及率指最高浮盈>0%；目标触及率指最高浮盈>2.5%（不包含2.5%）。这是盘中最大浮盈触及，不能称为已实现的真赚率。T0买入的A股不能当日卖出，历史日线最高价也不代表实际成交或落袋收益。",
 			MatchHistory: matchGobT7CloseDropAndT1Amplitude,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {

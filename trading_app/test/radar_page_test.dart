@@ -63,13 +63,88 @@ final _allRadarModules = <ModuleDefinition>[
   ),
 ];
 
-ChangeNotifierProvider<ModulePermissionController> _permissionProvider() {
+ChangeNotifierProvider<ModulePermissionController> _permissionProvider({
+  bool includeRegression = false,
+}) {
   return ChangeNotifierProvider(
-    create: (_) => ModulePermissionController.forTesting(_allRadarModules),
+    create: (_) => ModulePermissionController.forTesting([
+      ..._allRadarModules,
+      if (includeRegression)
+        const ModuleDefinition(
+          code: 'radar.red_strategy_regression',
+          name: '策略回归',
+          client: 'flutter_web',
+          placement: 'radar_tab',
+          parentCode: null,
+          sort: 13,
+          accessMode: ModuleAccessMode.userAllowlist,
+        ),
+    ]),
   );
 }
 
 void main() {
+  for (final size in [const Size(800, 600), const Size(360, 480)]) {
+    testWidgets('红策组合切换不显示常驻说明卡 $size', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      SharedPreferences.setMockInitialValues({
+        'voice_announcement_asked': true,
+      });
+      final radarVm = _NoNetworkRadarViewModel();
+      final strategyVm = _RuleHistoryT0StrategyViewModel();
+      final voiceVm = _TestVoiceAnnouncementViewModel();
+      var disposed = false;
+      void disposeVms() {
+        if (disposed) return;
+        disposed = true;
+        radarVm.dispose();
+        strategyVm.dispose();
+        voiceVm.dispose();
+      }
+
+      addTearDown(disposeVms);
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<RadarViewModel>.value(value: radarVm),
+            ChangeNotifierProvider<T0StrategyViewModel>.value(
+              value: strategyVm,
+            ),
+            ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+              value: voiceVm,
+            ),
+            _permissionProvider(includeRegression: true),
+          ],
+          child: const MaterialApp(home: RadarPage()),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('策略回归'));
+      await tester.pumpAndSettle();
+      expect(find.text('组合说明'), findsNothing);
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('四组阴线 · 0次').last);
+      await tester.pumpAndSettle();
+      expect(strategyVm.selectedRedRuleHistoryId, strategyVm.options.first.id);
+      expect(find.text(strategyVm.options.first.description), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('另一组合 · 0次'), findsNothing);
+      await tester.tap(find.text('另一组合 · 待加载').last);
+      await tester.pumpAndSettle();
+      expect(find.text(strategyVm.options.first.description), findsNothing);
+      expect(strategyVm.selectedRedRuleHistoryId, strategyVm.options.last.id);
+      expect(find.text(strategyVm.options.last.description), findsNothing);
+      expect(tester.takeException(), isNull);
+      disposeVms();
+    });
+  }
+
   testWidgets('周末策略状态显示无数据', (tester) async {
     SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
     final radarVm = RadarViewModel(RadarRepositoryImpl());
@@ -336,7 +411,7 @@ void main() {
           '买入信号': 'red',
         },
       ],
-    }, moduleCode: t0RedStrategyModuleCode);
+    }, moduleCode: t0SharedGobRedStrategyModuleCode);
 
     await tester.pumpWidget(
       MultiProvider(
@@ -361,10 +436,12 @@ void main() {
     expect(find.text('强势连板 55/80/20'), findsOneWidget);
     expect(
       find.byTooltip(
-        '自定义形态：强势连板\n'
+        'T0参考形态：强势连板\n'
+        '评判：T0开盘→T0收盘（当日价格表现）\n'
         '达标率：55%\n'
-        '真赚率：80%\n'
-        '严格胜率：70%\n'
+        '不亏率（含持平）：80%\n'
+        '正收益率：70%\n'
+        '达标为收益≥2.5%，正收益为收益>0%\n'
         '样本数：20',
       ),
       findsOneWidget,
@@ -436,6 +513,24 @@ void main() {
                 'exit_horizon': 'T+1_close',
               },
             },
+            {
+              'rule_key':
+                  'gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_t0_high_v2',
+              'rule_version': 2,
+              'name': '七日深跌后低开',
+              'entry_source': 'daily_open',
+              'exit_horizon': 'T0_high',
+              'stats_status': 'verified',
+              'stats': {
+                'sample_count': 10,
+                'profit_win_rate': 90,
+                'target_rate': 60,
+                'date_start': '2024-01-02',
+                'date_end': '2026-09-21',
+                'entry_source': 'daily_open',
+                'exit_horizon': 'T0_high',
+              },
+            },
           ],
         },
       ],
@@ -460,18 +555,22 @@ void main() {
 
     expect(find.text('双命中股'), findsOneWidget);
     expect(find.text('中阴→跌停→跌停后低开 · T+1收盘 统计待核验'), findsOneWidget);
+    expect(find.text('另一形态 · T+1收盘 真赚75.0% · 达标50.0% · 样本12'), findsOneWidget);
     expect(
-      find.text('另一形态 · T+1收盘 真赚75.0% · 达标50.0% · 样本12'),
+      find.text('七日深跌后低开 · T0盘中最高价 浮盈触及90.0% · 目标触及(>2.5%)60.0% · 样本10'),
       findsOneWidget,
     );
+    expect(find.textContaining('T0盘中最高价 真赚'), findsNothing);
     expect(find.text('旧T0形态 55/80/20'), findsOneWidget);
     expect(
       find.byTooltip(
-        '自定义形态：旧T0形态\n'
+        'T0参考形态：旧T0形态\n'
         '条件说明：T-3、T-2收盘涨停；T0开盘涨幅0.01%～3%\n'
+        '评判：T0开盘→T0收盘（当日价格表现）\n'
         '达标率：55%\n'
-        '真赚率：80%\n'
-        '严格胜率：70%\n'
+        '不亏率（含持平）：80%\n'
+        '正收益率：70%\n'
+        '达标为收益≥2.5%，正收益为收益>0%\n'
         '样本数：20',
       ),
       findsOneWidget,
@@ -1278,6 +1377,45 @@ class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
     bool archived = false,
   }) async {
     loadResultsCalls++;
+  }
+}
+
+class _RuleHistoryT0StrategyViewModel extends _NoNetworkT0StrategyViewModel {
+  final options = [
+    T0RedRuleHistoryOption(
+      ruleSource: 'gob',
+      ruleKey: 'four_groups',
+      ruleVersion: 1,
+      name: '四组阴线',
+      description:
+          '形态条件\n${List.filled(20, 'T-2收盘涨停，T-1收阴；第3组实体>0%且<3%。').join('\n')}\n\nT0开盘\n0.01%～3%，包含两端。\n\n统计口径\n按T+1收盘评判。',
+      matchCount: 0,
+    ),
+    const T0RedRuleHistoryOption(
+      ruleSource: 'gob',
+      ruleKey: 'another',
+      ruleVersion: 1,
+      name: '另一组合',
+      description: '形态条件\nT-1振幅≥7.1%。\n\nT0开盘\n−4%≤涨幅<−2%。\n\n统计口径\n仅计算盘中浮盈触及。',
+      matchCount: 0,
+      matchCountKnown: false,
+    ),
+  ];
+  String? _selectedId;
+
+  @override
+  List<T0RedRuleHistoryOption> get redRuleHistoryOptions => options;
+
+  @override
+  String? get selectedRedRuleHistoryId => _selectedId;
+
+  @override
+  Future<void> loadRedRuleHistoryOptions({bool force = false}) async {}
+
+  @override
+  Future<void> loadRedRuleHistoryStocks(T0RedRuleHistoryOption option) async {
+    _selectedId = option.id;
+    notifyListeners();
   }
 }
 

@@ -99,12 +99,13 @@ func listGobRedAvailableDates() []string {
 }
 
 type gobRedRuleHistoryOption struct {
-	RuleSource  string `json:"rule_source"`
-	RuleKey     string `json:"rule_key"`
-	RuleVersion int    `json:"rule_version"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	MatchCount  int    `json:"match_count"`
+	RuleSource      string `json:"rule_source"`
+	RuleKey         string `json:"rule_key"`
+	RuleVersion     int    `json:"rule_version"`
+	Name            string `json:"name"`
+	Description     string `json:"description,omitempty"`
+	MatchCount      int    `json:"match_count"`
+	MatchCountKnown bool   `json:"match_count_known"`
 }
 
 type gobRedRuleHistoryIndex struct {
@@ -121,6 +122,16 @@ var gobRedRuleHistoryIndexCache struct {
 }
 
 func listGobRedHistoryDatesDescending() []string {
+	seen := gobRedHistoryCacheDates()
+	addSharedGobRedSelectionDates(seen)
+	return gobRedHistoryDatesDescending(seen)
+}
+
+func listGobRedHistoryCacheDatesDescending() []string {
+	return gobRedHistoryDatesDescending(gobRedHistoryCacheDates())
+}
+
+func gobRedHistoryCacheDates() map[string]struct{} {
 	seen := make(map[string]struct{})
 	for _, source := range []struct{ dir, prefix, suffix string }{
 		{filepath.Join(t0CacheRootPath, "t0", "daily"), "t0_daily_cache_", ".gob"},
@@ -141,7 +152,10 @@ func listGobRedHistoryDatesDescending() []string {
 			}
 		}
 	}
-	addSharedGobRedSelectionDates(seen)
+	return seen
+}
+
+func gobRedHistoryDatesDescending(seen map[string]struct{}) []string {
 	dates := make([]string, 0, len(seen))
 	for date := range seen {
 		dates = append(dates, date)
@@ -186,12 +200,27 @@ func handleGobRedRuleHistory(w http.ResponseWriter, ruleSource, ruleKey, rawRule
 	}
 
 	runtimes := loadT0ReferenceRuleRuntimes()
-	replay, err := redHistoryReplayForRuntimes(runtimes)
-	if err != nil {
-		WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
-		return
+	replay := redHistoryReplayArchiveOnly
+	if ruleKey != "" && (ruleSource == redHistorySourceReference || ruleKey == redHistoryMediumBearKey) {
+		var err error
+		replay, err = redHistoryReplayForRuntimes(runtimes)
+		if err != nil {
+			WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
+			return
+		}
+		if ruleSource == redHistorySourceReference && replay == redHistoryReplayWithoutDatabase {
+			WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{
+				"error": "参考形态历史数据不可用，暂时无法回放；这不代表没有历史命中", "data_incomplete": true,
+			})
+			return
+		}
 	}
-	index := gobRedRuleHistoryIndexFor(runtimes, replay)
+	var index *gobRedRuleHistoryIndex
+	if ruleKey == "" {
+		index = gobRedRuleHistoryArchiveIndexFor(runtimes)
+	} else {
+		index = gobRedRuleHistoryIndexFor(runtimes, replay)
+	}
 
 	if ruleKey != "" {
 		identity := redHistoryIdentity{source: ruleSource, key: ruleKey, version: ruleVersion}
@@ -217,7 +246,20 @@ func gobRedRuleHistoryIndexFor(
 	runtimes []t0ReferenceRuleRuntime,
 	replay *redHistoryReplay,
 ) *gobRedRuleHistoryIndex {
-	dates := listGobRedHistoryDatesDescending()
+	return gobRedRuleHistoryIndexForDates(listGobRedHistoryDatesDescending(), replay, runtimes)
+}
+
+func gobRedRuleHistoryArchiveIndexFor(runtimes []t0ReferenceRuleRuntime) *gobRedRuleHistoryIndex {
+	return gobRedRuleHistoryIndexForDates(
+		listGobRedHistoryCacheDatesDescending(), redHistoryReplayArchiveOnly, runtimes,
+	)
+}
+
+func gobRedRuleHistoryIndexForDates(
+	dates []string,
+	replay *redHistoryReplay,
+	runtimes []t0ReferenceRuleRuntime,
+) *gobRedRuleHistoryIndex {
 	key := gobRedRuleHistoryIndexKey(dates, replay, runtimes)
 
 	gobRedRuleHistoryIndexCache.Lock()
@@ -277,6 +319,8 @@ func buildGobRedRuleHistoryIndex(
 ) *gobRedRuleHistoryIndex {
 	rules := make(map[redHistoryIdentity]*gobRedRuleHistoryOption)
 	matchesByRule := make(map[redHistoryIdentity]map[string]T0SelectionResult)
+	upgradedOpeningMatches := make(map[string]T0SelectionResult)
+	openingRule, hasOpeningRule := gobRedRuleByKey("gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3")
 	for _, rule := range approvedGobRedRules() {
 		identity := redHistoryIdentity{source: redHistorySourceGob, key: rule.Key, version: rule.Version}
 		rules[identity] = &gobRedRuleHistoryOption{
@@ -311,6 +355,9 @@ func buildGobRedRuleHistoryIndex(
 			// 打开条件列表都重新解码该日期的大型 GOB 日线缓存。
 			dateResults = archive.Results
 			dateIncomplete = !archive.Complete || archive.RuleSetVersion != currentGobRedRuleSetVersion()
+		} else if replay.archiveOnly {
+			incomplete = true
+			continue
 		} else {
 			var sourceStatus string
 			dateResults, _, sourceStatus, dateIncomplete = archivedGobRedResults(date)
@@ -325,8 +372,21 @@ func buildGobRedRuleHistoryIndex(
 		for _, result := range dateResults {
 			for _, hit := range result.RedRuleHits {
 				identity := redHistoryIdentity{source: redHistorySourceGob, key: hit.Key, version: hit.Version}
-				if _, isCurrentRule := rules[identity]; !isCurrentRule {
+				if hit.Key == "" || hit.Version < 1 {
 					continue
+				}
+				if _, exists := rules[identity]; !exists {
+					// A retired rule stays queryable under its original identity.
+					// Its matches must never be silently assigned to the current version.
+					description := hit.Description
+					if hit.Key == "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2" && hit.Version == 2 {
+						description = legacyGobZTztPbV2Description
+					}
+					rules[identity] = &gobRedRuleHistoryOption{
+						RuleSource: redHistorySourceGob, RuleKey: hit.Key, RuleVersion: hit.Version,
+						Name: fmt.Sprintf("%s（历史 v%d）", hit.Name, hit.Version), Description: description,
+					}
+					matchesByRule[identity] = make(map[string]T0SelectionResult)
 				}
 				matched := result
 				matched.RedRuleHits = []T0RedRuleHit{hit}
@@ -335,6 +395,21 @@ func buildGobRedRuleHistoryIndex(
 				if _, exists := matchesByRule[identity][key]; !exists {
 					matchesByRule[identity][key] = matched
 				}
+				if hasOpeningRule {
+					if upgraded, ok := gobRedHistoryV3OpeningHit(openingRule, result, hit); ok {
+						matched.RedRuleHits = []T0RedRuleHit{upgraded}
+						matched.DisplayRuleHits = []string{upgraded.Name}
+						upgradedOpeningMatches[key] = matched
+					}
+				}
+			}
+		}
+	}
+	if hasOpeningRule {
+		identity := redHistoryIdentity{source: redHistorySourceGob, key: openingRule.Key, version: openingRule.Version}
+		for key, result := range upgradedOpeningMatches {
+			if _, exists := matchesByRule[identity][key]; !exists {
+				matchesByRule[identity][key] = result
 			}
 		}
 	}
@@ -352,9 +427,14 @@ func buildGobRedRuleHistoryIndex(
 	options := make([]gobRedRuleHistoryOption, 0, len(rules))
 	for identity, option := range rules {
 		option.MatchCount = len(matchesByRule[identity])
+		option.MatchCountKnown = !replay.archiveOnly ||
+			(identity.source == redHistorySourceGob && identity.key != redHistoryMediumBearKey)
 		options = append(options, *option)
 	}
 	sort.Slice(options, func(i, j int) bool {
+		if options[i].MatchCountKnown != options[j].MatchCountKnown {
+			return options[i].MatchCountKnown
+		}
 		if options[i].MatchCount != options[j].MatchCount {
 			return options[i].MatchCount > options[j].MatchCount
 		}
@@ -372,6 +452,21 @@ func buildGobRedRuleHistoryIndex(
 	return &gobRedRuleHistoryIndex{
 		rules: rules, matchesByRule: matchesByRule, options: options, incomplete: incomplete,
 	}
+}
+
+// V3 retains V2's historical pattern and narrows only the opening range.
+// Recheck stored prices rather than copying the old count or rounded gap.
+// This is a read-time projection; the original V2 snapshot remains intact.
+func gobRedHistoryV3OpeningHit(rule redGobRule, result T0SelectionResult, hit T0RedRuleHit) (T0RedRuleHit, bool) {
+	if rule.Key != "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3" || rule.Version != 3 ||
+		hit.Key != "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2" || hit.Version != 2 ||
+		hit.EntryOpen <= 0 || result.PrevClose <= 0 || !rule.MatchOpen(hit.EntryOpen, result.PrevClose) {
+		return T0RedRuleHit{}, false
+	}
+	hit.Key, hit.Version = rule.Key, rule.Version
+	hit.Name, hit.Description = rule.Name, rule.Description
+	hit.Stats, hit.StatsStatus = nil, "pending"
+	return hit, true
 }
 
 func redHistoryResults(byDate map[string]T0SelectionResult) []T0SelectionResult {

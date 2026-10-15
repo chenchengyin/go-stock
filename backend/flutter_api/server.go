@@ -319,11 +319,13 @@ func Start() {
 
 	// 交易日收盘后增量更新共享红策 GOB，保持日期列表和内存日线同步。
 	go func() {
+		runSharedGobRedConfirmationTick(time.Now())
 		runMainboardSharedGobRefreshTick(time.Now())
 
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 		for tick := range ticker.C {
+			runSharedGobRedConfirmationTick(tick)
 			runMainboardSharedGobRefreshTick(tick)
 		}
 	}()

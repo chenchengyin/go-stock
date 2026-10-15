@@ -773,6 +773,9 @@ func tryStartT0Prewarm(tradeDate string) (started bool, progress t0WarmProgress)
 		return false, t0WarmProgress{Status: t0WarmStatusIdle}
 	}
 	cacheReady := isT0DailyCacheFilePresent(tradeDate)
+	if tradeDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
+		cacheReady = cacheReady && sharedGobRedHistoryReady(tradeDate)
+	}
 	t0WarmMu.Lock()
 	if cacheReady {
 		p := t0WarmByDate[tradeDate]
@@ -1137,6 +1140,8 @@ type t0Realtime struct {
 	Close     float64 // 当前价
 	PrevClose float64
 	Source    string
+	TradeDate string
+	Volume    float64
 }
 
 func freshT0RealtimeQuote(code, tradeDate string, now time.Time) (t0Realtime, bool) {
@@ -1147,6 +1152,10 @@ func freshT0RealtimeQuote(code, tradeDate string, now time.Time) (t0Realtime, bo
 		return t0Realtime{}, false
 	}
 	if entry.TradeDate != tradeDate || now.Before(entry.FetchedAt) || !now.Before(entry.FetchedAt.Add(t0RealtimeQuoteCacheTTL)) {
+		delete(t0RealtimeQuoteCache, code)
+		return t0Realtime{}, false
+	}
+	if !isBeforeT0AuctionCutoff(now, tradeDate) && isBeforeT0AuctionCutoff(entry.FetchedAt, tradeDate) {
 		delete(t0RealtimeQuoteCache, code)
 		return t0Realtime{}, false
 	}
@@ -1859,6 +1868,14 @@ func fetchT0RealtimeTHS(stocks []t0Stock, now time.Time) map[string]t0Realtime {
 
 // ── Tencent realtime fallback ────────────────────────────────────────────────
 
+func validTencentT0QuoteTimestamp(stamp string, now time.Time) bool {
+	local := now.In(chinaLocation())
+	if len(stamp) < 14 || stamp[:8] != local.Format("20060102") {
+		return false
+	}
+	return isBeforeT0AuctionCutoff(local, local.Format("2006-01-02")) || stamp[8:14] >= "092500"
+}
+
 func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
 	if len(stocks) == 0 {
 		return nil
@@ -1906,7 +1923,7 @@ func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
 			}
 			// 格式: v_sh600000="1~平安银行~000001~..."
 			parts := strings.Split(line, "~")
-			if len(parts) < 6 {
+			if len(parts) <= 30 || !validTencentT0QuoteTimestamp(parts[30], time.Now()) {
 				continue
 			}
 			eqPos := strings.Index(parts[0], `="`)
@@ -1929,6 +1946,8 @@ func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
 				PrevClose: parse(parts[4]),
 				Open:      parse(parts[5]),
 				Source:    "tencent",
+				TradeDate: time.Now().In(chinaLocation()).Format("2006-01-02"),
+				Volume:    parse(parts[6]),
 			}
 			// 腾讯API：当前价=0时使用开盘价
 			if rt.Close == 0 && rt.Open > 0 {
@@ -2543,6 +2562,16 @@ func writeScopedT0ResponseWithContext(
 	ctx *t0ModuleSelectionContext,
 	fields ...string,
 ) {
+	if err := prepareScopedT0ResponseWithContext(moduleCode, response, ctx, fields...); err != nil {
+		WriteAuthError(w, err)
+		return
+	}
+	WriteJSON(w, response)
+}
+
+func prepareScopedT0ResponseWithContext(
+	moduleCode string, response map[string]interface{}, ctx *t0ModuleSelectionContext, fields ...string,
+) error {
 	if moduleCode == redT0StrategyModuleCode {
 		if responseDate, ok := response["date"].(string); ok &&
 			responseDate == time.Now().In(chinaLocation()).Format("2006-01-02") {
@@ -2556,8 +2585,7 @@ func writeScopedT0ResponseWithContext(
 	}
 	for _, field := range fields {
 		if err := scopeT0ResponseResultsWithContext(moduleCode, response, field, ctx); err != nil {
-			WriteAuthError(w, err)
-			return
+			return err
 		}
 		if ctx == nil {
 			enrichT0ResponseFieldForDisplay(response, field)
@@ -2577,13 +2605,13 @@ func writeScopedT0ResponseWithContext(
 			continue
 		}
 		displayed := enrichT0ResultsForDisplayWithDailyForModule(
-			results, ctx.Daily, ctx.TradeDate, moduleCode)
+			results, ctx.Daily, ctx.TradeDate, moduleCode, ctx.OpenGaps)
 		if isRedT0StrategyModule(moduleCode) {
 			displayed = enrichGobRedRuleStats(displayed)
 		}
 		response[field] = displayed
 	}
-	WriteJSON(w, response)
+	return nil
 }
 
 func enrichT0ResponseFieldForDisplay(response map[string]interface{}, field string) {
@@ -2719,7 +2747,13 @@ func handleT0Selection(w http.ResponseWriter, r *http.Request) {
 			}
 			dates = sharedGobRedDatesDescendingAt(shared, time.Now())
 			response["dates"] = dates
-			response["generated_at"] = shared.Snapshot.GeneratedAt
+			revision := shared.Snapshot.GeneratedAt
+			if len(dates) > 0 {
+				if confirmed, found, err := loadSharedGobRedConfirmation(dates[0]); err == nil && found {
+					revision += "|" + fmt.Sprint(confirmed["confirmed_at"])
+				}
+			}
+			response["generated_at"] = revision
 		}
 		WriteJSON(w, response)
 		return

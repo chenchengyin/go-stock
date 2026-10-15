@@ -2,6 +2,7 @@ package flutter_api
 
 import (
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,6 +29,10 @@ var (
 	mainboardSharedGobUpdate sync.Mutex
 	mainboardSharedGob       *mainboardSharedGobData
 )
+
+var sharedGobDailyFetcher = fetchAllDailyKLine
+var sharedGobRedQuoteBuilder = buildSharedGobRedAuctionQuotes
+var sharedGobRedLiveQuoteFetcher = fetchT0RealtimeTencent
 
 func loadMainboardSharedGob() (*mainboardSharedGobData, error) {
 	mainboardSharedGobMu.RLock()
@@ -179,6 +184,22 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 
 	endDate := t0DailyFetchEndDate(tradeDate)
 	daily, missing := sharedGobDailyForStocks(shared, stocks, endDate, nil)
+	priorDate := ""
+	if tradeDate == today {
+		priorDate, err = sharedGobRequiredPriorDate(tradeDate)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		missingSet := make(map[string]bool, len(missing))
+		for _, stock := range missing {
+			missingSet[stock.ShortCode] = true
+		}
+		for _, stock := range stocks {
+			if !missingSet[stock.ShortCode] && !sharedGobStockHistoryCurrent(shared, stock.ShortCode, daily[stock.ShortCode], tradeDate, priorDate) {
+				missing = append(missing, stock)
+			}
+		}
+	}
 	local := time.Now().In(chinaLocation())
 	if tradeDate == local.Format("2006-01-02") &&
 		local.Hour()*60+local.Minute() >= mainboardSharedGobRefreshStartMinute {
@@ -197,9 +218,18 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 			missing = append(missing, stock)
 		}
 	}
-	fallback := fetchAllDailyKLine(missing, endDate, nil)
+	fetchEndDate := endDate
+	if priorDate != "" && local.Hour()*60+local.Minute() < mainboardSharedGobRefreshStartMinute {
+		fetchEndDate = priorDate
+	}
+	fallback := sharedGobDailyFetcher(missing, fetchEndDate, nil)
+	freshClosed := make(map[string]bool, len(fallback))
 	for code, bars := range fallback {
-		daily[code] = bars
+		freshClosed[code] = priorDate != "" && containsSharedGobBarDate(bars, priorDate)
+		// Preserve the full historical GOB when fetching a short recent tail.
+		bars = mergeMainboardSharedGobBars(shared.Daily[code], bars)
+		fallback[code] = bars
+		daily[code] = dailyBarsOnOrBefore(bars, endDate)
 	}
 	if len(daily) == 0 {
 		return nil, nil, false, fmt.Errorf("共享日线GOB和缺失股票回退都没有可用日线")
@@ -207,6 +237,7 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 
 	if updated || len(fallback) > 0 {
 		snapshot := shared.Snapshot
+		snapshot.ClosedDailyDates = copySharedGobClosedDates(shared.Snapshot.ClosedDailyDates)
 		snapshot.Daily = make(map[string][]MainboardFloatCap50Bar, len(shared.Daily)+len(fallback))
 		for code, bars := range shared.Daily {
 			snapshot.Daily[code] = bars
@@ -231,6 +262,9 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 		}
 		for code, bars := range fallback {
 			snapshot.Daily[code] = mergeMainboardSharedGobBars(snapshot.Daily[code], bars)
+			if freshClosed[code] && snapshot.ClosedDailyDates[code] < priorDate {
+				snapshot.ClosedDailyDates[code] = priorDate
+			}
 		}
 		if dates := mainboardSharedGobDates(snapshot.Daily); len(dates) > 0 {
 			snapshot.EndDate = dates[len(dates)-1]
@@ -245,6 +279,33 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 		mainboardSharedGobMu.Lock()
 		mainboardSharedGob = loaded
 		mainboardSharedGobMu.Unlock()
+		shared = loaded
+	}
+	if priorDate != "" {
+		staleStocks := []t0Stock{}
+		for _, stock := range stocks {
+			if !sharedGobStockHistoryCurrent(shared, stock.ShortCode, daily[stock.ShortCode], tradeDate, priorDate) {
+				staleStocks = append(staleStocks, stock)
+			}
+		}
+		excluded := sharedGobNonTradingHistoryVerifier(staleStocks, daily, tradeDate, priorDate)
+		sharedGobPriorDateCache.Lock()
+		sharedGobPriorDateCache.excluded[tradeDate] = excluded
+		sharedGobPriorDateCache.Unlock()
+		if missing := len(staleStocks) - len(excluded); missing > 0 {
+			return nil, nil, false, fmt.Errorf("%s日线尚未补齐至前一交易日%s，缺少%d只，稍后重试", tradeDate, priorDate, missing)
+		}
+		if len(excluded) > 0 {
+			active := make([]t0Stock, 0, len(stocks)-len(excluded))
+			for _, stock := range stocks {
+				if excluded[stock.ShortCode] == "" {
+					active = append(active, stock)
+				} else {
+					delete(daily, stock.ShortCode)
+				}
+			}
+			stocks = active
+		}
 	}
 	return stocks, daily, !updated && len(fallback) == 0, nil
 }
@@ -278,7 +339,7 @@ func sharedGobRedDatesDescendingAt(data *mainboardSharedGobData, now time.Time) 
 	dates := sharedGobRedDatesDescending(data)
 	today := now.In(chinaLocation()).Format("2006-01-02")
 	// shortcut: weekday only; use an exchange-session calendar when one is available here.
-	if isT0WeekendDate(today) || isBeforeT0AuctionCutoff(now, today) {
+	if isT0WeekendDate(today) {
 		return dates
 	}
 	if len(dates) == 0 || dates[0] != today {
@@ -329,11 +390,25 @@ func buildSharedGobRedAuctionQuotes(
 	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar,
 ) (map[string]t0Realtime, string, *t0DataWarning) {
 	if tradeDate >= time.Now().In(chinaLocation()).Format("2006-01-02") {
-		quotes, _, warning := buildT0AuctionQuotes(tradeDate, stocks, daily)
-		if warning != nil {
-			warning.Source = "realtime_open"
+		// The THS daily bar has a date but no quote time. The first complete
+		// post-09:25 result is permanent, so require Tencent's timestamped quote.
+		live := sharedGobRedLiveQuoteFetcher(stocks)
+		quotes := make(map[string]t0Realtime, len(live))
+		for _, stock := range stocks {
+			quote, ok := live[stock.ShortCode]
+			if ok && quote.Source == "tencent" && quote.TradeDate == tradeDate &&
+				quote.Open > 0 && quote.PrevClose > 0 {
+				quotes[stock.ShortCode] = quote
+			}
 		}
-		return quotes, "realtime_open", warning
+		if missing := len(stocks) - len(quotes); missing > 0 {
+			return quotes, "realtime_open", &t0DataWarning{
+				Code: "T0_AUCTION_DATA_INCOMPLETE", Phase: "auction", Source: "realtime_open",
+				Message:  fmt.Sprintf("竞价开盘数据不完整，缺少%d只有时间戳的股票报价", missing),
+				Expected: len(stocks), Actual: len(quotes), Missing: missing,
+			}
+		}
+		return quotes, "realtime_open", nil
 	}
 	const entrySource = "daily_open"
 	quotes := make(map[string]t0Realtime, len(stocks))
@@ -357,7 +432,7 @@ func buildSharedGobRedAuctionQuotes(
 	}
 }
 
-func handleSharedGobRedSelection(w http.ResponseWriter, requestedDate string) {
+func handleSharedGobRedSelectionUnconfirmed(w http.ResponseWriter, requestedDate string) {
 	shared, err := loadMainboardSharedGob()
 	if err != nil {
 		WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{
@@ -397,7 +472,8 @@ func handleSharedGobRedSelection(w http.ResponseWriter, requestedDate string) {
 		return
 	}
 
-	stocks, daily := shared.Stocks, shared.Daily
+	var stocks []t0Stock
+	var daily map[string][]dailyBar
 	if tradeDate == today || len(shared.SelectionPools[tradeDate]) > 0 {
 		stocks, daily, _, err = loadOrFetchSharedGobT0Daily(tradeDate)
 		if err != nil {
@@ -406,6 +482,22 @@ func handleSharedGobRedSelection(w http.ResponseWriter, requestedDate string) {
 			})
 			return
 		}
+		shared, _ = loadMainboardSharedGob()
+	} else {
+		// The shared GOB's Stocks is the current float-cap pool. Historical
+		// selections must use the pool captured for that trade date.
+		cache, ok := readT0DailyCachePayloadFromDisk(tradeDate)
+		if !ok || !cache.StockPoolComplete {
+			WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{
+				"date": tradeDate, "data_incomplete": true,
+				"error": "缺少当日完整股票池，无法可靠回算历史红策名单",
+			})
+			return
+		}
+		stocks = cache.Stocks
+		// Dated caches preserve the point-in-time pool, but many were captured
+		// before the T0 bar existed. Use the shared GOB's dated bars for pricing.
+		daily, _ = sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), cache.Daily)
 	}
 
 	hist := make(map[string][]dailyBar, len(daily))
@@ -426,7 +518,24 @@ func handleSharedGobRedSelection(w http.ResponseWriter, requestedDate string) {
 	if warning := buildT0TurnoverWarning(limitUp, hist); warning != nil {
 		warnings = append(warnings, *warning)
 	}
-	quotes, _, quoteWarning := buildSharedGobRedAuctionQuotes(tradeDate, turnover, daily)
+	// Legacy and independent red rules must share one opening-quote snapshot.
+	quoteStocks := append([]t0Stock(nil), turnover...)
+	seen := make(map[string]bool, len(quoteStocks))
+	for _, stock := range quoteStocks {
+		seen[stock.ShortCode] = true
+	}
+	if tradeDate == today && !seen["600000"] {
+		quoteStocks = append(quoteStocks, t0Stock{Code: "sh.600000", ShortCode: "600000", Name: "浦发银行"})
+		seen["600000"] = true
+	}
+	for _, candidate := range buildGobRedPreopenCandidates(tradeDate, stocks, daily, approvedGobRedRules()) {
+		code := t0ShortCodeFromResultCode(candidate.StockCode)
+		if !seen[code] {
+			quoteStocks = append(quoteStocks, resultsToT0Stocks([]T0SelectionResult{candidate})...)
+			seen[code] = true
+		}
+	}
+	quotes, _, quoteWarning := sharedGobRedQuoteBuilder(tradeDate, quoteStocks, daily)
 	if quoteWarning != nil {
 		warnings = append(warnings, *quoteWarning)
 	}
@@ -443,20 +552,74 @@ func handleSharedGobRedSelection(w http.ResponseWriter, requestedDate string) {
 	}
 	sort.Slice(results, func(i, j int) bool { return results[i].OpenGap > results[j].OpenGap })
 
-	independent, redWarnings := selectGobRedFromSharedPool(
-		tradeDate, stocks, daily, latestGobPriorDate(tradeDate, daily))
+	rules := approvedGobRedRules()
+	if tradeDate == today {
+		openingRules := make([]redGobRule, 0, len(rules))
+		for _, rule := range rules {
+			if !rule.RequireT0BearClose {
+				openingRules = append(openingRules, rule)
+			}
+		}
+		rules = openingRules
+	}
+	independent, redWarnings := selectGobRedFromPoolWithRules(
+		tradeDate, stocks, daily, latestGobPriorDate(tradeDate, daily), rules,
+		func(_ string, _ []t0Stock, _ map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning) {
+			if tradeDate == today {
+				return quotes, "realtime_open", nil
+			}
+			return quotes, "daily_open", nil
+		})
 	warnings = append(warnings, redWarnings...)
 	ctx := &t0ModuleSelectionContext{
-		TradeDate: tradeDate, Daily: daily, Independent: independent,
+		TradeDate: tradeDate, Daily: daily, Independent: independent, OpenGaps: gaps,
 	}
 	response := map[string]interface{}{
 		"date": tradeDate, "count": len(results), "results": results, "source": "shared_gob",
+	}
+	if tradeDate != today {
+		response["archived"] = true
 	}
 	if len(warnings) > 0 {
 		response["data_incomplete"] = true
 		attachT0DataWarnings(response, warnings)
 	}
-	writeScopedT0ResponseWithContext(w, sharedGobRedStrategyModuleCode, response, ctx, "results")
+	if tradeDate != today {
+		writeScopedT0ResponseWithContext(w, sharedGobRedStrategyModuleCode, response, ctx, "results")
+		return
+	}
+	if len(warnings) > 0 {
+		response["status"] = "warming"
+		response["confirmed"] = false
+		response["results"] = []T0SelectionResult{}
+		response["count"] = 0
+		WriteJSON(w, response)
+		return
+	}
+	if err := prepareScopedT0ResponseWithContext(sharedGobRedStrategyModuleCode, response, ctx, "results"); err != nil {
+		WriteAuthError(w, err)
+		return
+	}
+	now := time.Now().In(chinaLocation()).Format(time.RFC3339)
+	response["confirmed"] = true
+	response["confirmed_at"] = now
+	response["history_date"] = latestGobPriorDate(tradeDate, daily)
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"error": err.Error()})
+		return
+	}
+	confirmed, err := saveSharedGobRedConfirmation(sharedGobRedConfirmation{
+		SchemaVersion: 1, Date: tradeDate, ConfirmedAt: now,
+		HistoryDate: latestGobPriorDate(tradeDate, daily), GobGeneratedAt: shared.Snapshot.GeneratedAt,
+		RuleSetVersion: currentGobRedRuleSetVersion(), Quotes: quotes, Response: encoded,
+		ExcludedStocks: sharedGobRedExcludedStocks(tradeDate),
+	})
+	if err != nil {
+		WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{"date": tradeDate, "error": "红策确认名单未保存: " + err.Error()})
+		return
+	}
+	WriteJSON(w, confirmed)
 }
 
 func buildSharedGobTradeDateWarning(

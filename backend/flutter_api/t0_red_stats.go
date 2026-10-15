@@ -444,15 +444,23 @@ func enrichGobRedRuleStats(results []T0SelectionResult) []T0SelectionResult {
 	}
 	descriptions := make(map[gobRedRuleStatScope]string)
 	descriptions[gobRedRuleStatScope{ruleKey: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v1", ruleVersion: 1}] = legacyGobZTztPbV1Description
+	descriptions[gobRedRuleStatScope{ruleKey: "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v2", ruleVersion: 2}] = legacyGobZTztPbV2Description
+	currentRules := make(map[gobRedRuleStatScope]redGobRule)
 	for _, rule := range approvedGobRedRules() {
-		descriptions[gobRedRuleStatScope{ruleKey: rule.Key, ruleVersion: rule.Version}] = rule.Description
+		scope := gobRedRuleStatScope{ruleKey: rule.Key, ruleVersion: rule.Version}
+		descriptions[scope] = rule.Description
+		currentRules[scope] = rule
 	}
 	keys := make(map[string]struct{})
 	for i := range out {
 		for j := range out[i].RedRuleHits {
 			hit := &out[i].RedRuleHits[j]
-			if hit.Description == "" {
-				hit.Description = descriptions[gobRedRuleStatScope{ruleKey: hit.Key, ruleVersion: hit.Version}]
+			scope := gobRedRuleStatScope{ruleKey: hit.Key, ruleVersion: hit.Version}
+			if rule, ok := currentRules[scope]; ok {
+				hit.Name = rule.Name
+				hit.Description = rule.Description
+			} else if hit.Description == "" {
+				hit.Description = descriptions[scope]
 			}
 		}
 	}

@@ -34,6 +34,8 @@ type MainboardFloatCap50Gob struct {
 	Daily               map[string][]MainboardFloatCap50Bar
 	// SelectionPools preserves each T0 universe captured after cutover.
 	SelectionPools map[string][]MainboardT0PoolStock
+	// Per-symbol completion witness; a bar bearing today's date may still be intraday.
+	ClosedDailyDates map[string]string
 }
 
 // MainboardT0PoolStock stores the exact market-cap-filtered pool used for a T0 day.

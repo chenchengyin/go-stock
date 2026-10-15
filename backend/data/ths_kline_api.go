@@ -54,6 +54,7 @@ type thsKLineResponse struct {
 
 type THSRealtimeDailyQuote struct {
 	Date      string
+	PrevDate  string
 	Open      float64
 	Price     float64
 	PrevClose float64
@@ -85,7 +86,7 @@ func parseTHSRealtimeDailyQuote(rows []KLineData, tradeDate string) (THSRealtime
 		if priceErr != nil || price <= 0 {
 			price = open
 		}
-		return THSRealtimeDailyQuote{Date: tradeDate, Open: open, Price: price, PrevClose: prevClose}, true
+		return THSRealtimeDailyQuote{Date: tradeDate, PrevDate: rows[i-1].Day, Open: open, Price: price, PrevClose: prevClose}, true
 	}
 	return THSRealtimeDailyQuote{}, false
 }

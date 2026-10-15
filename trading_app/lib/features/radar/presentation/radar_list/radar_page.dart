@@ -589,7 +589,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                     (option) => DropdownMenuItem<String>(
                       value: option.id,
                       child: Text(
-                        '${option.name} · ${option.matchCount}次',
+                        option.matchCountKnown
+                            ? '${option.name} · ${option.matchCount}次'
+                            : '${option.name} · 待加载',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -608,14 +610,6 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                     },
             ),
           ),
-          if (vm.redRuleHistoryIncomplete)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Text(
-                '历史覆盖不完整；已列出当前全部红策规则，次数按可用数据统计',
-                style: TextStyle(fontSize: 12, color: AppColors.warning),
-              ),
-            ),
           Expanded(
             child: vm.redRuleHistoryOptionsLoading && options.isEmpty
                 ? Center(
@@ -625,7 +619,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                         const CircularProgressIndicator(),
                         const SizedBox(height: 16),
                         Text(
-                          '正在汇总历史归档，首次加载可能需要几秒',
+                          '正在读取条件列表，历史命中按所选条件加载',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textTertiary,
@@ -689,7 +683,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                 : stocks.isEmpty
                 ? Center(
                     child: Text(
-                      '暂无符合该条件的历史股票',
+                      vm.redRuleHistoryIncomplete
+                          ? '历史数据尚不完整，当前可用数据中暂未查到命中'
+                          : '暂无符合该条件的历史股票',
                       style: TextStyle(
                         fontSize: 14,
                         color: AppColors.textTertiary,
@@ -1761,11 +1757,13 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ? ''
             : '条件说明：${hit.description}\n';
         final message =
-            '自定义形态：${hit.name}\n'
+            'T0参考形态：${hit.name}\n'
             '$explanation'
+            '评判：T0开盘→T0收盘（当日价格表现）\n'
             '达标率：${hasStats ? '${hit.targetRate.round()}%' : '—'}\n'
-            '真赚率：${hasStats ? '${hit.earnRate.round()}%' : '—'}\n'
-            '严格胜率：${hasStats ? '${hit.strictWinRate.round()}%' : '—'}\n'
+            '不亏率（含持平）：${hasStats ? '${hit.earnRate.round()}%' : '—'}\n'
+            '正收益率：${hasStats ? '${hit.strictWinRate.round()}%' : '—'}\n'
+            '达标为收益≥2.5%，正收益为收益>0%\n'
             '样本数：${hit.sampleCount}';
         return Tooltip(
           message: message,
@@ -1853,10 +1851,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     if (group == null) return '命中分组：当前日线未能匹配';
 
     final groupRule = switch (group) {
-      1 => '开盘2%～4%、收盘-5%～-2%、实体5%～8%',
-      2 => '开盘4%～6%、收盘-2%～0%、实体5%～8%',
-      3 => '开盘2%～4%、收盘-2%～0%、实体0%～3%',
-      _ => '开盘6%～10%、收盘0%～2%、实体5%～8%',
+      1 => '开盘≥2%且<4%、收盘≥-5%且<-2%、实体≥5%且<8%',
+      2 => '开盘≥4%且<6%、收盘≥-2%且<0%、实体≥5%且<8%',
+      3 => '开盘≥2%且<4%、收盘≥-2%且<0%、实体>0%且<3%',
+      _ => '开盘≥6%且<10%、收盘≥0%且<2%、实体≥5%且<8%',
     };
     String formatPct(double value) =>
         '${value >= 0 ? "+" : ""}${value.toStringAsFixed(2)}%';
@@ -1901,9 +1899,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             : hit.exitHorizon == 'T+1_target_2_5'
             ? '\n口径：目标触及率按T+1日线最高价计算；真赚率按T+1收盘价计算，不代表实际成交'
             : '';
-        final profitLabel = hit.exitHorizon == 'T0_close' ? '收盘高于开盘' : '真赚';
+        final profitLabel = hit.exitHorizon == 'T0_high'
+            ? '浮盈触及'
+            : hit.exitHorizon == 'T0_close'
+            ? '收盘高于开盘'
+            : '真赚';
         final targetLabel = hit.targetReturnPct > 0
             ? '达标(≥${hit.targetReturnPct.toStringAsFixed(0)}%)'
+            : hit.exitHorizon == 'T0_high'
+            ? '目标触及(>2.5%)'
+            : hit.exitHorizon == 'T+1_target_2_5'
+            ? '目标触及'
             : '达标';
         final source = hit.entrySource == 'daily_open'
             ? '日线开盘代理'
@@ -1929,11 +1935,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
           window: redKlineWindow,
           selectedDate: selectedDate,
         );
-        final explanation = hitSummary != null
-            ? '命中情况：$hitSummary\n'
-            : hit.description.isEmpty
-            ? ''
-            : '条件说明：${hit.description}\n';
+        final explanation =
+            '${hit.description.isEmpty ? '' : '条件说明：${hit.description}\n'}'
+            '${hitSummary == null ? '' : '命中情况：$hitSummary\n'}';
         final message = verified
             ? '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
                   '$profitLabel率：${stats.profitWinRate.toStringAsFixed(1)}%\n'

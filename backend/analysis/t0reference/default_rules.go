@@ -2,6 +2,10 @@ package t0reference
 
 import "encoding/json"
 
+const redReferenceAdmissionDescription = "\n\n红策入选前提\n近7个交易日有收盘涨停，或T-1涨停破板；T-1成交额至少5亿元。"
+
+const redReferenceStatsDescription = "\n\n统计口径\n以T0开盘价为入场参考，观察T0收盘：正收益率指收益>0%，不亏率指收益≥0%（包含持平），达标率指收益≥2.5%。这是当日价格表现，T0买入的A股不能当日卖出，也不是T+1收盘收益。历史日线开盘为入场代理，样本统计不代表实际成交。"
+
 const (
 	RuleNameStrongContinuation          = "强势连板"
 	RuleNameLimitUpLimitDownReversal    = "涨跌停反转"
@@ -45,9 +49,10 @@ func DefaultRuleDefinitions() []RuleDefinition {
 	entry := `{"field":"entry_gap","op":"between","min":0.01,"max":2.0,"inclusive":true}`
 	return []RuleDefinition{
 		{
-			RuleKind:          "condition",
-			Name:              RuleNameStrongContinuation,
-			Description:       "T-2、T-1均收盘涨停，且都不是一字板；T-1开盘涨幅≥7%；T0开盘涨幅0.01%～3%（含边界）。",
+			RuleKind: "condition",
+			Name:     RuleNameStrongContinuation,
+			Description: "形态条件\nT-2、T-1连续收盘涨停，两天都不是一字板。T-1开盘较T-2收盘上涨至少7%（包含7%）。" +
+				redReferenceAdmissionDescription + "\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。" + redReferenceStatsDescription,
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-2.close_type","op":"eq","value":"ZT"},
@@ -60,9 +65,10 @@ func DefaultRuleDefinitions() []RuleDefinition {
 			ManualRank: 5, MinSamples: 10, RedEntry: true,
 		},
 		{
-			RuleKind:          "condition",
-			Name:              RuleNameLimitUpLimitDownReversal,
-			Description:       "T-2收盘涨停、非一字板，且实体涨幅=(收盘-开盘)/昨收≥5%；T-1收盘跌停；T0开盘涨幅0.01%～3%（含边界）。",
+			RuleKind: "condition",
+			Name:     RuleNameLimitUpLimitDownReversal,
+			Description: "形态条件\nT-2收盘涨停且不是一字板；阳线实体涨幅至少5%（包含5%），按(T-2收盘−T-2开盘)/T-3收盘×100%计算。T-1收盘跌停。" +
+				redReferenceAdmissionDescription + "\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。" + redReferenceStatsDescription,
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-2.close_type","op":"eq","value":"ZT"},
@@ -74,9 +80,10 @@ func DefaultRuleDefinitions() []RuleDefinition {
 			ManualRank: 15, MinSamples: 10, RedEntry: true,
 		},
 		{
-			RuleKind:          "condition",
-			Name:              RuleNameAnyLimitUpLimitDown,
-			Description:       "T-2收盘涨停、T-1收盘跌停，T-3不限；T0开盘涨幅0.01%～3%（含边界）。",
+			RuleKind: "condition",
+			Name:     RuleNameAnyLimitUpLimitDown,
+			Description: "形态条件\nT-3形态不限；T-2收盘涨停，T-1收盘跌停。T-2可以是一字板，也不要求实体涨幅达到5%；可与“涨跌停反转”同时命中。" +
+				redReferenceAdmissionDescription + "\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。" + redReferenceStatsDescription,
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-2.close_type","op":"eq","value":"ZT"},
@@ -86,9 +93,10 @@ func DefaultRuleDefinitions() []RuleDefinition {
 			ManualRank: 20, MinSamples: 10, RedEntry: true,
 		},
 		{
-			RuleKind:          "condition",
-			Name:              RuleNameMediumYangLimitDown,
-			Description:       "T-2为中阳或大阳线，T-1收盘跌停；T0开盘涨幅0.01%～0.75%（含边界）。",
+			RuleKind: "condition",
+			Name:     RuleNameMediumYangLimitDown,
+			Description: "形态条件\nT-2为中阳或大阳，T-1收盘跌停。阳线实体按(收盘−开盘)/前收盘×100%计算：中阳>2.5%且≤6%，大阳>6%；涨停、跌停或破板不计入这里的中阳/大阳。" +
+				redReferenceAdmissionDescription + "\n\nT0开盘\n较T-1收盘上涨0.01%～0.75%，包含两端；平开不入选。" + redReferenceStatsDescription,
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"any":[
@@ -101,9 +109,10 @@ func DefaultRuleDefinitions() []RuleDefinition {
 			ManualRank: 30, MinSamples: 10, RedEntry: true,
 		},
 		{
-			RuleKind:          "condition",
-			Name:              RuleNameBullishZtZtPb,
-			Description:       "T-3、T-2收盘涨停；T-1破板且收盘高于开盘；T0开盘涨幅0.01%～3%（含边界）。",
+			RuleKind: "condition",
+			Name:     RuleNameBullishZtZtPb,
+			Description: "形态条件\nT-3、T-2连续收盘涨停；T-1涨停破板，并且收盘价严格高于开盘价（必须收阳，收平不算）。本组合没有振幅6%～10%或下影≤1%的额外限制。" +
+				redReferenceAdmissionDescription + "\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。" + redReferenceStatsDescription,
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-3.close_type","op":"eq","value":"ZT"},
@@ -115,9 +124,10 @@ func DefaultRuleDefinitions() []RuleDefinition {
 			ManualRank: 40, MinSamples: 10, RedEntry: true,
 		},
 		{
-			RuleKind:          "condition",
-			Name:              RuleNameZtZtBearish,
-			Description:       "T-3、T-2收盘涨停；T-1收阴，收盘相对T-2收盘涨幅-2%～3%（含边界），实体跌幅相对T-2收盘严格大于0%、小于8%；T0开盘涨幅0.01%～3%（含边界）。",
+			RuleKind: "condition",
+			Name:     RuleNameZtZtBearish,
+			Description: "形态条件\nT-3、T-2连续收盘涨停；T-1收盘低于开盘。T-1收盘较T-2收盘涨幅为−2%～3%（包含两端）；阴线实体跌幅=(T-1开盘−T-1收盘)/T-2收盘×100%，严格大于0%、小于8%（不含两端）。不再额外限定为小阴或中阴。" +
+				redReferenceAdmissionDescription + "\n\nT0开盘\n较T-1收盘上涨0.01%～3%，包含两端；平开不入选。" + redReferenceStatsDescription,
 			DefinitionVersion: "v1",
 			ConditionJSON: `{"all":[
 {"field":"t-3.close_type","op":"eq","value":"ZT"},

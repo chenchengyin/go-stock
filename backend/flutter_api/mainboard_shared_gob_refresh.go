@@ -120,6 +120,7 @@ func mainboardSharedGobProviderHasDate(current *mainboardSharedGobData, date str
 
 func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate string, now time.Time, indices []int) (int, int, error) {
 	next := current.Snapshot
+	next.ClosedDailyDates = copySharedGobClosedDates(current.Snapshot.ClosedDailyDates)
 	next.Stocks = append([]MainboardFloatCap50Stock(nil), current.Snapshot.Stocks...)
 	next.Daily = make(map[string][]MainboardFloatCap50Bar, len(current.Daily))
 	for code, bars := range current.Daily {
@@ -185,6 +186,9 @@ func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate strin
 			continue
 		}
 		next.Daily[stock.Code] = merged
+		if stockHasTargetBar {
+			next.ClosedDailyDates[stock.Code] = targetDate
+		}
 		stock.KLineSource = result.source
 		stock.BarCount = len(merged)
 		stock.FirstDate = merged[0].Date
@@ -214,6 +218,7 @@ func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate strin
 		}
 		if containsSharedGobBarDate(bars, targetDate) {
 			targetBars++
+			next.ClosedDailyDates[stock.Code] = targetDate
 		} else {
 			missing++
 		}
@@ -246,7 +251,7 @@ func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate strin
 func mainboardSharedGobPendingIndices(current *mainboardSharedGobData, targetDate string) []int {
 	indices := make([]int, 0)
 	for i, stock := range current.Snapshot.Stocks {
-		if !containsSharedGobBarDate(current.Daily[stock.Code], targetDate) {
+		if !containsSharedGobBarDate(current.Daily[stock.Code], targetDate) || current.Snapshot.ClosedDailyDates[stock.Code] < targetDate {
 			indices = append(indices, i)
 		}
 	}
@@ -260,7 +265,7 @@ func mainboardSharedGobPendingSelectionPool(current *mainboardSharedGobData, tar
 	}
 	pending := make([]MainboardT0PoolStock, 0)
 	for _, stock := range current.Snapshot.SelectionPools[targetDate] {
-		if _, exists := baseCodes[stock.Code]; exists || containsSharedGobBarDate(current.Daily[stock.Code], targetDate) {
+		if _, exists := baseCodes[stock.Code]; exists || (containsSharedGobBarDate(current.Daily[stock.Code], targetDate) && current.Snapshot.ClosedDailyDates[stock.Code] >= targetDate) {
 			continue
 		}
 		pending = append(pending, stock)

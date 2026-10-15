@@ -26,3 +26,12 @@ func TestFreshT0RealtimeQuoteCacheExpiresAndScopesTradeDate(t *testing.T) {
 		t.Fatal("expired quote must not be reused")
 	}
 }
+
+func TestFreshT0RealtimeQuoteDiscardsPreAuctionCacheAtConfirmation(t *testing.T) {
+	const code = "600098"
+	before := time.Date(2026, 10, 14, 9, 24, 59, 0, chinaLocation())
+	cacheT0RealtimeQuote(code, "2026-10-14", t0Realtime{Open: 10, PrevClose: 10}, before)
+	if _, ok := freshT0RealtimeQuote(code, "2026-10-14", before.Add(time.Second)); ok {
+		t.Fatal("pre-auction quote reused after 09:25")
+	}
+}

@@ -64,7 +64,8 @@ func TestLoadOrFetchSharedGobT0DailyPrefersCompleteTodayLegacyPool(t *testing.T)
 		"600002": {{Date: previous, Open: 20, Close: 20, High: 20, Low: 20, Volume: 1, AmountYi: 1, AmountVerified: true}, {Date: today, Open: 20, Close: 20, High: 20, Low: 20, Volume: 1, AmountYi: 1, AmountVerified: true}},
 	}
 	if err := writeMainboardFloatCap50Gob(mainboardSharedGobPath(), MainboardFloatCap50Gob{
-		SchemaVersion: 2,
+		SchemaVersion:    2,
+		ClosedDailyDates: map[string]string{"600001": previous, "600002": previous},
 		Stocks: []MainboardFloatCap50Stock{
 			{Code: "600001", Name: "A", FloatMarketCapYi: 100},
 			{Code: "600002", Name: "B", FloatMarketCapYi: 200},

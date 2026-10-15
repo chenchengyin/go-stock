@@ -357,6 +357,14 @@ func selectGobRedFromPoolWithPriorDate(
 	priorDate string,
 	quoteBuilder func(string, []t0Stock, map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning),
 ) ([]T0SelectionResult, []t0DataWarning) {
+	return selectGobRedFromPoolWithRules(tradeDate, stocks, daily, priorDate, approvedGobRedRules(), quoteBuilder)
+}
+
+func selectGobRedFromPoolWithRules(
+	tradeDate string, stocks []t0Stock, daily map[string][]dailyBar, priorDate string,
+	rules []redGobRule,
+	quoteBuilder func(string, []t0Stock, map[string][]dailyBar) (map[string]t0Realtime, string, *t0DataWarning),
+) ([]T0SelectionResult, []t0DataWarning) {
 	if isT0WeekendDate(tradeDate) {
 		return nil, nil
 	}
@@ -366,7 +374,6 @@ func selectGobRedFromPoolWithPriorDate(
 			Message: "红策独立形态无法确认前一交易日日线日期，已跳过正式入选",
 		}}
 	}
-	rules := approvedGobRedRules()
 	candidates := buildGobRedPreopenCandidates(tradeDate, stocks, daily, rules)
 	candidateStocks := resultsToT0Stocks(candidates)
 	quotes, source, quoteWarning := quoteBuilder(tradeDate, candidateStocks, daily)
@@ -403,6 +410,7 @@ type t0ModuleSelectionContext struct {
 	TradeDate   string
 	Daily       map[string][]dailyBar
 	Independent []T0SelectionResult
+	OpenGaps    map[string]float64 // raw auction gaps; displayed percentages are rounded later
 }
 
 func mergeGobRedResults(legacy, independent []T0SelectionResult) []T0SelectionResult {
@@ -449,12 +457,16 @@ func filterRedT0Results(
 	for _, result := range results {
 		shortCode := t0ShortCodeFromResultCode(result.StockCode)
 		hist := histBarsBeforeTradeDate(ctx.Daily[shortCode], ctx.TradeDate)
-		redEntryHits := matchingRedEntryReferenceRuntimes(hist, result, referenceRules)
+		entry := result
+		if exactGap, ok := ctx.OpenGaps[shortCode]; ok {
+			entry.OpenGap = exactGap
+		}
+		redEntryHits := matchingRedEntryReferenceRuntimes(hist, entry, referenceRules)
 		displayRuleHits := mergeT0DisplayRuleHits(
-			referenceRuleNames(redEntryHits), displayRuleHitsForResult(hist, result))
+			referenceRuleNames(redEntryHits), displayRuleHitsForResult(hist, entry))
 		result.StrongContinuationDisplayRuleHit = false
 		result.TechBlueDisplayRuleHit = matchesBullishZtZtPb(hist)
-		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, result)
+		result.StrongDisplayRuleHit = matchesDeepRedDisplayRule(hist, entry)
 		if len(redEntryHits) == 0 && len(displayRuleHits) == 0 {
 			continue
 		}

@@ -15,7 +15,7 @@ func TestParseTHSRealtimeDailyQuoteRequiresCurrentDateAndPreviousClose(t *testin
 	if !ok {
 		t.Fatal("expected a usable same-day THS quote")
 	}
-	if quote.Open != 10 || quote.Price != 10.2 || quote.PrevClose != 9.8 {
+	if quote.Open != 10 || quote.Price != 10.2 || quote.PrevClose != 9.8 || quote.PrevDate != "2026-10-09" {
 		t.Fatalf("unexpected quote: %+v", quote)
 	}
 	if _, ok := parseTHSRealtimeDailyQuote(rows[:1], "2026-10-10"); ok {
