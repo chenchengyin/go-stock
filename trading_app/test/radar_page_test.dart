@@ -127,7 +127,7 @@ void main() {
       expect(find.text('组合说明'), findsNothing);
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('四组阴线 · 0次').last);
+      await tester.tap(find.text('四组阴线').last);
       await tester.pumpAndSettle();
       expect(strategyVm.selectedRedRuleHistoryId, strategyVm.options.first.id);
       expect(find.text(strategyVm.options.first.description), findsNothing);
@@ -135,7 +135,7 @@ void main() {
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       expect(find.text('另一组合 · 0次'), findsNothing);
-      await tester.tap(find.text('另一组合 · 待加载').last);
+      await tester.tap(find.text('另一组合').last);
       await tester.pumpAndSettle();
       expect(find.text(strategyVm.options.first.description), findsNothing);
       expect(strategyVm.selectedRedRuleHistoryId, strategyVm.options.last.id);

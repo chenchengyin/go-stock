@@ -99,13 +99,14 @@ func listGobRedAvailableDates() []string {
 }
 
 type gobRedRuleHistoryOption struct {
-	RuleSource      string `json:"rule_source"`
-	RuleKey         string `json:"rule_key"`
-	RuleVersion     int    `json:"rule_version"`
-	Name            string `json:"name"`
-	Description     string `json:"description,omitempty"`
-	MatchCount      int    `json:"match_count"`
-	MatchCountKnown bool   `json:"match_count_known"`
+	RuleSource      string             `json:"rule_source"`
+	RuleKey         string             `json:"rule_key"`
+	RuleVersion     int                `json:"rule_version"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description,omitempty"`
+	MatchCount      int                `json:"match_count"`
+	MatchCountKnown bool               `json:"match_count_known"`
+	Stats           *T0RedRuleStatView `json:"stats,omitempty"`
 }
 
 type gobRedRuleHistoryIndex struct {
@@ -239,7 +240,7 @@ func handleGobRedRuleHistory(w http.ResponseWriter, ruleSource, ruleKey, rawRule
 		return
 	}
 
-	WriteJSON(w, map[string]interface{}{"rules": index.options, "data_incomplete": index.incomplete})
+	WriteJSON(w, map[string]interface{}{"rules": enrichGobRedHistoryOptions(index.options, runtimes), "data_incomplete": index.incomplete})
 }
 
 func gobRedRuleHistoryIndexFor(
@@ -389,8 +390,8 @@ func buildGobRedRuleHistoryIndex(
 					matchesByRule[identity] = make(map[string]T0SelectionResult)
 				}
 				matched := result
-				matched.RedRuleHits = []T0RedRuleHit{hit}
-				matched.DisplayRuleHits = []string{hit.Name}
+				matched.RedRuleHits = append([]T0RedRuleHit(nil), result.RedRuleHits...)
+				matched.DisplayRuleHits = append([]string(nil), result.DisplayRuleHits...)
 				key := matched.Time + ":" + matched.StockCode
 				if _, exists := matchesByRule[identity][key]; !exists {
 					matchesByRule[identity][key] = matched

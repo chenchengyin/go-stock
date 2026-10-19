@@ -172,7 +172,7 @@ func gobRedRuleExitHorizon(rule redGobRule) string {
 }
 
 func approvedGobRedRules() []redGobRule {
-	return []redGobRule{
+	rules := []redGobRule{
 		{
 			Key: "gob_myin_dt_dt_v1", Version: 1, Name: "中阴→跌停→跌停后低开",
 			Description: "形态条件\nT-3为中阴，T-2、T-1连续收盘跌停。最近一次收盘涨停位于T-2～T-10（包含两端），且T-1收盘严格低于该涨停日收盘；不能跳过最近涨停去借用更早的锚点。" +
@@ -296,6 +296,7 @@ func approvedGobRedRules() []redGobRule {
 			HistoryWindowDays: 7, ExitHorizon: "T0_high",
 		},
 	}
+	return append(rules, optimizedGobRedRules()...)
 }
 
 func matchGobZTSmallBearishT1Filters(hist []dailyBar) bool {

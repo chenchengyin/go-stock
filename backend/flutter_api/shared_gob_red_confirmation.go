@@ -198,6 +198,7 @@ func loadSharedGobRedConfirmation(date string) (map[string]interface{}, bool, er
 		return nil, false, fmt.Errorf("红策确认结果无效: %s", date)
 	}
 	refreshConfirmedRedRuleDescriptions(response)
+	appendOptimizedConfirmedRedHits(response, snapshot)
 	return response, true, nil
 }
 

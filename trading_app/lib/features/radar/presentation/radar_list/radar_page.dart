@@ -22,6 +22,7 @@ import 'radar_module_definitions.dart';
 import 'search_results_panel.dart';
 import 'stock_rating_store.dart';
 import 'red_strategy_charts.dart';
+import 'red_rule_widgets.dart';
 import 'red_t1_intraday_exposure.dart';
 import 'voice_manager_page.dart';
 import '../stock_change_detail/stock_change_detail_page.dart';
@@ -588,13 +589,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                   .map(
                     (option) => DropdownMenuItem<String>(
                       value: option.id,
-                      child: Text(
-                        option.matchCountKnown
-                            ? '${option.name} · ${option.matchCount}次'
-                            : '${option.name} · 待加载',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: RedRuleOptionLabel(option: option),
                     ),
                   )
                   .toList(),
@@ -1868,6 +1863,11 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     String? selectedDate,
   }) {
     if (stock.redRuleHits.isEmpty) return const SizedBox.shrink();
+    if (stock.redRuleHits.any(
+      (hit) => hit.ruleKey.startsWith('gob_zt_bear_opt_'),
+    )) {
+      return RedRuleMatchBadge(hits: stock.redRuleHits);
+    }
     return Wrap(
       spacing: 4,
       runSpacing: 2,
@@ -2137,6 +2137,9 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _openInTongHuaShun(context, stock.rawCode),
+      onLongPress: kind == _StrategyListKind.red && stock.redRuleHits.isNotEmpty
+          ? () => showRedRuleMatches(context, stock.redRuleHits)
+          : null,
       child: Container(
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

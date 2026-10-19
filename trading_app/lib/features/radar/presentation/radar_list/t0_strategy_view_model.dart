@@ -95,6 +95,7 @@ class T0RedRuleHistoryOption {
   final String description;
   final int matchCount;
   final bool matchCountKnown;
+  final T0RedRuleStats? stats;
 
   const T0RedRuleHistoryOption({
     required this.ruleSource,
@@ -104,6 +105,7 @@ class T0RedRuleHistoryOption {
     required this.description,
     required this.matchCount,
     this.matchCountKnown = true,
+    this.stats,
   });
 
   T0RedRuleHistoryOption copyWith({int? matchCount, bool? matchCountKnown}) =>
@@ -115,6 +117,7 @@ class T0RedRuleHistoryOption {
         description: description,
         matchCount: matchCount ?? this.matchCount,
         matchCountKnown: matchCountKnown ?? this.matchCountKnown,
+        stats: stats,
       );
 
   String get id => '$ruleSource:$ruleKey@$ruleVersion';
@@ -128,6 +131,11 @@ class T0RedRuleHistoryOption {
         description: json['description'] as String? ?? '',
         matchCount: (json['match_count'] as num?)?.toInt() ?? 0,
         matchCountKnown: json['match_count_known'] as bool? ?? true,
+        stats: json['stats'] is Map
+            ? T0RedRuleStats.fromJson(
+                Map<String, dynamic>.from(json['stats'] as Map),
+              )
+            : null,
       );
 }
 
