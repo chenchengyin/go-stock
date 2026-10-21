@@ -572,42 +572,65 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: DropdownButtonFormField<String>(
-              initialValue: selectedId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: '红策条件组合',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-              ),
-              hint: const Text('请选择条件组合'),
-              items: options
-                  .map(
-                    (option) => DropdownMenuItem<String>(
-                      value: option.id,
-                      child: Text(
-                        option.matchCountKnown
-                            ? '${option.name} · ${option.matchCount}次'
-                            : '${option.name} · 待加载',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: selectedId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: '红策条件组合',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
                     ),
-                  )
-                  .toList(),
-              onChanged: vm.redRuleHistoryOptionsLoading
-                  ? null
-                  : (id) {
-                      for (final option in options) {
-                        if (option.id == id) {
-                          vm.loadRedRuleHistoryStocks(option);
-                          break;
-                        }
-                      }
-                    },
+                    hint: const Text('请选择条件组合'),
+                    items: options
+                        .map(
+                          (option) => DropdownMenuItem<String>(
+                            value: option.id,
+                            child: Text(
+                              option.matchCountKnown
+                                  ? '${option.name} · ${option.matchCount}次'
+                                  : '${option.name} · 待加载',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: vm.redRuleHistoryOptionsLoading
+                        ? null
+                        : (id) {
+                            for (final option in options) {
+                              if (option.id == id) {
+                                vm.loadRedRuleHistoryStocks(option);
+                                break;
+                              }
+                            }
+                          },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: switch (vm.redRuleHistorySort) {
+                    RedRuleHistorySort.original => 'T0日内浮盈：默认排序',
+                    RedRuleHistorySort.descending => 'T0日内浮盈：高到低',
+                    RedRuleHistorySort.ascending => 'T0日内浮盈：低到高',
+                  },
+                  onPressed: vm.toggleRedRuleHistorySort,
+                  color: vm.redRuleHistorySort == RedRuleHistorySort.original
+                      ? AppColors.textSecondary
+                      : Theme.of(context).colorScheme.primary,
+                  icon: Icon(switch (vm.redRuleHistorySort) {
+                    RedRuleHistorySort.original => Icons.sort,
+                    RedRuleHistorySort.descending => Icons.arrow_downward,
+                    RedRuleHistorySort.ascending => Icons.arrow_upward,
+                  }),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -1873,6 +1896,7 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
       runSpacing: 2,
       children: stock.redRuleHits.map((hit) {
         final stats = hit.stats;
+        final bodyStats = hit.exitHorizon == 'T0_T1_body';
         final verified =
             hit.statsStatus == 'verified' &&
             stats != null &&
@@ -1882,7 +1906,10 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
                     stats.entrySource == 'daily_open') ||
                 (hit.entrySource == 'realtime_close' &&
                     stats.entrySource == 'daily_close')) &&
-            stats.exitHorizon == hit.exitHorizon;
+            stats.exitHorizon == hit.exitHorizon &&
+            (!bodyStats ||
+                (stats.t0BodyTargetRate != null &&
+                    stats.t1BodyTargetRate != null));
         final horizon = hit.exitHorizon == 'T0_high'
             ? 'T0盘中最高价'
             : hit.exitHorizon == 'T0_close'
@@ -1891,6 +1918,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ? 'T+1收盘'
             : hit.exitHorizon == 'T+1_target_2_5'
             ? 'T+1目标+2.5%触及'
+            : bodyStats
+            ? 'T0/T+1阳线实体'
             : hit.exitHorizon;
         final measurementNote = hit.exitHorizon == 'T0_high'
             ? '\n口径：按T0日线最高价计算盘中浮盈触及，不代表实际成交或落袋收益'
@@ -1898,6 +1927,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             ? '\n口径：按T0开盘到收盘计算；T0买入的A股不能当日卖出'
             : hit.exitHorizon == 'T+1_target_2_5'
             ? '\n口径：目标触及率按T+1日线最高价计算；真赚率按T+1收盘价计算，不代表实际成交'
+            : bodyStats
+            ? '\n口径：实体=(当日收盘/开盘−1)×100%，严格>2.5%；两天任一天达标按股票日去重，不代表交易盈利；缺少任一日开盘或收盘不计入共同分母'
             : '';
         final profitLabel = hit.exitHorizon == 'T0_high'
             ? '浮盈触及'
@@ -1922,12 +1953,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
             : hit.entrySource == 'pending_close'
             ? '等待尾盘确认'
             : '待竞价';
+        final statisticsLabel = verified && bodyStats
+            ? 'T0达标${stats.t0BodyTargetRate!.toStringAsFixed(1)}% · T1达标${stats.t1BodyTargetRate!.toStringAsFixed(1)}% · 任一天${stats.targetRate.toStringAsFixed(1)}%'
+            : verified
+            ? '$profitLabel${stats.profitWinRate.toStringAsFixed(1)}% · $targetLabel${stats.targetRate.toStringAsFixed(1)}%'
+            : '';
         final label = hit.statsStatus == 'preclose'
             ? '${hit.name} · 待尾盘确认'
             : hit.statsStatus == 'preopen'
             ? '${hit.name} · 待竞价'
             : verified
-            ? '${hit.name} · $horizon $profitLabel${stats.profitWinRate.toStringAsFixed(1)}% · $targetLabel${stats.targetRate.toStringAsFixed(1)}% · 样本${stats.sampleCount}'
+            ? '${hit.name} · $horizon $statisticsLabel · 样本${stats.sampleCount}'
             : '${hit.name} · $horizon 统计待核验';
         final hitSummary = _redRuleHitConditionSummary(
           stock,
@@ -1938,10 +1974,17 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         final explanation =
             '${hit.description.isEmpty ? '' : '条件说明：${hit.description}\n'}'
             '${hitSummary == null ? '' : '命中情况：$hitSummary\n'}';
+        final statisticsMessage = verified && bodyStats
+            ? 'T0实体达标率：${stats.t0BodyTargetRate!.toStringAsFixed(1)}%\n'
+                  'T1实体达标率：${stats.t1BodyTargetRate!.toStringAsFixed(1)}%\n'
+                  '任一天实体达标率：${stats.targetRate.toStringAsFixed(1)}%\n'
+            : verified
+            ? '$profitLabel率：${stats.profitWinRate.toStringAsFixed(1)}%\n'
+                  '$targetLabel率：${stats.targetRate.toStringAsFixed(1)}%\n'
+            : '';
         final message = verified
             ? '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
-                  '$profitLabel率：${stats.profitWinRate.toStringAsFixed(1)}%\n'
-                  '$targetLabel率：${stats.targetRate.toStringAsFixed(1)}%\n'
+                  '$statisticsMessage'
                   '样本数：${stats.sampleCount}\n覆盖：${stats.dateStart}～${stats.dateEnd}'
             : '形态：${hit.name}\n$explanation评判：$horizon$measurementNote\n入场：$source\n'
                   '${hit.statsStatus == 'preclose'

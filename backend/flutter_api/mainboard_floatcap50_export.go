@@ -36,6 +36,8 @@ type MainboardFloatCap50Gob struct {
 	SelectionPools map[string][]MainboardT0PoolStock
 	// Per-symbol completion witness; a bar bearing today's date may still be intraday.
 	ClosedDailyDates map[string]string
+	// Dated zero-trade evidence; never a substitute for an OHLC bar.
+	NonTradingDates map[string]string
 }
 
 // MainboardT0PoolStock stores the exact market-cap-filtered pool used for a T0 day.

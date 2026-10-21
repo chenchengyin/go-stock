@@ -200,27 +200,40 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 			}
 		}
 	}
-	local := time.Now().In(chinaLocation())
-	if tradeDate == local.Format("2006-01-02") &&
-		local.Hour()*60+local.Minute() >= mainboardSharedGobRefreshStartMinute {
-		missingSet := make(map[string]struct{}, len(missing))
-		for _, stock := range missing {
-			missingSet[stock.ShortCode] = struct{}{}
-		}
-		for _, stock := range stocks {
-			if containsSharedGobBarDate(shared.Daily[stock.ShortCode], tradeDate) {
-				continue
-			}
-			if _, exists := missingSet[stock.ShortCode]; exists {
-				continue
-			}
-			missingSet[stock.ShortCode] = struct{}{}
-			missing = append(missing, stock)
-		}
-	}
 	fetchEndDate := endDate
-	if priorDate != "" && local.Hour()*60+local.Minute() < mainboardSharedGobRefreshStartMinute {
+	if priorDate != "" {
 		fetchEndDate = priorDate
+	}
+	// Verify non-trading stocks before any daily download. Their absent bars
+	// cannot be repaired, and must not delay the 09:25 opening snapshot.
+	excluded := make(map[string]string)
+	if priorDate != "" {
+		for _, stock := range stocks {
+			if sharedGobVerifiedNoTradingDate(shared, stock.ShortCode, priorDate) {
+				excluded[stock.ShortCode] = "前一交易日无成交日线，连续形态不适用"
+			}
+		}
+		for code, reason := range sharedGobRedExcludedStocks(tradeDate) {
+			excluded[code] = reason
+		}
+		unchecked := make([]t0Stock, 0, len(missing))
+		for _, stock := range missing {
+			if excluded[stock.ShortCode] == "" {
+				unchecked = append(unchecked, stock)
+			}
+		}
+		if len(unchecked) > 0 {
+			for code, reason := range sharedGobNonTradingHistoryVerifier(unchecked, daily, tradeDate, priorDate) {
+				excluded[code] = reason
+			}
+		}
+		repair := make([]t0Stock, 0, len(missing))
+		for _, stock := range missing {
+			if excluded[stock.ShortCode] == "" {
+				repair = append(repair, stock)
+			}
+		}
+		missing = repair
 	}
 	fallback := sharedGobDailyFetcher(missing, fetchEndDate, nil)
 	freshClosed := make(map[string]bool, len(fallback))
@@ -288,11 +301,16 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 				staleStocks = append(staleStocks, stock)
 			}
 		}
-		excluded := sharedGobNonTradingHistoryVerifier(staleStocks, daily, tradeDate, priorDate)
 		sharedGobPriorDateCache.Lock()
 		sharedGobPriorDateCache.excluded[tradeDate] = excluded
 		sharedGobPriorDateCache.Unlock()
-		if missing := len(staleStocks) - len(excluded); missing > 0 {
+		missing := 0
+		for _, stock := range staleStocks {
+			if excluded[stock.ShortCode] == "" {
+				missing++
+			}
+		}
+		if missing > 0 {
 			return nil, nil, false, fmt.Errorf("%s日线尚未补齐至前一交易日%s，缺少%d只，稍后重试", tradeDate, priorDate, missing)
 		}
 		if len(excluded) > 0 {
@@ -392,7 +410,24 @@ func buildSharedGobRedAuctionQuotes(
 	if tradeDate >= time.Now().In(chinaLocation()).Format("2006-01-02") {
 		// The THS daily bar has a date but no quote time. The first complete
 		// post-09:25 result is permanent, so require Tencent's timestamped quote.
-		live := sharedGobRedLiveQuoteFetcher(stocks)
+		quoteStocks := stocks
+		if shared, err := loadMainboardSharedGob(); err == nil {
+			if pool := sharedGobT0SelectionPool(shared, tradeDate); len(pool) > 0 {
+				quoteStocks = append([]t0Stock(nil), pool...)
+				seen := make(map[string]bool, len(pool))
+				for _, stock := range pool {
+					seen[stock.ShortCode] = true
+				}
+				for _, stock := range stocks {
+					if !seen[stock.ShortCode] {
+						quoteStocks = append(quoteStocks, stock)
+					}
+				}
+			}
+		}
+		// Capture the entire dated pool once, then require only rule candidates
+		// to have opening quotes. Unrelated suspended stocks cannot block it.
+		live := sharedGobRedLiveQuoteFetcher(quoteStocks)
 		quotes := make(map[string]t0Realtime, len(live))
 		for _, stock := range stocks {
 			quote, ok := live[stock.ShortCode]

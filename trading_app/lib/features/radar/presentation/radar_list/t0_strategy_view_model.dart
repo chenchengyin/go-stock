@@ -15,6 +15,8 @@ enum T0StrategyPhase {
   confirmed,
 }
 
+enum RedRuleHistorySort { original, descending, ascending }
+
 typedef T0QuoteFetcher =
     Future<Map<String, Map<String, dynamic>>> Function(List<String> codes);
 
@@ -60,6 +62,8 @@ class T0RedRuleStats {
   final int sampleCount;
   final double profitWinRate;
   final double targetRate;
+  final double? t0BodyTargetRate;
+  final double? t1BodyTargetRate;
   final String dateStart;
   final String dateEnd;
   final String entrySource;
@@ -69,6 +73,8 @@ class T0RedRuleStats {
     required this.sampleCount,
     required this.profitWinRate,
     required this.targetRate,
+    this.t0BodyTargetRate,
+    this.t1BodyTargetRate,
     required this.dateStart,
     required this.dateEnd,
     required this.entrySource,
@@ -79,6 +85,8 @@ class T0RedRuleStats {
     sampleCount: (json['sample_count'] as num?)?.toInt() ?? 0,
     profitWinRate: (json['profit_win_rate'] as num?)?.toDouble() ?? 0,
     targetRate: (json['target_rate'] as num?)?.toDouble() ?? 0,
+    t0BodyTargetRate: (json['t0_body_target_rate'] as num?)?.toDouble(),
+    t1BodyTargetRate: (json['t1_body_target_rate'] as num?)?.toDouble(),
     dateStart: json['date_start'] as String? ?? '',
     dateEnd: json['date_end'] as String? ?? '',
     entrySource: json['entry_source'] as String? ?? '',
@@ -215,8 +223,12 @@ class T0StrategyStock {
   /// 赚率：T0≥0 的比例 = 100% − 真亏率（含未达标的小赚和打平，不等于达标率）。
   double get patternEarnPct => 100 - patternFailPct;
 
+  /// T0收盘涨幅减开盘涨幅，单位为百分点；历史占位值不参与计算。
+  final double? t0IntradayChangePP;
+
   const T0StrategyStock({
     this.tradeDate = '',
+    this.t0IntradayChangePP,
     required this.stockCode,
     required this.stockName,
     required this.openGap,
@@ -276,6 +288,7 @@ class T0StrategyStock {
         : const <T0RedRuleHit>[];
     return T0StrategyStock(
       tradeDate: json['时间'] as String? ?? '',
+      t0IntradayChangePP: (json['t0_intraday_change_pp'] as num?)?.toDouble(),
       stockCode: json['股票代码'] as String? ?? '',
       stockName: json['股票名称'] as String? ?? '',
       openGap: (json['T0开盘涨幅(%)'] as num?)?.toDouble() ?? 0.0,
@@ -321,6 +334,7 @@ class T0StrategyStock {
   }) {
     return T0StrategyStock(
       tradeDate: tradeDate,
+      t0IntradayChangePP: t0IntradayChangePP,
       stockCode: stockCode,
       stockName: stockName,
       openGap: openGap,
@@ -506,11 +520,38 @@ class T0StrategyViewModel extends ChangeNotifier {
   String? _redRuleHistoryError;
   String? _selectedRedRuleHistoryId;
   int _redRuleHistoryRequestGeneration = 0;
+  RedRuleHistorySort _redRuleHistorySort = RedRuleHistorySort.original;
 
   List<T0RedRuleHistoryOption> get redRuleHistoryOptions =>
       List.unmodifiable(_redRuleHistoryOptions);
-  List<T0StrategyStock> get redRuleHistoryStocks =>
-      List.unmodifiable(_redRuleHistoryStocks);
+  RedRuleHistorySort get redRuleHistorySort => _redRuleHistorySort;
+  List<T0StrategyStock> get redRuleHistoryStocks {
+    if (_redRuleHistorySort == RedRuleHistorySort.original) {
+      return List.unmodifiable(_redRuleHistoryStocks);
+    }
+    final indexed = _redRuleHistoryStocks.indexed.toList();
+    indexed.sort((a, b) {
+      final left = a.$2.t0IntradayChangePP;
+      final right = b.$2.t0IntradayChangePP;
+      if (left == null && right != null) return 1;
+      if (left != null && right == null) return -1;
+      final comparison = left == null || right == null
+          ? 0
+          : _redRuleHistorySort == RedRuleHistorySort.descending
+          ? right.compareTo(left)
+          : left.compareTo(right);
+      return comparison == 0 ? a.$1.compareTo(b.$1) : comparison;
+    });
+    return List.unmodifiable(indexed.map((item) => item.$2));
+  }
+
+  void toggleRedRuleHistorySort() {
+    _redRuleHistorySort =
+        RedRuleHistorySort.values[(_redRuleHistorySort.index + 1) %
+            RedRuleHistorySort.values.length];
+    notifyListeners();
+  }
+
   bool get redRuleHistoryOptionsLoading => _redRuleHistoryOptionsLoading;
   bool get redRuleHistoryResultsLoading => _redRuleHistoryResultsLoading;
   bool get redRuleHistoryIncomplete => _redRuleHistoryIncomplete;

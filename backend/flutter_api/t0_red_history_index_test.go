@@ -12,6 +12,49 @@ import (
 	"go-stock/backend/db"
 )
 
+func TestRedHistoryPricesReplacePlaceholderCloseWithoutChangingArchive(t *testing.T) {
+	results := []T0SelectionResult{
+		{Time: "2026-09-10", StockCode: "600000.XSHG", OpenGap: 99, CloseRet: 0},
+		{Time: "2026-09-10", StockCode: "000001.XSHE", OpenGap: -2, CloseRet: 0},
+	}
+	daily := map[string][]dailyBar{"600000": {
+		{Date: "2026-09-09", Close: 10},
+		{Date: "2026-09-10", Open: 9.7, Close: 10.2},
+	}}
+	got := redHistoryResultsWithPrices(results, daily)
+	if got[0].OpenGap != -3 || got[0].CloseRet != 2 || got[0].T0IntradayChangePP == nil || *got[0].T0IntradayChangePP != 5 {
+		t.Fatalf("must use T0 close gap minus open gap from one price series: %+v", got[0])
+	}
+	if got[1].T0IntradayChangePP != nil {
+		t.Fatal("missing daily prices must not turn the archived zero placeholder into a sortable value")
+	}
+	if results[0].CloseRet != 0 || results[0].OpenGap != 99 {
+		t.Fatal("history price projection changed the source archive")
+	}
+	encoded, err := json.Marshal(got)
+	if err != nil || !strings.Contains(string(encoded), `"t0_intraday_change_pp":null`) {
+		t.Fatalf("missing prices must be explicit in JSON: %s %v", encoded, err)
+	}
+}
+
+func TestRedHistoryPricesUseArchivedDailyOncePerMissingDate(t *testing.T) {
+	results := []T0SelectionResult{
+		{Time: "2026-09-10", StockCode: "600000.XSHG"},
+		{Time: "2026-09-10", StockCode: "000001.XSHE"},
+	}
+	calls := 0
+	got := redHistoryResultsWithCachedPrices(results, nil, func(date string) map[string][]dailyBar {
+		calls++
+		return map[string][]dailyBar{"600000": {
+			{Date: "2026-09-09", Close: 10},
+			{Date: date, Open: 9.7, Close: 10.2},
+		}}
+	})
+	if calls != 1 || got[0].T0IntradayChangePP == nil || *got[0].T0IntradayChangePP != 5 || got[1].T0IntradayChangePP != nil {
+		t.Fatalf("local daily fallback or missing-price handling failed: calls=%d results=%+v", calls, got)
+	}
+}
+
 func TestGobRedHistoryRetainsArchivedRulesAndRechecksV3OpeningRange(t *testing.T) {
 	oldRoot, oldDB, oldShared := t0CacheRootPath, db.Dao, mainboardSharedGob
 	t0CacheRootPath = t.TempDir()

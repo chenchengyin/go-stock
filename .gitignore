@@ -84,8 +84,9 @@ dist
 
 # Gatsby files
 .cache/
-# Locally generated standalone mainboard K-line snapshot (about 120 MiB).
-/backend/data/cache/mainboard_floatcap50_2024/
+# Track the shared daily snapshot with Git LFS; ignore generated side files.
+/backend/data/cache/mainboard_floatcap50_2024/*
+!/backend/data/cache/mainboard_floatcap50_2024/daily.gob
 # Comment in the public line in if your project uses Gatsby and *not* Next.js
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public

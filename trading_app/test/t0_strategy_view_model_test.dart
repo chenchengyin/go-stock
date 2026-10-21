@@ -45,6 +45,93 @@ T0StrategyStock _stock({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues({});
+  test('策略回归按T0收盘与开盘涨幅差循环排序，并恢复原顺序', () async {
+    final rows = [
+      {
+        '股票代码': 'high_open',
+        'T0开盘涨幅(%)': 10,
+        'T0收盘涨幅(%)': 15,
+        't0_intraday_change_pp': 5,
+      },
+      {
+        '股票代码': 'loss',
+        'T0开盘涨幅(%)': 0,
+        'T0收盘涨幅(%)': -2,
+        't0_intraday_change_pp': -2,
+      },
+      {
+        '股票代码': 'low_open',
+        'T0开盘涨幅(%)': -10,
+        'T0收盘涨幅(%)': -5.5,
+        't0_intraday_change_pp': 4.5,
+      },
+      {
+        '股票代码': 'tie',
+        'T0开盘涨幅(%)': 10,
+        'T0收盘涨幅(%)': 15,
+        't0_intraday_change_pp': 5,
+      },
+      {
+        '股票代码': 'flat',
+        'T0开盘涨幅(%)': 0,
+        'T0收盘涨幅(%)': 0,
+        't0_intraday_change_pp': 0,
+      },
+      {'股票代码': 'invalid', 'T0开盘涨幅(%)': -100, 'T0收盘涨幅(%)': 0},
+    ];
+    var requests = 0;
+    final vm = T0StrategyViewModel(
+      request: (_, _) async {
+        requests++;
+        return {'results': rows};
+      },
+    );
+    addTearDown(vm.dispose);
+    await vm.loadRedRuleHistoryStocks(
+      const T0RedRuleHistoryOption(
+        ruleSource: 'gob',
+        ruleKey: 'test',
+        ruleVersion: 1,
+        name: '测试组合',
+        description: '',
+        matchCount: 6,
+      ),
+    );
+    List<String> codes() =>
+        vm.redRuleHistoryStocks.map((stock) => stock.stockCode).toList();
+    final original = codes();
+    expect(vm.redRuleHistorySort, RedRuleHistorySort.original);
+    expect(original, rows.map((row) => row['股票代码']).toList());
+    expect(vm.redRuleHistoryStocks.first.t0IntradayChangePP, 5);
+
+    vm.toggleRedRuleHistorySort();
+    expect(vm.redRuleHistorySort, RedRuleHistorySort.descending);
+    expect(codes(), [
+      'high_open',
+      'tie',
+      'low_open',
+      'flat',
+      'loss',
+      'invalid',
+    ]);
+
+    vm.toggleRedRuleHistorySort();
+    expect(vm.redRuleHistorySort, RedRuleHistorySort.ascending);
+    expect(codes(), [
+      'loss',
+      'flat',
+      'low_open',
+      'high_open',
+      'tie',
+      'invalid',
+    ]);
+
+    vm.toggleRedRuleHistorySort();
+    expect(vm.redRuleHistorySort, RedRuleHistorySort.original);
+    expect(codes(), original);
+    expect(requests, 1);
+  });
+
   test(
     'red strategy request carries its module code and exposes server results',
     () async {

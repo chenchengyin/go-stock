@@ -64,6 +64,21 @@ const gobRedBearClassificationDescription = "\n\n阴线分类\n实体跌幅按(�
 
 const gobRedSmallBearHistoryDescription = "形态条件\nT-2收盘涨停；T-1收盘低于开盘，且较T-2收盘下跌0%～2%（包含两端，可与昨收持平）。下影长度=收盘−最低，不能超过阴线实体长度=开盘−收盘。\nT-2、T-1收盘分别严格高于各自5日均价（MA5），T-1收盘严格高于60日均价（MA60）；等于均线不算。这里按收盘跌幅筛选，阴线实体大小不限。"
 
+const (
+	gobRedT7DropRuleKey            = "gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_close_pos_le_80_body_v3"
+	gobRedT7DropLegacyRuleKey      = "gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_t0_high_v2"
+	gobRedBodyHorizon              = "T0_T1_body"
+	gobRedT7DropHistoryDescription = "形态条件\nT-1收盘较T-7收盘累计下跌至少22.25%（包含22.25%），按(T-1收盘/T-7收盘−1)×100%≤−22.25%判断；七个交易日日线须逐日对齐。\nT-1振幅=(T-1最高−T-1最低)/T-2收盘×100%至少7.1%（包含7.1%）。"
+	gobRedT7DropOpeningDescription = "\n\nT0开盘\n较T-1收盘低开，−4%≤开盘涨幅<−2%（包含−4%、不含−2%）。盘前只展示候选，竞价确认后才入选。"
+	legacyGobT7DropV2Description   = gobRedT7DropHistoryDescription + gobRedT7DropOpeningDescription +
+		"\n\n统计口径\n历史v2以T0开盘价为入场参考，观察T0盘中最高价。浮盈触及率指最高浮盈>0%；目标触及率指最高浮盈>2.5%（不包含2.5%）。这是盘中浮盈触及，不是阳线实体达标率，也不是已实现收益。"
+)
+
+func gobRedBodyTargetReached(open, close float64) bool {
+	// Cross-multiply to exclude an exact 2.5% body despite floating-point noise.
+	return open > 0 && close > 0 && close*40 > open*41+1e-9
+}
+
 type gobRedMatchStatus struct {
 	MissingHistory int
 	MissingOpen    int
@@ -280,20 +295,20 @@ func approvedGobRedRules() []redGobRule {
 			HistoryWindowDays: 3, ExitHorizon: "T+1_target_2_5", RequireT0BearClose: true,
 		},
 		{
-			Key: "gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_t0_high_v2", Version: 2,
-			Name: "七日深跌后低开（T−1振幅≥7.1%）",
-			Description: "形态条件\nT-1收盘较T-7收盘累计下跌至少22.25%（包含22.25%），按(T-1收盘/T-7收盘−1)×100%≤−22.25%判断；七个交易日日线须逐日对齐。\nT-1振幅=(T-1最高−T-1最低)/T-2收盘×100%至少7.1%（包含7.1%）。" +
-				"\n\nT0开盘\n较T-1收盘低开，−4%≤开盘涨幅<−2%（包含−4%、不含−2%）。盘前只展示候选，竞价确认后才入选。" +
-				"\n\n统计口径\n以T0开盘价为入场参考，观察T0盘中最高价。浮盈触及率指最高浮盈>0%；目标触及率指最高浮盈>2.5%（不包含2.5%）。这是盘中最大浮盈触及，不能称为已实现的真赚率。T0买入的A股不能当日卖出，历史日线最高价也不代表实际成交或落袋收益。",
-			MatchHistory: matchGobT7CloseDropAndT1Amplitude,
+			Key: gobRedT7DropRuleKey, Version: 3,
+			Name: "七日深跌后低开（T−1收盘位置≤80%）",
+			Description: gobRedT7DropHistoryDescription +
+				"\nT-1收盘位置=(收盘−最低)/(最高−最低)≤80%（包含80%），即收盘未进入日内最高的20%区间。" +
+				gobRedT7DropOpeningDescription +
+				"\n\n统计口径\n分别统计T0、下一交易日T+1的阳线实体达标率。实体=(当日收盘/当日开盘−1)×100%，须严格>2.5%（不包含2.5%）。任一天达标按同一股票同一T0日期去重，两天均达标只计一次；缺少任一日开盘或收盘时不计入共同分母。形态达标不代表买入获利，不使用盘中最高价替代收盘价。",
+			MatchHistory: matchGobT7CloseDropAndT1Position,
 			MatchOpen: func(open, prevClose float64) bool {
 				if open <= 0 || prevClose <= 0 {
 					return false
 				}
-				gap := (open/prevClose - 1) * 100
-				return gap >= -4 && gap < -2
+				return open*100 >= prevClose*96-1e-9 && open*100 < prevClose*98-1e-9
 			},
-			HistoryWindowDays: 7, ExitHorizon: "T0_high",
+			HistoryWindowDays: 7, ExitHorizon: gobRedBodyHorizon,
 		},
 	}
 }
@@ -393,7 +408,7 @@ func matchGobT7CloseDrop(hist []dailyBar) bool {
 	if t7Close <= 0 || t1Close <= 0 {
 		return false
 	}
-	return (t1Close/t7Close-1)*100 <= -22.25
+	return t1Close*10000 <= t7Close*7775+1e-9
 }
 
 func matchGobT7CloseDropAndT1Amplitude(hist []dailyBar) bool {
@@ -405,7 +420,16 @@ func matchGobT7CloseDropAndT1Amplitude(hist []dailyBar) bool {
 	if t2Close <= 0 || t1.High <= 0 || t1.Low <= 0 || t1.High < t1.Low {
 		return false
 	}
-	return (t1.High-t1.Low)/t2Close*100 >= 7.1
+	return (t1.High-t1.Low)*1000 >= t2Close*71-1e-9
+}
+
+func matchGobT7CloseDropAndT1Position(hist []dailyBar) bool {
+	if !matchGobT7CloseDropAndT1Amplitude(hist) {
+		return false
+	}
+	t1 := hist[len(hist)-1]
+	return t1.Low > 0 && t1.High > t1.Low && t1.Close >= t1.Low && t1.Close <= t1.High &&
+		(t1.Close-t1.Low)*5 <= (t1.High-t1.Low)*4+1e-9
 }
 
 func currentGobRedRuleSetVersion() string {

@@ -124,12 +124,44 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('策略回归'));
       await tester.pumpAndSettle();
+      final dropdownRect = tester.getRect(
+        find.byType(DropdownButtonFormField<String>),
+      );
+      final sortRect = tester.getRect(find.byTooltip('T0日内浮盈：默认排序'));
+      expect(sortRect.left, greaterThanOrEqualTo(dropdownRect.right));
+      for (final label in ['默认排序', '高到低', '低到高']) {
+        await tester.tap(find.byTooltip('T0日内浮盈：$label'));
+        await tester.pumpAndSettle();
+      }
+      expect(strategyVm.redRuleHistorySort, RedRuleHistorySort.original);
+      expect(find.byTooltip('T0日内浮盈：默认排序'), findsOneWidget);
       expect(find.text('组合说明'), findsNothing);
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('四组阴线 · 0次').last);
       await tester.pumpAndSettle();
       expect(strategyVm.selectedRedRuleHistoryId, strategyVm.options.first.id);
+      List<String> visibleStockOrder() {
+        final names = ['平开差三', '低开差二', '高开差四'];
+        names.sort(
+          (a, b) => tester
+              .getTopLeft(find.text(a))
+              .dy
+              .compareTo(tester.getTopLeft(find.text(b)).dy),
+        );
+        return names;
+      }
+
+      expect(visibleStockOrder(), ['平开差三', '低开差二', '高开差四']);
+      await tester.tap(find.byTooltip('T0日内浮盈：默认排序'));
+      await tester.pumpAndSettle();
+      expect(visibleStockOrder(), ['高开差四', '平开差三', '低开差二']);
+      await tester.tap(find.byTooltip('T0日内浮盈：高到低'));
+      await tester.pumpAndSettle();
+      expect(visibleStockOrder(), ['低开差二', '平开差三', '高开差四']);
+      await tester.tap(find.byTooltip('T0日内浮盈：低到高'));
+      await tester.pumpAndSettle();
+      expect(visibleStockOrder(), ['平开差三', '低开差二', '高开差四']);
       expect(find.text(strategyVm.options.first.description), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byType(DropdownButtonFormField<String>));
@@ -531,6 +563,42 @@ void main() {
                 'exit_horizon': 'T0_high',
               },
             },
+            {
+              'rule_key':
+                  'gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_close_pos_le_80_body_v3',
+              'rule_version': 3,
+              'name': '七日深跌后低开（T−1收盘位置≤80%）',
+              'description': 'T-1收盘位置=(收盘−最低)/(最高−最低)≤80%。',
+              'entry_source': 'daily_open',
+              'exit_horizon': 'T0_T1_body',
+              'stats_status': 'verified',
+              'stats': {
+                'sample_count': 71,
+                'profit_win_rate': 50,
+                'target_rate': 71.83,
+                't0_body_target_rate': 39.44,
+                't1_body_target_rate': 42.25,
+                'date_start': '2026-01-19',
+                'date_end': '2026-09-18',
+                'entry_source': 'daily_open',
+                'exit_horizon': 'T0_T1_body',
+              },
+            },
+            {
+              'rule_key': 'body_without_breakdown',
+              'rule_version': 3,
+              'name': '实体分项缺失',
+              'entry_source': 'daily_open',
+              'exit_horizon': 'T0_T1_body',
+              'stats_status': 'verified',
+              'stats': {
+                'sample_count': 71,
+                'profit_win_rate': 99,
+                'target_rate': 99,
+                'entry_source': 'daily_open',
+                'exit_horizon': 'T0_T1_body',
+              },
+            },
           ],
         },
       ],
@@ -561,6 +629,24 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('T0盘中最高价 真赚'), findsNothing);
+    expect(
+      find.text(
+        '七日深跌后低开（T−1收盘位置≤80%） · T0/T+1阳线实体 T0达标39.4% · T1达标42.3% · 任一天71.8% · 样本71',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('实体分项缺失 · T0/T+1阳线实体 统计待核验'), findsOneWidget);
+    expect(find.textContaining('T0/T+1阳线实体 真赚'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message!.contains('严格>2.5%') &&
+            widget.message!.contains('T0实体达标率：39.4%') &&
+            widget.message!.contains('任一天实体达标率：71.8%'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('旧T0形态 55/80/20'), findsOneWidget);
     expect(
       find.byTooltip(
@@ -1355,6 +1441,8 @@ class _TestVoiceAnnouncementViewModel extends VoiceAnnouncementViewModel {
 }
 
 class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
+  _NoNetworkT0StrategyViewModel({super.request});
+
   int loadAvailableDatesCalls = 0;
   int loadResultsCalls = 0;
 
@@ -1381,6 +1469,38 @@ class _NoNetworkT0StrategyViewModel extends T0StrategyViewModel {
 }
 
 class _RuleHistoryT0StrategyViewModel extends _NoNetworkT0StrategyViewModel {
+  _RuleHistoryT0StrategyViewModel()
+    : super(
+        request: (_, _) async => {
+          'results': [
+            {
+              '时间': '2026-09-10',
+              '股票代码': '600001.XSHG',
+              '股票名称': '平开差三',
+              'T0开盘涨幅(%)': 0,
+              'T0收盘涨幅(%)': 3,
+              't0_intraday_change_pp': 3,
+            },
+            {
+              '时间': '2026-09-10',
+              '股票代码': '600002.XSHG',
+              '股票名称': '低开差二',
+              'T0开盘涨幅(%)': -3,
+              'T0收盘涨幅(%)': -1,
+              't0_intraday_change_pp': 2,
+            },
+            {
+              '时间': '2026-09-10',
+              '股票代码': '600003.XSHG',
+              '股票名称': '高开差四',
+              'T0开盘涨幅(%)': 5,
+              'T0收盘涨幅(%)': 9,
+              't0_intraday_change_pp': 4,
+            },
+          ],
+        },
+      );
+
   final options = [
     T0RedRuleHistoryOption(
       ruleSource: 'gob',
@@ -1415,7 +1535,7 @@ class _RuleHistoryT0StrategyViewModel extends _NoNetworkT0StrategyViewModel {
   @override
   Future<void> loadRedRuleHistoryStocks(T0RedRuleHistoryOption option) async {
     _selectedId = option.id;
-    notifyListeners();
+    await super.loadRedRuleHistoryStocks(option);
   }
 }
 

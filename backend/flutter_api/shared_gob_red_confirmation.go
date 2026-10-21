@@ -89,9 +89,26 @@ func copySharedGobClosedDates(dates map[string]string) map[string]string {
 }
 
 func isConfirmedSharedGobSuspension(quote t0Realtime, tradeDate string, now time.Time) bool {
-	return !isBeforeT0AuctionCutoff(now, tradeDate) &&
+	return (quote.NonTrading || !isBeforeT0AuctionCutoff(now, tradeDate)) &&
 		quote.TradeDate == tradeDate && quote.PrevClose > 0 &&
 		quote.Open == 0 && quote.Volume == 0
+}
+
+// Overnight, the feed may still contain the previous session's closing quote.
+// It can prove that session had no trades, but never supplies today's auction.
+func isConfirmedSharedGobPriorSessionSuspension(quote t0Realtime, bars []dailyBar, tradeDate, priorDate string) bool {
+	if quote.Source != "tencent" || quote.TradeDate != priorDate || quote.PrevClose <= 0 ||
+		quote.Open != 0 || quote.Volume != 0 || priorDate >= tradeDate {
+		return false
+	}
+	stamp, err := time.ParseInLocation("20060102150405", quote.QuoteTime, chinaLocation())
+	if err != nil || stamp.Format("2006-01-02") != priorDate ||
+		(!quote.NonTrading && stamp.Hour()*60+stamp.Minute() < 15*60) {
+		return false
+	}
+	hist := histBarsBeforeTradeDate(bars, tradeDate)
+	return len(hist) > 0 && hist[len(hist)-1].Date < priorDate &&
+		math.Abs(hist[len(hist)-1].Close-quote.PrevClose) < 0.005
 }
 
 // A missing bar is only a valid exclusion when today's quotes independently
@@ -119,6 +136,23 @@ var sharedGobNonTradingHistoryVerifier = func(stocks []t0Stock, daily map[string
 			excluded[stock.ShortCode] = "前一交易日无成交日线，连续形态不适用"
 		}
 	}
+	if len(excluded) < len(stocks) && isBeforeT0AuctionCutoff(now, tradeDate) {
+		prior, err := time.ParseInLocation("2006-01-02", priorDate, chinaLocation())
+		if err == nil {
+			pending := make([]t0Stock, 0, len(stocks)-len(excluded))
+			for _, stock := range stocks {
+				if excluded[stock.ShortCode] == "" {
+					pending = append(pending, stock)
+				}
+			}
+			priorQuotes := fetchT0RealtimeTencentAt(pending, prior.Add(24*time.Hour-time.Second))
+			for _, stock := range pending {
+				if isConfirmedSharedGobPriorSessionSuspension(priorQuotes[stock.ShortCode], daily[stock.ShortCode], tradeDate, priorDate) {
+					excluded[stock.ShortCode] = "前一交易日无成交日线，连续形态不适用"
+				}
+			}
+		}
+	}
 	return excluded
 }
 
@@ -139,7 +173,7 @@ func sharedGobRedHistoryReady(tradeDate string) bool {
 		return false
 	}
 	for _, stock := range stocks {
-		if excluded[stock.ShortCode] != "" {
+		if excluded[stock.ShortCode] != "" || sharedGobVerifiedNoTradingDate(shared, stock.ShortCode, prior) {
 			continue
 		}
 		if !sharedGobStockHistoryCurrent(shared, stock.ShortCode, shared.Daily[stock.ShortCode], tradeDate, prior) {

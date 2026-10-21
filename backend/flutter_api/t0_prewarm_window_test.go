@@ -15,8 +15,9 @@ func TestShouldAutoPrewarmT0(t *testing.T) {
 	}{
 		{"周一 00:00 窗口起点", time.Date(2026, 8, 10, 0, 0, 0, 0, loc), true},
 		{"周一 08:59 仍在窗口内", time.Date(2026, 8, 10, 8, 59, 0, 0, loc), true},
-		{"周一 09:00 窗口已结束", time.Date(2026, 8, 10, 9, 0, 0, 0, loc), false},
-		{"周一 09:20 交给请求触发", time.Date(2026, 8, 10, 9, 20, 0, 0, loc), false},
+		{"周一 09:00 继续重试预热", time.Date(2026, 8, 10, 9, 0, 0, 0, loc), true},
+		{"周一 09:24 继续重试预热", time.Date(2026, 8, 10, 9, 24, 59, 0, loc), true},
+		{"周一 09:25 交给竞价确认", time.Date(2026, 8, 10, 9, 25, 0, 0, loc), false},
 		{"周五 00:30 在窗口内", time.Date(2026, 8, 14, 0, 30, 0, 0, loc), true},
 		{"周六 01:00 非交易日", time.Date(2026, 8, 15, 1, 0, 0, 0, loc), false},
 		{"周日 08:00 非交易日", time.Date(2026, 8, 16, 8, 0, 0, 0, loc), false},

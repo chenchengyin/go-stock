@@ -3,6 +3,7 @@ package flutter_api
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,10 +11,7 @@ import (
 )
 
 const (
-	mainboardSharedGobRefreshStartMinute = 15*60 + 10
 	mainboardSharedGobRefreshRetry       = 30 * time.Minute
-	mainboardSharedGobRefreshMaxAttempts = 4
-	mainboardSharedGobRefreshProbeStocks = 10
 	mainboardSharedGobRefreshWorkers     = 6
 	mainboardSharedGobRefreshOverlapBars = 60
 )
@@ -22,27 +20,33 @@ var mainboardSharedGobRefreshState struct {
 	sync.Mutex
 	running       bool
 	attemptDate   string
-	attemptCount  int
 	lastAttemptAt time.Time
 }
 
+var mainboardSharedGobBarsFetcher = fetchMainboardFloatCap50Bars
+var mainboardSharedGobClosingQuoteFetcher = func(stocks []t0Stock, targetDate string) map[string]t0Realtime {
+	day, err := time.ParseInLocation("2006-01-02", targetDate, chinaLocation())
+	if err != nil {
+		return nil
+	}
+	return fetchT0RealtimeTencentAt(stocks, day.Add(24*time.Hour-time.Second))
+}
+
 type mainboardSharedGobRefreshResult struct {
-	index  int
+	code   string
 	bars   []MainboardFloatCap50Bar
 	source string
 	err    error
 }
 
-// runMainboardSharedGobRefreshTick refreshes the fixed export-time pool after
-// the close. A date probe prevents full-pool downloads on exchange holidays.
+// Refresh all stored symbols overnight, using a fresh market witness for the
+// latest completed trading session. There is no after-close GOB refresh.
 func runMainboardSharedGobRefreshTick(now time.Time) {
 	local := now.In(chinaLocation())
-	today := local.Format("2006-01-02")
-	minute := local.Hour()*60 + local.Minute()
-	if isT0WeekendDate(today) || minute < mainboardSharedGobRefreshStartMinute {
+	if local.Hour()*60+local.Minute() >= t0AuctionCutoffHM {
 		return
 	}
-
+	today := local.Format("2006-01-02")
 	mainboardSharedGobRefreshState.Lock()
 	if mainboardSharedGobRefreshState.running {
 		mainboardSharedGobRefreshState.Unlock()
@@ -50,16 +54,13 @@ func runMainboardSharedGobRefreshTick(now time.Time) {
 	}
 	if mainboardSharedGobRefreshState.attemptDate != today {
 		mainboardSharedGobRefreshState.attemptDate = today
-		mainboardSharedGobRefreshState.attemptCount = 0
+		mainboardSharedGobRefreshState.lastAttemptAt = time.Time{}
 	}
-	if mainboardSharedGobRefreshState.attemptCount >= mainboardSharedGobRefreshMaxAttempts ||
-		(!mainboardSharedGobRefreshState.lastAttemptAt.IsZero() && local.Sub(mainboardSharedGobRefreshState.lastAttemptAt) < mainboardSharedGobRefreshRetry) {
+	if !mainboardSharedGobRefreshState.lastAttemptAt.IsZero() && local.Sub(mainboardSharedGobRefreshState.lastAttemptAt) < mainboardSharedGobRefreshRetry {
 		mainboardSharedGobRefreshState.Unlock()
 		return
 	}
 	mainboardSharedGobRefreshState.running = true
-	mainboardSharedGobRefreshState.attemptCount++
-	mainboardSharedGobRefreshState.lastAttemptAt = local
 	mainboardSharedGobRefreshState.Unlock()
 	defer func() {
 		mainboardSharedGobRefreshState.Lock()
@@ -67,168 +68,141 @@ func runMainboardSharedGobRefreshTick(now time.Time) {
 		mainboardSharedGobRefreshState.Unlock()
 	}()
 
+	target, err := sharedGobRequiredPriorDate(today)
+	if err != nil {
+		logger.SugaredLogger.Warnf("[共享GOB] 凌晨无法确认最近交易日，稍后重试: %v", err)
+		return
+	}
 	mainboardSharedGobUpdate.Lock()
 	defer mainboardSharedGobUpdate.Unlock()
-
 	current, err := loadMainboardSharedGob()
 	if err != nil {
-		logger.SugaredLogger.Warnf("[共享GOB] 加载日线失败，稍后重试: %v", err)
+		logger.SugaredLogger.Warnf("[共享GOB] 凌晨加载日线失败，稍后重试: %v", err)
 		return
 	}
-	pending := mainboardSharedGobPendingIndices(current, today)
-	selectionPoolPending := mainboardSharedGobPendingSelectionPool(current, today)
-	if len(pending) == 0 && len(selectionPoolPending) == 0 {
+	pending := mainboardSharedGobPendingIndices(current, target)
+	if len(pending) == 0 && len(mainboardSharedGobPendingSelectionPool(current, target)) == 0 {
 		return
 	}
-	if len(selectionPoolPending) == 0 && !mainboardSharedGobSnapshotHasDate(current, today) &&
-		!mainboardSharedGobProviderHasDate(current, today) {
-		return
-	}
-
-	updated, missing, err := refreshMainboardSharedGob(current, today, local, pending)
+	mainboardSharedGobRefreshState.Lock()
+	mainboardSharedGobRefreshState.lastAttemptAt = local
+	mainboardSharedGobRefreshState.Unlock()
+	updated, missing, err := refreshMainboardSharedGob(current, target, local, pending)
 	if err != nil {
-		logger.SugaredLogger.Warnf("[共享GOB] %s 日线增量刷新失败: %v", today, err)
+		logger.SugaredLogger.Warnf("[共享GOB] 凌晨补齐 %s 失败，稍后重试: %v", target, err)
 		return
 	}
-	logger.SugaredLogger.Infof("[共享GOB] %s 日线增量刷新完成: refreshed_stocks=%d missing_current_bar=%d",
-		today, updated, missing)
-}
-
-func mainboardSharedGobProviderHasDate(current *mainboardSharedGobData, date string) bool {
-	limit := len(current.Stocks)
-	if limit > mainboardSharedGobRefreshProbeStocks {
-		limit = mainboardSharedGobRefreshProbeStocks
-	}
-	for i := 0; i < limit; i++ {
-		index := 0
-		if limit > 1 {
-			index = i * (len(current.Stocks) - 1) / (limit - 1)
-		}
-		stock := current.Stocks[index]
-		candidate := mainboardFloatCap50Candidate{
-			code:             stock.ShortCode,
-			name:             stock.Name,
-			floatMarketCapYi: stock.MarketCapYi,
-		}
-		bars, _, err := fetchMainboardFloatCap50Bars(candidate, 10, date, date)
-		if err == nil && len(bars) > 0 {
-			return true
-		}
-	}
-	return false
+	logger.SugaredLogger.Infof("[共享GOB] 凌晨补齐最近交易日 %s: refreshed_stocks=%d unresolved_stocks=%d", target, updated, missing)
 }
 
 func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate string, now time.Time, indices []int) (int, int, error) {
 	next := current.Snapshot
 	next.ClosedDailyDates = copySharedGobClosedDates(current.Snapshot.ClosedDailyDates)
+	next.NonTradingDates = copySharedGobClosedDates(current.Snapshot.NonTradingDates)
 	next.Stocks = append([]MainboardFloatCap50Stock(nil), current.Snapshot.Stocks...)
 	next.Daily = make(map[string][]MainboardFloatCap50Bar, len(current.Daily))
 	for code, bars := range current.Daily {
 		next.Daily[code] = bars
 	}
-
-	jobs := make(chan int)
-	results := make(chan mainboardSharedGobRefreshResult, len(indices))
+	baseIndex := make(map[string]int, len(next.Stocks))
+	for i, stock := range next.Stocks {
+		baseIndex[stock.Code] = i
+	}
+	candidates := mainboardSharedGobPendingSelectionPool(current, targetDate)
+	for _, i := range indices {
+		stock := current.Snapshot.Stocks[i]
+		candidates = append(candidates, MainboardT0PoolStock{Code: stock.Code, Name: stock.Name, MarketCapYi: stock.FloatMarketCapYi})
+	}
+	quoteStocks := make([]t0Stock, 0, len(candidates))
+	for _, stock := range candidates {
+		prefix := "sz."
+		if strings.HasPrefix(stock.Code, "60") {
+			prefix = "sh."
+		}
+		quoteStocks = append(quoteStocks, t0Stock{Code: prefix + stock.Code, ShortCode: stock.Code, Name: stock.Name})
+	}
+	closingQuotes := mainboardSharedGobClosingQuoteFetcher(quoteStocks, targetDate)
+	pending := make([]MainboardT0PoolStock, 0, len(candidates))
+	for _, stock := range candidates {
+		if isConfirmedSharedGobPriorSessionSuspension(closingQuotes[stock.Code], current.Daily[stock.Code], now.In(chinaLocation()).Format("2006-01-02"), targetDate) {
+			next.NonTradingDates[stock.Code] = targetDate
+		} else {
+			pending = append(pending, stock)
+		}
+	}
+	jobs := make(chan MainboardT0PoolStock)
+	results := make(chan mainboardSharedGobRefreshResult, len(pending))
 	workers := mainboardSharedGobRefreshWorkers
-	if workers > len(indices) {
-		workers = len(indices)
+	if workers > len(pending) {
+		workers = len(pending)
 	}
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for index := range jobs {
-				stock := current.Snapshot.Stocks[index]
-				candidate := mainboardFloatCap50Candidate{
-					code: stock.Code, name: stock.Name, floatMarketCapYi: stock.FloatMarketCapYi,
-				}
-				latestDate := stock.LastDate
+			for stock := range jobs {
+				latest := ""
 				if bars := current.Daily[stock.Code]; len(bars) > 0 {
-					latestDate = bars[len(bars)-1].Date
+					latest = bars[len(bars)-1].Date
 				}
-				limit := mainboardSharedGobRefreshFetchLimit(latestDate, targetDate)
-				bars, source, err := fetchMainboardFloatCap50Bars(candidate, limit, next.StartDate, targetDate)
-				results <- mainboardSharedGobRefreshResult{index: index, bars: bars, source: source, err: err}
+				bars, source, err := mainboardSharedGobBarsFetcher(mainboardFloatCap50Candidate{code: stock.Code, name: stock.Name, floatMarketCapYi: stock.MarketCapYi}, mainboardSharedGobRefreshFetchLimit(latest, targetDate), next.StartDate, targetDate)
+				results <- mainboardSharedGobRefreshResult{code: stock.Code, bars: bars, source: source, err: err}
 			}
 		}()
 	}
 	go func() {
-		for _, i := range indices {
-			jobs <- i
+		for _, stock := range pending {
+			jobs <- stock
 		}
 		close(jobs)
 		wg.Wait()
 		close(results)
 	}()
-
 	updated, missing, targetBars := 0, 0, 0
 	for result := range results {
-		stock := &next.Stocks[result.index]
+		index, isBase := baseIndex[result.code]
 		if result.err != nil {
-			stock.Error = result.err.Error()
 			missing++
+			if isBase {
+				next.Stocks[index].Error = result.err.Error()
+			}
 			continue
 		}
-		oldBars := next.Daily[stock.Code]
-		stockHasTargetBar := containsSharedGobBarDate(result.bars, targetDate)
-		if stockHasTargetBar {
+		hasTarget := containsSharedGobBarDate(result.bars, targetDate)
+		if hasTarget {
 			targetBars++
+			next.ClosedDailyDates[result.code] = targetDate
+			delete(next.NonTradingDates, result.code)
 		} else {
 			missing++
 		}
-		merged := mergeMainboardSharedGobBars(oldBars, result.bars)
+		merged := mergeMainboardSharedGobBars(current.Daily[result.code], result.bars)
 		if len(merged) == 0 {
-			stock.Error = "no valid daily bars after refresh"
-			if stockHasTargetBar {
+			if hasTarget {
 				missing++
 			}
 			continue
 		}
-		next.Daily[stock.Code] = merged
-		if stockHasTargetBar {
-			next.ClosedDailyDates[stock.Code] = targetDate
-		}
-		stock.KLineSource = result.source
-		stock.BarCount = len(merged)
-		stock.FirstDate = merged[0].Date
-		stock.LastDate = merged[len(merged)-1].Date
-		if len(merged) < mainboardFloatCap50MinBars {
-			stock.Status = "insufficient_bars"
-			stock.Error = fmt.Sprintf("got %d valid bars; need at least %d", len(merged), mainboardFloatCap50MinBars)
-		} else {
+		next.Daily[result.code] = merged
+		if isBase {
+			stock := &next.Stocks[index]
+			stock.KLineSource = result.source
+			stock.BarCount = len(merged)
+			stock.FirstDate = merged[0].Date
+			stock.LastDate = merged[len(merged)-1].Date
 			stock.Status = "ok"
 			stock.Error = ""
+			if len(merged) < mainboardFloatCap50MinBars {
+				stock.Status = "insufficient_bars"
+				stock.Error = fmt.Sprintf("got %d valid bars; need at least %d", len(merged), mainboardFloatCap50MinBars)
+			}
 		}
 		updated++
 	}
-	for _, stock := range mainboardSharedGobPendingSelectionPool(current, targetDate) {
-		candidate := mainboardFloatCap50Candidate{
-			code: stock.Code, name: stock.Name, floatMarketCapYi: stock.MarketCapYi,
-		}
-		latestDate := ""
-		if bars := next.Daily[stock.Code]; len(bars) > 0 {
-			latestDate = bars[len(bars)-1].Date
-		}
-		limit := mainboardSharedGobRefreshFetchLimit(latestDate, targetDate)
-		bars, _, err := fetchMainboardFloatCap50Bars(candidate, limit, next.StartDate, targetDate)
-		if err != nil {
-			missing++
-			continue
-		}
-		if containsSharedGobBarDate(bars, targetDate) {
-			targetBars++
-			next.ClosedDailyDates[stock.Code] = targetDate
-		} else {
-			missing++
-		}
-		next.Daily[stock.Code] = mergeMainboardSharedGobBars(next.Daily[stock.Code], bars)
-		updated++
-	}
-	if targetBars == 0 && !mainboardSharedGobSnapshotHasDate(current, targetDate) {
+	if targetBars == 0 && !mainboardSharedGobSnapshotHasDate(current, targetDate) && missing > 0 {
 		return 0, missing, fmt.Errorf("no stock returned a valid %s bar; keeping the previous snapshot", targetDate)
 	}
-
 	next.GeneratedAt = now.Format(time.RFC3339)
 	dates := mainboardSharedGobDates(next.Daily)
 	if len(dates) == 0 {
@@ -248,28 +222,53 @@ func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate strin
 	return updated, missing, nil
 }
 
+func sharedGobVerifiedNoTradingDate(current *mainboardSharedGobData, code, targetDate string) bool {
+	return current.Snapshot.NonTradingDates[code] == targetDate && !containsSharedGobBarDate(current.Daily[code], targetDate)
+}
+
 func mainboardSharedGobPendingIndices(current *mainboardSharedGobData, targetDate string) []int {
 	indices := make([]int, 0)
 	for i, stock := range current.Snapshot.Stocks {
-		if !containsSharedGobBarDate(current.Daily[stock.Code], targetDate) || current.Snapshot.ClosedDailyDates[stock.Code] < targetDate {
+		if !sharedGobVerifiedNoTradingDate(current, stock.Code, targetDate) && (!containsSharedGobBarDate(current.Daily[stock.Code], targetDate) || current.Snapshot.ClosedDailyDates[stock.Code] < targetDate) {
 			indices = append(indices, i)
 		}
 	}
 	return indices
 }
 
+// Include Daily-only symbols and every stored dated pool, even when the
+// symbol is outside today's market-cap filter or has no bars yet.
 func mainboardSharedGobPendingSelectionPool(current *mainboardSharedGobData, targetDate string) []MainboardT0PoolStock {
-	baseCodes := make(map[string]struct{}, len(current.Snapshot.Stocks))
+	baseCodes := make(map[string]bool, len(current.Snapshot.Stocks))
 	for _, stock := range current.Snapshot.Stocks {
-		baseCodes[stock.Code] = struct{}{}
+		baseCodes[stock.Code] = true
+	}
+	all := make(map[string]MainboardT0PoolStock, len(current.Daily))
+	dates := make([]string, 0, len(current.Snapshot.SelectionPools))
+	for date := range current.Snapshot.SelectionPools {
+		dates = append(dates, date)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+	for _, date := range dates {
+		for _, stock := range current.Snapshot.SelectionPools[date] {
+			if _, exists := all[stock.Code]; !exists {
+				all[stock.Code] = stock
+			}
+		}
+	}
+	for code := range current.Daily {
+		if _, exists := all[code]; !exists {
+			all[code] = MainboardT0PoolStock{Code: code}
+		}
 	}
 	pending := make([]MainboardT0PoolStock, 0)
-	for _, stock := range current.Snapshot.SelectionPools[targetDate] {
-		if _, exists := baseCodes[stock.Code]; exists || (containsSharedGobBarDate(current.Daily[stock.Code], targetDate) && current.Snapshot.ClosedDailyDates[stock.Code] >= targetDate) {
+	for code, stock := range all {
+		if baseCodes[code] || sharedGobVerifiedNoTradingDate(current, code, targetDate) || (containsSharedGobBarDate(current.Daily[code], targetDate) && current.Snapshot.ClosedDailyDates[code] >= targetDate) {
 			continue
 		}
 		pending = append(pending, stock)
 	}
+	sort.Slice(pending, func(i, j int) bool { return pending[i].Code < pending[j].Code })
 	return pending
 }
 

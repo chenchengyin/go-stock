@@ -295,7 +295,7 @@ func Start() {
 		}
 	}()
 
-	// 交易日 00:00~09:00 主动预热 T0 日线，避免早盘前无人访问时才开始拉数据。
+	// 每日 00:00~09:25 先补齐全部共享 GOB，再准备交易日选股池。
 	go func() {
 		runT0AutoPrewarmTick(time.Now())
 
@@ -317,16 +317,14 @@ func Start() {
 		}
 	}()
 
-	// 交易日收盘后增量更新共享红策 GOB，保持日期列表和内存日线同步。
+	// Poll opening confirmation independently so 09:25 is not delayed by the
+	// service start time's minute offset or an overnight daily refresh.
 	go func() {
 		runSharedGobRedConfirmationTick(time.Now())
-		runMainboardSharedGobRefreshTick(time.Now())
-
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for tick := range ticker.C {
 			runSharedGobRedConfirmationTick(tick)
-			runMainboardSharedGobRefreshTick(tick)
 		}
 	}()
 
@@ -536,6 +534,7 @@ func spaFileServer(webRoot string) http.Handler {
 }
 
 func runT0AutoPrewarmTick(now time.Time) {
+	runMainboardSharedGobRefreshTick(now)
 	if !shouldAutoPrewarmT0(now) {
 		return
 	}

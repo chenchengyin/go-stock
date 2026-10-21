@@ -546,3 +546,38 @@ func TestSharedGobCloseRefreshRevisitsExistingIntradayBars(t *testing.T) {
 		t.Fatalf("intraday bar for new pool stock skipped: %v", extra)
 	}
 }
+
+func TestSharedGobDailyExcludesVerifiedNonTradingBeforeRepair(t *testing.T) {
+	isolateSharedGobConfirmation(t)
+	today, _ := writeStaleSharedGobFixture(t)
+	sharedGobNonTradingHistoryVerifier = func(stocks []t0Stock, _ map[string][]dailyBar, _, _ string) map[string]string {
+		return map[string]string{"605287": "当日停牌，无竞价开盘"}
+	}
+	sharedGobDailyFetcher = func(stocks []t0Stock, _ string, _ func()) map[string][]dailyBar {
+		if len(stocks) != 0 {
+			t.Fatalf("verified non-trading stock still triggered daily downloads: %v", stocks)
+		}
+		return nil
+	}
+	stocks, _, _, err := loadOrFetchSharedGobT0Daily(today)
+	if err != nil || len(stocks) != 1 || !sharedGobRedHistoryReady(today) {
+		t.Fatalf("prewarm not ready: stocks=%v err=%v", stocks, err)
+	}
+}
+
+func TestSharedGobAuctionFetchesWholeDatedPool(t *testing.T) {
+	isolateSharedGobConfirmation(t)
+	today, _ := writeStaleSharedGobFixture(t)
+	old := sharedGobRedLiveQuoteFetcher
+	t.Cleanup(func() { sharedGobRedLiveQuoteFetcher = old })
+	sharedGobRedLiveQuoteFetcher = func(stocks []t0Stock) map[string]t0Realtime {
+		if len(stocks) != 2 {
+			t.Fatalf("auction snapshot did not cover the full dated pool: %v", stocks)
+		}
+		return map[string]t0Realtime{"002242": {Open: 10, PrevClose: 10, Source: "tencent", TradeDate: today}}
+	}
+	quotes, _, warning := buildSharedGobRedAuctionQuotes(today, []t0Stock{{ShortCode: "002242"}}, nil)
+	if len(quotes) != 1 || warning != nil {
+		t.Fatalf("irrelevant pool quote blocked confirmation: %v %+v", quotes, warning)
+	}
+}

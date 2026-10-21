@@ -1136,12 +1136,14 @@ type t0Stock struct {
 
 // t0Realtime T0 实时行情
 type t0Realtime struct {
-	Open      float64
-	Close     float64 // 当前价
-	PrevClose float64
-	Source    string
-	TradeDate string
-	Volume    float64
+	Open       float64
+	Close      float64 // 当前价
+	PrevClose  float64
+	Source     string
+	TradeDate  string
+	QuoteTime  string // Tencent's original YYYYMMDDhhmmss timestamp.
+	Volume     float64
+	NonTrading bool // Tencent explicitly marks the current morning quote as D.
 }
 
 func freshT0RealtimeQuote(code, tradeDate string, now time.Time) (t0Realtime, bool) {
@@ -1876,7 +1878,36 @@ func validTencentT0QuoteTimestamp(stamp string, now time.Time) bool {
 	return isBeforeT0AuctionCutoff(local, local.Format("2006-01-02")) || stamp[8:14] >= "092500"
 }
 
+// Non-trading Tencent quotes may stay at the same day's 09:00 refresh.
+// Admit only the explicit D status with no open or trades; ordinary auction
+// quotes must still pass the stricter 09:25 timestamp gate.
+func validTencentT0QuoteFields(parts []string, now time.Time) bool {
+	if len(parts) <= 30 {
+		return false
+	}
+	if validTencentT0QuoteTimestamp(parts[30], now) {
+		return true
+	}
+	if len(parts) <= 40 || parts[40] != "D" {
+		return false
+	}
+	stamp := parts[30]
+	local := now.In(chinaLocation())
+	if len(stamp) != 14 || stamp[:8] != local.Format("20060102") ||
+		stamp[8:] < "090000" || stamp > local.Format("20060102150405") {
+		return false
+	}
+	previous, prevErr := strconv.ParseFloat(parts[4], 64)
+	open, openErr := strconv.ParseFloat(parts[5], 64)
+	volume, volumeErr := strconv.ParseFloat(parts[6], 64)
+	return prevErr == nil && previous > 0 && openErr == nil && open == 0 && volumeErr == nil && volume == 0
+}
+
 func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
+	return fetchT0RealtimeTencentAt(stocks, time.Now())
+}
+
+func fetchT0RealtimeTencentAt(stocks []t0Stock, now time.Time) map[string]t0Realtime {
 	if len(stocks) == 0 {
 		return nil
 	}
@@ -1923,7 +1954,7 @@ func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
 			}
 			// 格式: v_sh600000="1~平安银行~000001~..."
 			parts := strings.Split(line, "~")
-			if len(parts) <= 30 || !validTencentT0QuoteTimestamp(parts[30], time.Now()) {
+			if !validTencentT0QuoteFields(parts, now) {
 				continue
 			}
 			eqPos := strings.Index(parts[0], `="`)
@@ -1942,12 +1973,14 @@ func fetchT0RealtimeTencent(stocks []t0Stock) map[string]t0Realtime {
 			}
 
 			rt := t0Realtime{
-				Close:     parse(parts[3]),
-				PrevClose: parse(parts[4]),
-				Open:      parse(parts[5]),
-				Source:    "tencent",
-				TradeDate: time.Now().In(chinaLocation()).Format("2006-01-02"),
-				Volume:    parse(parts[6]),
+				Close:      parse(parts[3]),
+				PrevClose:  parse(parts[4]),
+				Open:       parse(parts[5]),
+				Source:     "tencent",
+				TradeDate:  now.In(chinaLocation()).Format("2006-01-02"),
+				QuoteTime:  parts[30],
+				Volume:     parse(parts[6]),
+				NonTrading: len(parts) > 40 && parts[40] == "D" && parts[30][8:14] >= "090000",
 			}
 			// 腾讯API：当前价=0时使用开盘价
 			if rt.Close == 0 && rt.Open > 0 {
@@ -2641,11 +2674,14 @@ func chinaLocation() *time.Location {
 	return loc
 }
 
-// t0AutoPrewarmEndHM 主动预热窗口结束时分（不含）：09:00
-const t0AutoPrewarmEndHM = 9 * 60
+// t0AutoPrewarmEndHM 主动预热窗口结束时分（不含）：09:25
+const t0AutoPrewarmEndHM = t0AuctionCutoffHM
 
-// shouldAutoPrewarmT0 判断 now 是否落在「周一到周五 00:00~09:00（上海时区）」主动预热窗口。
-// 09:00 之后不再主动拉取，交给请求触发的预热逻辑，避免与竞价确认窗口抢资源。
+// t0PreopenPrevResultEndHM 前日结果展示及归档补全窗口结束时分（不含）：09:00
+const t0PreopenPrevResultEndHM = 9 * 60
+
+// shouldAutoPrewarmT0 keeps retrying daily preparation until the auction cutoff,
+// including the 09:00 refresh of explicit non-trading quotes.
 func shouldAutoPrewarmT0(now time.Time) bool {
 	local := now.In(chinaLocation())
 	switch local.Weekday() {
@@ -2662,7 +2698,7 @@ func isPreopenPrevResultWindow(now time.Time, tradeDate string) bool {
 	if local.Format("2006-01-02") != tradeDate {
 		return false
 	}
-	return local.Hour()*60+local.Minute() < t0AutoPrewarmEndHM
+	return local.Hour()*60+local.Minute() < t0PreopenPrevResultEndHM
 }
 
 func isT0WeekendDate(tradeDate string) bool {

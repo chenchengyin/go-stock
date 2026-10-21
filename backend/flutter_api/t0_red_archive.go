@@ -3,6 +3,7 @@ package flutter_api
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -232,14 +233,63 @@ func handleGobRedRuleHistory(w http.ResponseWriter, ruleSource, ruleKey, rawRule
 		if ruleSource == redHistorySourceGob {
 			results = enrichGobRedRuleStats(results)
 		}
+		var daily map[string][]dailyBar
+		if shared, err := loadMainboardSharedGob(); err == nil {
+			daily = shared.Daily
+		}
+		pricedResults := redHistoryResultsWithCachedPrices(results, daily, loadRedKlineDaily)
 		WriteJSON(w, map[string]interface{}{
 			"rule_source": ruleSource, "rule_key": ruleKey, "rule_version": ruleVersion,
-			"count": len(results), "results": results, "data_incomplete": index.incomplete,
+			"count": len(results), "results": pricedResults, "data_incomplete": index.incomplete,
 		})
 		return
 	}
 
 	WriteJSON(w, map[string]interface{}{"rules": index.options, "data_incomplete": index.incomplete})
+}
+
+type redHistoryPriceResult struct {
+	T0SelectionResult
+	T0IntradayChangePP *float64 `json:"t0_intraday_change_pp"`
+}
+
+func redHistoryResultsWithCachedPrices(results []T0SelectionResult, daily map[string][]dailyBar, loadDaily func(string) map[string][]dailyBar) []redHistoryPriceResult {
+	out := redHistoryResultsWithPrices(results, daily)
+	missingByDate := make(map[string][]int)
+	for i, item := range out {
+		if item.T0IntradayChangePP == nil {
+			missingByDate[item.Time] = append(missingByDate[item.Time], i)
+		}
+	}
+	// Match the chart's local-cache fallback, loading each missing date only once.
+	for date, indices := range missingByDate {
+		archivedDaily := loadDaily(date)
+		for _, i := range indices {
+			out[i] = redHistoryResultsWithPrices(results[i:i+1], archivedDaily)[0]
+		}
+	}
+	return out
+}
+
+// Project prices from one daily series: archived GOB results can contain a zero
+// close-return placeholder. Never interpret that placeholder as an actual close.
+func redHistoryResultsWithPrices(results []T0SelectionResult, daily map[string][]dailyBar) []redHistoryPriceResult {
+	out := make([]redHistoryPriceResult, 0, len(results))
+	for _, result := range results {
+		item := redHistoryPriceResult{T0SelectionResult: result}
+		bars := daily[t0ShortCodeFromResultCode(result.StockCode)]
+		bar, index := dailyBarOnDate(bars, result.Time)
+		if index > 0 && bar.Open > 0 && bar.Close > 0 && bars[index-1].Close > 0 &&
+			!math.IsInf(bar.Open, 0) && !math.IsInf(bar.Close, 0) && !math.IsInf(bars[index-1].Close, 0) {
+			previousClose := bars[index-1].Close
+			item.OpenGap = round2((bar.Open/previousClose - 1) * 100)
+			item.CloseRet = round2((bar.Close/previousClose - 1) * 100)
+			change := round2(item.CloseRet - item.OpenGap)
+			item.T0IntradayChangePP = &change
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func gobRedRuleHistoryIndexFor(
@@ -784,7 +834,7 @@ func RefreshGobRedDailyCaches(cacheRoot, start, end string) (GobRedDailyCacheRef
 				_, t0Index := dailyBarOnDate(cache.Daily[stockCode], date)
 				needsT1 := false
 				for _, hit := range candidate.RedRuleHits {
-					if hit.ExitHorizon == "T+1_close" {
+					if hit.ExitHorizon == "T+1_close" || hit.ExitHorizon == "T+1_target_2_5" || hit.ExitHorizon == gobRedBodyHorizon {
 						needsT1 = true
 						break
 					}
