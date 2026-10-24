@@ -72,6 +72,15 @@ export const adminApi = {
       body: { status },
     })
   },
+  getSystemSettings() {
+    return apiRequest('/api/admin/settings')
+  },
+  updateSystemSettings(singleDeviceLogin) {
+    return apiRequest('/api/admin/settings', {
+      method: 'PATCH',
+      body: { singleDeviceLogin },
+    })
+  },
   listModules() {
     return apiRequest('/api/admin/modules')
   },

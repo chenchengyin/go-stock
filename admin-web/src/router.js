@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from './views/LoginView.vue'
 import UserManagementView from './views/UserManagementView.vue'
 import FunctionManagementView from './views/FunctionManagementView.vue'
+import SystemSettingsView from './views/SystemSettingsView.vue'
 
 export const routes = [
   { path: '/', name: 'root', component: LoginView },
@@ -10,6 +11,12 @@ export const routes = [
     path: '/users',
     name: 'users',
     component: UserManagementView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: SystemSettingsView,
     meta: { requiresAuth: true },
   },
   {

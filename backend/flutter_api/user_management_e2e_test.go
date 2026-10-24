@@ -1,6 +1,7 @@
 package flutter_api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,7 +42,7 @@ func TestUserManagementSingleDeviceHTTPFlow(t *testing.T) {
 		}
 	}
 
-	authService := newDeterministicE2EAuthService(dao)
+	authService := newDeterministicE2EAuthService(t, dao)
 	handler := newUserManagementE2EHandler(authService, dao)
 
 	deviceA := registerThroughHTTP(t, handler, "13800000000", "Alice", "device-a")
@@ -91,7 +92,12 @@ func TestUserManagementSingleDeviceHTTPFlow(t *testing.T) {
 	assertHTTPStatus(t, otherStillActive, http.StatusOK)
 }
 
-func newDeterministicE2EAuthService(dao *gorm.DB) *AuthService {
+func newDeterministicE2EAuthService(t *testing.T, dao *gorm.DB) *AuthService {
+	t.Helper()
+	// This existing flow verifies the enabled single-device policy.
+	if _, err := NewAdminService(dao, nil).UpdateSystemSettings(context.Background(), SystemSettings{SingleDeviceLogin: true}); err != nil {
+		t.Fatalf("enable single-device test policy: %v", err)
+	}
 	service := NewAuthService(dao, nil)
 	service.now = func() time.Time {
 		return time.Date(2026, time.August, 30, 9, 0, 0, 0, time.UTC)

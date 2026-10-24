@@ -466,6 +466,11 @@ func newTestAuthService(t *testing.T) *testAuthService {
 		t.Fatalf("migrate auth tables: %v", err)
 	}
 
+	// Legacy authentication fixtures explicitly exercise the single-device policy.
+	if _, err := NewAdminService(dao, nil).UpdateSystemSettings(context.Background(), SystemSettings{SingleDeviceLogin: true}); err != nil {
+		t.Fatalf("enable single-device test policy: %v", err)
+	}
+
 	testService := &testAuthService{
 		nowValue: time.Date(2026, time.August, 30, 9, 0, 0, 0, time.UTC),
 	}

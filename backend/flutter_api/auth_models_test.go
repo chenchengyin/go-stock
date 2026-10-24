@@ -116,5 +116,7 @@ func TestMigrateAuthTablesCreatesUsersAndSessions(t *testing.T) {
 		t.Fatal("token hash index was not created")
 	}
 
-	mustHaveFilteredIndex(t, dao, "idx_auth_sessions_one_active", "WHERE revoked_at IS NULL")
+	if dao.Migrator().HasIndex(&AuthSession{}, "idx_auth_sessions_one_active") {
+		t.Fatal("single-device constraint should be off by default")
+	}
 }

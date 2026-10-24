@@ -1,21 +1,31 @@
 package flutter_api
 
 import (
+	"time"
+
 	"go-stock/backend/data"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func MigrateAuthTables(dao *gorm.DB) error {
-	if err := dao.AutoMigrate(&AuthUser{}, &AuthSession{}, &ModuleUserGrant{}, &AdminSession{}); err != nil {
+	if err := dao.AutoMigrate(&AuthUser{}, &AuthSession{}, &ModuleUserGrant{}, &AdminSession{}, &SystemSetting{}); err != nil {
 		return err
 	}
 
-	if err := dao.Exec(`
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_one_active
-		ON user_sessions(user_id)
-		WHERE revoked_at IS NULL;
-	`).Error; err != nil {
+	if err := dao.Transaction(func(tx *gorm.DB) error {
+		// Preserve an administrator's choice across restarts; new installations default to off.
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&SystemSetting{Key: singleDeviceLoginSettingKey}).Error; err != nil {
+			return err
+		}
+		settings, err := readSystemSettings(tx)
+		if err != nil {
+			return err
+		}
+		_, err = applySingleDeviceLoginTx(tx, settings.SingleDeviceLogin, time.Now().UTC())
+		return err
+	}); err != nil {
 		return err
 	}
 

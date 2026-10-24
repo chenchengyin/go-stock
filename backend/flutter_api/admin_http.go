@@ -35,6 +35,7 @@ func NewAdminHTTPHandler(service *AdminService, moduleService *ModuleService) ht
 	mux.Handle("/api/admin/modules/", moduleUsersHandler)
 	accessHandler := requireAdminWithPolicy(service, handleAdminAccess(moduleService), policy)
 	mux.Handle("/api/admin/access", accessHandler)
+	mux.Handle("/api/admin/settings", requireAdminWithPolicy(service, handleAdminSettings(service), policy))
 	return adminCORSMiddleware(policy, mux)
 }
 

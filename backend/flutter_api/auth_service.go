@@ -146,10 +146,16 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (*AuthSession
 		}
 		user = currentUser
 
-		var err error
-		revokedSessionIDs, err = revokeActiveSessionsTx(tx, user.ID, now, "new_login")
+		settings, err := readSystemSettings(tx)
 		if err != nil {
 			return err
+		}
+		if settings.SingleDeviceLogin {
+			var err error
+			revokedSessionIDs, err = revokeActiveSessionsTx(tx, user.ID, now, "new_login")
+			if err != nil {
+				return err
+			}
 		}
 		return tx.Create(&session).Error
 	}); err != nil {

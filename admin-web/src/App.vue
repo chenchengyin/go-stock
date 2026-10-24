@@ -14,7 +14,7 @@ const loginError = ref('')
 
 const adminName = computed(() => currentAdmin.value?.nickname || currentAdmin.value?.phone || '管理员')
 const adminAccount = computed(() => currentAdmin.value?.phone || '')
-const pageTitles = { users: '用户管理', functions: '功能管理' }
+const pageTitles = { users: '用户管理', functions: '功能管理', settings: '系统设置' }
 const pageTitle = computed(() => pageTitles[route.name] || '用户管理')
 
 async function syncRoute() {
@@ -138,6 +138,13 @@ async function handleLogout() {
         <RouterLink to="/functions" class="admin-nav-link" active-class="is-active">
           <span class="admin-nav-icon admin-nav-icon-modules" aria-hidden="true"></span>
           功能管理
+        </RouterLink>
+        <RouterLink to="/settings" class="admin-nav-link" active-class="is-active">
+          <svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 3-.6 2.1-1.9 1.1-2.1-.5-3 5.2 1.5 1.6v2.2l-1.5 1.6 3 5.2 2.1-.5 1.9 1.1L9 24h6l.6-2.1 1.9-1.1 2.1.5 3-5.2-1.5-1.6v-2.2l1.5-1.6-3-5.2-2.1.5-1.9-1.1L15 3Z" transform="translate(2 -1) scale(.83)" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          系统设置
         </RouterLink>
       </nav>
 
