@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,10 @@ import 'package:trading_app/core/theme/app_colors.dart';
 import 'package:trading_app/core/storage/red_kline_settings.dart';
 import 'package:trading_app/features/radar/data/red_kline_repository.dart';
 import 'package:trading_app/features/radar/data/red_t1_intraday_repository.dart';
+import 'package:trading_app/features/radar/data/red_auction_notification_bridge.dart'
+    as auction_notifications;
+import 'package:trading_app/features/radar/domain/red_auction_reminder.dart';
+import 'package:trading_app/features/auth/presentation/auth_view_model.dart';
 import 'package:trading_app/core/utils/stock_launcher.dart';
 import 'package:trading_app/features/radar/domain/radar_models.dart';
 import 'package:trading_app/features/radar/domain/t0_close_target_monitor.dart';
@@ -85,17 +91,24 @@ String _patternDescription(String pattern) {
 }
 
 class RadarPage extends StatefulWidget {
-  const RadarPage({super.key});
+  const RadarPage({super.key, this.onShowRadar});
+
+  final VoidCallback? onShowRadar;
 
   @override
   State<RadarPage> createState() => _RadarPageState();
 }
 
-class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
+class _RadarPageState extends State<RadarPage>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   late final RadarViewModel _radarViewModel;
   late final ModulePermissionController _permissionController;
   late final T0StrategyViewModel _t0StrategyViewModel;
+  RedAuctionReminder? _redAuctionReminder;
+  String? _redAuctionUserId;
+  bool _redDeepLinkOpened = false;
+  bool _pairingLocalReminder = false;
   List<RadarModuleDefinition> _visibleModules = [];
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
@@ -121,7 +134,18 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     _permissionController.addListener(_onPermissionsChanged);
     _radarViewModel = context.read<RadarViewModel>();
     _t0StrategyViewModel.addListener(_onT0DataWarning);
+    if (kIsWeb) {
+      _redAuctionUserId = context.read<AuthViewModel?>()?.user?.id;
+      _redAuctionReminder = RedAuctionReminder(
+        request: _t0StrategyViewModel.fetchRedAuctionConfirmation,
+        onConfirmed: _onRedAuctionConfirmed,
+        onTimeout: _onRedAuctionTimeout,
+      );
+      WidgetsBinding.instance.addObserver(this);
+      _syncRedAuctionReminder();
+    }
     _bindVoiceAnnouncement();
+    _consumeRedDeepLink();
     _checkVoicePermissionAfterBuild();
     // 测试语音播报时取消下面这行注释：启动到首页后自动播放模拟异动
     // _playTestVoiceAnnouncementOnce();
@@ -162,6 +186,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   void _onPermissionsChanged() {
     if (!mounted) return;
+    _syncRedAuctionReminder();
+    _consumeRedDeepLink();
     final nextModules = _resolveVisibleModules();
     final oldCodes = _visibleModules.map((module) => module.code).toList();
     final nextCodes = nextModules.map((module) => module.code).toList();
@@ -188,6 +214,171 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
     oldController.dispose();
     setState(() {});
     _lazyLoadIfNeeded(_tabController.index);
+  }
+
+  void _syncRedAuctionReminder() {
+    _redAuctionReminder?.setEnabled(
+      _redAuctionUserId != null &&
+          !auction_notifications.localReminderEnabled() &&
+          _permissionController.canView(t0SharedGobRedStrategyModuleCode),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    _redAuctionReminder?.resume();
+    if (kIsWeb) setState(() {});
+  }
+
+  void _onRedAuctionConfirmed(Map<String, dynamic> data) {
+    if (!mounted ||
+        !_permissionController.canView(t0SharedGobRedStrategyModuleCode)) {
+      return;
+    }
+    _t0StrategyViewModel.acceptRedAuctionConfirmation(data);
+    final rows = data['results'] as List;
+    final names = rows
+        .whereType<Map>()
+        .take(5)
+        .map((row) => row['股票名称']?.toString() ?? '')
+        .where((name) => name.isNotEmpty)
+        .join('、');
+    final body = rows.isEmpty
+        ? '今日暂无符合条件的股票，点击查看红策。'
+        : '${names.isEmpty ? '今日名单已就绪' : names}${rows.length > 5 ? '等' : ''}，点击查看红策。';
+    auction_notifications.show(
+      date: data['date'] as String,
+      userId: _redAuctionUserId!,
+      count: rows.length,
+      body: body,
+      onTap: () => _openRedAuctionResults(data),
+    );
+    if (auction_notifications.permission() != 'granted') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('今日红策已更新，共 ${rows.length} 只'),
+          action: SnackBarAction(
+            label: '查看',
+            onPressed: () => _openRedAuctionResults(data),
+          ),
+        ),
+      );
+    }
+    if (_t0StrategyViewModel
+            .stateFor(t0SharedGobRedStrategyModuleCode)
+            .selectedDate ==
+        data['date']) {
+      unawaited(
+        _t0StrategyViewModel.loadAvailableDates(
+          moduleCode: t0SharedGobRedStrategyModuleCode,
+        ),
+      );
+    }
+  }
+
+  void _onRedAuctionTimeout() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('红策数据暂未就绪，可手动刷新'),
+        action: SnackBarAction(
+          label: '查看',
+          onPressed: () => _openRedAuctionResults(),
+        ),
+      ),
+    );
+  }
+
+  void _consumeRedDeepLink() {
+    if (!kIsWeb ||
+        _redDeepLinkOpened ||
+        !_permissionController.canView(t0SharedGobRedStrategyModuleCode) ||
+        Uri.base.queryParameters['radar_module'] !=
+            t0SharedGobRedStrategyModuleCode) {
+      return;
+    }
+    final date = Uri.base.queryParameters['radar_date'];
+    if (date != null &&
+        (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) ||
+            DateTime.tryParse(date)?.toIso8601String().substring(0, 10) !=
+                date)) {
+      return;
+    }
+    _redDeepLinkOpened = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openRedAuctionResults(null, date);
+    });
+  }
+
+  Future<void> _pairLocalReminder() async {
+    final token = context.read<AuthViewModel>().accessToken;
+    if (token == null || token.isEmpty || _pairingLocalReminder) return;
+    setState(() => _pairingLocalReminder = true);
+    final result = await auction_notifications.pairLocalReminder(token);
+    if (!mounted) return;
+    _syncRedAuctionReminder();
+    setState(() => _pairingLocalReminder = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result == 'connected'
+              ? '本机提醒已连接，可在竞价名单就绪后提醒'
+              : result.replaceFirst('error:', ''),
+        ),
+      ),
+    );
+  }
+
+  void _openRedAuctionResults([Map<String, dynamic>? data, String? date]) {
+    if (!mounted ||
+        !_permissionController.canView(t0SharedGobRedStrategyModuleCode)) {
+      return;
+    }
+    final index = _visibleModules.indexWhere(
+      (module) => module.code == t0SharedGobRedStrategyModuleCode,
+    );
+    if (index < 0) return;
+    widget.onShowRadar?.call();
+    _loadedModuleCodes.add(t0SharedGobRedStrategyModuleCode);
+    _tabController.animateTo(index);
+    if (data != null) {
+      _t0StrategyViewModel.acceptRedAuctionConfirmation(data, show: true);
+    } else {
+      unawaited(
+        _t0StrategyViewModel.loadResults(
+          moduleCode: t0SharedGobRedStrategyModuleCode,
+          date: date,
+        ),
+      );
+    }
+    unawaited(
+      _t0StrategyViewModel.loadAvailableDates(
+        moduleCode: t0SharedGobRedStrategyModuleCode,
+      ),
+    );
+  }
+
+  Future<void> _enableRedAuctionNotifications() async {
+    if (auction_notifications.localReminderEnabled()) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已使用本机提醒，无需保持网页打开')));
+      return;
+    }
+    final permission = await auction_notifications.requestPermission();
+    if (!mounted) return;
+    setState(() {});
+    final message = switch (permission) {
+      'granted' => '已开启红策竞价通知，09:25:10 自动获取名单',
+      'denied' => '请在浏览器的网站设置中允许通知',
+      'insecure' => '浏览器通知需要通过 HTTPS 或 localhost 打开网页',
+      'unsupported' => '当前浏览器不支持桌面通知',
+      _ => '允许通知后，竞价名单就绪时会自动提醒',
+    };
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _onTabChanged() {
@@ -244,6 +435,8 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _redAuctionReminder?.dispose();
     _unbindVoiceAnnouncement();
     _t0StrategyViewModel.removeListener(_onT0DataWarning);
     _permissionController.removeListener(_onPermissionsChanged);
@@ -374,6 +567,31 @@ class _RadarPageState extends State<RadarPage> with TickerProviderStateMixin {
         foregroundColor: AppColors.appBarFg,
         elevation: 0.5,
         actions: [
+          if (kIsWeb &&
+              auction_notifications.pairingAvailable() &&
+              _permissionController.canView(t0SharedGobRedStrategyModuleCode))
+            TextButton.icon(
+              icon: const Icon(Icons.link, size: 18),
+              label: Text(_pairingLocalReminder ? '正在连接' : '连接本机提醒'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.appBarFg),
+              onPressed: _pairingLocalReminder ? null : _pairLocalReminder,
+            ),
+          if (kIsWeb &&
+              _permissionController.canView(t0SharedGobRedStrategyModuleCode))
+            IconButton(
+              icon: Icon(
+                auction_notifications.localReminderEnabled() ||
+                        auction_notifications.permission() == 'granted'
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_none_outlined,
+              ),
+              tooltip: auction_notifications.localReminderEnabled()
+                  ? '已使用本机提醒'
+                  : auction_notifications.permission() == 'granted'
+                  ? '红策竞价通知已开启'
+                  : '开启红策竞价通知',
+              onPressed: _enableRedAuctionNotifications,
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: '刷新模块权限',

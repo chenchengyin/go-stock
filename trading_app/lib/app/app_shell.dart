@@ -38,9 +38,15 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
   final Set<int> _visitedIndexes = {0};
 
-  static Widget _buildPage(int index) {
+  void _showRadar() {
+    AppShell.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    if (!mounted) return;
+    setState(() => _currentIndex = 0);
+  }
+
+  Widget _buildPage(int index) {
     return switch (index) {
-      0 => const RadarPage(),
+      0 => RadarPage(onShowRadar: _showRadar),
       1 => const ShortTermEmotionPage(),
       2 => const NewsPage(),
       3 => const ProfilePage(),

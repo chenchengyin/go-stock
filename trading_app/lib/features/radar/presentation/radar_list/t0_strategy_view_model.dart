@@ -502,6 +502,7 @@ class T0StrategyViewModel extends ChangeNotifier {
   final T0QuoteFetcher? _fetchRealtimeQuotes;
   final T0Request? _request;
   final void Function(String moduleCode)? _onModuleForbidden;
+  bool _disposed = false;
   final Map<String, _MutableT0ModuleState> _states = {
     t0RedStrategyModuleCode: _MutableT0ModuleState(),
     t0GoldStrategyModuleCode: _MutableT0ModuleState(),
@@ -1048,6 +1049,51 @@ class T0StrategyViewModel extends ChangeNotifier {
         replaceLoading: true,
       );
     }
+  }
+
+  /// Fetch without changing the displayed date or its loading state.
+  Future<Map<String, dynamic>> fetchRedAuctionConfirmation(String date) async {
+    try {
+      return await _sendRequest(t0SharedGobRedStrategyModuleCode, {
+        'date': date,
+      });
+    } catch (error) {
+      if (!_disposed && _isModuleForbidden(error)) {
+        _forbidModule(t0SharedGobRedStrategyModuleCode);
+      }
+      rethrow;
+    }
+  }
+
+  /// A background confirmation must not interrupt a historical date the user
+  /// is reading. An explicit notification click can open that confirmed list.
+  void acceptRedAuctionConfirmation(
+    Map<String, dynamic> data, {
+    bool show = false,
+  }) {
+    final date = data['date'] as String?;
+    if (_disposed ||
+        date == null ||
+        data['confirmed'] != true ||
+        data['data_incomplete'] == true ||
+        data['results'] is! List) {
+      return;
+    }
+    final state = _mutableState(t0SharedGobRedStrategyModuleCode);
+    if (!show &&
+        (date != _shanghaiToday() ||
+            (state.selectedDate != null && state.selectedDate != date))) {
+      return;
+    }
+    state.loadGeneration++;
+    state.loading = false;
+    state.error = null;
+    _applyResponse(t0SharedGobRedStrategyModuleCode, {
+      ...data,
+      if (date != _shanghaiToday()) 'archived': true,
+    }, date);
+    _scheduleDateBoundaryRefresh();
+    notifyListeners();
   }
 
   /// 加载 T0 选股结果
@@ -1818,6 +1864,7 @@ class T0StrategyViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _dateBoundaryTimer?.cancel();
     _sharedGobDateRefreshTimer?.cancel();
     for (final moduleCode in _states.keys) {
