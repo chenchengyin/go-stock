@@ -1,0 +1,50 @@
+[
+  {
+    "code": "002134",
+    "date": "2026-09-23",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "002487",
+    "date": "2026-10-20",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "603256",
+    "date": "2026-10-16",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "002951",
+    "date": "2026-07-15",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "603221",
+    "date": "2026-09-30",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "600664",
+    "date": "2026-09-30",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "603580",
+    "date": "2026-09-28",
+    "bars": 241,
+    "candidate": false
+  },
+  {
+    "code": "600354",
+    "date": "2026-09-17",
+    "bars": 241,
+    "candidate": false
+  }
+]

@@ -103,6 +103,17 @@ class RedKlineRepository {
   final Map<String, Future<Map<String, RedKlineWindow>>> _pending = {};
   final Map<String, DateTime> _cachedAt = {};
 
+  /// Invalidates a strategy's windows without disturbing other strategy caches.
+  void clearCache({String? moduleCode}) {
+    final keys = _pending.keys
+        .where((key) => moduleCode == null || key.startsWith('$moduleCode:'))
+        .toList();
+    for (final key in keys) {
+      _pending.remove(key);
+      _cachedAt.remove(key);
+    }
+  }
+
   Future<Map<String, RedKlineWindow>> load(
     String date,
     List<String> codes, {

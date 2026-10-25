@@ -1,0 +1,38 @@
+{
+  "archived": true,
+  "complete": false,
+  "confirmed": false,
+  "count": 0,
+  "data_incomplete": true,
+  "data_warning": {
+    "code": "T0_HISTORY_POOL_RECONSTRUCTED",
+    "message": "历史补采重建：按历史证券名单及前一交易日流通市值估算，非当日原始股票池，结果仅供复盘参考",
+    "phase": "history",
+    "source": "baostock_dated_history",
+    "expected": 3195,
+    "actual": 3195
+  },
+  "data_warnings": [
+    {
+      "code": "T0_HISTORY_POOL_RECONSTRUCTED",
+      "message": "历史补采重建：按历史证券名单及前一交易日流通市值估算，非当日原始股票池，结果仅供复盘参考",
+      "phase": "history",
+      "source": "baostock_dated_history",
+      "expected": 3195,
+      "actual": 3195
+    }
+  ],
+  "date": "2026-10-20",
+  "date_pool_exact": false,
+  "pool_reconstructed": true,
+  "pool_reconstruction_method": "prior_close_float_cap_from_volume_turnover",
+  "pool_reference_date": "2026-10-19",
+  "pool_source": "baostock_dated_history",
+  "pool_stocks": 1847,
+  "purple_filter": {
+    "min_earn_pct": 70,
+    "min_samples": 3
+  },
+  "results": [],
+  "source": "shared_gob"
+}

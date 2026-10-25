@@ -1,0 +1,65 @@
+{
+  "separately_archived_days": [
+    {
+      "date": "2026-10-12",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1926
+    },
+    {
+      "date": "2026-10-13",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1896
+    },
+    {
+      "date": "2026-10-14",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1902
+    },
+    {
+      "date": "2026-10-15",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1886
+    },
+    {
+      "date": "2026-10-16",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1858
+    },
+    {
+      "date": "2026-10-19",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1848
+    },
+    {
+      "date": "2026-10-21",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1862
+    },
+    {
+      "date": "2026-10-22",
+      "source": "schema2_complete_dated_cache",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1828
+    },
+    {
+      "date": "2026-10-23",
+      "source": "shared_gob_dated_pool",
+      "archived_at": "2026-10-25T14:29:02+08:00",
+      "stocks": 1828
+    }
+  ],
+  "missing_recent_dates": [
+    "2026-10-08",
+    "2026-10-09",
+    "2026-10-20"
+  ],
+  "all_available_live_requests_passed": true,
+  "targeted_tests_passed": 38
+}

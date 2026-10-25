@@ -1,0 +1,54 @@
+{
+  "docs/research/2026-10-25-oversold-target-optimization/研究约定.md": {
+    "sha256": "de2861d95800496b35d7b7db1d757253eec0b86b9dfe1a482605c9ea47d13174",
+    "bytes": 3645
+  },
+  "docs/research/2026-10-25-oversold-target-optimization/frozen-candidates.json": {
+    "sha256": "034efaa75f6c89ee05c50bd6095e90b1c66db2fa929ed70a40dac74a7a41ffe7",
+    "bytes": 6288
+  },
+  "docs/research/2026-10-25-oversold-target-optimization/training-shortlist.json": {
+    "sha256": "0e2505e6028036404b507aae3ca8e20cb731bfe20aebfd3a5b66a32fd1d2b462",
+    "bytes": 41021
+  },
+  "docs/research/2026-10-25-oversold-target-optimization/evaluation.csv": {
+    "sha256": "089b7093bd95b1f960ceabd20dbd2e7ffd3adeb4f6156e0614cc87a968f31246",
+    "bytes": 16784
+  },
+  "docs/research/2026-10-25-oversold-target-optimization/F1-selected-samples.csv": {
+    "sha256": "8b1a1b4a31699d0c1eb747c724519e49c600868a5437a2689ea7e23bbe1fcae3",
+    "bytes": 656787
+  },
+  "docs/research/2026-10-25-oversold-target-optimization/F1-minute-entry-summary.json": {
+    "sha256": "d2aed95cede639b511729463adeb75849ef8cdf650cef46b6bed5e4621870047",
+    "bytes": 4615
+  },
+  "docs/research/2026-10-25-oversold-target-optimization/优化研究报告.md": {
+    "sha256": "f78243c13841f6d7974c426bf1dc27f0a8c0d818aeddb6fb978f5cf0eb835272",
+    "bytes": 18709
+  },
+  "scripts/research/oversold-target-20261025/optimize.py": {
+    "sha256": "dd752392761f47e5c9bfd996cc6bf53c28609d1f10148d4464672d06b21a6275",
+    "bytes": 13141
+  },
+  "scripts/research/oversold-target-20261025/minute_check.py": {
+    "sha256": "df75e3cf3b5091cb0ebf898ccd1022c628d6be58b69a91b0e3627e8ec7f36c22",
+    "bytes": 6957
+  },
+  "scripts/research/oversold-target-20261025/chart.py": {
+    "sha256": "21a1e994941d430d6655b865b67393938203701de95d9c26e85c7291cc4aaabe",
+    "bytes": 2827
+  },
+  "scripts/research/oversold-target-20261025/evaluate.py": {
+    "sha256": "4b5cc51959e170dd043c25467240d74ec88c4843f14a591ef9934f9a103b1bc7",
+    "bytes": 8786
+  },
+  "scripts/research/oversold-target-20261025/verify.py": {
+    "sha256": "57e487d7a6da606f8bca9ce8d172e1af74432020c5110b5dbb9e9730d651f36d",
+    "bytes": 5032
+  },
+  "scripts/research/oversold-target-20261025/prepare.py": {
+    "sha256": "7f12476151eac72c1ec8ce2fb6390bf9c08dda6069d6aa530e01a4a8ef40b97f",
+    "bytes": 5776
+  }
+}

@@ -1,0 +1,572 @@
+{
+  "now10": {
+    "field": "ret7",
+    "op": "le",
+    "value": -10,
+    "group": "root",
+    "label": "截至当日七个收益间隔累计跌幅≥10%"
+  },
+  "now15": {
+    "field": "ret7",
+    "op": "le",
+    "value": -15,
+    "group": "root",
+    "label": "截至当日七个收益间隔累计跌幅≥15%"
+  },
+  "now20": {
+    "field": "ret7",
+    "op": "le",
+    "value": -20,
+    "group": "root",
+    "label": "截至当日七个收益间隔累计跌幅≥20%"
+  },
+  "prev10": {
+    "field": "prev_ret7",
+    "op": "le",
+    "value": -10,
+    "group": "root",
+    "label": "截至前一日七个收益间隔累计跌幅≥10%"
+  },
+  "prev15": {
+    "field": "prev_ret7",
+    "op": "le",
+    "value": -15,
+    "group": "root",
+    "label": "截至前一日七个收益间隔累计跌幅≥15%"
+  },
+  "prev20": {
+    "field": "prev_ret7",
+    "op": "le",
+    "value": -20,
+    "group": "root",
+    "label": "截至前一日七个收益间隔累计跌幅≥20%"
+  },
+  "body_lt_m2": {
+    "field": "body",
+    "op": "lt",
+    "value": -2,
+    "group": "body",
+    "label": "当日阴线实体>2%"
+  },
+  "body_lt_m4": {
+    "field": "body",
+    "op": "lt",
+    "value": -4,
+    "group": "body",
+    "label": "当日阴线实体>4%"
+  },
+  "body_lt_m6": {
+    "field": "body",
+    "op": "lt",
+    "value": -6,
+    "group": "body",
+    "label": "当日阴线实体>6%"
+  },
+  "body_-6_-2": {
+    "field": "body",
+    "op": "range",
+    "value": [
+      -6,
+      -2
+    ],
+    "group": "body",
+    "label": "当日实体[-6%,-2%)"
+  },
+  "body_-4_0": {
+    "field": "body",
+    "op": "range",
+    "value": [
+      -4,
+      0
+    ],
+    "group": "body",
+    "label": "当日实体[-4%,0%)"
+  },
+  "body_-2_2": {
+    "field": "body",
+    "op": "range",
+    "value": [
+      -2,
+      2
+    ],
+    "group": "body",
+    "label": "当日实体[-2%,2%)"
+  },
+  "body_0_2.5": {
+    "field": "body",
+    "op": "range",
+    "value": [
+      0,
+      2.5
+    ],
+    "group": "body",
+    "label": "当日实体[0%,2.5%)"
+  },
+  "body_green": {
+    "field": "body",
+    "op": "gt",
+    "value": 0,
+    "group": "body",
+    "label": "当日收阳"
+  },
+  "ret_-9.5_-5": {
+    "field": "ret1",
+    "op": "range",
+    "value": [
+      -9.5,
+      -5
+    ],
+    "group": "ret1",
+    "label": "当日涨跌幅[-9.5%,-5%)"
+  },
+  "ret_-8_-2": {
+    "field": "ret1",
+    "op": "range",
+    "value": [
+      -8,
+      -2
+    ],
+    "group": "ret1",
+    "label": "当日涨跌幅[-8%,-2%)"
+  },
+  "ret_-5_0": {
+    "field": "ret1",
+    "op": "range",
+    "value": [
+      -5,
+      0
+    ],
+    "group": "ret1",
+    "label": "当日涨跌幅[-5%,0%)"
+  },
+  "ret_0_3": {
+    "field": "ret1",
+    "op": "range",
+    "value": [
+      0,
+      3
+    ],
+    "group": "ret1",
+    "label": "当日涨跌幅[0%,3%)"
+  },
+  "not_limitdown": {
+    "field": "ret1",
+    "op": "gt",
+    "value": -9.5,
+    "group": "ret1",
+    "label": "当日收盘跌幅小于9.5%"
+  },
+  "gap_-5_-2": {
+    "field": "gap",
+    "op": "range",
+    "value": [
+      -5,
+      -2
+    ],
+    "group": "gap",
+    "label": "当日开盘缺口[-5%,-2%)"
+  },
+  "gap_-2_0": {
+    "field": "gap",
+    "op": "range",
+    "value": [
+      -2,
+      0
+    ],
+    "group": "gap",
+    "label": "当日开盘缺口[-2%,0%)"
+  },
+  "gap_0_2": {
+    "field": "gap",
+    "op": "range",
+    "value": [
+      0,
+      2
+    ],
+    "group": "gap",
+    "label": "当日开盘缺口[0%,2%)"
+  },
+  "gap_2_5": {
+    "field": "gap",
+    "op": "range",
+    "value": [
+      2,
+      5
+    ],
+    "group": "gap",
+    "label": "当日开盘缺口[2%,5%)"
+  },
+  "gap_nonnegative": {
+    "field": "gap",
+    "op": "ge",
+    "value": 0,
+    "group": "gap",
+    "label": "当日平开或高开"
+  },
+  "pos_le0.2": {
+    "field": "pos",
+    "op": "le",
+    "value": 0.2,
+    "group": "pos",
+    "label": "当日收盘位置≤20%"
+  },
+  "pos_le0.5": {
+    "field": "pos",
+    "op": "le",
+    "value": 0.5,
+    "group": "pos",
+    "label": "当日收盘位置≤50%"
+  },
+  "pos_ge0.5": {
+    "field": "pos",
+    "op": "ge",
+    "value": 0.5,
+    "group": "pos",
+    "label": "当日收盘位置≥50%"
+  },
+  "pos_ge0.8": {
+    "field": "pos",
+    "op": "ge",
+    "value": 0.8,
+    "group": "pos",
+    "label": "当日收盘位置≥80%"
+  },
+  "pos_middle": {
+    "field": "pos",
+    "op": "range",
+    "value": [
+      0.2,
+      0.6
+    ],
+    "group": "pos",
+    "label": "当日收盘位置[20%,60%)"
+  },
+  "volume_le0.7": {
+    "field": "volratio",
+    "op": "le",
+    "value": 0.7,
+    "group": "volume",
+    "label": "当日量/前5日均量≤0.7"
+  },
+  "volume_le1": {
+    "field": "volratio",
+    "op": "le",
+    "value": 1,
+    "group": "volume",
+    "label": "当日量/前5日均量≤1"
+  },
+  "volume_0.7_1.5": {
+    "field": "volratio",
+    "op": "range",
+    "value": [
+      0.7,
+      1.5
+    ],
+    "group": "volume",
+    "label": "当日量/前5日均量[0.7,1.5)"
+  },
+  "volume_1_2.5": {
+    "field": "volratio",
+    "op": "range",
+    "value": [
+      1,
+      2.5
+    ],
+    "group": "volume",
+    "label": "当日量/前5日均量[1,2.5)"
+  },
+  "volume_ge1.5": {
+    "field": "volratio",
+    "op": "ge",
+    "value": 1.5,
+    "group": "volume",
+    "label": "当日量/前5日均量≥1.5"
+  },
+  "amount_ge1": {
+    "field": "amount_yi",
+    "op": "ge",
+    "value": 1,
+    "group": "amount",
+    "label": "当日成交额≥1亿元"
+  },
+  "amount_ge3": {
+    "field": "amount_yi",
+    "op": "ge",
+    "value": 3,
+    "group": "amount",
+    "label": "当日成交额≥3亿元"
+  },
+  "amount_ge5": {
+    "field": "amount_yi",
+    "op": "ge",
+    "value": 5,
+    "group": "amount",
+    "label": "当日成交额≥5亿元"
+  },
+  "amount_le20": {
+    "field": "amount_yi",
+    "op": "le",
+    "value": 20,
+    "group": "amount",
+    "label": "当日成交额≤20亿元"
+  },
+  "amp_ge3": {
+    "field": "amp",
+    "op": "ge",
+    "value": 3,
+    "group": "amp",
+    "label": "当日振幅≥3%"
+  },
+  "amp_ge5": {
+    "field": "amp",
+    "op": "ge",
+    "value": 5,
+    "group": "amp",
+    "label": "当日振幅≥5%"
+  },
+  "amp_ge7": {
+    "field": "amp",
+    "op": "ge",
+    "value": 7,
+    "group": "amp",
+    "label": "当日振幅≥7%"
+  },
+  "amp_le5": {
+    "field": "amp",
+    "op": "le",
+    "value": 5,
+    "group": "amp",
+    "label": "当日振幅≤5%"
+  },
+  "lower_ge1": {
+    "field": "lower_pct",
+    "op": "ge",
+    "value": 1,
+    "group": "lower",
+    "label": "当日下影/昨收≥1%"
+  },
+  "lower_ge2": {
+    "field": "lower_pct",
+    "op": "ge",
+    "value": 2,
+    "group": "lower",
+    "label": "当日下影/昨收≥2%"
+  },
+  "wick_ge.3": {
+    "field": "wick_fraction",
+    "op": "ge",
+    "value": 0.3,
+    "group": "lower",
+    "label": "当日下影占振幅≥30%"
+  },
+  "prev_body_lt_m2": {
+    "field": "prev_body",
+    "op": "lt",
+    "value": -2,
+    "group": "prev_body",
+    "label": "前一日阴线实体>2%"
+  },
+  "prev_body_lt_m4": {
+    "field": "prev_body",
+    "op": "lt",
+    "value": -4,
+    "group": "prev_body",
+    "label": "前一日阴线实体>4%"
+  },
+  "prev_ret_le_m3": {
+    "field": "prev_ret1",
+    "op": "le",
+    "value": -3,
+    "group": "prev_ret",
+    "label": "前一日收跌至少3%"
+  },
+  "prev_ret_ge0": {
+    "field": "prev_ret1",
+    "op": "ge",
+    "value": 0,
+    "group": "prev_ret",
+    "label": "前一日收盘不跌"
+  },
+  "prev_amp_ge5": {
+    "field": "prev_amp",
+    "op": "ge",
+    "value": 5,
+    "group": "prev_amp",
+    "label": "前一日振幅≥5%"
+  },
+  "prev_amp_ge7": {
+    "field": "prev_amp",
+    "op": "ge",
+    "value": 7,
+    "group": "prev_amp",
+    "label": "前一日振幅≥7%"
+  },
+  "prev_pos_le.8": {
+    "field": "prev_pos",
+    "op": "le",
+    "value": 0.8,
+    "group": "prev_pos",
+    "label": "前一日收盘位置≤80%"
+  },
+  "rsi_le20": {
+    "field": "rsi6",
+    "op": "le",
+    "value": 20,
+    "group": "rsi",
+    "label": "简单6日RSI≤20"
+  },
+  "rsi_le30": {
+    "field": "rsi6",
+    "op": "le",
+    "value": 30,
+    "group": "rsi",
+    "label": "简单6日RSI≤30"
+  },
+  "bias5_le_m3": {
+    "field": "bias5",
+    "op": "le",
+    "value": -3,
+    "group": "bias5",
+    "label": "5日乖离≤−3%"
+  },
+  "bias5_le_m5": {
+    "field": "bias5",
+    "op": "le",
+    "value": -5,
+    "group": "bias5",
+    "label": "5日乖离≤−5%"
+  },
+  "bias5_le_m8": {
+    "field": "bias5",
+    "op": "le",
+    "value": -8,
+    "group": "bias5",
+    "label": "5日乖离≤−8%"
+  },
+  "bias20_le_m10": {
+    "field": "bias20",
+    "op": "le",
+    "value": -10,
+    "group": "bias20",
+    "label": "20日乖离≤−10%"
+  },
+  "bias20_ge_m10": {
+    "field": "bias20",
+    "op": "ge",
+    "value": -10,
+    "group": "bias20",
+    "label": "20日乖离≥−10%"
+  },
+  "down7_ge5": {
+    "field": "down7",
+    "op": "ge",
+    "value": 5,
+    "group": "down7",
+    "label": "近7日收跌天数≥5"
+  },
+  "down7_ge6": {
+    "field": "down7",
+    "op": "ge",
+    "value": 6,
+    "group": "down7",
+    "label": "近7日收跌天数≥6"
+  },
+  "hold_low": {
+    "field": "hold_low",
+    "op": "bool",
+    "value": true,
+    "group": "hold_low",
+    "label": "当日最低不低于前日最低"
+  },
+  "close_above_prev_low": {
+    "field": "close_above_prev_low",
+    "op": "bool",
+    "value": true,
+    "group": "close_above_prev_low",
+    "label": "当日收盘不低于前日最低"
+  },
+  "ma5_rising": {
+    "field": "ma5_rising",
+    "op": "bool",
+    "value": true,
+    "group": "ma5_rising",
+    "label": "当日5日均线不下降"
+  },
+  "limit_memory20": {
+    "field": "limit_memory20",
+    "op": "bool",
+    "value": true,
+    "group": "limit_memory20",
+    "label": "此前20日有收盘涨停记忆"
+  },
+  "before_drop_ge10": {
+    "field": "before_drop_ret",
+    "op": "ge",
+    "value": 10,
+    "group": "before_drop",
+    "label": "下跌前13个收益间隔涨幅≥10%"
+  },
+  "breadth_ge0.3": {
+    "field": "breadth",
+    "op": "ge",
+    "value": 0.3,
+    "group": "breadth",
+    "label": "当日可用样本池上涨占比≥30%"
+  },
+  "breadth_ge0.5": {
+    "field": "breadth",
+    "op": "ge",
+    "value": 0.5,
+    "group": "breadth",
+    "label": "当日可用样本池上涨占比≥50%"
+  },
+  "breadth_ge0.7": {
+    "field": "breadth",
+    "op": "ge",
+    "value": 0.7,
+    "group": "breadth",
+    "label": "当日可用样本池上涨占比≥70%"
+  },
+  "breadth_le.3": {
+    "field": "breadth",
+    "op": "le",
+    "value": 0.3,
+    "group": "breadth",
+    "label": "当日可用样本池上涨占比≤30%"
+  },
+  "breadth_improving": {
+    "field": "breadth_delta",
+    "op": "ge",
+    "value": 0,
+    "group": "breadth_delta",
+    "label": "当日样本池上涨占比不低于前日"
+  },
+  "market_ge-1": {
+    "field": "market_ret",
+    "op": "ge",
+    "value": -1,
+    "group": "market",
+    "label": "当日样本池涨跌幅中位数≥-1%"
+  },
+  "market_ge0": {
+    "field": "market_ret",
+    "op": "ge",
+    "value": 0,
+    "group": "market",
+    "label": "当日样本池涨跌幅中位数≥0%"
+  },
+  "relative_le-2": {
+    "field": "relative_ret",
+    "op": "le",
+    "value": -2,
+    "group": "relative",
+    "label": "当日弱于样本池涨跌幅中位数至少2%"
+  },
+  "relative_le-4": {
+    "field": "relative_ret",
+    "op": "le",
+    "value": -4,
+    "group": "relative",
+    "label": "当日弱于样本池涨跌幅中位数至少4%"
+  }
+}

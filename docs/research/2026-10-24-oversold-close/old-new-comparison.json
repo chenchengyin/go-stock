@@ -1,0 +1,28 @@
+{
+  "old_n": 477,
+  "new_common_period_n": 477,
+  "membership": {
+    "both": 477,
+    "left_only": 0,
+    "right_only": 0
+  },
+  "price_mismatch_count": 0,
+  "label_mismatch_count": 0,
+  "old_generated": "2026-10-21T09:29:27+08:00",
+  "old_end": "2026-10-20",
+  "new_end": "2026-10-22",
+  "old": {
+    "n": 477,
+    "days": 57,
+    "yang_pct": 81.55136268343816,
+    "net_win_pct": 76.31027253668763,
+    "mean_net_pct": 3.391427992526179
+  },
+  "new_common": {
+    "n": 477,
+    "days": 57,
+    "yang_pct": 81.55136268343816,
+    "net_win_pct": 76.31027253668763,
+    "mean_net_pct": 3.391427992526179
+  }
+}

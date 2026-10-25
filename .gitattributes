@@ -1,1 +1,4 @@
 backend/data/cache/mainboard_floatcap50_2024/daily.gob filter=lfs diff=lfs merge=lfs -text
+
+# Compressed research datasets use LFS to keep ordinary Git pushes bounded.
+docs/research/**/*.gz filter=lfs diff=lfs merge=lfs -text

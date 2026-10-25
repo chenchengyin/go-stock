@@ -1,0 +1,139 @@
+{
+  "dates": {
+    "dates": [
+      "2026-10-23",
+      "2026-10-22",
+      "2026-10-21",
+      "2026-10-20",
+      "2026-10-19",
+      "2026-10-16",
+      "2026-10-15",
+      "2026-10-14",
+      "2026-10-13",
+      "2026-10-12",
+      "2026-10-09",
+      "2026-10-08"
+    ],
+    "generated_at": "2026-10-25T00:00:14+08:00|2026-10-23T09:25:15+08:00"
+  },
+  "days": [
+    {
+      "date": "2026-10-23",
+      "count": 5,
+      "confirmed": true,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-22",
+      "count": 0,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-21",
+      "count": 0,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-20",
+      "count": 0,
+      "confirmed": false,
+      "pool_reconstructed": true,
+      "data_incomplete": true,
+      "status": 200
+    },
+    {
+      "date": "2026-10-19",
+      "count": 1,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-16",
+      "count": 0,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-15",
+      "count": 2,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-14",
+      "count": 0,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-13",
+      "count": 6,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-12",
+      "count": 2,
+      "confirmed": null,
+      "pool_reconstructed": null,
+      "data_incomplete": null,
+      "status": 200
+    },
+    {
+      "date": "2026-10-09",
+      "count": 4,
+      "confirmed": false,
+      "pool_reconstructed": true,
+      "data_incomplete": true,
+      "status": 200
+    },
+    {
+      "date": "2026-10-08",
+      "count": 0,
+      "confirmed": false,
+      "pool_reconstructed": true,
+      "data_incomplete": true,
+      "status": 200
+    }
+  ],
+  "charts": [
+    {
+      "code": "600495.XSHG",
+      "date": "2026-10-20",
+      "source": "tencent",
+      "status": "ok",
+      "anchor_index": 60,
+      "before_count": 60,
+      "after_count": 3,
+      "status_code": 200
+    },
+    {
+      "code": "601091.XSHG",
+      "date": "2026-10-09",
+      "source": "tencent",
+      "status": "ok",
+      "anchor_index": 10,
+      "before_count": 10,
+      "after_count": 5,
+      "status_code": 200
+    }
+  ]
+}

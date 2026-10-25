@@ -1,8 +1,76 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trading_app/features/radar/data/red_t1_intraday_repository.dart';
 
+Map<String, dynamic> _chartResponse(double closing) => {
+  'date': '2026-09-25',
+  'items': {
+    '600000.XSHG': {
+      'code': '600000.XSHG',
+      'date': '2026-09-25',
+      'prevClose': 10,
+      'bars': [
+        {'time': '09:30', 'price': 10},
+        {'time': '15:00', 'price': closing},
+      ],
+    },
+  },
+};
+
 void main() {
+  test(
+    'refresh cannot be repopulated by an older pending intraday response',
+    () async {
+      final pending = Completer<Map<String, dynamic>>();
+      var requests = 0;
+      final repository = RedT1IntradayRepository(
+        fetchBatch: (_, __, ___) {
+          requests++;
+          return requests == 1
+              ? pending.future
+              : Future.value(_chartResponse(12));
+        },
+      );
+      final old = repository.load('2026-09-24', [
+        '600000.XSHG',
+      ], moduleCode: 'radar.main_strategy');
+      repository.clearCache();
+      pending.complete(_chartResponse(10.1));
+      await old;
+      final refreshed = await repository.load('2026-09-24', [
+        '600000.XSHG',
+      ], moduleCode: 'radar.main_strategy');
+      expect(requests, 2);
+      expect(refreshed['600000.XSHG']!.bars.last.price, 12);
+    },
+  );
+
+  test('module scoped refresh keeps other strategies cached', () async {
+    final requests = <String>[];
+    final repository = RedT1IntradayRepository(
+      fetchBatch: (_, __, module) async {
+        requests.add(module);
+        return _chartResponse(12);
+      },
+    );
+    for (final module in ['radar.red_strategy', 'radar.main_strategy']) {
+      await repository.load('2026-09-24', ['600000.XSHG'], moduleCode: module);
+    }
+    repository.clearCache(moduleCode: 'radar.main_strategy');
+    await repository.load('2026-09-24', [
+      '600000.XSHG',
+    ], moduleCode: 'radar.red_strategy');
+    await repository.load('2026-09-24', [
+      '600000.XSHG',
+    ], moduleCode: 'radar.main_strategy');
+    expect(requests, [
+      'radar.red_strategy',
+      'radar.main_strategy',
+      'radar.main_strategy',
+    ]);
+  });
+
   test('空结果可重新请求，恢复后的有效分时会被缓存', () async {
     var requestCount = 0;
     final repository = RedT1IntradayRepository(

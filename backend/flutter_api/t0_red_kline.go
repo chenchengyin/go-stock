@@ -351,7 +351,7 @@ func newRedKlineHandler() http.HandlerFunc {
 		if moduleCode == "" {
 			moduleCode = redT0StrategyModuleCode
 		}
-		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode {
+		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode && moduleCode != "radar.main_strategy" {
 			WriteAuthError(w, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "模块不存在"))
 			return
 		}
@@ -387,12 +387,18 @@ func newRedKlineHandler() http.HandlerFunc {
 			}
 			daily := make(map[string][]dailyBar, len(codes))
 			archived := loadRedKlineDaily(date)
+			reconstructed, _ := readT0HistoricalPoolReconstruction(date)
 			for _, code := range codes {
 				shortCode := t0ShortCodeFromResultCode(code)
 				bars := shared.Daily[shortCode]
 				if _, index := dailyBarOnDate(bars, date); index < 0 {
 					if archivedBars := archived[shortCode]; len(archivedBars) > 0 {
 						bars = archivedBars
+					}
+				}
+				if _, index := dailyBarOnDate(bars, date); index < 0 && reconstructed != nil {
+					if recoveredBars := reconstructed.Daily[shortCode]; len(recoveredBars) > 0 {
+						bars = recoveredBars
 					}
 				}
 				daily[shortCode] = bars

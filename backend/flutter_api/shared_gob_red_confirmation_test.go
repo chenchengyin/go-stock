@@ -194,7 +194,15 @@ func TestSharedGobRedHistoryUsesDatedCachePoolAndSharedBars(t *testing.T) {
 
 func TestSharedGobRedDateListRevisionChangesWhenListIsConfirmed(t *testing.T) {
 	isolateSharedGobConfirmation(t)
-	date, _ := writeStaleSharedGobFixture(t)
+	date := "2026-10-23"
+	if err := writeMainboardFloatCap50Gob(mainboardSharedGobPath(), MainboardFloatCap50Gob{
+		SchemaVersion: 2, GeneratedAt: "2026-10-23T09:25:00+08:00",
+		Stocks:         []MainboardFloatCap50Stock{{Code: "600000", FloatMarketCapYi: 100}},
+		Daily:          map[string][]dailyBar{"600000": {{Date: date, Close: 10}}},
+		SelectionPools: map[string][]MainboardT0PoolStock{date: {{Code: "600000", MarketCapYi: 100}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	getRevision := func() string {
 		t.Helper()
 		r := httptest.NewRecorder()
@@ -473,7 +481,8 @@ func TestSharedGobHistoryReadinessDoesNotBlockOnBenchmarkDownload(t *testing.T) 
 }
 
 func TestSharedGobDateListIncludesTodayBeforeAuction(t *testing.T) {
-	dates := sharedGobRedDatesDescendingAt(&mainboardSharedGobData{Dates: []string{"2026-10-14"}}, time.Date(2026, 10, 15, 8, 0, 0, 0, chinaLocation()))
+	isolateSharedGobConfirmation(t)
+	dates := sharedGobRedDatesDescendingAt(&mainboardSharedGobData{Dates: []string{"2026-10-14"}, SelectionPools: map[string][]t0Stock{"2026-10-14": {{ShortCode: "600000"}}}}, time.Date(2026, 10, 15, 8, 0, 0, 0, chinaLocation()))
 	if len(dates) != 2 || dates[0] != "2026-10-15" {
 		t.Fatalf("tomorrow follows old list before auction: %v", dates)
 	}

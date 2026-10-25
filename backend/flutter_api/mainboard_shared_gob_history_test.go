@@ -42,6 +42,7 @@ func TestSharedGobDailyForStocksUsesGobFirstAndFallsBackByCode(t *testing.T) {
 }
 
 func TestLoadOrFetchSharedGobT0DailyPrefersCompleteTodayLegacyPool(t *testing.T) {
+	isolateSharedGobConfirmation(t)
 	oldRoot := t0CacheRootPath
 	t0CacheRootPath = t.TempDir()
 	t.Cleanup(func() { t0CacheRootPath = oldRoot })
@@ -58,6 +59,7 @@ func TestLoadOrFetchSharedGobT0DailyPrefersCompleteTodayLegacyPool(t *testing.T)
 
 	today := time.Now().In(chinaLocation()).Format("2006-01-02")
 	previous := time.Now().In(chinaLocation()).AddDate(0, 0, -1).Format("2006-01-02")
+	sharedGobPriorDateFetcher = func(string) (string, error) { return previous, nil }
 	sharedPool := []MainboardT0PoolStock{{Code: "600001", Name: "A", MarketCapYi: 100}}
 	sharedDaily := map[string][]dailyBar{
 		"600001": {{Date: previous, Open: 10, Close: 10, High: 10, Low: 10, Volume: 1, AmountYi: 1, AmountVerified: true}, {Date: today, Open: 10, Close: 10, High: 10, Low: 10, Volume: 1, AmountYi: 1, AmountVerified: true}},

@@ -1,0 +1,72 @@
+{
+  "source_hashes": {
+    "dated_universes.json": "089c8e2fca027558bde3d0f4d51b8aa9787a662824fd10401b2a30682872e318",
+    "historical_daily.jsonl": "f78b8e2a961e0b7505690dddfb8e530e6765f1a21010f2b5ff78ebcb0617ac02",
+    "full_history/historical_daily.jsonl": "7051e6d488fbcb966bddc053b92dd7c1d2d670ee87e69c98151e435ce8339dff"
+  },
+  "dates": {
+    "2026-10-08": {
+      "historical_universe_count": 3197,
+      "estimated_pool_count": 1920,
+      "unresolved_codes": [],
+      "threshold_uncertain_codes": [
+        "sh.600084"
+      ],
+      "supplemented_securities": [
+        "000045",
+        "000571",
+        "002146",
+        "002189",
+        "002632",
+        "002943",
+        "002992",
+        "600084",
+        "600234",
+        "600292",
+        "600363",
+        "600721",
+        "601002",
+        "603158",
+        "603212",
+        "603380",
+        "603590",
+        "603657"
+      ],
+      "supplemented_daily_bars": 12180,
+      "reference_date": "2026-09-30"
+    },
+    "2026-10-09": {
+      "historical_universe_count": 3197,
+      "estimated_pool_count": 1914,
+      "unresolved_codes": [],
+      "threshold_uncertain_codes": [],
+      "supplemented_securities": [
+        "000045",
+        "000571",
+        "002454",
+        "002943",
+        "002992",
+        "600292",
+        "601002",
+        "601091",
+        "603657"
+      ],
+      "supplemented_daily_bars": 5435,
+      "reference_date": "2026-10-08"
+    },
+    "2026-10-20": {
+      "historical_universe_count": 3195,
+      "estimated_pool_count": 1847,
+      "unresolved_codes": [],
+      "threshold_uncertain_codes": [],
+      "supplemented_securities": [
+        "002886",
+        "600495",
+        "603105",
+        "603348"
+      ],
+      "supplemented_daily_bars": 2712,
+      "reference_date": "2026-10-19"
+    }
+  }
+}

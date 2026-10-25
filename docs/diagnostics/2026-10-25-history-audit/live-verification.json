@@ -1,0 +1,124 @@
+{
+  "date_list_status": 200,
+  "available_dates": [
+    "2026-10-23",
+    "2026-10-22",
+    "2026-10-21",
+    "2026-10-19",
+    "2026-10-16",
+    "2026-10-15",
+    "2026-10-14",
+    "2026-10-13",
+    "2026-10-12"
+  ],
+  "checks": [
+    {
+      "date": "2026-10-23",
+      "status": 200,
+      "count": 5,
+      "confirmed": true,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-22",
+      "status": 200,
+      "count": 0,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-21",
+      "status": 200,
+      "count": 0,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-19",
+      "status": 200,
+      "count": 1,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-16",
+      "status": 200,
+      "count": 0,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-15",
+      "status": 200,
+      "count": 2,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-14",
+      "status": 200,
+      "count": 0,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-13",
+      "status": 200,
+      "count": 6,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-12",
+      "status": 200,
+      "count": 2,
+      "confirmed": false,
+      "data_incomplete": false,
+      "code": null,
+      "error": null
+    },
+    {
+      "date": "2026-10-08",
+      "status": 503,
+      "count": null,
+      "confirmed": false,
+      "data_incomplete": true,
+      "code": "T0_HISTORY_POOL_MISSING",
+      "error": "缺少当日完整股票池，无法可靠回算历史红策名单"
+    },
+    {
+      "date": "2026-10-09",
+      "status": 503,
+      "count": null,
+      "confirmed": false,
+      "data_incomplete": true,
+      "code": "T0_HISTORY_POOL_MISSING",
+      "error": "缺少当日完整股票池，无法可靠回算历史红策名单"
+    },
+    {
+      "date": "2026-10-20",
+      "status": 503,
+      "count": null,
+      "confirmed": false,
+      "data_incomplete": true,
+      "code": "T0_HISTORY_POOL_MISSING",
+      "error": "缺少当日完整股票池，无法可靠回算历史红策名单"
+    }
+  ]
+}

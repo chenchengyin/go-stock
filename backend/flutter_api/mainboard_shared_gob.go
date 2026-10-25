@@ -21,6 +21,7 @@ type mainboardSharedGobData struct {
 	SelectionPools map[string][]t0Stock
 	Daily          map[string][]dailyBar
 	Dates          []string
+	PoolErrors     map[string]string
 }
 
 var (
@@ -62,10 +63,12 @@ func loadMainboardSharedGob() (*mainboardSharedGobData, error) {
 	if err := gob.NewDecoder(file).Decode(&snapshot); err != nil {
 		return nil, fmt.Errorf("读取共享日线GOB失败: %w", err)
 	}
+	poolErrors := restoreT0PoolArchives(&snapshot)
 	loaded, err = buildMainboardSharedGobData(snapshot)
 	if err != nil {
 		return nil, err
 	}
+	loaded.PoolErrors = poolErrors
 	mainboardSharedGobMu.Lock()
 	mainboardSharedGob = loaded
 	mainboardSharedGobMu.Unlock()
@@ -147,7 +150,15 @@ func sharedGobT0SelectionPool(shared *mainboardSharedGobData, tradeDate string) 
 	if shared == nil {
 		return nil
 	}
+	if shared.PoolErrors[tradeDate] != "" {
+		return nil
+	}
 	stocks := shared.SelectionPools[tradeDate]
+	if len(stocks) == 0 {
+		if archive, err := readT0PoolArchive(tradeDate); err == nil {
+			return archive.Stocks
+		}
+	}
 	today := time.Now().In(chinaLocation()).Format("2006-01-02")
 	if tradeDate == today {
 		if cached, ok := readT0DailyCachePayloadFromDisk(tradeDate); ok &&
@@ -166,6 +177,9 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 	if err != nil {
 		return nil, nil, false, err
 	}
+	if issue := shared.PoolErrors[tradeDate]; issue != "" {
+		return nil, nil, false, fmt.Errorf("%s 股票池不可用: %s", tradeDate, issue)
+	}
 	snapshotStocks := shared.SelectionPools[tradeDate]
 	stocks := sharedGobT0SelectionPool(shared, tradeDate)
 	updated := len(snapshotStocks) == 0 || !sameT0StockPool(snapshotStocks, stocks)
@@ -180,6 +194,9 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 				return nil, nil, false, fmt.Errorf("股票池获取失败: %w", err)
 			}
 		}
+	}
+	if err := saveT0PoolArchive(tradeDate, stocks, "complete_selection_pool"); err != nil {
+		return nil, nil, false, fmt.Errorf("独立保存股票池失败: %w", err)
 	}
 
 	endDate := t0DailyFetchEndDate(tradeDate)
@@ -286,6 +303,7 @@ func loadOrFetchSharedGobT0Daily(tradeDate string) ([]t0Stock, map[string][]dail
 		if err != nil {
 			return nil, nil, false, err
 		}
+		loaded.PoolErrors = shared.PoolErrors
 		if err := writeMainboardFloatCap50Gob(mainboardSharedGobPath(), snapshot); err != nil {
 			return nil, nil, false, fmt.Errorf("写入共享日线GOB失败: %w", err)
 		}
@@ -354,8 +372,43 @@ func sharedGobRedDatesDescending(data *mainboardSharedGobData) []string {
 }
 
 func sharedGobRedDatesDescendingAt(data *mainboardSharedGobData, now time.Time) []string {
-	dates := sharedGobRedDatesDescending(data)
 	today := now.In(chinaLocation()).Format("2006-01-02")
+	dates := make([]string, 0, len(data.Dates))
+	seen := make(map[string]bool)
+	for _, date := range sharedGobRedDatesDescending(data) {
+		if date > today || isT0WeekendDate(date) {
+			continue
+		}
+		_, confirmed, confirmationErr := loadSharedGobRedConfirmation(date)
+		if confirmationErr != nil || (data.PoolErrors[date] != "" && !confirmed) {
+			continue
+		}
+		ready := confirmed || len(data.SelectionPools[date]) > 0
+		if !ready {
+			_, err := readT0PoolArchive(date)
+			ready = err == nil
+		}
+		if !ready {
+			_, err := readT0HistoricalPoolReconstruction(date)
+			ready = err == nil
+		}
+		if ready {
+			dates = append(dates, date)
+			seen[date] = true
+		}
+	}
+	// A confirmed result remains usable even if its day has not yet been
+	// appended to the shared daily-price calendar.
+	files, _ := filepath.Glob(filepath.Join(t0CacheRootPath, "t0", "selection", "t0_red_confirmed_*.json"))
+	for _, path := range files {
+		date := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(path), "t0_red_confirmed_"), ".json")
+		if !seen[date] && date <= today && !isT0WeekendDate(date) {
+			if _, found, err := loadSharedGobRedConfirmation(date); found && err == nil {
+				dates = append(dates, date)
+			}
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 	// shortcut: weekday only; use an exchange-session calendar when one is available here.
 	if isT0WeekendDate(today) {
 		return dates
@@ -507,8 +560,16 @@ func handleSharedGobRedSelectionUnconfirmed(w http.ResponseWriter, requestedDate
 		return
 	}
 
+	if issue := shared.PoolErrors[tradeDate]; issue != "" {
+		WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{
+			"date": tradeDate, "data_incomplete": true,
+			"code": "T0_HISTORY_POOL_INVALID", "error": issue,
+		})
+		return
+	}
 	var stocks []t0Stock
 	var daily map[string][]dailyBar
+	var reconstruction *t0HistoricalPoolReconstruction
 	if tradeDate == today || len(shared.SelectionPools[tradeDate]) > 0 {
 		stocks, daily, _, err = loadOrFetchSharedGobT0Daily(tradeDate)
 		if err != nil {
@@ -523,16 +584,23 @@ func handleSharedGobRedSelectionUnconfirmed(w http.ResponseWriter, requestedDate
 		// selections must use the pool captured for that trade date.
 		cache, ok := readT0DailyCachePayloadFromDisk(tradeDate)
 		if !ok || !cache.StockPoolComplete {
-			WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{
-				"date": tradeDate, "data_incomplete": true,
-				"error": "缺少当日完整股票池，无法可靠回算历史红策名单",
-			})
-			return
+			reconstruction, err = readT0HistoricalPoolReconstruction(tradeDate)
+			if err == nil {
+				stocks = reconstruction.Stocks
+				daily, _ = sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), reconstruction.Daily)
+			} else {
+				WriteJSONStatus(w, http.StatusServiceUnavailable, map[string]interface{}{
+					"date": tradeDate, "data_incomplete": true,
+					"code":  "T0_HISTORY_POOL_MISSING",
+					"error": "缺少当日完整股票池，无法可靠回算历史红策名单",
+				})
+				return
+			}
+		} else {
+			stocks = cache.Stocks
+			// Dated caches may predate the T0 bar; shared dated prices take precedence.
+			daily, _ = sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), cache.Daily)
 		}
-		stocks = cache.Stocks
-		// Dated caches preserve the point-in-time pool, but many were captured
-		// before the T0 bar existed. Use the shared GOB's dated bars for pricing.
-		daily, _ = sharedGobDailyForStocks(shared, stocks, t0DailyFetchEndDate(tradeDate), cache.Daily)
 	}
 
 	hist := make(map[string][]dailyBar, len(daily))
@@ -542,6 +610,9 @@ func handleSharedGobRedSelectionUnconfirmed(w http.ResponseWriter, requestedDate
 	limitUp := filterLimitUpRecent(stocks, hist, t0LimitUpMemoryDays, t0LimitUpCloseRet)
 	turnover := filterTurnover(limitUp, hist, 5.0)
 	warnings := make([]t0DataWarning, 0, 4)
+	if reconstruction != nil {
+		warnings = append(warnings, reconstruction.warning())
+	}
 	if warning := buildT0DailyCacheWarning(stocks, daily); warning != nil {
 		warnings = append(warnings, *warning)
 	}
@@ -611,6 +682,16 @@ func handleSharedGobRedSelectionUnconfirmed(w http.ResponseWriter, requestedDate
 	}
 	response := map[string]interface{}{
 		"date": tradeDate, "count": len(results), "results": results, "source": "shared_gob",
+	}
+	if reconstruction != nil {
+		response["pool_reconstructed"] = true
+		response["date_pool_exact"] = false
+		response["confirmed"] = false
+		response["complete"] = false
+		response["pool_source"] = reconstruction.Source
+		response["pool_reference_date"] = reconstruction.ReferenceDate
+		response["pool_reconstruction_method"] = reconstruction.Method
+		response["pool_stocks"] = len(stocks)
 	}
 	if tradeDate != today {
 		response["archived"] = true

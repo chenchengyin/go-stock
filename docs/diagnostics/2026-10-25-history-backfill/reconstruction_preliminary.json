@@ -1,0 +1,67 @@
+{
+  "2026-10-08": {
+    "processed": 2971,
+    "estimated_pool": 1914,
+    "pool_without_local_daily": [
+      "sh.600084",
+      "sh.600234",
+      "sh.600292",
+      "sh.600363",
+      "sh.600721",
+      "sh.601002",
+      "sh.603158",
+      "sh.603212",
+      "sh.603380",
+      "sh.603590",
+      "sh.603657",
+      "sz.000045",
+      "sz.000571",
+      "sz.002146",
+      "sz.002189"
+    ],
+    "no_nonzero_turnover": [
+      "sh.601059",
+      "sh.601198",
+      "sz.002860",
+      "sz.000016"
+    ],
+    "threshold_uncertainty": [
+      "sh.600084"
+    ]
+  },
+  "2026-10-09": {
+    "processed": 2971,
+    "estimated_pool": 1909,
+    "pool_without_local_daily": [
+      "sh.600292",
+      "sh.601002",
+      "sh.601091",
+      "sh.603657",
+      "sz.000045",
+      "sz.000571",
+      "sz.002454"
+    ],
+    "no_nonzero_turnover": [
+      "sh.601059",
+      "sh.601198",
+      "sz.002860",
+      "sz.000016"
+    ],
+    "threshold_uncertainty": []
+  },
+  "2026-10-20": {
+    "processed": 2971,
+    "estimated_pool": 1846,
+    "pool_without_local_daily": [
+      "sh.600495",
+      "sh.603105",
+      "sh.603348"
+    ],
+    "no_nonzero_turnover": [
+      "sh.601059",
+      "sh.601198",
+      "sz.000016"
+    ],
+    "threshold_uncertainty": []
+  }
+}

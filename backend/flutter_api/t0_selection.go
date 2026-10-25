@@ -730,10 +730,10 @@ func loadOrFetchT0Daily(tradeDate string) (stocks []t0Stock, daily map[string][]
 	if hasCache {
 		stocks = cached.Stocks
 	} else {
-		stocks, err = fetchStockPoolFromSinaStrict()
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("股票池获取失败: %w", err)
-		}
+		// Today's path already delegates to the shared-GOB loader above.
+		// A historical miss must never manufacture a complete cache using
+		// a live market-cap universe fetched under an old trade date.
+		return nil, nil, false, fmt.Errorf("缺少%s的完整历史股票池，拒绝使用当前股票池回填", tradeDate)
 	}
 	logger.SugaredLogger.Infof("[T0选股] 股票池(主板+市值): %d只 (%.1fs)", len(stocks), time.Since(t1).Seconds())
 

@@ -1,0 +1,18 @@
+{
+  "all": {
+    "signal_stock_weighted_yang": 81.55136268343816,
+    "same_dates_all_universe_yang_weighted_by_signal_n": 70.28276597859534,
+    "signal_equal_day_yang": 56.2130407718643,
+    "same_dates_universe_equal_day_yang": 52.6367000552195,
+    "signal_equal_day_net": -0.18223217383805307,
+    "same_dates_universe_equal_day_net": -0.03054697446153987
+  },
+  "2026": {
+    "signal_stock_weighted_yang": 76.32653061224491,
+    "same_dates_all_universe_yang_weighted_by_signal_n": 58.41397470383689,
+    "signal_equal_day_yang": 47.669401093770844,
+    "same_dates_universe_equal_day_yang": 49.64134578861559,
+    "signal_equal_day_net": -0.5448169491470716,
+    "same_dates_universe_equal_day_net": -0.30918190092188014
+  }
+}

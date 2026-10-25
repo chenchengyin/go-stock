@@ -1,0 +1,11 @@
+{
+  "counts_verified": true,
+  "partition_totals_verified": true,
+  "axes_do_not_clip_data": true,
+  "sha256": {
+    "distribution-summary.json": "2dc2e914effcc056d219694447506c3e146e57c15829ddfc9328171320acadb8",
+    "收益分段统计.csv": "9da50258c56e52d25a6398393fe2bd8f063376918ab2ca7248e38af53a0109b2",
+    "逐笔收益明细.csv": "9aa29f65d275a43a26d5ae63acdb591f799101fdd4ef70511009f609be376b1b",
+    "分布说明.md": "b6568133ff60e51284fa4cab1e75eed318ca73a596919dd6a3d1d818deac22b4"
+  }
+}

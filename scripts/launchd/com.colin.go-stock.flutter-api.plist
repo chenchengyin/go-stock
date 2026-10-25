@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  交易日（周一到周五）08:00 检查 Flutter API 是否在跑，未跑则拉起。
+  登录时及每5分钟检查 Flutter API，另保留工作日08:00检查。
   安装前把 __REPO_ROOT__ 替换成仓库绝对路径，例如 /Users/Zhuanz/aiproject/go-stock
 -->
 <plist version="1.0">
@@ -69,7 +69,10 @@
     </array>
 
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
 
     <key>StandardOutPath</key>
     <string>/tmp/go-stock-flutter-api-launchd.log</string>

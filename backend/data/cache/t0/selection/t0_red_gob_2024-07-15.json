@@ -1,0 +1,46 @@
+{
+  "date": "2024-07-15",
+  "saved_at": "2026-10-22T22:00:17+08:00",
+  "entry_source": "shared_gob_current_universe_approx",
+  "rule_set_version": "gob_myin_dt_dt_v1@1|gob_myin_myin_dt_v1@1|gob_dyin_myin_myin_t1_body_le_430_v1@1|gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3@3|gob_zt_t1_bear_close_m2_0_shadow_le_body_ma5_ma60_gap_001_3_v1@1|gob_zt_t1_bear_open_close_body_4combos_v1@1|gob_zt_t1_long_bear_low_open_boll_rebound_v1@1|gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1@1|gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_close_pos_le_80_body_v3@3",
+  "complete": false,
+  "results": [
+    {
+      "时间": "2024-07-15",
+      "T0开盘涨幅(%)": 2.38,
+      "T0收盘涨幅(%)": 0,
+      "涨停日期": "",
+      "MA20": 0,
+      "成交额(亿)": 16.25,
+      "股票代码": "600611.XSHG",
+      "股票名称": "大众交通",
+      "前一交易日收盘": 4.2,
+      "前一交易日收盘涨幅(%)": 0,
+      "标记": "",
+      "形态": "",
+      "形态样本数": 0,
+      "形态达标率(%)": 0,
+      "形态真亏率(%)": 0,
+      "买入信号": "",
+      "命中条件": [
+        "涨停→涨停→破板（T-1振幅6%～10%、下影≤1%）"
+      ],
+      "红策独立形态命中": [
+        {
+          "rule_key": "gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3",
+          "rule_version": 3,
+          "name": "涨停→涨停→破板（T-1振幅6%～10%、下影≤1%）",
+          "description": "形态条件\nT-3、T-2连续收盘涨停；T-1涨停破板，收阳或收阴均可。\nT-1振幅=(最高−最低)/T-2收盘×100%，须在6%～10%内（包含两端）；下影比例=(开盘与收盘中较低者−最低)/T-2收盘×100%，须≤1%（包含1%）。\n若T-1实体跌幅=(开盘−收盘)/开盘×100%≥5%，还要求T-1收盘较T-2收盘涨幅\u003c1%，或≥3%且\u003c4%（包含3%、不含4%）。\n\nT0开盘\n较T-1收盘涨幅为0%～3%，包含两端：允许平开，低开或高开超过3%不入选。盘前只展示候选，竞价确认后才入选。\n\n统计口径\n以T0开盘价为入场参考，按下一交易日（T+1）收盘评判。收益=(T+1收盘/T0开盘−1)×100%；真赚率指收益\u003e0%，达标率指收益≥2.5%（包含2.5%）。历史日线开盘为入场代理，样本统计不代表实际成交。",
+          "exit_horizon": "T+1_close",
+          "entry_source": "daily_open",
+          "entry_open": 4.3,
+          "stats_status": "pending"
+        }
+      ]
+    }
+  ],
+  "backfill_mode": "current_snapshot_universe_approx",
+  "shared_gob_generated_at": "2026-10-21T09:29:27+08:00",
+  "universe_stock_count": 1932,
+  "date_pool_exact": false
+}

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_manager.dart';
-import '../../../core/storage/red_kline_settings.dart';
+import '../../../core/storage/strategy_chart_settings.dart';
 import '../../../core/utils/stock_launcher.dart';
 import '../../auth/presentation/auth_view_model.dart';
 
@@ -56,34 +56,22 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
     );
   }
 
-  Future<void> _setRedKlineEnabled(bool enabled) async {
-    final saved = await context.read<RedKlineSettings>().setEnabled(enabled);
+  Future<void> _setChartEnabled(
+    String moduleCode,
+    String title,
+    bool enabled, {
+    bool intraday = false,
+  }) async {
+    final settings = context.read<StrategyChartSettings>();
+    final saved = await (intraday
+        ? settings.setIntradayEnabledFor(moduleCode, enabled)
+        : settings.setEnabledFor(moduleCode, enabled));
     if (!mounted || saved) return;
     showCupertinoDialog<void>(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('保存失败'),
-        content: const Text('红策K线开关未能保存，请稍后重试。'),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('知道了'),
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _setRedT1IntradayEnabled(bool enabled) async {
-    final saved = await context.read<RedKlineSettings>().setT1IntradayEnabled(
-      enabled,
-    );
-    if (!mounted || saved) return;
-    showCupertinoDialog<void>(
-      context: context,
-      builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('保存失败'),
-        content: const Text('红策T+1分时图开关未能保存，请稍后重试。'),
+        content: Text('$title开关未能保存，请稍后重试。'),
         actions: [
           CupertinoDialogAction(
             child: const Text('知道了'),
@@ -170,7 +158,7 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
     final tm = context.watch<ThemeManager>();
-    final redKline = context.watch<RedKlineSettings>();
+    final chartSettings = context.watch<StrategyChartSettings>();
     final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
     AppColors.of(context);
 
@@ -209,30 +197,53 @@ class _SystemSettingsPageState extends State<SystemSettingsPage> {
                           subtitle: '30秒/60秒/120秒',
                           showDivider: true,
                         ),
-                        _SettingsItem(
-                          icon: CupertinoIcons.chart_bar,
-                          title: '红策K线图',
-                          subtitle: '在红策股票下展示前60根及后续最多5根日K',
-                          showDivider: true,
-                          onTap: () => _setRedKlineEnabled(!redKline.enabled),
-                          trailing: CupertinoSwitch(
-                            value: redKline.enabled,
-                            onChanged: _setRedKlineEnabled,
+                        for (final strategy in const [
+                          (StrategyChartSettings.redModule, '红策'),
+                          (StrategyChartSettings.mainModule, '主板'),
+                        ]) ...[
+                          _SettingsItem(
+                            icon: CupertinoIcons.chart_bar,
+                            title: '${strategy.$2}K线图',
+                            subtitle: '在${strategy.$2}股票下展示前60根及后续最多5根日K',
+                            showDivider: true,
+                            onTap: () => _setChartEnabled(
+                              strategy.$1,
+                              '${strategy.$2}K线',
+                              !chartSettings.enabledFor(strategy.$1),
+                            ),
+                            trailing: CupertinoSwitch(
+                              value: chartSettings.enabledFor(strategy.$1),
+                              onChanged: (value) => _setChartEnabled(
+                                strategy.$1,
+                                '${strategy.$2}K线',
+                                value,
+                              ),
+                            ),
                           ),
-                        ),
-                        _SettingsItem(
-                          icon: CupertinoIcons.chart_bar,
-                          title: '红策T+1分时图',
-                          subtitle: '取下一交易日分钟线，不缓存；未来日期不显示',
-                          showDivider: true,
-                          onTap: () => _setRedT1IntradayEnabled(
-                            !redKline.t1IntradayEnabled,
+                          _SettingsItem(
+                            icon: CupertinoIcons.chart_bar,
+                            title: '${strategy.$2}T+1分时图',
+                            subtitle: '取下一交易日分钟线，未来日期不显示',
+                            showDivider: true,
+                            onTap: () => _setChartEnabled(
+                              strategy.$1,
+                              '${strategy.$2}T+1分时图',
+                              !chartSettings.intradayEnabledFor(strategy.$1),
+                              intraday: true,
+                            ),
+                            trailing: CupertinoSwitch(
+                              value: chartSettings.intradayEnabledFor(
+                                strategy.$1,
+                              ),
+                              onChanged: (value) => _setChartEnabled(
+                                strategy.$1,
+                                '${strategy.$2}T+1分时图',
+                                value,
+                                intraday: true,
+                              ),
+                            ),
                           ),
-                          trailing: CupertinoSwitch(
-                            value: redKline.t1IntradayEnabled,
-                            onChanged: _setRedT1IntradayEnabled,
-                          ),
-                        ),
+                        ],
                         if (isMacOS)
                           _SettingsItem(
                             icon: CupertinoIcons.arrow_right_arrow_left,

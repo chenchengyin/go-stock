@@ -1,0 +1,27 @@
+{
+  "raw_rows": 1302711,
+  "raw_symbols": 1956,
+  "dates": 677,
+  "last": "2026-10-22",
+  "eligible_rows": 1241262,
+  "oversold_before_outcome": 94678,
+  "missing_next": 376,
+  "next_anomaly_n": 19,
+  "raw_sha256": "5e7410d690627cea6e5e75aa0cd9f25b972c47d0d64df41615c0c4da1bf42932",
+  "generated_at": "2026-10-23T00:41:16+08:00",
+  "target": "net > 2.5 percentage points; cost 0.15 pp",
+  "next_anomaly_handling": "Keep in denominator, do not claim confirmed success",
+  "data_limitations": [
+    "current snapshot universe",
+    "current ST names, not full historical states",
+    "unadjusted daily prices",
+    "final close as entry proxy"
+  ],
+  "research_rows": 94302,
+  "research_symbols": 1882,
+  "rows_by_year": {
+    "2024": 30952,
+    "2025": 23567,
+    "2026": 39783
+  }
+}

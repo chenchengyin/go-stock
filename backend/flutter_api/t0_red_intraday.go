@@ -107,7 +107,7 @@ func newRedT1IntradayHandler() http.HandlerFunc {
 		if moduleCode == "" {
 			moduleCode = redT0StrategyModuleCode
 		}
-		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode {
+		if moduleCode != redT0StrategyModuleCode && moduleCode != sharedGobRedStrategyModuleCode && moduleCode != "radar.main_strategy" {
 			WriteAuthError(w, newAuthError(http.StatusBadRequest, "INVALID_ARGUMENT", "模块不存在"))
 			return
 		}

@@ -1,0 +1,18 @@
+{
+  "launchd_recovered_backend": true,
+  "checker_exit_code": 0,
+  "backend_stays_running_after_checker_exit": true,
+  "available_dates_after_restart": [
+    "2026-10-23",
+    "2026-10-22",
+    "2026-10-21",
+    "2026-10-19",
+    "2026-10-16",
+    "2026-10-15",
+    "2026-10-14",
+    "2026-10-13",
+    "2026-10-12"
+  ],
+  "confirmed_2026_10_23": 5,
+  "missing_2026_10_20_code": "T0_HISTORY_POOL_MISSING"
+}

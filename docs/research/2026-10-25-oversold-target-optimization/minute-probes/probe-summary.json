@@ -1,0 +1,62 @@
+[
+  {
+    "code": "605117",
+    "date": "2024-01-30",
+    "http": "200",
+    "exit": 0,
+    "status_code": 0,
+    "status_msg": "ok",
+    "series": 1,
+    "fields": [
+      [
+        "1",
+        "10",
+        "13",
+        "19"
+      ]
+    ],
+    "points": [
+      241
+    ]
+  },
+  {
+    "code": "603067",
+    "date": "2026-03-16",
+    "http": "200",
+    "exit": 0,
+    "status_code": 0,
+    "status_msg": "ok",
+    "series": 1,
+    "fields": [
+      [
+        "1",
+        "10",
+        "13",
+        "19"
+      ]
+    ],
+    "points": [
+      241
+    ]
+  },
+  {
+    "code": "600207",
+    "date": "2026-10-21",
+    "http": "200",
+    "exit": 0,
+    "status_code": 0,
+    "status_msg": "ok",
+    "series": 1,
+    "fields": [
+      [
+        "1",
+        "10",
+        "13",
+        "19"
+      ]
+    ],
+    "points": [
+      241
+    ]
+  }
+]

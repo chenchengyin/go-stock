@@ -295,6 +295,16 @@ func Start() {
 		}
 	}()
 
+	// Keep the point-in-time pool durable independently of slow daily downloads.
+	go func() {
+		runT0PoolArchiveTick(time.Now())
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for tick := range ticker.C {
+			runT0PoolArchiveTick(tick)
+		}
+	}()
+
 	// 每日 00:00~09:25 先补齐全部共享 GOB，再准备交易日选股池。
 	go func() {
 		runT0AutoPrewarmTick(time.Now())

@@ -1147,7 +1147,15 @@ class T0StrategyViewModel extends ChangeNotifier {
       if (_isModuleForbidden(error)) {
         _forbidModule(moduleCode);
       } else {
-        state.error = error.toString();
+        if (error is DioException) {
+          final data = error.response?.data;
+          final message = data is Map ? data['error'] : null;
+          state.error = message is String && message.trim().isNotEmpty
+              ? message
+              : '暂时无法加载数据，请稍后重试或选择其他日期';
+        } else {
+          state.error = error.toString();
+        }
         state.results = [];
         state.candidates = [];
         state.warmProgress = null;

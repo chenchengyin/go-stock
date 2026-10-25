@@ -1,0 +1,14 @@
+{
+  "training_year": "2024",
+  "root_count": 6,
+  "atom_count": 69,
+  "max_extra_conditions": 3,
+  "beam_per_root": 10,
+  "minimum_n": 180,
+  "minimum_days": 60,
+  "shortlist_max": 40,
+  "score": "minimum(equal-day hit, remove3 equal-day hit, known3 removed equal-day hit) - 1.28*SE - 0.5pp per extra condition",
+  "daily_cap": 5,
+  "rank": "entry-day amount descending; code ascending",
+  "target": "confirmed net > 2.5; next-price anomalies retained as unconfirmed non-success"
+}

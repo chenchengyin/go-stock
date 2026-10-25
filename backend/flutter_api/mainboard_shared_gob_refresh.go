@@ -213,6 +213,7 @@ func refreshMainboardSharedGob(current *mainboardSharedGobData, targetDate strin
 	if err != nil {
 		return 0, missing, err
 	}
+	loaded.PoolErrors = current.PoolErrors
 	if err := writeMainboardFloatCap50Gob(mainboardSharedGobPath(), next); err != nil {
 		return 0, missing, fmt.Errorf("publish refreshed GOB: %w", err)
 	}

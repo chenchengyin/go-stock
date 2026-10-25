@@ -1,0 +1,15 @@
+{
+  "checks": "passed",
+  "frozen_candidates": 3,
+  "frozen_hash_unchanged": true,
+  "strict_threshold_boundary_checked": true,
+  "top5_independently_reproduced": true,
+  "cooldown_spacing_checked": true,
+  "F1_selected_n": 818,
+  "F1_dates": 280,
+  "F1_close_targets": 255,
+  "F1_1450_targets": 246,
+  "F1_1455_targets": 251,
+  "minute_series_valid": 818,
+  "minute_volume_unit_crosschecks": 817
+}

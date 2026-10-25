@@ -1,0 +1,8 @@
+{
+  "frozen_candidates_sha256": "034efaa75f6c89ee05c50bd6095e90b1c66db2fa929ed70a40dac74a7a41ffe7",
+  "shortlist_sha256": "0e2505e6028036404b507aae3ca8e20cb731bfe20aebfd3a5b66a32fd1d2b462",
+  "features_sha256": "9481511108338db189e87b68d8d6fb51ab2c2b9cf4b9452a009ba0915fb453e3",
+  "protocol_sha256": "de2861d95800496b35d7b7db1d757253eec0b86b9dfe1a482605c9ea47d13174",
+  "holdout_checked": true,
+  "refit_after_2026_audit": false
+}

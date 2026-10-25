@@ -147,7 +147,10 @@ class RedT1IntradayRepository {
               return items;
             })()
             .then((items) {
-              if (items.values.every(_isCacheable)) {
+              // A cleared/replaced request may still resolve to its original
+              // caller, but must never repopulate the refreshed cache.
+              if (identical(_pending[key], request) &&
+                  items.values.every(_isCacheable)) {
                 final stableItems =
                     Map<String, RedT1IntradaySeries>.unmodifiable(items);
                 _successfulCache[key] = stableItems;
@@ -165,9 +168,14 @@ class RedT1IntradayRepository {
   bool _isCacheable(RedT1IntradaySeries series) =>
       series.bars.length >= 2 && series.prevClose > 0;
 
-  void clearCache() {
-    _pending.clear();
-    _successfulCache.clear();
+  void clearCache({String? moduleCode}) {
+    final keys = {..._pending.keys, ..._successfulCache.keys}
+        .where((key) => moduleCode == null || key.startsWith('$moduleCode:'))
+        .toList();
+    for (final key in keys) {
+      _pending.remove(key);
+      _successfulCache.remove(key);
+    }
   }
 
   /// Fetch one requested trading session for one card, without retaining it.

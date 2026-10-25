@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -84,6 +85,105 @@ ChangeNotifierProvider<ModulePermissionController> _permissionProvider({
 }
 
 void main() {
+  testWidgets('历史红策503后仍能切换日期并重试', (tester) async {
+    SharedPreferences.setMockInitialValues({'voice_announcement_asked': true});
+    final radarVm = _NoNetworkRadarViewModel();
+    final voiceVm = _TestVoiceAnnouncementViewModel();
+    var unavailable = true;
+    var reconstructed = false;
+    const reconstructionWarning = '历史补采重建：非当日原始股票池，结果仅供复盘参考';
+    final requestedDates = <String?>[];
+    final archivedRequests = <dynamic>[];
+    final strategyVm = T0StrategyViewModel(
+      now: () => DateTime(2026, 10, 25, 12),
+      request: (_, query) async {
+        if (query['list_dates'] == '1') {
+          return {'dates': ['2026-10-23', '2026-10-20']};
+        }
+        requestedDates.add(query['date'] as String?);
+        archivedRequests.add(query['archived']);
+        if (unavailable) {
+          final options = RequestOptions(path: '/api/t0-selection');
+          throw DioException.badResponse(
+            statusCode: 503,
+            requestOptions: options,
+            response: Response(
+              requestOptions: options,
+              statusCode: 503,
+              data: {'error': '缺少当日完整股票池，无法可靠回算历史红策名单'},
+            ),
+          );
+        }
+        return {
+          'date': query['date'],
+          'archived': true,
+          if (reconstructed) 'data_incomplete': true,
+          if (reconstructed)
+            'data_warning': {
+              'code': 'T0_HISTORY_POOL_RECONSTRUCTED',
+              'message': reconstructionWarning,
+            },
+          'results': [
+            {'股票代码': '600001.XSHG', '股票名称': '恢复股'},
+          ],
+        };
+      },
+    );
+    strategyVm.applyAvailableDatesForTest([
+      '2026-10-23',
+      '2026-10-20',
+    ], moduleCode: t0SharedGobRedStrategyModuleCode);
+    await strategyVm.selectDate(t0SharedGobRedStrategyModuleCode, '2026-10-20');
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<RadarViewModel>.value(value: radarVm),
+          ChangeNotifierProvider<T0StrategyViewModel>.value(value: strategyVm),
+          ChangeNotifierProvider<VoiceAnnouncementViewModel>.value(
+            value: voiceVm,
+          ),
+          _permissionProvider(),
+        ],
+        child: MaterialApp(home: const RadarPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('红策'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('缺少当日完整股票池'), findsOneWidget);
+    expect(find.textContaining('DioException'), findsNothing);
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+    final attemptsBeforeRetry = requestedDates.length;
+    await tester.tap(find.text('重试'));
+    await tester.pumpAndSettle();
+    expect(requestedDates.length, attemptsBeforeRetry + 1);
+    expect(requestedDates.last, '2026-10-20');
+    expect(archivedRequests.last, '1');
+    expect(
+      strategyVm.stateFor(t0SharedGobRedStrategyModuleCode).selectedDate,
+      '2026-10-20',
+    );
+    expect(find.textContaining('缺少当日完整股票池'), findsOneWidget);
+    unavailable = false;
+    await tester.tap(find.text('后一天'));
+    await tester.pumpAndSettle();
+    expect(find.text('恢复股'), findsOneWidget);
+    expect(
+      strategyVm.stateFor(t0SharedGobRedStrategyModuleCode).selectedDate,
+      '2026-10-23',
+    );
+    reconstructed = true;
+    await strategyVm.selectDate(t0SharedGobRedStrategyModuleCode, '2026-10-20');
+    await tester.pumpAndSettle();
+    expect(find.text(reconstructionWarning), findsOneWidget);
+    expect(find.text('恢复股'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    radarVm.dispose();
+    strategyVm.dispose();
+    voiceVm.dispose();
+  });
+
   for (final size in [const Size(800, 600), const Size(360, 480)]) {
     testWidgets('红策组合切换不显示常驻说明卡 $size', (tester) async {
       tester.view.physicalSize = size;

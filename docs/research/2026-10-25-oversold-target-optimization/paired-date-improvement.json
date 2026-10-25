@@ -1,0 +1,56 @@
+{
+  "F1_all": {
+    "dates": 280,
+    "equal_day_target_lift_pp": 8.214285714285714,
+    "moving_5_session_block_ci95_pp": [
+      4.1527192718519625,
+      12.64199482609946
+    ],
+    "note": "Matched signal dates, root top5 vs candidate top5; exploratory interval, no multiple-testing correction."
+  },
+  "F1_2026": {
+    "dates": 129,
+    "equal_day_target_lift_pp": 2.222222222222222,
+    "moving_5_session_block_ci95_pp": [
+      -3.513790429774039,
+      6.9565460558311445
+    ],
+    "note": "Matched signal dates, root top5 vs candidate top5; exploratory interval, no multiple-testing correction."
+  },
+  "F2_all": {
+    "dates": 275,
+    "equal_day_target_lift_pp": 0.8787878787878783,
+    "moving_5_session_block_ci95_pp": [
+      -2.076414229435581,
+      4.001409774436089
+    ],
+    "note": "Matched signal dates, root top5 vs candidate top5; exploratory interval, no multiple-testing correction."
+  },
+  "F2_2026": {
+    "dates": 114,
+    "equal_day_target_lift_pp": -1.710526315789474,
+    "moving_5_session_block_ci95_pp": [
+      -7.095262641138931,
+      3.543629746980756
+    ],
+    "note": "Matched signal dates, root top5 vs candidate top5; exploratory interval, no multiple-testing correction."
+  },
+  "F3_all": {
+    "dates": 265,
+    "equal_day_target_lift_pp": 2.8993710691823895,
+    "moving_5_session_block_ci95_pp": [
+      0.3238310597073939,
+      5.822870460528687
+    ],
+    "note": "Matched signal dates, root top5 vs candidate top5; exploratory interval, no multiple-testing correction."
+  },
+  "F3_2026": {
+    "dates": 124,
+    "equal_day_target_lift_pp": 0.4435483870967742,
+    "moving_5_session_block_ci95_pp": [
+      -3.0326316971674476,
+      4.273521505376343
+    ],
+    "note": "Matched signal dates, root top5 vs candidate top5; exploratory interval, no multiple-testing correction."
+  }
+}

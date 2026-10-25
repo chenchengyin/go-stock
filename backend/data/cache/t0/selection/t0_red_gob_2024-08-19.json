@@ -1,0 +1,46 @@
+{
+  "date": "2024-08-19",
+  "saved_at": "2026-10-22T22:00:17+08:00",
+  "entry_source": "shared_gob_current_universe_approx",
+  "rule_set_version": "gob_myin_dt_dt_v1@1|gob_myin_myin_dt_v1@1|gob_dyin_myin_myin_t1_body_le_430_v1@1|gob_zt_zt_pb_t1_amplitude_6_10_shadow_le_1_v3@3|gob_zt_t1_bear_close_m2_0_shadow_le_body_ma5_ma60_gap_001_3_v1@1|gob_zt_t1_bear_open_close_body_4combos_v1@1|gob_zt_t1_long_bear_low_open_boll_rebound_v1@1|gob_zt_t1_bear_t0_bear_close_entry_target_2_5_v1@1|gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_close_pos_le_80_body_v3@3",
+  "complete": false,
+  "results": [
+    {
+      "时间": "2024-08-19",
+      "T0开盘涨幅(%)": -2.98,
+      "T0收盘涨幅(%)": 0,
+      "涨停日期": "",
+      "MA20": 0,
+      "成交额(亿)": 15.36,
+      "股票代码": "000901.XSHE",
+      "股票名称": "航天科技",
+      "前一交易日收盘": 10.41,
+      "前一交易日收盘涨幅(%)": 0,
+      "标记": "",
+      "形态": "",
+      "形态样本数": 0,
+      "形态达标率(%)": 0,
+      "形态真亏率(%)": 0,
+      "买入信号": "",
+      "命中条件": [
+        "七日深跌后低开（T−1收盘位置≤80%）"
+      ],
+      "红策独立形态命中": [
+        {
+          "rule_key": "gob_t7_drop_le_22_25_gap_m4_m2_t1_amp_ge_7_1_close_pos_le_80_body_v3",
+          "rule_version": 3,
+          "name": "七日深跌后低开（T−1收盘位置≤80%）",
+          "description": "形态条件\nT-1收盘较T-7收盘累计下跌至少22.25%（包含22.25%），按(T-1收盘/T-7收盘−1)×100%≤−22.25%判断；七个交易日日线须逐日对齐。\nT-1振幅=(T-1最高−T-1最低)/T-2收盘×100%至少7.1%（包含7.1%）。\nT-1收盘位置=(收盘−最低)/(最高−最低)≤80%（包含80%），即收盘未进入日内最高的20%区间。\n\nT0开盘\n较T-1收盘低开，−4%≤开盘涨幅\u003c−2%（包含−4%、不含−2%）。盘前只展示候选，竞价确认后才入选。\n\n统计口径\n分别统计T0、下一交易日T+1的阳线实体达标率。实体=(当日收盘/当日开盘−1)×100%，须严格\u003e2.5%（不包含2.5%）。任一天达标按同一股票同一T0日期去重，两天均达标只计一次；缺少任一日开盘或收盘时不计入共同分母。形态达标不代表买入获利，不使用盘中最高价替代收盘价。",
+          "exit_horizon": "T0_T1_body",
+          "entry_source": "daily_open",
+          "entry_open": 10.1,
+          "stats_status": "pending"
+        }
+      ]
+    }
+  ],
+  "backfill_mode": "current_snapshot_universe_approx",
+  "shared_gob_generated_at": "2026-10-21T09:29:27+08:00",
+  "universe_stock_count": 1932,
+  "date_pool_exact": false
+}
