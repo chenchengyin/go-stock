@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ import 'search_results_panel.dart';
 import 'strategy_charts.dart';
 import 'strategy_stock_card.dart';
 import 'strategy_stock_charts.dart';
+import 'red_empty_reminders.dart';
 
 import 'red_t1_intraday_exposure.dart';
 import 'voice_manager_page.dart';
@@ -57,6 +59,8 @@ class _RadarPageState extends State<RadarPage>
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
   final Set<String> _shownT0WarningKeys = {};
+  final String _redEmptyReminder =
+      redEmptyReminders[Random().nextInt(redEmptyReminders.length)];
   int _chartRefreshRevision = 0;
   final Map<String, Future<Map<String, RedKlineWindow>>>
   _redRegressionKlineFutures = {};
@@ -1527,7 +1531,9 @@ class _RadarPageState extends State<RadarPage>
       StrategyCardVariant.purple => vm.purpleResultsFor(moduleCode),
       StrategyCardVariant.blue => vm.blueResultsFor(moduleCode),
     };
-    final emptyText = state.noData
+    final emptyText = kind == StrategyCardVariant.red
+        ? _redEmptyReminder
+        : state.noData
         ? '无数据'
         : switch (kind) {
             StrategyCardVariant.main => '暂无符合条件的股票',
@@ -1716,11 +1722,19 @@ class _RadarPageState extends State<RadarPage>
                 Expanded(
                   child: stocks.isEmpty
                       ? Center(
-                          child: Text(
-                            emptyText,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textTertiary,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: kind == StrategyCardVariant.red
+                                  ? 24
+                                  : 0,
+                            ),
+                            child: Text(
+                              emptyText,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textTertiary,
+                              ),
                             ),
                           ),
                         )
