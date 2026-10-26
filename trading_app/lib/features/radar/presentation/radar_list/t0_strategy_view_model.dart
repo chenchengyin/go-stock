@@ -485,6 +485,7 @@ class _MutableT0ModuleState {
   int purpleMinSamples = t0PurpleDefaultMinSamples;
   double purpleMinEarnPct = t0PurpleDefaultMinEarnPct;
   int loadGeneration = 0;
+  int resultsRevision = 0;
 }
 
 class T0StrategyViewModel extends ChangeNotifier {
@@ -663,6 +664,9 @@ class T0StrategyViewModel extends ChangeNotifier {
   _MutableT0ModuleState _mutableState(String moduleCode) {
     return _states.putIfAbsent(moduleCode, _MutableT0ModuleState.new);
   }
+
+  int resultsRevisionFor(String moduleCode) =>
+      _mutableState(moduleCode).resultsRevision;
 
   T0ModuleState stateFor(String moduleCode) {
     final state = _mutableState(moduleCode);
@@ -1276,6 +1280,7 @@ class T0StrategyViewModel extends ChangeNotifier {
     String? date,
   ) {
     final state = _mutableState(moduleCode);
+    state.resultsRevision++;
     state.loaded = true;
     state.sellMonitors = _parseSellMonitors(data['卖出监控']);
     state.dataIncomplete = data['data_incomplete'] as bool? ?? false;

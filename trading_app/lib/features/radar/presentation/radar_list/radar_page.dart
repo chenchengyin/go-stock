@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -59,8 +58,6 @@ class _RadarPageState extends State<RadarPage>
   final Set<String> _loadedModuleCodes = {};
   final Map<String, bool> _ascendingByModule = {};
   final Set<String> _shownT0WarningKeys = {};
-  final String _redEmptyReminder =
-      redEmptyReminders[Random().nextInt(redEmptyReminders.length)];
   int _chartRefreshRevision = 0;
   final Map<String, Future<Map<String, RedKlineWindow>>>
   _redRegressionKlineFutures = {};
@@ -1531,9 +1528,7 @@ class _RadarPageState extends State<RadarPage>
       StrategyCardVariant.purple => vm.purpleResultsFor(moduleCode),
       StrategyCardVariant.blue => vm.blueResultsFor(moduleCode),
     };
-    final emptyText = kind == StrategyCardVariant.red
-        ? _redEmptyReminder
-        : state.noData
+    final emptyText = state.noData
         ? '无数据'
         : switch (kind) {
             StrategyCardVariant.main => '暂无符合条件的股票',
@@ -1728,14 +1723,18 @@ class _RadarPageState extends State<RadarPage>
                                   ? 24
                                   : 0,
                             ),
-                            child: Text(
-                              emptyText,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
+                            child: kind == StrategyCardVariant.red
+                                ? RedEmptyReminder(
+                                    revision: vm.resultsRevisionFor(moduleCode),
+                                  )
+                                : Text(
+                                    emptyText,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textTertiary,
+                                    ),
+                                  ),
                           ),
                         )
                       : FutureBuilder<Map<String, RedKlineWindow>>(

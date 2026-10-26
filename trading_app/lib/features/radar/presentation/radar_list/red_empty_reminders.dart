@@ -1,4 +1,58 @@
-// 用户确认的最后两版文案；红策空列表时每次进入页面随机选一句。
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trading_app/core/theme/app_colors.dart';
+
+class RedEmptyReminder extends StatefulWidget {
+  const RedEmptyReminder({super.key, required this.revision});
+
+  final int revision;
+
+  @override
+  State<RedEmptyReminder> createState() => _RedEmptyReminderState();
+}
+
+class _RedEmptyReminderState extends State<RedEmptyReminder> {
+  static const _lastMessageKey = 'red_empty_reminder_last_message';
+  final _preferences = SharedPreferences.getInstance();
+  String? _message;
+  int _selectionRevision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _chooseNext();
+  }
+
+  @override
+  void didUpdateWidget(covariant RedEmptyReminder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.revision != widget.revision) _chooseNext();
+  }
+
+  Future<void> _chooseNext() async {
+    final revision = ++_selectionRevision;
+    final preferences = await _preferences;
+    if (!mounted || revision != _selectionRevision) return;
+    final previous = _message ?? preferences.getString(_lastMessageKey);
+    final choices = redEmptyReminders
+        .where((text) => text != previous)
+        .toList();
+    final next = choices[Random().nextInt(choices.length)];
+    setState(() => _message = next);
+    await preferences.setString(_lastMessageKey, next);
+  }
+
+  @override
+  Widget build(BuildContext context) => Text(
+    _message ?? '',
+    textAlign: TextAlign.center,
+    style: TextStyle(fontSize: 14, color: AppColors.textTertiary),
+  );
+}
+
+// 用户确认的最后两版文案；每次空结果加载后随机选一句，排除上次显示的句子。
 const redEmptyReminders = <String>[
   '操，我这傻逼又他妈想乱买了？',
   '我他妈脑子进屎了？亏那么多还手贱！',
